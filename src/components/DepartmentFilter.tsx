@@ -32,6 +32,15 @@ interface DepartmentFilterProps {
   onResolved?: (value: DepartmentFilterValue) => void;
   /** Keep the label for screen readers only, so the trigger lines up with sibling controls in a filter row. */
   hideLabel?: boolean;
+  /**
+   * Only list these departments. The default then falls back to the first allowed department when
+   * `defaultDepartmentName` is not among them. Leave unset to list every catalog department.
+   */
+  allowedDepartmentIds?: number[];
+  /** Offer the "All departments" option (default true). */
+  showAllOption?: boolean;
+  /** Counts shown next to each department instead of its catalog equipment count. */
+  equipmentCounts?: Record<number, number>;
 }
 
 const DepartmentFilter = ({
@@ -43,8 +52,13 @@ const DepartmentFilter = ({
   defaultDepartmentName,
   onResolved,
   hideLabel = false,
+  allowedDepartmentIds,
+  showAllOption = true,
+  equipmentCounts,
 }: DepartmentFilterProps) => {
-  const [departments, setDepartments] = useState<CatalogDepartment[]>(() => peekCatalogDepartments() ?? []);
+  const restrict = (list: CatalogDepartment[]) =>
+    allowedDepartmentIds ? list.filter((d) => allowedDepartmentIds.includes(d.id)) : list;
+  const [departments, setDepartments] = useState<CatalogDepartment[]>(() => restrict(peekCatalogDepartments() ?? []));
   const [loading, setLoading] = useState(() => peekCatalogDepartments() == null);
   const appliedDefaultRef = useRef(false);
   const resolvedRef = useRef(false);
@@ -55,9 +69,9 @@ const DepartmentFilter = ({
     const load = async () => {
       if (peekCatalogDepartments() == null) setLoading(true);
       try {
-        const list = await loadCatalogDepartments();
+        const loaded = await loadCatalogDepartments();
         if (cancelled) return;
-        if (!list) {
+        if (!loaded) {
           setDepartments([]);
           if (!resolvedRef.current) {
             resolvedRef.current = true;
@@ -65,15 +79,17 @@ const DepartmentFilter = ({
           }
           return;
         }
+        const list = restrict(loaded);
         setDepartments(list);
 
         let nextValue: DepartmentFilterValue = value;
         if (
-          defaultDepartmentName &&
+          (defaultDepartmentName || allowedDepartmentIds) &&
           !appliedDefaultRef.current &&
           value === "all"
         ) {
-          const match = findPreferredDepartment(list, defaultDepartmentName);
+          const preferred = defaultDepartmentName ? findPreferredDepartment(list, defaultDepartmentName) : undefined;
+          const match = preferred ?? (allowedDepartmentIds ? list[0] : undefined);
           if (match) {
             appliedDefaultRef.current = true;
             nextValue = match.id;
@@ -144,13 +160,15 @@ const DepartmentFilter = ({
           </div>
         </SelectTrigger>
         <SelectContent className="max-w-[min(100vw-2rem,28rem)]">
-          <SelectItem value="all" className="text-base font-semibold py-2.5">
-            All departments
-          </SelectItem>
+          {showAllOption ? (
+            <SelectItem value="all" className="text-base font-semibold py-2.5">
+              All departments
+            </SelectItem>
+          ) : null}
           {departments.map((dept) => (
             <SelectItem key={dept.id} value={String(dept.id)} className="text-base font-semibold py-2.5">
               <span className="whitespace-normal break-words leading-snug">
-                {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${dept.equipment_count}`}
+                {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${equipmentCounts?.[dept.id] ?? dept.equipment_count}`}
               </span>
             </SelectItem>
           ))}

@@ -164,6 +164,7 @@ export const trainingApi = {
   scheduleDemo: (id: number, startAt: string) => post<DemoRequest>(`demo-requests/${id}/schedule/`, { start_at: startAt }),
   cancelDemo: (id: number, reason: string) => post<DemoRequest>(`demo-requests/${id}/cancel/`, { reason }),
   withdrawDemo: (id: number, reason?: string) => post<DemoRequest>(`demo-requests/${id}/withdraw/`, { reason }),
+  waiveDemoCharge: (id: number, reason: string) => post<DemoRequest>(`demo-requests/${id}/waive/`, { reason }),
   demoAttendance: (id: number, input: { attended_count?: number; present_user_ids?: number[] }) =>
     post<DemoRequest>(`demo-requests/${id}/attendance/`, input),
   completeDemo: (id: number, input: { no_show?: boolean; attended_count?: number }) =>

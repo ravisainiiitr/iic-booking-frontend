@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, IndianRupee, Info, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
@@ -30,6 +30,7 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
   const [department, setDepartment] = useState<DepartmentFilterValue>("all");
   const [departmentReady, setDepartmentReady] = useState(false);
   const [trainingDepartments, setTrainingDepartments] = useState<TrainingEquipmentDepartment[] | null>(null);
+  const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
   const [defaultTerms, setDefaultTerms] = useState<DemoTerms | null>(null);
   const [equipment, setEquipment] = useState<TrainingEquipmentRef | null>(null);
   const [detail, setDetail] = useState<TrainingEquipmentDetail | null>(null);
@@ -55,9 +56,10 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
       if (alive) setStudents(res.data?.results ?? []);
     });
     void trainingApi.equipment({}).then((res) => {
-      if (!alive || !res.data) return;
-      setTrainingDepartments(res.data.departments ?? null);
-      setDefaultTerms(res.data.demo_terms ?? null);
+      if (!alive) return;
+      setTrainingDepartments(res.data?.departments ?? null);
+      setDefaultTerms(res.data?.demo_terms ?? null);
+      setDepartmentsLoaded(true);
     });
     return () => {
       alive = false;
@@ -118,9 +120,12 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
     if (!name || equipment.department !== name) setEquipment(null);
   };
 
-  const selectedDepartment = department === "all" ? null : trainingDepartments?.find((d) => d.id === department) ?? null;
-  const departmentHasNoEquipment = Boolean(trainingDepartments && department !== "all" && !selectedDepartment);
-  const openDepartments = (trainingDepartments ?? []).map((d) => `${d.name} (${d.equipment_count})`).join(", ");
+  const allowedDepartmentIds = useMemo(() => trainingDepartments?.map((d) => d.id), [trainingDepartments]);
+  const trainingCounts = useMemo(
+    () => Object.fromEntries((trainingDepartments ?? []).map((d) => [d.id, d.equipment_count])) as Record<number, number>,
+    [trainingDepartments],
+  );
+  const noTrainingEquipment = Boolean(trainingDepartments && !trainingDepartments.length);
 
   const chargeable = Boolean(quote?.chargeable);
   const balanceError = quote?.balance_error ?? null;
@@ -183,14 +188,28 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
         ))}
       </div>
 
-      <DepartmentFilter
-        value={department}
-        onChange={changeDepartment}
-        defaultDepartmentName={DEFAULT_CATALOG_DEPARTMENT_NAME}
-        onResolved={() => setDepartmentReady(true)}
-        className="max-w-xl"
-        triggerClassName="max-w-md"
-      />
+      {!departmentsLoaded ? (
+        <div className="flex h-11 max-w-xl items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading departments…
+        </div>
+      ) : noTrainingEquipment ? (
+        <p className="flex items-start gap-1.5 rounded-md border border-border/70 px-3 py-2 text-sm text-muted-foreground">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          No equipment is open for demonstration requests yet.
+        </p>
+      ) : (
+        <DepartmentFilter
+          value={department}
+          onChange={changeDepartment}
+          defaultDepartmentName={DEFAULT_CATALOG_DEPARTMENT_NAME}
+          allowedDepartmentIds={allowedDepartmentIds}
+          showAllOption={!allowedDepartmentIds}
+          equipmentCounts={allowedDepartmentIds ? trainingCounts : undefined}
+          onResolved={() => setDepartmentReady(true)}
+          className="max-w-xl"
+          triggerClassName="max-w-md"
+        />
+      )}
 
       <div className="space-y-1.5">
         <Label>
@@ -203,15 +222,6 @@ export function DemoRequestForm({ onCreated }: { onCreated: (request: DemoReques
           disabled={!departmentReady}
           emptyText={department === "all" ? "No matching equipment." : "No matching equipment in this department."}
         />
-        {departmentHasNoEquipment && !equipment ? (
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-            <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-            <span>
-              No equipment in this department is open for demonstration requests yet.
-              {openDepartments ? ` Open now: ${openDepartments}.` : ""}
-            </span>
-          </p>
-        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

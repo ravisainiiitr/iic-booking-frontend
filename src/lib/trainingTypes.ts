@@ -132,7 +132,10 @@ export type DemoStatus =
 
 export type DemoPurpose = "COURSE" | "RESEARCH_INDUCTION" | "OTHER";
 export type CurtailReasonCode = "INSTRUMENT_TIME" | "SAMPLE_CONSUMABLE" | "SAFETY_CAPACITY" | "POLICY_MAX" | "OTHER";
-export type DemoChargeMode = "FREE" | "WALLET";
+export type DemoChargeMode = "FREE" | "WALLET" | "WAIVED";
+
+/** Minimum length of the reason the OIC must give to waive a demonstration charge. */
+export const WAIVER_REASON_MIN_CHARS = 10;
 
 export interface DemoPermissions {
   withdraw: boolean;
@@ -143,6 +146,17 @@ export interface DemoPermissions {
   cancel: boolean;
   attendance: boolean;
   complete: boolean;
+  /** OIC / temporary OIC / Main Admin may waive the charge of this decided request. */
+  waive?: boolean;
+}
+
+export interface DemoChargeWaiver {
+  by: string;
+  by_id: number | null;
+  at: string | null;
+  reason: string;
+  amount: string;
+  refunded: string;
 }
 
 export interface DemoRevision {
@@ -190,6 +204,7 @@ export interface DemoRequest {
   charge_amount: string | null;
   charged: boolean;
   charge_text?: string;
+  charge_waiver?: DemoChargeWaiver | null;
   refund_amount: string | null;
   cancelled_by_side: string | null;
   cancel_reason: string | null;
@@ -227,6 +242,8 @@ export interface DemoDecisionInput {
   remarks?: string;
   charge_mode?: DemoChargeMode;
   rate_per_hour?: string;
+  waive_charge?: boolean;
+  waiver_reason?: string;
   start_at?: string;
 }
 

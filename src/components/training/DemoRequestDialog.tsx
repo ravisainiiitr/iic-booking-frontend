@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { formatINRAmount, formatINRWithPaise } from "@/lib/money";
 import { reservationConflicts, trainingApi } from "@/lib/trainingApi";
+import { WAIVER_REASON_MIN_CHARS } from "@/lib/trainingTypes";
 import type {
   CurtailReasonCode,
   DemoDecisionInput,
@@ -113,6 +114,8 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
   const [remarks, setRemarks] = useState("");
   const [quote, setQuote] = useState<DemoQuote | null>(null);
   const [rate, setRate] = useState("");
+  const [waive, setWaive] = useState(false);
+  const [waiverReason, setWaiverReason] = useState("");
   const [scheduleNow, setScheduleNow] = useState(false);
   const [startLocal, setStartLocal] = useState("");
   const [busy, setBusy] = useState(false);
@@ -128,7 +131,9 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
     );
   const effectiveDuration = mode === "curtail" ? durationNum : request.requested_duration_minutes;
   const showCharge = mode !== "reject";
-  const needsRate = Boolean(quote?.chargeable && !quote.rate_available);
+  const canWaive = showCharge && Boolean(quote?.chargeable);
+  const waiving = canWaive && waive;
+  const needsRate = Boolean(quote?.chargeable && !quote.rate_available) && !waiving;
 
   useEffect(() => {
     if (!showCharge || !Number.isInteger(effectiveDuration) || effectiveDuration <= 0) return;
@@ -158,6 +163,8 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
     if (mode === "reject" && !remarks.trim()) return "Remarks are required to reject a request.";
     if ((mode === "approve" || mode === "curtail") && scheduleNow && !fromLocalInputValue(startLocal)) return "Choose a start time or untick “Schedule now”.";
     if (showCharge && needsRate && parseRate(rate) <= 0) return "Enter the hourly rate to charge.";
+    if (waiving && waiverReason.trim().length < WAIVER_REASON_MIN_CHARS)
+      return `Give a reason of at least ${WAIVER_REASON_MIN_CHARS} characters for waiving the charge.`;
     return null;
   };
 
@@ -179,6 +186,10 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
     }
     if (remarks.trim()) input.remarks = remarks.trim();
     if (showCharge && needsRate) input.rate_per_hour = String(rate);
+    if (waiving) {
+      input.waive_charge = true;
+      input.waiver_reason = waiverReason.trim();
+    }
     if (mode === "propose" || ((mode === "approve" || mode === "curtail") && scheduleNow)) {
       input.start_at = fromLocalInputValue(startLocal);
     }
@@ -308,6 +319,14 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
                 ? "Course / curricular demonstration — free of charge (Training Policy setting)."
                 : "No charge for this demonstration."}
             </p>
+          ) : waiving ? (
+            <p>
+              <span className="font-medium">Charge waived</span>{" "}
+              <span className="text-muted-foreground">
+                {quote.rate_available && quote.amount ? `(${formatINRAmount(quote.amount)} not deducted). ` : ""}The faculty member sees your
+                name and reason.
+              </span>
+            </p>
           ) : needsRate ? (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">{quote.basis} Enter the hourly rate to charge the faculty member's wallet.</p>
@@ -326,11 +345,33 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
               </span>
             </p>
           )}
-          {quote?.balance_error ? (
+          {quote?.balance_error && !waiving ? (
             <p className="flex items-start gap-1.5 text-xs font-medium text-destructive" role="alert">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               {quote.balance_error} Approval will fail until they recharge.
             </p>
+          ) : null}
+          {canWaive ? (
+            <div className="space-y-1.5 border-t border-border/60 pt-2">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={waive} onCheckedChange={(v) => setWaive(v === true)} />
+                Waive demonstration charge
+              </label>
+              {waive ? (
+                <div className="space-y-1">
+                  <Label htmlFor="decide-waiver-reason">
+                    Reason for waiving <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    id="decide-waiver-reason"
+                    rows={2}
+                    value={waiverReason}
+                    onChange={(e) => setWaiverReason(e.target.value)}
+                    placeholder={`At least ${WAIVER_REASON_MIN_CHARS} characters — shown to the faculty member and kept in the audit log`}
+                  />
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -623,6 +664,7 @@ export function DemoRequestDialog({ requestId, open, onOpenChange, onChanged }: 
   const [error, setError] = useState<string | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [waiveOpen, setWaiveOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!requestId) return;
@@ -767,8 +809,13 @@ export function DemoRequestDialog({ requestId, open, onOpenChange, onChanged }: 
             {perms?.schedule ? <SchedulePanel key={`schedule-${request.id}-${request.approved_start_at}`} request={request} onDone={refresh} /> : null}
             {showAttendance ? <AttendancePanel key={`attendance-${request.id}-${request.status}`} request={request} onDone={refresh} /> : null}
 
-            {perms?.withdraw || perms?.cancel ? (
+            {perms?.withdraw || perms?.cancel || perms?.waive ? (
               <div className="flex flex-wrap justify-end gap-2">
+                {perms.waive ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setWaiveOpen(true)}>
+                    Waive charge
+                  </Button>
+                ) : null}
                 {perms.withdraw ? (
                   <Button type="button" variant="outline" size="sm" onClick={() => setWithdrawOpen(true)}>
                     Withdraw request
@@ -816,6 +863,26 @@ export function DemoRequestDialog({ requestId, open, onOpenChange, onChanged }: 
               destructive
               onConfirm={async (text) => {
                 const res = await runTrainingAction(trainingApi.cancelDemo(request.id, text), "Demonstration cancelled.");
+                if (res.error) return false;
+                refresh();
+                return true;
+              }}
+            />
+            <PromptDialog
+              open={waiveOpen}
+              onOpenChange={setWaiveOpen}
+              title="Waive the demonstration charge?"
+              description={
+                request.charged
+                  ? `The ${money(request.charge_amount)} already deducted is refunded in full to the faculty member's wallet. They see your name and reason; the waiver is kept in the audit log.`
+                  : `The ${money(request.charge_amount)} charge will not be deducted. The faculty member sees your name and reason; the waiver is kept in the audit log.`
+              }
+              label="Reason for waiving"
+              placeholder={`At least ${WAIVER_REASON_MIN_CHARS} characters`}
+              minLength={WAIVER_REASON_MIN_CHARS}
+              confirmLabel="Waive charge"
+              onConfirm={async (text) => {
+                const res = await runTrainingAction(trainingApi.waiveDemoCharge(request.id, text), "Charge waived.");
                 if (res.error) return false;
                 refresh();
                 return true;

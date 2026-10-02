@@ -8,12 +8,12 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
     steps: [
       {
         title: "Request a demonstration",
-        body: "Open Training & Demos, choose the department (IIC by default) and the equipment, and request a demonstration for your class or group. The form shows the estimated charge.",
+        body: "Open Training & Demos, choose the department (only departments with demonstration equipment are listed; IIC by default) and the equipment, and request a demonstration for your class or group. The form shows the estimated charge.",
       },
       { title: "Nominate students", body: "When a training call is open, nominate your students for hands-on training before the deadline." },
     ],
     rules: [
-      "Demonstrations are charged at the equipment's internal IITR rate and deducted from your wallet when the OIC approves. Cancel early for a full or half refund; a rejected request costs nothing.",
+      "Demonstrations are charged at the equipment's internal IITR rate and deducted from your wallet when the OIC approves, unless the OIC waives the charge (you see who waived it and why). Cancel early for a full or half refund; a rejected request costs nothing.",
     ],
   },
   student: {
@@ -29,7 +29,10 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
         body: "Open Training workspace to answer demonstration requests, open nomination calls, schedule sessions and award certifications.",
       },
     ],
-    rules: ["Hands-on seats are allotted fairly among the nominated students."],
+    rules: [
+      "Hands-on seats are allotted fairly among the nominated students.",
+      "To waive a demonstration charge, tick Waive demonstration charge when deciding (or use Waive charge later) and give a reason; a charge already deducted is refunded in full.",
+    ],
   },
   operator: {
     steps: [{ title: "Mark attendance", body: "Open Training attendance and mark who attended each session or demonstration on your equipment." }],
