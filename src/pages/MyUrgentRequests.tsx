@@ -410,20 +410,20 @@ const MyUrgentRequests = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">Submit new urgent request</CardTitle>
             <CardDescription>
-              Select department and equipment. Type A eligibility is checked automatically. Both types require that no slots are available in the current search.
+              Select department and equipment. We check automatically whether you qualify for Type A. Urgent requests are only possible when no slots are free to book.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-3 text-sm text-amber-950 dark:text-amber-100">
               <p className="font-semibold">Urgent booking rules</p>
               <p className="mt-1 leading-relaxed">
-                Type A and Type B are available only when <strong>no slots are available</strong> in the current booking search window.
+                Type A and Type B are available only when <strong>no slots are free</strong> in the weeks you can currently book.
               </p>
               <ul className="mt-2 list-disc pl-5 space-y-1.5 leading-relaxed">
                 <li>
-                  <strong>Type A — Rush relief (internal IIT Roorkee users only):</strong> if you have at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful
-                  peak-window booking attempts for this equipment in the last 14 days (since your last Type A use), you can book the
-                  <strong> next available / advance week at normal rates</strong> (no 50% surcharge). After a Type A booking is completed, the 14-day attempt window <strong>resets</strong>.
+                  <strong>Type A — Rush relief (internal IIT Roorkee users only):</strong> if you tried at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} times
+                  in the last 14 days (since your last Type A use) and could not get a slot for this equipment when booking opened, you can book the
+                  <strong> next available / advance week at normal rates</strong> (no 50% surcharge). After a Type A booking is completed, the 14-day count <strong>starts again</strong>.
                   External users are not eligible for Type A.
                 </li>
                 <li>
@@ -498,7 +498,7 @@ const MyUrgentRequests = () => {
                 {!loadingSlotsAvailable && slotsAvailableThisWeek === true && (
                   <div className="rounded-lg border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4 space-y-3">
                     <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                      Slots are available in the current search for this equipment. Please book normally — urgent requests (Type A and Type B) are not available when slots exist.
+                      Slots are free to book for this equipment. Please book normally — urgent requests (Type A and Type B) are not available while slots are free.
                     </p>
                     <Button
                       size="sm"
@@ -516,9 +516,9 @@ const MyUrgentRequests = () => {
                       You are eligible for Type A — Rush relief
                     </p>
                     <p className="text-sm text-emerald-900/90 dark:text-emerald-100/90 leading-relaxed">
-                      {peakQualifiedAttempts} qualifying peak-window attempt{peakQualifiedAttempts === 1 ? "" : "s"} recorded (need {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}).
+                      {peakQualifiedAttempts} unsuccessful booking attempt{peakQualifiedAttempts === 1 ? "" : "s"} recorded (need {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}).
                       You may book the <strong>next available / advance week at normal rates</strong> (no 50% surcharge).
-                      Completing this booking resets the 14-day Type A attempt window.
+                      After this booking is completed, the 14-day count starts again.
                     </p>
                     <Button
                       size="sm"
@@ -544,7 +544,7 @@ const MyUrgentRequests = () => {
                     <p className="text-amber-950/90 dark:text-amber-100/90 leading-relaxed">
                       {isExternalUser
                         ? "Type A is available only to internal IIT Roorkee users."
-                        : `You have ${peakQualifiedAttempts} of ${RUSH_RELIEF_MIN_PEAK_ATTEMPTS} required peak-window unsuccessful attempts in the current 14-day window (resets after each Type A booking).`}
+                        : `You have ${peakQualifiedAttempts} of the ${RUSH_RELIEF_MIN_PEAK_ATTEMPTS} unsuccessful booking attempts needed in the last 14 days (the count starts again after each Type A booking).`}
                       {" "}You may raise a <strong>Type B</strong> request below (50% surcharge; OIC/Admin review required).
                     </p>
                   </div>

@@ -1761,7 +1761,7 @@ const Wallet = () => {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Wallet</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {isShared
-                ? "View the shared faculty wallet balance, sub-wallets and transactions."
+                ? "View the shared faculty wallet balance, department balances and transactions."
                 : "Manage your wallet balance, recharge requests, transfers and credit."}
             </p>
           </div>
@@ -1822,7 +1822,7 @@ const Wallet = () => {
                         ? isIitrStudentRecharge
                           ? "Funds sit in your faculty supervisor’s wallet. Recharges you submit credit that wallet for the department you choose."
                           : "Available funds in the shared faculty wallet."
-                        : "Consolidated balance across your department sub-wallets."}
+                        : "Total balance across all your departments."}
                     </p>
                   </div>
                 </div>
@@ -1840,12 +1840,12 @@ const Wallet = () => {
                 <div className="min-w-0">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
-                    Department sub-wallets
+                    Balance by department
                   </CardTitle>
                   <CardDescription className="mt-1 text-xs">
                     {isShared
-                      ? "Equipment bookings deduct from the matching department sub-wallet."
-                      : "Funds allocated by department. Bookings deduct from the matching sub-wallet."}
+                      ? "A booking is paid from the balance of the equipment's department."
+                      : "Your money is kept separately for each department. A booking is paid from the balance of the equipment's department."}
                   </CardDescription>
                 </div>
                 {subWallets.length > 0 && (
@@ -1857,7 +1857,7 @@ const Wallet = () => {
               <CardContent className="pt-0">
                 {subWallets.length === 0 ? (
                   <p className="py-4 text-sm text-muted-foreground">
-                    No department sub-wallets yet. A sub-wallet is created when a recharge is credited to a department.
+                    No department balances yet. One appears when a recharge is credited to a department.
                   </p>
                 ) : (
                   <>
@@ -1869,7 +1869,7 @@ const Wallet = () => {
                           onChange={(e) => setSubWalletSearch(e.target.value)}
                           placeholder="Search department or code"
                           className="h-9 pl-8"
-                          aria-label="Search sub-wallets"
+                          aria-label="Search departments"
                         />
                       </div>
                     )}
@@ -2369,8 +2369,8 @@ const Wallet = () => {
                 <CardTitle className="text-base">Transaction history</CardTitle>
                 <CardDescription className="text-xs">
                   {transactionsTotal > 0
-                    ? `${transactionsTotal.toLocaleString("en-IN")} transaction${transactionsTotal !== 1 ? "s" : ""} across department sub-wallets.`
-                    : "Credits and debits across department sub-wallets."}
+                    ? `${transactionsTotal.toLocaleString("en-IN")} transaction${transactionsTotal !== 1 ? "s" : ""} across all departments.`
+                    : "Money added to and spent from your wallet, across all departments."}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -3295,7 +3295,7 @@ const Wallet = () => {
           <DialogHeader>
             <DialogTitle>Avail Credit Facility</DialogTitle>
             <DialogDescription>
-              One-time department credit for your sub-wallet. Review the terms carefully before confirming.
+              One-time credit for this department&apos;s balance. Review the terms carefully before confirming.
             </DialogDescription>
           </DialogHeader>
           {(() => {
@@ -3335,11 +3335,11 @@ const Wallet = () => {
                 <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4 leading-relaxed">
                   <li>This is a one-time credit facility for this department only.</li>
                   <li>
-                    Approved credit applies only to bookings against this department&apos;s sub-wallet — it
+                    Approved credit can be used only for bookings paid from this department&apos;s balance — it
                     cannot be transferred or used for equipment in other departments.
                   </li>
                   <li>Each department independently manages its own credit policy.</li>
-                  <li>Please recharge this sub-wallet at the earliest opportunity.</li>
+                  <li>Please recharge this department&apos;s balance at the earliest opportunity.</li>
                   <li>Future wallet recharges automatically recover the outstanding credit balance.</li>
                   <li>
                     Once outstanding credit is fully recovered, the facility is permanently closed and cannot

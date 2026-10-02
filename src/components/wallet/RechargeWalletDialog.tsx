@@ -287,7 +287,7 @@ export default function RechargeWalletDialog({
     methodBlocker ??
     (isOnline
       ? !departmentId
-        ? "Select the department sub-wallet to credit."
+        ? "Select the department to recharge."
         : amountError ||
           (Number(amount) > ONLINE_MAX_AMOUNT
             ? `Online recharge is limited to ${formatMoney(ONLINE_MAX_AMOUNT)} per payment.`
@@ -618,7 +618,7 @@ export default function RechargeWalletDialog({
         amount: order.amount,
         currency: order.currency || "INR",
         name: "IIC Equipment Booking",
-        description: `Wallet recharge — ${selectedDepartment?.name ?? "department sub-wallet"}`,
+        description: `Wallet recharge — ${selectedDepartment?.name ?? "department"}`,
         order_id: order.order_id,
         handler: async (response: {
           razorpay_order_id: string;
@@ -1013,7 +1013,7 @@ export default function RechargeWalletDialog({
             ) : departments.length === 1 ? (
               <p id="recharge-department" className="text-sm text-foreground">
                 {departments[0].name}
-                {departments[0].code ? ` (${departments[0].code})` : ""} sub-wallet
+                {departments[0].code ? ` (${departments[0].code})` : ""}
               </p>
             ) : (
               <select
@@ -1023,7 +1023,7 @@ export default function RechargeWalletDialog({
                 onChange={(e) => setDepartmentId(e.target.value ? Number(e.target.value) : null)}
                 disabled={busy}
               >
-                <option value="">Select department sub-wallet</option>
+                <option value="">Select department</option>
                 {departments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -1033,7 +1033,7 @@ export default function RechargeWalletDialog({
               </select>
             )}
             {showBlockers && !departmentId && !loadingDepartments ? (
-              <FieldError id="recharge-department-error" message="Select the department sub-wallet to credit." />
+              <FieldError id="recharge-department-error" message="Select the department to recharge." />
             ) : null}
           </div>
           <div className="space-y-1.5">
@@ -1067,7 +1067,7 @@ export default function RechargeWalletDialog({
         <Section index={stepIndex("Payment")} title="Payment">
           <p className="text-sm text-muted-foreground">
             You will be taken to the secure Razorpay payment page. A convenience fee and GST are added to the amount and
-            shown there before you pay. The amount is credited to the selected sub-wallet as soon as the payment is
+            shown there before you pay. The amount is added to the selected department as soon as the payment is
             confirmed.
           </p>
         </Section>

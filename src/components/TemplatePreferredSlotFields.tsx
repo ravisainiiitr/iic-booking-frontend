@@ -52,9 +52,8 @@ export function TemplatePreferredSlotFields({
         <Switch id={`${id}-enabled`} checked={draft.enabled} onCheckedChange={(v) => set({ enabled: v })} />
       </div>
       <p className="text-xs text-muted-foreground">
-        A weekly preference. When you load this template, the next matching day and time in your open booking window is
-        selected for you (next week&apos;s slots open on Wednesday at 9:00 PM). You still click Book; nothing is booked in
-        advance.
+        Pick the day and time you usually want. When you use this template, that slot is selected for you in the next
+        week you can book (next week&apos;s slots open on Wednesday at 9:00 PM). Nothing is booked until you click Book.
       </p>
 
       {draft.enabled && (

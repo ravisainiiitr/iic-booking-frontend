@@ -95,11 +95,11 @@ describe("Analysis Charges table for mixed Generic + Multi-parameter equipment",
     expect(table.rows.every((r) => !r.cells[external].rowSpan && !r.cells[external].spanned)).toBe(true);
   });
 
-  it("falls back to the Generic pc/sc charge when the display text is empty", () => {
+  it("falls back to the Generic primary charge when the display text is empty", () => {
     const table = pivotAnalysisChargeRows(buildAnalysisChargeRowsForEquipment(nmr(""), null));
     const cat = categoryLabel(table, /student/i);
-    expect(table.rows[0].cells[cat]).toMatchObject({ amount: "pc ₹50", rowSpan: 3 });
-    expect(table.rows[2].cells[cat]).toMatchObject({ amount: "pc ₹50", spanned: true });
+    expect(table.rows[0].cells[cat]).toMatchObject({ amount: "₹50", rowSpan: 3 });
+    expect(table.rows[2].cells[cat]).toMatchObject({ amount: "₹50", spanned: true });
   });
 
   it("works the other way round: internal Multi-parameter, external Generic", () => {

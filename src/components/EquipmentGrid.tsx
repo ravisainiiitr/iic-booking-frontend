@@ -302,7 +302,7 @@ const EquipmentGrid = () => {
         ) : null}
         {expandedParentId != null ? (
           <div className="max-w-3xl mx-auto mb-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-            <span>Select a mode to continue — showing parent and child instruments.</span>
+            <span>This instrument has several modes. Select one to continue.</span>
             <Button type="button" size="sm" variant="outline" onClick={clearFamilyView}>
               Back to all
             </Button>

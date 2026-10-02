@@ -2489,7 +2489,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">3D print materials</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Add, edit, enable, or disable filament materials for PRINT_3D equipment
+                      Add, edit, enable, or disable filament materials for 3D printers
                     </CardDescription>
                   </div>
                 </div>

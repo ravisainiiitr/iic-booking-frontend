@@ -4207,7 +4207,7 @@ const BookEquipment = () => {
         });
         setLastFetchedWeek(weekKey);
       } else {
-        toast.error("Slots API returned no data for this week.");
+        toast.error("Could not load slots for this week. Please try again.");
         setLastFetchedWeek(weekKey);
         setEquipmentDetail((prev) => (prev ? { ...prev, daily_slots: [] } : prev));
       }
@@ -5166,7 +5166,7 @@ const BookEquipment = () => {
           // (a) If only one slot is needed (including tolerance): allow only a single slot
           if (minSlotsForRequired <= 1) {
             if (prev.length >= 1) {
-              toast.error(`Only one slot is allowed when required time (${required} min) fits within a single slot (tolerance ${tolerance} min).`);
+              toast.error(`Your analysis time (${required} min) fits in one slot, so only one slot can be selected.`);
               return prev;
             }
             // For single slot requirement, just return the selected slot
@@ -5183,7 +5183,7 @@ const BookEquipment = () => {
           // Allow selecting another slot if remaining time exceeds soft slack
           if (remaining <= softSlackMinutes) {
             toast.error(
-              `Cannot add this slot. Required time is ${required} minutes; only ${remaining} minutes remaining (within tolerance/slack).`
+              `Cannot add this slot. Your selected slots already cover the required ${required} minutes.`
             );
             return prev;
           }
@@ -11001,7 +11001,7 @@ const BookEquipment = () => {
             <DialogHeader className="shrink-0 pb-2">
               <DialogTitle className="text-xl font-semibold tracking-tight">Request urgent booking</DialogTitle>
               <DialogDescription className="text-base text-muted-foreground">
-                Choose the request type. Both are confirmed automatically once your held slots are debited — no further approval is needed.
+                Choose the type of urgent request that fits your situation.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-5 py-3 overflow-y-auto min-h-0 flex-1">
@@ -11017,7 +11017,7 @@ const BookEquipment = () => {
                     <Label htmlFor="urgent-no-slot" className="flex-1 cursor-pointer">
                       <span className="font-medium text-base">Type A — Rush relief (no surcharge)</span>
                       <span className="text-muted-foreground text-sm block mt-0.5">
-                        Internal users with {RUSH_RELIEF_MIN_PEAK_ATTEMPTS}+ peak-window failed attempts (last 14 days, since last Type A use). Book advance week at normal rates; window resets after booking.
+                        For IIT Roorkee users who tried at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} times in the last 14 days and could not get a slot when booking opened. Book a slot in the following week at normal rates. The count starts again after you use it.
                       </span>
                     </Label>
                   </div>
@@ -11066,7 +11066,7 @@ const BookEquipment = () => {
               {urgentRequestType === 'NO_SLOT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                    Type A is for internal users only when no current-search slots exist and you have at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} peak-window failed attempts. Prefer Book advance week from My Urgent Requests. Completing Type A resets the 14-day attempt window.
+                    Type A is only for IIT Roorkee users when no slots are available and you have tried at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} times without getting a slot when booking opened. You can also use Book advance week from My Urgent Requests. After you use Type A, the 14-day count starts again.
                     {noSlotNoAttempts && " You do not qualify yet — use Type B (urgent with reason) instead."}
                   </p>
                   <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4 border border-border/60">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
@@ -11076,9 +11076,9 @@ const BookEquipment = () => {
                   </div>
                   {selectedEquipment && (
                     <div className="space-y-3 mt-4">
-                      <p className="text-base font-medium text-foreground">Your peak-window unsuccessful attempts for this equipment (past 2 weeks)</p>
+                      <p className="text-base font-medium text-foreground">Your unsuccessful booking attempts for this equipment (past 2 weeks)</p>
                       <p className="text-sm text-muted-foreground">
-                        {myUnsuccessfulAttempts.length} of {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} required attempts recorded. Quota-limit failures are not counted.
+                        {myUnsuccessfulAttempts.length} of {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} required attempts recorded. Attempts that failed because you reached your booking limit are not counted.
                       </p>
                       {myUnsuccessfulAttemptsLoading ? (
                         <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
@@ -11248,13 +11248,7 @@ const BookEquipment = () => {
               <DialogTitle className="text-lg font-semibold text-center mb-1">Booking in progress</DialogTitle>
               <DialogDescription asChild>
                 <p className="text-sm text-muted-foreground text-center">
-                  Your request is being processed on the server. The last step below may stay active for most of the wait —
-                  that is normal; work includes database locks and payment, not only “building the response”.
-                  {" "}
-                  <span className="block mt-1 text-xs">
-                    After completion, open the browser console (F12) — server phase timings appear as{" "}
-                    <span className="font-mono text-[11px]">[book-equipment] Server timings</span> when the API exposes them.
-                  </span>
+                  Please wait while we confirm your booking. The last step may take a little longer — this is normal.
                 </p>
               </DialogDescription>
               <div className="mt-5 space-y-3">

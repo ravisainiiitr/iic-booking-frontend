@@ -190,7 +190,7 @@ export default function EquipmentWaitlist() {
             </Button>
             <h1 className="text-2xl font-semibold tracking-tight">Equipment waitlist</h1>
             <p className="mt-2 text-sm text-white/85">
-              View and clear queues. Users are added when booking fails (if queue depth is set) and notified when slots open.
+              View and clear waitlists. Users join the waitlist when their booking fails (if the equipment has a waitlist) and are notified when slots open.
             </p>
           </div>
         </StandaloneOnly>

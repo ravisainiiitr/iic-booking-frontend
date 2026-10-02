@@ -176,7 +176,7 @@ export function rechargeFormBlocker(state: RechargeFormState): string | null {
     if (!state.isFaculty) return "Project Grant recharge is available only to faculty.";
     if (!state.projectId) return "Select a project.";
   }
-  if (!state.departmentId) return "Select the department sub-wallet to credit.";
+  if (!state.departmentId) return "Select the department to recharge.";
   const amountError = validateRechargeAmount(state.amount);
   if (amountError) return amountError;
   if (!state.undertakingAccepted) return "Accept the undertaking to continue.";

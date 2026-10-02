@@ -216,11 +216,9 @@ function buildMultiParamPresentation(
 
   if (optionColumns.length === 0) return null;
 
-  let mixed = false;
   const multiParamRows = rows.map((row) => {
     const ownProfile = rowProfileType(row, equipmentProfileType);
     if (!isMultiParamProfile(ownProfile)) {
-      mixed = true;
       return {
         userType: row.userType,
         label: row.label,
@@ -246,20 +244,10 @@ function buildMultiParamPresentation(
     };
   });
 
-  const anyPerSample = rows.some(
-    (r) =>
-      isMultiParamProfile(rowProfileType(r, equipmentProfileType)) &&
-      isMultiParamPerSampleFlag(r.breakpoint)
-  );
-
   return {
     simplified: true,
     mode: "multi_param",
-    subtitle: mixed
-      ? "Standard rates for this equipment. Categories charged by option show a rate per option (per sample when Breakpoint Flag is 1); other categories show their own rate."
-      : anyPerSample
-        ? "Standard rates for this equipment by option (per sample when Breakpoint Flag is 1)."
-        : "Standard rates for this equipment by option.",
+    subtitle: "",
     rows: [],
     optionColumns,
     multiParamRows,
@@ -271,13 +259,13 @@ function genericFallbackChargeLine(primary: string, secondary: string): string {
   const hasSc = hasSecondaryCharge(secondary);
   const s = hasSc ? moneyOrDash(secondary) : "";
   if (p === "—" && !hasSc) return "—";
-  if (hasSc && s && s !== "—") return `pc ${p} · sc ${s}`;
-  return p === "—" ? "—" : `pc ${p}`;
+  if (hasSc && s && s !== "—") return `${p} + ${s} additional charge`;
+  return p;
 }
 
 /**
  * Build simplified charge copy for SAMPLE_ELEMENT, SAMPLE (no secondary), HOUR (no secondary),
- * GENERIC (display_text or pc/sc fallback), and MULTI_PARAM (Field B options × slot-option charges).
+ * GENERIC (display_text or primary/secondary charge fallback), and MULTI_PARAM (Field B options × slot-option charges).
  * Other profile types return simplified:false so the caller keeps the legacy multi-column table.
  */
 export function buildChargeCategoryPresentation(
@@ -301,7 +289,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: true,
       mode: "generic",
-      subtitle: "Standard rates for this equipment.",
+      subtitle: "",
       rows: rows.map((row) => ({
         userType: row.userType,
         label: row.label,
@@ -317,7 +305,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: false,
       mode: "legacy",
-      subtitle: "Standard rates for this equipment.",
+      subtitle: "",
       rows: [],
     };
   }
@@ -335,7 +323,7 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: true,
       mode: "generic",
-      subtitle: "Standard rates for this equipment.",
+      subtitle: "",
       rows: presented,
     };
   }
@@ -356,17 +344,10 @@ export function buildChargeCategoryPresentation(
     return {
       simplified: false,
       mode,
-      subtitle: "Standard rates for this equipment.",
+      subtitle: "",
       rows: [],
     };
   }
-
-  const subtitle =
-    mode === "hour"
-      ? "Standard rates for this equipment (per hour)."
-      : mode === "legacy"
-        ? "Standard rates for this equipment."
-        : "Standard rates for this equipment (per sample).";
 
   const presented = rows.map((row) => {
     const custom = trimmedDisplayText(row.displayText);
@@ -405,7 +386,7 @@ export function buildChargeCategoryPresentation(
   return {
     simplified: true,
     mode: mode === "legacy" ? "generic" : mode,
-    subtitle,
+    subtitle: "",
     rows: presented,
   };
 }

@@ -432,7 +432,7 @@ const EquipmentList = () => {
         ) : null}
         {expandedParentId != null ? (
           <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm max-w-3xl">
-            <span>Showing parent and child modes for this instrument family.</span>
+            <span>Showing all modes of this instrument.</span>
             <Button type="button" size="sm" variant="outline" onClick={() => setExpandedParentId(null)}>Back to all</Button>
           </div>
         ) : null}

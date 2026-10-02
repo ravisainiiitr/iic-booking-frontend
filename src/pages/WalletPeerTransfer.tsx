@@ -281,11 +281,11 @@ export default function WalletPeerTransfer() {
                   <Label>From department (grant)</Label>
                   {loadingDepts ? (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Loading sub-wallets…
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading departments…
                     </div>
                   ) : departments.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      No department sub-wallets found. Recharge a department wallet first.
+                      No department balance found. Recharge your wallet for a department first.
                     </p>
                   ) : (
                     <Select value={departmentId} onValueChange={(v) => {

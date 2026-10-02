@@ -470,9 +470,9 @@ const Reports = () => {
             </h1>
             <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
               {isLabInchargeUser
-                ? "Monthly-style performance metrics (users, samples, hours, working-window availability, ratings) for your assigned equipment. Export to PDF or Excel."
+                ? "Monthly performance of your equipment — users, samples, hours, availability on working days and ratings. Export to PDF or Excel."
                 : isFacultyUser
-                  ? "The booking overview below covers your bookings and your linked students' bookings. The research-group wallet panel summarises spend by linked students against your consolidated balance, recharges, and optional equipment filters."
+                  ? "See your own bookings and your students' bookings, and how much each student has spent from your wallet."
                   : "Click any section to view the full list of bookings with amount spent."}
             </p>
           </div>
@@ -548,7 +548,7 @@ const Reports = () => {
                       <p className="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300">
                         ₹{Number(facultyReportData.current_balance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">Sum of all department sub-wallets</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Total across all departments</p>
                     </div>
                     <div className="rounded-xl border bg-card p-4 shadow-sm">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Period booking spend</p>
@@ -620,9 +620,9 @@ const Reports = () => {
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          Booking spend uses bookings created in the period. {SPEND_DEFINITION} Per-member and per-equipment
+                          Booking spend counts bookings made in this period. {SPEND_DEFINITION} The member and equipment
                           tables use the same bookings, so they add up to the period total.
-                          Recharge totals exclude refund lines and sub-wallet transfers so you can compare inflows to current balance.
+                          Recharges do not include refunds or transfers between departments.
                         </p>
                       </div>
                     </div>
@@ -727,7 +727,7 @@ const Reports = () => {
 
                   {facultyReportData.sub_wallets && facultyReportData.sub_wallets.length > 0 && (
                     <div>
-                      <p className="mb-2 text-sm font-semibold">Balance by department (sub-wallets)</p>
+                      <p className="mb-2 text-sm font-semibold">Balance by department</p>
                       <div className="overflow-x-auto rounded-lg border">
                         <Table>
                           <TableHeader>
@@ -1070,7 +1070,7 @@ const Reports = () => {
               <>
                 <h2 className="mb-1 mt-4 text-lg font-semibold tracking-tight">Equipment performance reports</h2>
                 <p className="mb-4 text-sm text-muted-foreground">
-                  Monthly-style performance metrics (users, samples from input A, hours, working-window availability, ratings) with PDF/Excel export.
+                  Monthly performance metrics (users, samples, hours, availability on working days, ratings) with PDF/Excel export.
                   Scheduled emails go to each equipment&apos;s Officer(s) in charge and Lab operator(s) (one PDF per equipment).
                 </p>
               </>

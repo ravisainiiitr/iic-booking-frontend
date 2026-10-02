@@ -215,7 +215,7 @@ describe("recharge form gating", () => {
 
   it("requires a department and a valid amount", () => {
     expect(rechargeFormBlocker({ ...readyProjectGrant, departmentId: null })).toBe(
-      "Select the department sub-wallet to credit.",
+      "Select the department to recharge.",
     );
     expect(rechargeFormBlocker({ ...readyProjectGrant, amount: "50" })).toBe("Enter an amount of at least ₹100.");
   });

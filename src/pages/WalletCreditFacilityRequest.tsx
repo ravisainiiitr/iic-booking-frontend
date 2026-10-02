@@ -189,8 +189,8 @@ export default function WalletCreditFacilityRequest() {
                   Credit facility rules
                 </CardTitle>
                 <CardDescription>
-                  Administrator-approved temporary credit posted to your selected department sub-wallet.
-                  Limits below reflect the current IIC policy.
+                  Temporary credit, approved by the administrator, added to the department balance you choose.
+                  The limits below follow the current IIC policy.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
@@ -232,8 +232,8 @@ export default function WalletCreditFacilityRequest() {
                   </li>
                   <li>
                     <span className="text-foreground font-medium">Department:</span> choose a department for
-                    which the Main Administrator has enabled Wallet Credit. Credit is posted to that
-                    department sub-wallet.
+                    which the Main Administrator has enabled Wallet Credit. Credit is added to that
+                    department&apos;s balance.
                   </li>
                   <li>
                     <span className="text-foreground font-medium">Approval:</span> every request needs Main
@@ -306,8 +306,8 @@ export default function WalletCreditFacilityRequest() {
                       {eligibleDepartments.length === 0 ? (
                         <p className="text-sm text-amber-800 border border-amber-200 bg-amber-50 rounded-md p-3 mt-1">
                           No credit-enabled department is available for your wallet yet. Ask the Main
-                          Administrator to enable Wallet Credit for your department, or ensure you have a
-                          department sub-wallet.
+                          Administrator to enable Wallet Credit for your department, or recharge your wallet for
+                          that department first.
                         </p>
                       ) : (
                         <Select value={departmentId} onValueChange={setDepartmentId}>

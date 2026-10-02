@@ -23,14 +23,14 @@ export const IF_SLOT_TAKEN_OPTIONS: Array<{ value: TemplateIfSlotTaken; label: s
   {
     value: "next_available_any",
     label: "Book the next free slot on any day I can book",
-    description: "Same number of slots and duration, after your preferred time, within the open booking window.",
+    description: "Same number of slots and duration, after your preferred time, on any day you can currently book.",
   },
 ];
 
 export const autoBookConsentText = (mode: TemplateIfSlotTaken) =>
   `I agree that if my preferred slot has just been taken when I click Book, the portal may book the next free slot ` +
-  `after it (${mode === "next_available_same_day" ? "later the same day" : "on any day in the open booking window"}) ` +
-  "with these same inputs and charge my wallet for it. Wallet balance, spending limits and booking quotas are still " +
+  `after it (${mode === "next_available_same_day" ? "later the same day" : "on any day I can currently book"}) ` +
+  "with these same inputs and charge my wallet for it. Wallet balance, spending limits and booking limits are still " +
   "checked, and the booking can be cancelled under the usual rules.";
 
 export interface PreferredSlotDraft {

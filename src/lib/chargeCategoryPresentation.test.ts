@@ -73,6 +73,6 @@ describe("buildChargeCategoryPresentation with mixed profiles", () => {
     });
     expect(p.mode).toBe("multi_param");
     expect((p.multiParamRows ?? []).every((r) => r.chargeLine === undefined)).toBe(true);
-    expect(p.subtitle).toMatch(/by option/);
+    expect(p.subtitle).toBe("");
   });
 });

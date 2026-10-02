@@ -1765,7 +1765,7 @@ const MyBookings = () => {
             <DialogHeader>
               <DialogTitle>Download Results</DialogTitle>
               <DialogDescription>
-                Download the entire folder as ZIP (includes booking ID folder and all subfiles), or open individual files below.
+                Download all result files as one ZIP, or open individual files below.
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-3">

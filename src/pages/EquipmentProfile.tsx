@@ -830,7 +830,7 @@ const EquipmentProfile = () => {
               sampleSpecs.length > 0
                 ? renderSpecBlocks(sampleSpecs)
                 : emptyPanel(
-                    'Sample requirements have not been published yet. Add a specification named "Sample Requirements" in equipment admin to show it here.'
+                    "Sample requirements have not been published for this instrument yet."
                   );
           } else if (activePanel === "view_charges" || activePanel === "brochure") {
             const eqAny = equipment as EquipmentProfile & {
@@ -869,7 +869,7 @@ const EquipmentProfile = () => {
                 const showSecondary = chargeRows.some((row) => !!row.secondary);
                 chargesBody = (
                   <ChargeCategoryLegacyTable
-                    subtitle="Standard rates for this equipment."
+                    subtitle=""
                     unitLabels={{
                       primary: "Unit charge",
                       secondary: "Additional charge",
@@ -1222,7 +1222,7 @@ const EquipmentProfile = () => {
                 </div>
               ) : (
                 emptyPanel(
-                  "No publications listed yet. Internal IIT Roorkee users can submit references from Dashboard → My Publications (they appear once submitted if not a duplicate). External users' submissions may need review. Administrators can also add them in Equipment settings."
+                  "No publications listed yet. If you used this instrument in a paper, you can add it from Dashboard → My Publications."
                 )
               );
           }

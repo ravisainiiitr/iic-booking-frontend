@@ -76,7 +76,7 @@ export function buildChargeCategorySummaryRows(eq: {
     const basis = basisForProfileType(rowProfileType);
     const noteParts: string[] = [];
     if (basis) noteParts.push(basis);
-    if (breakpoint) noteParts.push(`Applies after ${breakpoint} units`);
+    if (breakpoint) noteParts.push(`Additional charge applies after ${breakpoint} units`);
     byType.set(code, {
       userType: code,
       label: getUserTypeDisplayName(code) || getChargeEstimateUserTypeLabel(code) || code,
