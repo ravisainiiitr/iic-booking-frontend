@@ -19,12 +19,35 @@ export function BookingActionBar({ summary, children, className }: Props) {
     const el = ref.current;
     if (!el) return;
     const root = document.documentElement;
-    const update = () => root.style.setProperty(ACTION_BAR_OFFSET_VAR, `${Math.ceil(el.offsetHeight)}px`);
+    // Space from the viewport bottom to the bar's top edge: the bar height while pinned, more once the
+    // page end scrolls into view and the bar rides up with the content. 0 when the bar is off screen or in
+    // the upper half, where the launcher's default spot is already clear of it.
+    const update = () => {
+      const vh = window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      const inLowerHalf = rect.bottom > 0 && rect.top < vh && rect.bottom > vh / 2;
+      const offset = inLowerHalf ? Math.max(0, Math.ceil(vh - rect.top)) : 0;
+      root.style.setProperty(ACTION_BAR_OFFSET_VAR, `${offset}px`);
+    };
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
     update();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
     ro?.observe(el);
+    ro?.observe(document.body);
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
     return () => {
+      if (frame) cancelAnimationFrame(frame);
       ro?.disconnect();
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
       root.style.removeProperty(ACTION_BAR_OFFSET_VAR);
     };
   }, []);

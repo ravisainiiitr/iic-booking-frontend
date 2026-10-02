@@ -147,7 +147,23 @@ describe("ClampedNote (important instruction)", () => {
 
 describe("BookingActionBar", () => {
   it("shows the summary and actions and lifts the assistant launcher while mounted", () => {
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(72);
+    const vh = window.innerHeight;
+    const rect = { top: vh - 72, bottom: vh };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => ({ ...rect, left: 0, right: 0, width: 0, height: rect.bottom - rect.top, x: 0, y: rect.top, toJSON: () => ({}) }) as DOMRect,
+    );
+    // Run frames synchronously; returning 0 marks no frame as pending once the callback has run.
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+    const moveBar = (top: number, bottom: number) => {
+      rect.top = top;
+      rect.bottom = bottom;
+      act(() => {
+        window.dispatchEvent(new Event("scroll"));
+      });
+    };
     const { unmount } = render(
       <BookingActionBar summary="3 slots selected · Total ₹1,200">
         <button type="button">Confirm Booking (3 slots)</button>
@@ -158,7 +174,17 @@ describe("BookingActionBar", () => {
     expect(bar.className).toContain("bottom-0");
     expect(screen.getByText("3 slots selected · Total ₹1,200")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Confirm Booking (3 slots)" })).toBeTruthy();
-    expect(document.documentElement.style.getPropertyValue(ACTION_BAR_OFFSET_VAR)).toBe("72px");
+    const offset = () => document.documentElement.style.getPropertyValue(ACTION_BAR_OFFSET_VAR);
+    // Pinned to the viewport bottom.
+    expect(offset()).toBe("72px");
+    // Page end: the bar rides up with the content, so the launcher must clear the space below it too.
+    moveBar(vh - 140, vh - 68);
+    expect(offset()).toBe("140px");
+    // Bar in the upper half or scrolled off screen: the launcher's default spot is already clear.
+    moveBar(100, 172);
+    expect(offset()).toBe("0px");
+    moveBar(-200, -128);
+    expect(offset()).toBe("0px");
     act(() => unmount());
     expect(document.documentElement.style.getPropertyValue(ACTION_BAR_OFFSET_VAR)).toBe("");
     vi.restoreAllMocks();
