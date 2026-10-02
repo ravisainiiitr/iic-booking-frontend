@@ -32,15 +32,15 @@ describe("numericInputStatus", () => {
 });
 
 describe("numericInputHint", () => {
-  it("says when the max is reached", () => {
-    expect(numericInputHint("10", bounds)).toEqual({ text: "Max 10 reached", tone: "info" });
+  it("gives the max allowed at the max", () => {
+    expect(numericInputHint("10", bounds)).toEqual({ text: "Max 10 allowed", tone: "info" });
     expect(numericInputHint("9", bounds)).toBeNull();
     expect(numericInputHint("1", bounds)).toBeNull();
   });
 
   it("uses the caller's wording for a combined maximum", () => {
-    expect(numericInputHint("4", { ...bounds, max: 4 }, { maxHint: "Combined max of 20 reached across all sample sets" })).toEqual({
-      text: "Combined max of 20 reached across all sample sets",
+    expect(numericInputHint("4", { ...bounds, max: 4 }, { maxHint: "Combined max of 20 allowed across all sample sets" })).toEqual({
+      text: "Combined max of 20 allowed across all sample sets",
       tone: "info",
     });
   });
@@ -52,7 +52,7 @@ describe("numericInputHint", () => {
 
   it("explains a correction the box made", () => {
     expect(numericInputHint("10", bounds, { clampNote: { kind: "max", entered: "25" } })?.text).toBe(
-      "Max 10 reached (25 is over the limit)",
+      "Max 10 allowed (25 is over the limit)",
     );
     expect(numericInputHint("1", bounds, { clampNote: { kind: "min", entered: "0" } })?.text).toBe(
       "Minimum is 1 (0 is not allowed)",
@@ -109,8 +109,8 @@ describe("combined A / B maximum", () => {
     expect(maxForPrimarySet(limitA, [{ A: "12" }])).toBe(8);
     const { bounds: capped, maxHint } = boundsWithCombinedMax({ min: 1, max: 20, step: 1 }, limitA, 8);
     expect(capped.max).toBe(8);
-    expect(maxHint).toBe("Combined max of 20 reached across all sample sets");
-    expect(numericInputHint("8", capped, { maxHint })?.text).toBe("Combined max of 20 reached across all sample sets");
+    expect(maxHint).toBe("Combined max of 20 allowed across all sample sets");
+    expect(numericInputHint("8", capped, { maxHint })?.text).toBe("Combined max of 20 allowed across all sample sets");
     expect(numericInputStatus("8", capped).canIncrement).toBe(false);
   });
 

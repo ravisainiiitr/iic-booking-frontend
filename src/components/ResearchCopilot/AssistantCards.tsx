@@ -677,7 +677,7 @@ function FieldControl({
           aria-live="polite"
           className={`mt-0.5 block text-[11px] ${outOfRange ? "text-destructive" : atMax ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}
         >
-          {atMax ? `Max ${f.max} reached` : `Allowed ${f.min ?? 1}–${f.max ?? "…"}`}
+          {atMax ? `Max ${f.max} allowed` : `Allowed ${f.min ?? 1}–${f.max ?? "…"}`}
         </span>
       ) : f.help && f.type !== "NUMERIC" ? (
         <span className="mt-0.5 block text-[11px] text-muted-foreground">{f.help}</span>

@@ -26,7 +26,7 @@ export type NumericFieldInputProps = {
   onValueChange: (next: string) => void;
   /** Called with the corrected value on blur; defaults to `onValueChange`. */
   onCommit?: (next: string) => void;
-  /** Replaces "Max N reached", e.g. for the combined maximum across sample sets. */
+  /** Replaces "Max N allowed", e.g. for the combined maximum across sample sets. */
   maxHint?: string;
   label?: string;
   required?: boolean;
@@ -42,7 +42,7 @@ export type NumericFieldInputProps = {
 /**
  * Number box with up / down arrows for NUMERIC dynamic fields. The arrows stop at the min / max, a value
  * over the max is corrected while typing, a value under the min is corrected on blur, and a short hint next
- * to the box says when the max is reached or the value is out of range.
+ * to the box gives the max allowed once the value reaches it, or says the value is out of range.
  */
 export function NumericFieldInput({
   id,

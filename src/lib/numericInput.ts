@@ -57,9 +57,9 @@ export function numericInputStatus(raw: unknown, bounds: NumericFieldBounds): Nu
   };
 }
 
-/** Default "max reached" wording; callers pass their own for combined limits across sample sets. */
-export function maxReachedHint(max: number): string {
-  return `Max ${formatNumericBound(max)} reached`;
+/** Default "max allowed" wording; callers pass their own for combined limits across sample sets. */
+export function maxAllowedHint(max: number): string {
+  return `Max ${formatNumericBound(max)} allowed`;
 }
 
 /**
@@ -76,14 +76,14 @@ export function numericInputHint(
   const max = formatNumericBound(bounds.max);
   if (status.belowMin) return { text: `Minimum is ${min} — please change this value`, tone: "error" };
   if (status.aboveMax) return { text: `Maximum is ${max} — please change this value`, tone: "error" };
-  const reached = maxHint || maxReachedHint(bounds.max);
+  const allowed = maxHint || maxAllowedHint(bounds.max);
   if (clampNote?.kind === "max" && status.atMax) {
-    return { text: `${reached} (${clampNote.entered} is over the limit)`, tone: "info" };
+    return { text: `${allowed} (${clampNote.entered} is over the limit)`, tone: "info" };
   }
   if (clampNote?.kind === "min" && status.atMin) {
     return { text: `Minimum is ${min} (${clampNote.entered} is not allowed)`, tone: "info" };
   }
-  if (status.atMax) return { text: reached, tone: "info" };
+  if (status.atMax) return { text: allowed, tone: "info" };
   return null;
 }
 

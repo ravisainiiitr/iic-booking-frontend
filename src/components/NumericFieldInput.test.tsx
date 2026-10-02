@@ -23,12 +23,12 @@ describe("NumericFieldInput", () => {
     const html = render("10");
     expect(arrow(html, "Increase")).toBe(true);
     expect(arrow(html, "Decrease")).toBe(false);
-    expect(html).toContain("Max 10 reached");
+    expect(html).toContain("Max 10 allowed");
   });
 
   it("shows the combined A / B hint", () => {
-    expect(render("4", { min: 1, max: 4, step: 1 }, "Combined max of 20 reached across all sample sets")).toContain(
-      "Combined max of 20 reached across all sample sets",
+    expect(render("4", { min: 1, max: 4, step: 1 }, "Combined max of 20 allowed across all sample sets")).toContain(
+      "Combined max of 20 allowed across all sample sets",
     );
   });
 

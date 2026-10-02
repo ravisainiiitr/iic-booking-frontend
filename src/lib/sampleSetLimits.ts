@@ -116,8 +116,8 @@ export function maxForPrimarySet(limit: CombinedLimit, sets: Values[]): number {
   return Math.max(0, limit.max - sumOver(sets, limit.key));
 }
 
-export function combinedMaxReachedHint(limit: CombinedLimit): string {
-  return `Combined max of ${formatNumericBound(limit.max)} reached across all sample sets`;
+export function combinedMaxAllowedHint(limit: CombinedLimit): string {
+  return `Combined max of ${formatNumericBound(limit.max)} allowed across all sample sets`;
 }
 
 /**
@@ -132,7 +132,7 @@ export function boundsWithCombinedMax<B extends { min: number; max: number; step
   if (!limit || available === undefined || !(available < bounds.max)) return { bounds };
   return {
     bounds: { ...bounds, max: Math.max(bounds.min, available) },
-    maxHint: combinedMaxReachedHint(limit),
+    maxHint: combinedMaxAllowedHint(limit),
   };
 }
 
