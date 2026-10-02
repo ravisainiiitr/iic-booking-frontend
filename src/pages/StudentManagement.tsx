@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import type { TANominationCall, EquipmentNomination, StudentSpendingLimit } from "@/lib/api";
+import type { TANominationCall, StudentSpendingLimit } from "@/lib/api";
 import { Switch } from "@/components/ui/switch";
 import { StudentSpendingLimitForm } from "@/components/wallet/StudentSpendingLimitForm";
 import { formatINRWithPaise as formatInr } from "@/lib/money";
@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,7 +46,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserIdentityCardDialog } from "@/components/UserIdentityCardDialog";
 import { formatProgramme } from "@/lib/programmeLabel";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, IdCard, GraduationCap } from "lucide-react";
+import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
+import { Users, Loader2, Send, IdCard, GraduationCap } from "lucide-react";
 import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
 import { format } from "date-fns";
@@ -70,11 +70,11 @@ type WalletStudentRow = {
   responded_at: string | null;
 };
 
-function programLabel(row: WalletStudentRow | EquipmentNomination): string {
+function programLabel(row: WalletStudentRow): string {
   return formatProgramme(row.student_degree_name, row.student_branch_name) || "—";
 }
 
-function ProgramCell({ row }: { row: WalletStudentRow | EquipmentNomination }) {
+function ProgramCell({ row }: { row: WalletStudentRow }) {
   return (
     <>
       <p className="text-foreground">{programLabel(row)}</p>
@@ -92,9 +92,7 @@ const StudentManagement = () => {
   const [students, setStudents] = useState<WalletStudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openTACalls, setOpenTACalls] = useState<TANominationCall[]>([]);
-  const [nominations, setNominations] = useState<EquipmentNomination[]>([]);
   const [loadingOpenCalls, setLoadingOpenCalls] = useState(true);
-  const [loadingNominations, setLoadingNominations] = useState(true);
   const [nominateDialogCall, setNominateDialogCall] = useState<TANominationCall | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [submittingNomination, setSubmittingNomination] = useState(false);
@@ -123,7 +121,6 @@ const StudentManagement = () => {
     fetchStudents();
     fetchSpendingLimits();
     fetchOpenTACalls();
-    fetchNominations();
   }, [navigate, isAuthenticated, user?.id, authLoading, isFaculty]);
 
   const fetchSpendingLimits = async () => {
@@ -231,22 +228,6 @@ const StudentManagement = () => {
     }
   };
 
-  const fetchNominations = async () => {
-    setLoadingNominations(true);
-    try {
-      const res = await apiClient.listMyNominationsAsSupervisor();
-      if (res.data?.nominations) {
-        setNominations(res.data.nominations);
-      } else {
-        setNominations([]);
-      }
-    } catch {
-      setNominations([]);
-    } finally {
-      setLoadingNominations(false);
-    }
-  };
-
   const openNominateDialog = (call: TANominationCall) => {
     setNominateDialogCall(call);
     setSelectedStudentId("");
@@ -269,7 +250,6 @@ const StudentManagement = () => {
       toast.success("Nomination submitted. It will be reviewed by Admin/OIC.");
       setNominateDialogCall(null);
       setSelectedStudentId("");
-      fetchNominations();
     } catch {
       toast.error("Failed to submit nomination.");
     } finally {
@@ -290,21 +270,26 @@ const StudentManagement = () => {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
-          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Dashboard
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight">Student management</h1>
-            <p className="mt-2 text-sm text-white/85">
-              Supervise students, respond to TA nomination calls, and track nomination outcomes.
-            </p>
-          </div>
+          <WorkspaceHeaderActions
+            fallback={(actions) => (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h1 className="text-2xl font-bold">Student Management</h1>
+                {actions}
+              </div>
+            )}
+          >
+            {trainingMenu("training_events") ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 border-primary/25 dark:border-primary/40"
+                onClick={() => navigate("/training/nominations?tab=students")}
+              >
+                <GraduationCap className="h-4 w-4" />
+                Training &amp; demos
+              </Button>
+            ) : null}
+          </WorkspaceHeaderActions>
 
           {/* TA operating nominations – only when there are open calls */}
           {!loadingOpenCalls && hasOpenCalls && (
@@ -366,133 +351,7 @@ const StudentManagement = () => {
             </Card>
           )}
 
-          {/* Nominations log – always visible for faculty who have nominations */}
           <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                  <ClipboardList className="h-6 w-6" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Nominations log</CardTitle>
-                  <CardDescription className="mt-0.5">
-                    Students you nominated for equipment operation and their outcome (Faculty, Admin and OIC can view this log).
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {loadingNominations ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : nominations.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground">
-                  <ClipboardList className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                  <p>No nominations yet. Use an active TA call above to nominate a student.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Student</TableHead>
-                        <TableHead className="hidden md:table-cell">Email</TableHead>
-                        <TableHead className="min-w-[140px]">Program</TableHead>
-                        <TableHead>Equipment</TableHead>
-                        <TableHead className="hidden sm:table-cell">Semester</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="min-w-[160px]">Outcome</TableHead>
-                        <TableHead className="whitespace-nowrap">Nominated at</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {nominations.map((n) => (
-                        <TableRow key={n.id}>
-                          <TableCell>
-                            <p className="font-medium">{n.student_name || "—"}</p>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
-                            {n.student_email || "—"}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            <ProgramCell row={n} />
-                          </TableCell>
-                          <TableCell>
-                            <p className="font-medium text-sm">{n.equipment_name}</p>
-                            <p className="text-xs text-muted-foreground">{n.equipment_code}</p>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell text-sm">
-                            {n.semester_name}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                n.status === "APPROVED"
-                                  ? "default"
-                                  : n.status === "REJECTED"
-                                    ? "destructive"
-                                    : "secondary"
-                              }
-                            >
-                              {n.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {n.outcome_summary || "Pending"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                            {n.nominated_at
-                              ? format(new Date(n.nominated_at), "dd MMM yyyy, HH:mm")
-                              : "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Students table – with program details */}
-          <Card className="overflow-hidden border-0 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">Student Management</CardTitle>
-                    <CardDescription className="mt-0.5">
-                      Students for whom you are the supervisor (use in TA nomination above). Turn on a
-                      spending limit to cap what a student can charge to your wallet each week or month.
-                    </CardDescription>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {trainingMenu("training_events") && (
-                    <Button
-                      variant="outline"
-                      className="gap-2 border-primary/25 dark:border-primary/40"
-                      onClick={() => navigate("/training/nominations?tab=students")}
-                    >
-                      <GraduationCap className="h-4 w-4" />
-                      Training &amp; demos
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    className="gap-2 border-primary/25 dark:border-primary/40"
-                    onClick={() => navigate("/wallet")}
-                  >
-                    <Wallet className="h-4 w-4" />
-                    Manage in Wallet
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
             <CardContent className="p-0">
               {loading ? (
                 <div className="flex items-center justify-center py-16">
