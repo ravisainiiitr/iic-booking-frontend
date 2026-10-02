@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/RichTextEditor";
-import { richTextToPlain } from "@/lib/richText";
+import { RICH_TEXT_PLAIN_MAX_LENGTH, richTextToPlain } from "@/lib/richText";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,7 +49,6 @@ type GroupRow = {
 
 const NO_WEEKDAY = "__none__";
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const IMPORTANT_INSTRUCTION_MAX_LENGTH = 5000;
 const QUOTA_TYPES = ["WEEKLY", "MONTHLY"] as const;
 const QUOTA_MINUTES_FIELDS: Array<{ key: QuotaMinutesField; label: string }> = [
   { key: "internal_individual_quota_minutes", label: "Internal individual" },
@@ -147,17 +146,18 @@ function toPayload(draft: Draft): { payload: Partial<OicEquipmentSettings>; erro
     errors.weekly_view_time_to = "'Time to' must be later than 'Time from'.";
   }
   const cleanInstruction = (html: string) => (richTextToPlain(html) ? html.trim() : "");
+  const tooLong = (html: string) => richTextToPlain(html).length > RICH_TEXT_PLAIN_MAX_LENGTH;
   const instruction = cleanInstruction(draft.important_instruction);
-  if (instruction.length > IMPORTANT_INSTRUCTION_MAX_LENGTH) {
-    errors.important_instruction = `Keep the important instruction under ${IMPORTANT_INSTRUCTION_MAX_LENGTH} characters (including formatting).`;
+  if (tooLong(instruction)) {
+    errors.important_instruction = `Keep the important instruction under ${RICH_TEXT_PLAIN_MAX_LENGTH} characters.`;
   } else {
     payload.important_instruction = instruction;
   }
   const perType: Record<string, string> = {};
   for (const [code, html] of Object.entries(draft.important_instruction_by_user_type)) {
     const clean = cleanInstruction(html);
-    if (clean.length > IMPORTANT_INSTRUCTION_MAX_LENGTH) {
-      errors.important_instruction_by_user_type = `Keep each instruction under ${IMPORTANT_INSTRUCTION_MAX_LENGTH} characters (including formatting).`;
+    if (tooLong(clean)) {
+      errors.important_instruction_by_user_type = `Keep each instruction under ${RICH_TEXT_PLAIN_MAX_LENGTH} characters.`;
     } else if (clean) {
       perType[code] = clean;
     }
