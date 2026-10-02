@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useId, useMemo, useState, type DragEvent, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, GripVertical, Loader2, RotateCcw, Settings2, Trash2 } from "lucide-react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ComponentType, type DragEvent, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, GripVertical, Loader2, RotateCcw, Search, Settings2, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +17,10 @@ import {
   EMPTY_DASHBOARD_MENU_LAYOUT,
   addMenuGroup,
   buildMenuTree,
+  dedupeMenuEntriesByPath,
   menuNodeKey,
+  type DashboardMenuNode,
+  type DashboardMenuSection,
   moveGroupItem,
   moveMenuItem,
   moveMenuNode,
@@ -47,28 +50,47 @@ interface DashboardMenuTreeProps {
   onSaveLayout: (layout: DashboardMenuLayout) => Promise<string | null>;
   /** Rendered after the last menu item (above "Customize menu"). */
   footer?: ReactNode;
+  /** Built-in sections (administrator roles): section headings plus a menu search box. */
+  sections?: MenuSection[];
 }
 
+export type MenuSection = DashboardMenuSection & { icon?: ComponentType<{ className?: string }> };
+
 const COLLAPSED_KEY = "iic-dashboard-menu-collapsed";
+export const SECTIONS_OPEN_KEY = "iic-dashboard-menu-sections-open";
+const DEFAULT_OPEN_SECTIONS = ["sec_overview", "sec_bookings"];
 const MAIN_MENU = "__main__";
 const DRAG_TYPE = "text/x-iic-menu-item";
 
-function readCollapsed(): Set<string> {
+function readIdSet(key: string, fallback: string[]): Set<string> {
   try {
-    const raw = localStorage.getItem(COLLAPSED_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : []);
+    const raw = localStorage.getItem(key);
+    if (raw === null) return new Set(fallback);
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : fallback);
   } catch {
-    return new Set();
+    return new Set(fallback);
   }
 }
 
-export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, activePath, onSaveLayout, footer }: DashboardMenuTreeProps) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const groupIdPrefix = useId();
+function writeIdSet(key: string, ids: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify([...ids]));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
-  const visibleEntries = useMemo(() => entries.filter((e) => e.visible), [entries]);
+export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, activePath, onSaveLayout, footer, sections }: DashboardMenuTreeProps) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => readIdSet(COLLAPSED_KEY, []));
+  const [openSections, setOpenSections] = useState<Set<string>>(() => readIdSet(SECTIONS_OPEN_KEY, DEFAULT_OPEN_SECTIONS));
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const groupIdPrefix = useId();
+  const sectioned = Boolean(sections?.length);
+
+  const visibleEntries = useMemo(() => dedupeMenuEntriesByPath(entries.filter((e) => e.visible)), [entries]);
   const byId = useMemo(() => new Map(visibleEntries.map((e) => [e.id, e])), [visibleEntries]);
   const activeId = useMemo(() => findActiveMenuId(visibleEntries, activePath), [visibleEntries, activePath]);
   const renderEntry = (id: string) => {
@@ -79,29 +101,164 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
     () => orderMenuIds(visibleEntries.map((e) => e.id), defaultOrder),
     [visibleEntries, defaultOrder],
   );
-  const tree = useMemo(() => buildMenuTree(orderedIds, layout), [orderedIds, layout]);
+  const tree = useMemo(() => buildMenuTree(orderedIds, layout, sections), [orderedIds, layout, sections]);
+
+  const activeContainer = useMemo(() => {
+    if (!activeId) return null;
+    const node = tree.find((n) => n.kind === "group" && n.items.includes(activeId));
+    return node && node.kind === "group" ? node : null;
+  }, [tree, activeId]);
+
+  useEffect(() => {
+    if (!activeContainer) return;
+    if (activeContainer.section) {
+      const id = activeContainer.section.id;
+      setOpenSections((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev).add(id);
+        writeIdSet(SECTIONS_OPEN_KEY, next);
+        return next;
+      });
+    } else {
+      const id = activeContainer.group.id;
+      setCollapsed((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        writeIdSet(COLLAPSED_KEY, next);
+        return next;
+      });
+    }
+  }, [activeContainer]);
 
   const toggleGroup = (groupId: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(groupId)) next.delete(groupId);
       else next.add(groupId);
-      try {
-        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
-      } catch {
-        /* storage unavailable */
-      }
+      writeIdSet(COLLAPSED_KEY, next);
       return next;
     });
   };
 
+  const toggleSection = (sectionId: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      writeIdSet(SECTIONS_OPEN_KEY, next);
+      return next;
+    });
+  };
+
+  const containerNameOf = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const node of tree) {
+      if (node.kind === "group") for (const id of node.items) names.set(id, node.group.name);
+    }
+    return names;
+  }, [tree]);
+  const needle = query.trim().toLowerCase();
+  const matches = useMemo(() => {
+    if (!needle) return [];
+    return orderedIds.filter((id) => {
+      const label = byId.get(id)?.label.toLowerCase() ?? "";
+      const container = containerNameOf.get(id)?.toLowerCase() ?? "";
+      return label.includes(needle) || container.includes(needle);
+    });
+  }, [needle, orderedIds, byId, containerNameOf]);
+
+  const renderSection = (node: Extract<DashboardMenuNode, { kind: "group" }>, section: MenuSection) => {
+    const isOpen = openSections.has(section.id);
+    const listId = `${groupIdPrefix}-section-${section.id}`;
+    const Icon = section.icon;
+    const holdsActive = activeId != null && node.items.includes(activeId);
+    return (
+      <div key={section.id} className="flex flex-col" data-dashboard-menu-section={section.id}>
+        <button
+          type="button"
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-[2.6rem] max-sm:text-[0.74rem]",
+            holdsActive && "text-primary dark:text-sky-300",
+          )}
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? listId : undefined}
+          data-menu-keep-open
+          onClick={() => toggleSection(section.id)}
+        >
+          {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
+          <span className="min-w-0 flex-1 truncate">{section.name}</span>
+          {!isOpen && (
+            <span className="rounded-full bg-muted px-1.5 text-[0.62rem] font-semibold normal-case tabular-nums tracking-normal text-muted-foreground">
+              {node.items.length}
+              <span className="sr-only"> items</span>
+            </span>
+          )}
+          <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform", !isOpen && "-rotate-90")} aria-hidden />
+        </button>
+        {isOpen && (
+          <div
+            id={listId}
+            className="dashboard-uniform-cards dashboard-menu-section mb-1 ml-[0.85rem] mt-0.5 flex flex-col border-l border-border/70 pl-1.5"
+          >
+            {node.items.map((id) => (
+              <Fragment key={id}>{renderEntry(id)}</Fragment>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <>
-      <div className="dashboard-uniform-cards flex flex-col gap-2">
+      {sectioned && (
+        <div className="relative" data-menu-keep-open>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            type="search"
+            value={query}
+            placeholder="Search menu"
+            aria-label="Search menu"
+            className="h-8 pl-8 pr-8 text-xs [&::-webkit-search-cancel-button]:hidden"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query) {
+                e.preventDefault();
+                setQuery("");
+              } else if (e.key === "Enter" && matches.length > 0) {
+                e.preventDefault();
+                resultsRef.current?.querySelector<HTMLElement>('[role="button"]')?.click();
+              }
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Clear menu search"
+              onClick={() => setQuery("")}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
+      {sectioned && needle ? (
+        <div ref={resultsRef} className="dashboard-uniform-cards dashboard-menu-section flex flex-col" aria-live="polite">
+          {matches.length === 0 ? (
+            <p className="px-2 py-3 text-center text-xs text-muted-foreground">No menu items match &ldquo;{query.trim()}&rdquo;.</p>
+          ) : (
+            matches.map((id) => <Fragment key={id}>{renderEntry(id)}</Fragment>)
+          )}
+        </div>
+      ) : (
+      <div className={cn("dashboard-uniform-cards flex flex-col", sectioned ? "gap-0.5" : "gap-2")}>
         {tree.map((node) => {
           if (node.kind === "item") {
             return <Fragment key={node.id}>{renderEntry(node.id)}</Fragment>;
           }
+          if (node.section) return renderSection(node, node.section as MenuSection);
           const isOpen = !collapsed.has(node.group.id);
           const listId = `${groupIdPrefix}-group-${node.group.id}`;
           return (
@@ -146,6 +303,7 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
           );
         })}
       </div>
+      )}
       {footer}
       {canCustomize && (
         <Button
@@ -168,6 +326,7 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
           labels={byId}
           layout={layout ?? EMPTY_DASHBOARD_MENU_LAYOUT}
           onSave={onSaveLayout}
+          sections={sections}
         />
       )}
     </>
@@ -181,9 +340,10 @@ interface DashboardMenuEditorProps {
   labels: Map<string, DashboardMenuEntry>;
   layout: DashboardMenuLayout;
   onSave: (layout: DashboardMenuLayout) => Promise<string | null>;
+  sections?: MenuSection[];
 }
 
-function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, onSave }: DashboardMenuEditorProps) {
+function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, onSave, sections }: DashboardMenuEditorProps) {
   const [draft, setDraft] = useState<DashboardMenuLayout>(layout);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -199,7 +359,8 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
   }, [open, layout]);
 
   const visible = useMemo(() => new Set(orderedIds), [orderedIds]);
-  const draftTree = useMemo(() => buildMenuTree(orderedIds, draft), [orderedIds, draft]);
+  const draftTree = useMemo(() => buildMenuTree(orderedIds, draft, sections), [orderedIds, draft, sections]);
+  const mainMenuLabel = sections?.length ? "Default section" : "Main menu";
   const emptyGroups = useMemo(() => {
     const shown = new Set(draftTree.flatMap((n) => (n.kind === "group" ? [n.group.id] : [])));
     return draft.groups.filter((g) => !shown.has(g.id));
@@ -210,7 +371,14 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
   };
 
   const moveTop = (key: string, delta: -1 | 1) => {
-    setDraft((d) => moveMenuNode(d, buildMenuTree(orderedIds, d).map(menuNodeKey), key, delta));
+    setDraft((d) => moveMenuNode(d, buildMenuTree(orderedIds, d, sections).map(menuNodeKey), key, delta));
+  };
+
+  const moveInSection = (sectionId: string, itemId: string, delta: -1 | 1) => {
+    setDraft((d) => {
+      const node = buildMenuTree(orderedIds, d, sections).find((n) => n.kind === "group" && n.section?.id === sectionId);
+      return node && node.kind === "group" ? moveMenuNode(d, node.items, itemId, delta) : d;
+    });
   };
 
   const priorityControls = (position: number, count: number, label: string, onMove: (delta: -1 | 1) => void) => (
@@ -288,7 +456,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={MAIN_MENU}>Main menu</SelectItem>
+          <SelectItem value={MAIN_MENU}>{mainMenuLabel}</SelectItem>
           {draft.groups.map((g) => (
             <SelectItem key={g.id} value={g.id}>
               {g.name || "Untitled menu"}
@@ -348,6 +516,30 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
     </div>
   );
 
+  const renderSectionBlock = (node: Extract<DashboardMenuNode, { kind: "group" }>, section: DashboardMenuSection, controls: ReactNode) => (
+    <div
+      key={section.id}
+      {...dropProps(MAIN_MENU)}
+      className="rounded-lg border bg-muted/30 p-2"
+      data-editor-section={section.id}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{section.name}</span>
+        <span className="hidden text-[0.7rem] text-muted-foreground sm:inline">Built-in section</span>
+        {controls}
+      </div>
+      <div className="ml-3 space-y-1 border-l-2 border-border pl-3">
+        {node.items.map((id, index) =>
+          renderItem(
+            id,
+            MAIN_MENU,
+            priorityControls(index, node.items.length, labels.get(id)?.label ?? id, (delta) => moveInSection(section.id, id, delta)),
+          ),
+        )}
+      </div>
+    </div>
+  );
+
   const addGroup = () => {
     if (!newName.trim()) return;
     setDraft((d) => addMenuGroup(d, newName));
@@ -380,6 +572,9 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
           <DialogDescription>
             Set the priority of each entry with the up and down arrows (1 is shown at the top). You can also create
             your own menus and drag items into them (or use &ldquo;Move to&rdquo;).
+            {sections?.length
+              ? " Items you do not move into your own menu stay in their built-in section; you can reorder sections and the items inside them."
+              : null}
           </DialogDescription>
         </DialogHeader>
 
@@ -418,7 +613,9 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
                 const key = menuNodeKey(node);
                 const label = node.kind === "item" ? labels.get(node.id)?.label ?? node.id : node.group.name;
                 const controls = priorityControls(index, draftTree.length, label, (delta) => moveTop(key, delta));
-                return node.kind === "item" ? renderItem(node.id, MAIN_MENU, controls) : renderGroup(node.group, node.items, controls);
+                if (node.kind === "item") return renderItem(node.id, MAIN_MENU, controls);
+                if (node.section) return renderSectionBlock(node, node.section, controls);
+                return renderGroup(node.group, node.items, controls);
               })}
             </div>
           </div>

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   addMenuGroup,
   buildMenuTree,
+  dedupeMenuEntriesByPath,
   facultyDashboardMenuOrder,
   menuNodeKey,
   moveGroupItem,
@@ -11,6 +12,7 @@ import {
   orderMenuIds,
   removeMenuGroup,
   renameMenuGroup,
+  sectionMenuOrder,
 } from "./dashboardMenuLayout";
 
 describe("orderMenuIds", () => {
@@ -155,6 +157,70 @@ describe("buildMenuTree", () => {
       { kind: "item", id: "browse" },
       { kind: "group", group: { id: "g2", name: "Help", items: ["support", "admin_only"] }, items: ["support"] },
     ]);
+  });
+});
+
+describe("buildMenuTree with built-in sections", () => {
+  const sections = [
+    { id: "sec_a", name: "Alpha", items: ["a1", "a2", "a3"] },
+    { id: "sec_b", name: "Beta", items: ["b1", "b2"] },
+    { id: "sec_more", name: "More", items: [], fallback: true },
+  ];
+  const ids = ["a1", "a2", "a3", "b1", "b2", "new_item"];
+  const shape = (tree: ReturnType<typeof buildMenuTree>) =>
+    tree.map((n) => (n.kind === "item" ? n.id : `${menuNodeKey(n)}[${n.items.join(",")}]`));
+
+  it("groups items into sections in order, with unlisted items in the fallback section", () => {
+    expect(shape(buildMenuTree(ids, null, sections))).toEqual(["sec_a[a1,a2,a3]", "sec_b[b1,b2]", "sec_more[new_item]"]);
+  });
+
+  it("only lists visible items and drops empty sections", () => {
+    const tree = buildMenuTree(["a2", "b1"], null, sections);
+    expect(shape(tree)).toEqual(["sec_a[a2]", "sec_b[b1]"]);
+    const all = tree.flatMap((n) => (n.kind === "item" ? [n.id] : n.items));
+    expect(all).toEqual(["a2", "b1"]);
+  });
+
+  it("lists each item once even when a section repeats it", () => {
+    const dup = [...sections, { id: "sec_c", name: "Gamma", items: ["a1", "b2"] }];
+    const all = buildMenuTree(ids, null, dup).flatMap((n) => (n.kind === "item" ? [n.id] : n.items));
+    expect(new Set(all).size).toBe(all.length);
+    expect(all.sort()).toEqual([...ids].sort());
+  });
+
+  it("lets the user's own menus claim items before the built-in sections", () => {
+    const tree = buildMenuTree(ids, { groups: [{ id: "g1", name: "Mine", items: ["a2", "b2"] }] }, sections);
+    expect(shape(tree)).toEqual(["sec_a[a1,a3]", "group:g1[a2,b2]", "sec_b[b1]", "sec_more[new_item]"]);
+  });
+
+  it("applies the saved priority to items inside a section and to the sections themselves", () => {
+    const tree = buildMenuTree(ids, { groups: [], order: ["sec_b", "sec_a", "a3", "a1"] }, sections);
+    // "sec_more" is unranked, so it stays right after its default neighbour "sec_b".
+    expect(shape(tree)).toEqual(["sec_b[b1,b2]", "sec_more[new_item]", "sec_a[a3,a1,a2]"]);
+  });
+
+  it("keeps the flat menu when no sections are given", () => {
+    expect(buildMenuTree(["a1", "b1"], null).map(menuNodeKey)).toEqual(["a1", "b1"]);
+  });
+});
+
+describe("sectionMenuOrder and dedupeMenuEntriesByPath", () => {
+  it("flattens section items in order", () => {
+    expect(sectionMenuOrder([{ id: "s1", name: "S1", items: ["x", "y"] }, { id: "s2", name: "S2", items: ["z"] }])).toEqual([
+      "x",
+      "y",
+      "z",
+    ]);
+  });
+
+  it("keeps the first entry for each page, ignoring query strings and trailing slashes", () => {
+    const entries = [
+      { id: "first", path: "/ta-nomination-call" },
+      { id: "no_path" },
+      { id: "second", path: "/ta-nomination-call/?tab=open" },
+      { id: "other", path: "/reports" },
+    ];
+    expect(dedupeMenuEntriesByPath(entries).map((e) => e.id)).toEqual(["first", "no_path", "other"]);
   });
 });
 

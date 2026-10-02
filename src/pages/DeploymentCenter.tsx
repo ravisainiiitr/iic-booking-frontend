@@ -164,6 +164,12 @@ export default function DeploymentCenterPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" asChild>
+              <Link to="/remote-analysis/agent-installer">RA Agent installer</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/department-sync/agent-installer">DSA installer</Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
               <Link to="/device-provisioning">Device Provisioning</Link>
             </Button>
             <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>

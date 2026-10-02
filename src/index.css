@@ -426,6 +426,74 @@
   }
 }
 
+/* Administrator menu sections: borderless rows with one icon colour; the open page is tinted. */
+.dashboard-menu-nav .dashboard-menu-section {
+  gap: 0.1rem;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer {
+  border-color: transparent !important;
+  background: transparent !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer:hover {
+  border-color: transparent !important;
+  background: hsl(var(--muted)) !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer [class*="CardHeader"],
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer > div:first-child {
+  padding: 0.3rem 0.45rem !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer .h-12.w-12 {
+  background-image: none !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer .text-lg {
+  font-weight: 500 !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"],
+.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
+  border-color: transparent !important;
+  background: hsl(var(--primary) / 0.1) !important;
+  box-shadow: inset 2px 0 0 hsl(var(--primary)) !important;
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] .text-lg {
+  font-weight: 600 !important;
+  color: hsl(var(--primary));
+}
+
+.dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] .h-12.w-12 {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer .h-12.w-12 {
+  background-color: hsl(var(--primary) / 0.35) !important;
+  color: hsl(210 40% 96%) !important;
+}
+
+.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
+  background: hsl(var(--primary) / 0.3) !important;
+  box-shadow: inset 2px 0 0 hsl(var(--ring)) !important;
+}
+
+.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] .text-lg {
+  color: hsl(210 40% 98%);
+}
+
+@media (max-width: 640px) {
+  .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer [class*="CardHeader"],
+  .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer > div:first-child {
+    padding: 0.55rem 0.6rem !important;
+  }
+}
+
 .dashboard-uniform-cards .cursor-pointer:hover {
   border-color: hsl(var(--primary) / 0.35) !important;
   box-shadow: var(--shadow-elegant) !important;

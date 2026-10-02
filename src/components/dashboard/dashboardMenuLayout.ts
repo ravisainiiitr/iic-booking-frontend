@@ -52,12 +52,50 @@ export function orderMenuIds(ids: string[], defaultOrder: string[]): string[] {
   return ordered;
 }
 
+/**
+ * Built-in menu section (Main Administrator / Department Administrator). Items in a user's own
+ * menu stay there; other visible items fall into their section, and items no section lists go to
+ * the `fallback` section. Section ids start with `sec_` and are used as-is in the saved order.
+ */
+export interface DashboardMenuSection {
+  id: string;
+  name: string;
+  items: string[];
+  fallback?: boolean;
+}
+
 export type DashboardMenuNode =
   | { kind: "item"; id: string }
-  | { kind: "group"; group: DashboardMenuGroup; items: string[] };
+  | { kind: "group"; group: DashboardMenuGroup; items: string[]; section?: DashboardMenuSection };
 
 export function menuNodeKey(node: DashboardMenuNode): string {
-  return node.kind === "item" ? node.id : `group:${node.group.id}`;
+  if (node.kind === "item") return node.id;
+  return node.section ? node.section.id : `group:${node.group.id}`;
+}
+
+/** Default menu order for sectioned menus: every section's items in section order. */
+export function sectionMenuOrder(sections: DashboardMenuSection[]): string[] {
+  return sections.flatMap((s) => s.items);
+}
+
+/** Section items in the user's saved priority (ranked first in rank order, others keep their place). */
+export function orderSectionItems(items: string[], order: string[] | undefined): string[] {
+  return applyMenuOrder(
+    items.map((id) => ({ kind: "item", id }) as DashboardMenuNode),
+    order,
+  ).map((n) => (n as { id: string }).id);
+}
+
+/** First item id per visible entry path; later entries opening the same page are dropped. */
+export function dedupeMenuEntriesByPath<T extends { id: string; path?: string }>(entries: T[]): T[] {
+  const seen = new Set<string>();
+  return entries.filter((e) => {
+    if (!e.path) return true;
+    const key = e.path.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -84,7 +122,11 @@ function applyMenuOrder(nodes: DashboardMenuNode[], order: string[] | undefined)
  * Top-level menu nodes. A custom menu sits where its first item would have been, and
  * items not in any custom menu keep their default position, unless the user set a priority order.
  */
-export function buildMenuTree(orderedIds: string[], layout: DashboardMenuLayout | null | undefined): DashboardMenuNode[] {
+export function buildMenuTree(
+  orderedIds: string[],
+  layout: DashboardMenuLayout | null | undefined,
+  sections?: DashboardMenuSection[],
+): DashboardMenuNode[] {
   const visible = new Set(orderedIds);
   const groupOf = new Map<string, DashboardMenuGroup>();
   for (const group of layout?.groups ?? []) {
@@ -92,12 +134,37 @@ export function buildMenuTree(orderedIds: string[], layout: DashboardMenuLayout 
       if (visible.has(item) && !groupOf.has(item)) groupOf.set(item, group);
     }
   }
+  const sectionOf = new Map<string, DashboardMenuSection>();
+  if (sections?.length) {
+    for (const section of sections) {
+      for (const item of section.items) {
+        if (visible.has(item) && !groupOf.has(item) && !sectionOf.has(item)) sectionOf.set(item, section);
+      }
+    }
+    const fallback = sections.find((s) => s.fallback);
+    if (fallback) {
+      for (const id of orderedIds) {
+        if (!groupOf.has(id) && !sectionOf.has(id)) sectionOf.set(id, fallback);
+      }
+    }
+  }
   const nodes: DashboardMenuNode[] = [];
   const placed = new Set<string>();
   for (const id of orderedIds) {
     const group = groupOf.get(id);
     if (!group) {
-      nodes.push({ kind: "item", id });
+      const section = sectionOf.get(id);
+      if (!section) {
+        nodes.push({ kind: "item", id });
+        continue;
+      }
+      if (placed.has(section.id)) continue;
+      placed.add(section.id);
+      const items = orderSectionItems(
+        orderedIds.filter((i) => sectionOf.get(i) === section),
+        layout?.order,
+      );
+      nodes.push({ kind: "group", group: { id: section.id, name: section.name, items }, items, section });
       continue;
     }
     if (placed.has(group.id)) continue;

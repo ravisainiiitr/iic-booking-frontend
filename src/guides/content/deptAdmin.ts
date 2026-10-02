@@ -15,6 +15,8 @@ export const deptAdminGuide: RoleGuide = {
       group: "Start",
       intro: [
         "Your access covers your own department. Upcoming Bookings and Equipment Statistics on the dashboard show only your department's equipment.",
+        "The Administration overview at the top of the dashboard shows your department's sessions and bookings today, charges this month, equipment status, waitlist, failed booking attempts, ratings and a Needs attention list. It refreshes every minute.",
+        "The menu is grouped into sections such as Bookings, Finance and Support & feedback. Click a section heading to open or close it, or type in Search menu to find a page.",
       ],
       rules: [
         "Admin Settings appears only if Admin Panel Access is enabled for your role and department.",

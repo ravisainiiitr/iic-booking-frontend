@@ -649,6 +649,58 @@ export interface DashboardMenuLayout {
   order?: string[];
 }
 
+/** GET /api/admin/dashboard-summary/ */
+export interface AdminDashboardSummary {
+  scope: "institute" | "department";
+  department: { id: number; name: string; code?: string } | null;
+  generated_at: string;
+  cache_seconds: number;
+  bookings: {
+    created_today: number;
+    created_this_week: number;
+    created_last_7_days: number;
+    sessions_today: number;
+    sessions_next_7_days: number;
+  };
+  revenue: {
+    month: string;
+    charged_this_month: number;
+    charged_bookings_this_month: number;
+    refunded_this_month: number;
+    charged_last_month: number;
+  } | null;
+  equipment: { total: number; operational: number; under_maintenance: number; disposed: number; other: number } | null;
+  users: { active: number; new_last_7_days: number; new_last_30_days: number } | null;
+  waitlist: { active: number } | null;
+  booking_attempts: {
+    days: number;
+    total: number;
+    failed: number;
+    top_failure_reasons: Array<{ reason: string; count: number }>;
+  } | null;
+  ratings: {
+    days: number;
+    booking_average: number | null;
+    booking_count: number;
+    portal_average: number | null;
+    portal_count: number;
+  } | null;
+  attention: Array<{ key: string; label: string; count: number; link: string; description: string; details?: string[] }>;
+  bookings_per_day: Array<{ date: string; count: number; charged: number }>;
+  top_equipment: Array<{ equipment_id: number; name: string; code: string; bookings: number; hours: number; charged: number }>;
+  recent_bookings: Array<{
+    booking_id: number;
+    reference: string;
+    equipment_name: string;
+    user_name: string;
+    status: string;
+    status_display: string;
+    total_charge: number;
+    created_at: string | null;
+  }>;
+  system: { backend_version: string; build_date: string; server_time: string } | null;
+}
+
 export interface OicEquipmentSettings {
   slot_window_reference_weekday: number | null;
   slot_window_reference_time: string | null;
@@ -4258,6 +4310,14 @@ class ApiClient {
       }>;
       total: number;
     }>('/notifications/pending-actions/');
+  }
+
+  /** Main Administrator (institute) / Department Administrator (own department) home overview; cached ~60 s server-side. */
+  async getAdminDashboardSummary(opts?: { refresh?: boolean }) {
+    if (opts?.refresh) {
+      return this.request<AdminDashboardSummary>('/admin/dashboard-summary/?refresh=1', { method: 'GET' });
+    }
+    return this.sharedGet<AdminDashboardSummary>('/admin/dashboard-summary/');
   }
 
   /** OIC / Lab in-charge: bookings whose slot time is over but which are not marked Completed yet. */

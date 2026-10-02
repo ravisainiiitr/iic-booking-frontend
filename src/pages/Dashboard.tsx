@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
@@ -71,10 +71,18 @@ import {
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
 import { activateOnEnterOrSpace } from "@/components/dashboard/menuItemA11y";
-import { facultyDashboardMenuOrder, normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
+import { facultyDashboardMenuOrder, normalizeMenuLayout, sectionMenuOrder } from "@/components/dashboard/dashboardMenuLayout";
+import { ADMIN_MENU_SECTIONS } from "@/components/dashboard/adminMenuSections";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
+
+const ADMIN_MENU_SECTION_ORDER = sectionMenuOrder(ADMIN_MENU_SECTIONS);
+const AdminOverview = lazy(() => import("@/components/dashboard/AdminOverview"));
+
+function normalizeMenuPath(path: string): string {
+  return path.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
+}
 
 /** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
 const OIC_DASHBOARD_MENU_ORDER = [
@@ -467,6 +475,8 @@ const Dashboard = () => {
   const canSeeAdminSettingsCard =
     !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
+  /** Main / Department Administrator: sectioned sidebar and the administration overview on the home page. */
+  const usesAdminMenuSections = isAdmin || isDeptAdmin;
   const isExternalRelations = userTypeStr === 'external_relations';
   const isOrgAdmin = userTypeStr === 'org_admin';
   const canManageDeptRbac = isAdmin;
@@ -1456,6 +1466,9 @@ const Dashboard = () => {
     </Button>
   );
 
+  // Department Administrators also have "View Booking" (/my-bookings); keep the two labels distinct.
+  const bookingManagementLabel = isDeptAdmin ? "Manage bookings" : "View Booking";
+
   const dashboardMenuEntries: DashboardMenuEntry[] = [
     {
       id: "browse_equipment",
@@ -2388,7 +2401,8 @@ const Dashboard = () => {
       id: "support_tickets",
       label: "Support tickets",
       path: "/tickets",
-      visible: true,
+      // Main Administrator works tickets from the admin queue ("support_tickets_2") instead.
+      visible: !isAdmin,
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
@@ -2416,7 +2430,7 @@ const Dashboard = () => {
     },
     {
       id: "booking_management",
-      label: "View Booking",
+      label: bookingManagementLabel,
       path: "/booking-management",
       visible: Boolean((isOperatorOrManager || isDeptAdmin)),
       render: () => (
@@ -2430,7 +2444,7 @@ const Dashboard = () => {
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">View Booking</CardTitle>
+                    <CardTitle className="text-lg">{bookingManagementLabel}</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Manage bookings as Lab Operator, Officer In-charge, Department Administrator, or Admin
                     </CardDescription>
@@ -3215,9 +3229,13 @@ const Dashboard = () => {
     {
       id: "deployment_center",
       label: "Deployment center",
+      path: "/deployment-center",
       visible: Boolean(isAdmin),
       render: () => (
-          <Card className="overflow-hidden border-0 shadow-md transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800">
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/deployment-center")}
+            >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-700 text-white shadow-lg">
@@ -3232,46 +3250,10 @@ const Dashboard = () => {
                 </div>
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-500 mt-3" />
               </CardHeader>
-              <CardContent className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  className="w-full bg-violet-600 hover:bg-violet-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/deployment-center");
-                  }}
-                >
+              <CardContent>
+                <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white">
                   <Download className="mr-2 h-4 w-4" />
                   Open Deployment Center
-                </Button>
-                <Button
-                  className="w-full bg-sky-600 hover:bg-sky-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/remote-analysis/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  RA Agent
-                </Button>
-                <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/department-sync/agent-installer");
-                  }}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  DSA
-                </Button>
-                <Button
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openWorkspace("/device-provisioning");
-                  }}
-                >
-                  <HardDrive className="mr-2 h-4 w-4" />
-                  Devices
                 </Button>
               </CardContent>
             </Card>
@@ -3459,6 +3441,12 @@ const Dashboard = () => {
     },
   ];
 
+  const visibleMenuPaths = new Set(
+    dashboardMenuEntries.filter((e) => e.visible && e.path).map((e) => normalizeMenuPath(e.path as string)),
+  );
+  const canOpenMenuPath = (path: string) => visibleMenuPaths.has(normalizeMenuPath(path));
+  const showAdminOverview = usesAdminMenuSections && !workspacePath;
+
   const dashboardMenuDefaultOrder = isOicUser
     ? [
         ...OIC_DASHBOARD_MENU_ORDER,
@@ -3469,7 +3457,9 @@ const Dashboard = () => {
       ]
     : isFacultyUser
       ? facultyDashboardMenuOrder(dashboardMenuEntries.map((entry) => entry.id))
-      : [];
+      : usesAdminMenuSections
+        ? ADMIN_MENU_SECTION_ORDER
+        : [];
 
   const renderDashboardMenu = () => (
     <>
@@ -3578,6 +3568,7 @@ const Dashboard = () => {
           activePath={activeMenuPath}
           onSaveLayout={saveDashboardMenuLayout}
           footer={downloadBrochureButton}
+          sections={usesAdminMenuSections ? ADMIN_MENU_SECTIONS : undefined}
         />
         )}
     </>
@@ -3618,7 +3609,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
-        <PendingActionsSummary className="mb-4" />
+        {/* The administration overview lists these under "Needs attention". */}
+        {showAdminOverview ? null : <PendingActionsSummary className="mb-4" />}
         {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
@@ -3890,7 +3882,20 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
-            {!showsLabStyleDashboard && (
+            {showAdminOverview ? (
+              <Suspense
+                fallback={
+                  <Card className="border-border/70 shadow-sm">
+                    <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden />
+                      Loading administration overview…
+                    </CardContent>
+                  </Card>
+                }
+              >
+                <AdminOverview onOpen={(path) => openWorkspace(path)} canOpen={canOpenMenuPath} />
+              </Suspense>
+            ) : !showsLabStyleDashboard && (
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">

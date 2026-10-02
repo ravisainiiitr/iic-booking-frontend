@@ -16,9 +16,16 @@ export const adminGuide: RoleGuide = {
         title: "Getting started",
         icon: "rocket",
         group: "Start",
-        intro: ["You have full Admin Panel access and every permission. Most tools are on the dashboard; deeper settings are in Admin Settings."],
+        intro: [
+          "You have full Admin Panel access and every permission. Most tools are on the dashboard; deeper settings are in Admin Settings.",
+          "The dashboard opens with the Administration overview: sessions and bookings today, charges this month, equipment status, active users, waitlist, failed booking attempts, ratings, a Needs attention list and the countdown to the weekly booking opening. It refreshes every minute.",
+          "The menu is grouped into sections (Overview, Bookings, Equipment & configuration, Users & access, TA & training, Finance, Operations & infrastructure, Content & communication, Support & feedback, System). Click a section heading to open or close it, or type in Search menu to find a page.",
+        ],
         rules: ["Do not share the Admin account. Give staff named accounts with only the modules they need."],
-        tips: ["To book on someone's behalf, click Book on any equipment and choose Book slots for a user."],
+        tips: [
+          "To book on someone's behalf, click Book on any equipment and choose Book slots for a user.",
+          "Customize menu still works: your own menus appear above the built-in sections, and Reset to default brings the sections back.",
+        ],
       },
       {
         id: "administration",
