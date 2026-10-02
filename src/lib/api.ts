@@ -734,6 +734,32 @@ interface ApiResponse<T> {
   istem_portal_url?: string;
 }
 
+export interface SupervisorInvite {
+  id: number;
+  email: string;
+  supervisor_name: string;
+  department_id: number | null;
+  department_name: string;
+  message: string;
+  status: "pending" | "accepted" | "expired" | "cancelled";
+  status_display: string;
+  created_at: string | null;
+  expires_at: string | null;
+  last_sent_at: string | null;
+  accepted_at: string | null;
+  join_request_id: number | null;
+  can_resend: boolean;
+  can_resend_at: string | null;
+  can_cancel: boolean;
+}
+
+export interface SupervisorInviteLimits {
+  max_active: number;
+  valid_days: number;
+  resend_hours: number;
+  allowed_domains: string[];
+}
+
 interface User {
   id: number;
   email: string;
@@ -4365,6 +4391,49 @@ class ApiClient {
       }>;
       count: number;
     }>('/wallet/join-requests/');
+  }
+
+  async getSupervisorInvites() {
+    return this.request<{ invites: SupervisorInvite[]; limits: SupervisorInviteLimits }>(
+      '/wallet/supervisor-invites/'
+    );
+  }
+
+  async createSupervisorInvite(payload: {
+    email: string;
+    supervisor_name?: string;
+    department_id?: number | null;
+    message?: string;
+  }) {
+    return this.request<{ invite: SupervisorInvite; message: string }>('/wallet/supervisor-invites/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resendSupervisorInvite(inviteId: number) {
+    return this.request<{ invite: SupervisorInvite; message: string }>(
+      `/wallet/supervisor-invites/${inviteId}/resend/`,
+      { method: 'POST' }
+    );
+  }
+
+  async cancelSupervisorInvite(inviteId: number) {
+    return this.request<{ invite: SupervisorInvite; message: string }>(
+      `/wallet/supervisor-invites/${inviteId}/cancel/`,
+      { method: 'POST' }
+    );
+  }
+
+  /** Faculty: after normal sign-in, find the link request created from an invite email link. */
+  async resolveSupervisorInvite(token: string) {
+    return this.request<{
+      matched: boolean;
+      status?: string;
+      join_request_id?: number | null;
+      join_request_status?: string | null;
+      student_name?: string;
+    }>(`/wallet/supervisor-invites/resolve/?token=${encodeURIComponent(token)}`);
   }
 
   async approveWalletJoinRequest(requestId: number) {

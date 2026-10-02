@@ -12,6 +12,7 @@ import {
   summarizeRechargeRequests,
 } from "@/lib/walletRecharge";
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
+import SupervisorInviteSection from "@/components/wallet/SupervisorInvite";
 import {
   AWAITING_APPROVAL_TEXT,
   DEFAULT_WALLET_MODE_FLAGS,
@@ -176,6 +177,8 @@ const Wallet = () => {
   const [isSearchingFaculty, setIsSearchingFaculty] = useState(false);
   const [isFacultySelectionLocked, setIsFacultySelectionLocked] = useState(false);
   const facultySearchRequestSeq = useRef(0);
+  const [lastFacultySearchQuery, setLastFacultySearchQuery] = useState("");
+  const [inviteFormOpen, setInviteFormOpen] = useState(false);
   const [requestMessage, setRequestMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [joinRequests, setJoinRequests] = useState<any[]>([]);
@@ -311,6 +314,33 @@ const Wallet = () => {
     }, 100);
     return () => window.clearTimeout(t);
   }, [location.hash, isFacultyEffective, loadingRequests]);
+
+  useEffect(() => {
+    if (location.hash === "#invite-supervisor" && showRequestForm) openSupervisorInvite();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open once when the link flow page is shown
+  }, [location.hash, showRequestForm]);
+
+  // Supervisor invite emails land faculty here after the normal sign-in; the token only routes, never signs in.
+  useEffect(() => {
+    const token = searchParams.get("supervisor_invite");
+    if (!token || loading) return;
+    const rest = new URLSearchParams(searchParams);
+    rest.delete("supervisor_invite");
+    const search = rest.toString();
+    navigate({ pathname: "/wallet", search: search ? `?${search}` : "", hash: "#wallet-join-requests" }, { replace: true });
+    if (!isFacultyEffective) return;
+    void apiClient.resolveSupervisorInvite(token).then((res) => {
+      if (!res.data?.matched) return;
+      const who = res.data.student_name || "A student";
+      if (res.data.join_request_status === "PENDING") {
+        toast.success(`${who}'s wallet link request is waiting below. Approve or reject it.`);
+      } else if (res.data.join_request_status) {
+        toast.info(`You have already responded to ${who}'s wallet link request.`);
+      }
+      void fetchJoinRequests();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once the user type is known
+  }, [loading, isFacultyEffective]);
 
   useEffect(() => {
     checkAuthAndFetchWallet();
@@ -642,12 +672,33 @@ const Wallet = () => {
       } else if (response.data) {
         setFacultySearchResults(response.data.results || []);
       }
+      setLastFacultySearchQuery(query);
     } catch (error: any) {
       console.error("Error searching faculty:", error);
       setFacultySearchResults([]);
     } finally {
       setIsSearchingFaculty(false);
     }
+  };
+
+  const supervisorNotFound =
+    !isFacultySelectionLocked &&
+    !isSearchingFaculty &&
+    facultySearchQuery.trim().length >= 2 &&
+    lastFacultySearchQuery === facultySearchQuery.trim() &&
+    facultySearchResults.length === 0;
+
+  const openSupervisorInvite = () => {
+    setInviteFormOpen(true);
+    window.setTimeout(() => {
+      document.getElementById("invite-supervisor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  };
+
+  const handleInvitedFacultyOnPortal = (email: string) => {
+    setIsFacultySelectionLocked(false);
+    setFacultySearchQuery(email);
+    document.getElementById("faculty-search")?.focus();
   };
 
   const handleFacultySelect = (faculty: {
@@ -1462,8 +1513,9 @@ const Wallet = () => {
                 >
                   <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
                   <p className="text-sm sm:text-base font-bold leading-snug">
-                    Note: If your Faculty / Supervisor&apos;s name is not visible in the search, please ask your
-                    Supervisor to log in to the new portal using Channel I.
+                    Note: The search only shows faculty who have signed in to this portal at least once. If your
+                    supervisor is not listed, use <span className="underline">Invite your supervisor</span> below
+                    to send them an email.
                   </p>
                 </div>
               )}
@@ -1569,6 +1621,21 @@ const Wallet = () => {
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {supervisorNotFound && (
+                  <div
+                    role="status"
+                    className="mt-2 flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between"
+                    data-testid="faculty-search-not-found"
+                  >
+                    <p className="text-sm text-foreground">
+                      No faculty found for &ldquo;{facultySearchQuery.trim()}&rdquo;. Your supervisor may not have
+                      signed in to this portal yet.
+                    </p>
+                    <Button type="button" size="sm" onClick={openSupervisorInvite} className="shrink-0">
+                      Invite your supervisor
+                    </Button>
+                  </div>
+                )}
                 {facultyProfileError && (
                   <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg mt-2">
                     <p className="text-sm text-red-600 dark:text-red-400">{facultyProfileError}</p>
@@ -1631,6 +1698,19 @@ const Wallet = () => {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card id="invite-supervisor" className="mt-6 scroll-mt-20 border-border/70 rounded-2xl">
+            <CardContent className="pt-6">
+              <SupervisorInviteSection
+                selfEmail={user?.email}
+                supervisorNotFound={supervisorNotFound}
+                searchQuery={facultySearchQuery}
+                formOpen={inviteFormOpen}
+                onFormOpenChange={setInviteFormOpen}
+                onFacultyOnPortal={handleInvitedFacultyOnPortal}
+              />
             </CardContent>
           </Card>
 

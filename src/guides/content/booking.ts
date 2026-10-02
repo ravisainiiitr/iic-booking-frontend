@@ -233,6 +233,10 @@ export function memberWalletSection(g: Gate): GuideSection {
         body: `Open Wallet management, find your ${owner} under Request to Join Wallet and click Send Request. Use Resend Request if needed.`,
       },
       {
+        title: `${owner === "PI" ? "PI" : "Supervisor"} not listed? Invite them`,
+        body: `Click Invite your ${owner}, enter their IIT Roorkee email (their name, department and a short message are optional) and click Send invitation. They get an email asking them to sign in. When they do, your request waits for them to approve or reject, and you are told by email. Track it under Invitations you sent, where you can Resend (once a day) or Cancel.`,
+      },
+      {
         title: "Check your limit",
         body: "If a limit is set, the booking page shows Supervisor spending limit with what you used This week and This month.",
       },
@@ -244,8 +248,9 @@ export function memberWalletSection(g: Gate): GuideSection {
     rules: [
       "A booking that would exceed a weekly or monthly limit is blocked. Weeks run Monday–Sunday (IST).",
       "Leaving a wallet removes your access at once; you can then request another wallet.",
+      "You can have up to 3 pending invitations. Each one expires after 30 days.",
     ],
-    tips: [`If your ${owner} is not listed, ask them to sign in to the portal once via Channel i.`],
+    tips: [`The search only lists faculty who have signed in to the portal at least once. If your ${owner} is not listed, invite them by email.`],
   };
 }
 

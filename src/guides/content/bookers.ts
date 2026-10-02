@@ -43,7 +43,7 @@ function gettingStartedSection(g: Gate): GuideSection {
       }),
       g.only(WALLET_MEMBERS, {
         title: "Link a wallet",
-        body: "Send a request to join your supervisor's wallet before your first booking (see Wallet and spending limit).",
+        body: "Send a request to join your supervisor's wallet before your first booking. If they are not listed, invite them by email (see Wallet and spending limit).",
       }),
       g.when(campus, {
         title: "Optional: email sign-in",
@@ -73,6 +73,10 @@ function studentsSection(g: Gate): GuideSection {
       {
         title: "Approve join requests",
         body: "Approve or reject pending requests in Wallet management. Act promptly so students are not blocked.",
+      },
+      {
+        title: "Requests from students who invited you",
+        body: "If a student invited you by email before you had signed in, their request is waiting under Pending actions and in Wallet management when you sign in. Nothing is linked until you click Approve; you can also Reject it.",
       },
       {
         title: "Set a spending limit",
