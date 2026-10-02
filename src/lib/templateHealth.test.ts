@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { TemplateHealth, TemplateHealthIssue } from "@/lib/api";
-import { clampTemplateValues, fixTemplateUrl, templateApplyNotice, templateHealthBadge } from "@/lib/templateHealth";
+import {
+  clampTemplateValues,
+  fixTemplateUrl,
+  templateApplyNotice,
+  templateHealthBadge,
+  templateSaveBlocker,
+} from "@/lib/templateHealth";
 
 const issue = (over: Partial<TemplateHealthIssue>): TemplateHealthIssue => ({
   code: "numeric_max",
@@ -31,6 +37,17 @@ describe("templateHealthBadge", () => {
     expect(templateHealthBadge(health([issue({ code: "field_removed", severity: "info" })]))).toBeNull();
     expect(templateHealthBadge(health([issue({ code: "equipment_not_operational" })]))).toBeNull();
     expect(templateHealthBadge(undefined)).toBeNull();
+  });
+});
+
+describe("templateSaveBlocker", () => {
+  it("blocks saving on a number outside its limits only", () => {
+    const formula = issue({ code: "numeric_formula_max", field: "B", set: 2 });
+    expect(templateSaveBlocker(health([issue({ code: "required_missing" }), formula]))).toBe(formula);
+    expect(templateSaveBlocker(health([issue({ code: "numeric_min", message: "No. of Samples is 0; the minimum is 1." })])))
+      .toMatchObject({ code: "numeric_min" });
+    expect(templateSaveBlocker(health([issue({ code: "wallet_low", severity: "warning" })]))).toBeNull();
+    expect(templateSaveBlocker(null)).toBeNull();
   });
 });
 

@@ -1855,6 +1855,7 @@ class ApiClient {
               field === 'detail' ||
               field === 'code' ||
               field === 'error' ||
+              field === 'error_field' ||
               field === 'slot_taken' ||
               field === 'slot_alternatives' ||
               field === 'waitlist_position' ||

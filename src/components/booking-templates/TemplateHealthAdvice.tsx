@@ -39,8 +39,8 @@ const tone = (s: TemplateHealthIssue["severity"]) =>
       : "text-muted-foreground";
 
 /**
- * Advice for the template being edited: what would fail or change when it is used to book. Only advice;
- * saving is still allowed except where the server refuses it.
+ * Advice for the template being edited: what would fail or change when it is used to book. A number outside
+ * its limits also blocks saving; everything else is advice.
  */
 export function TemplateHealthAdvice({ health, checking }: { health: TemplateHealth | null; checking: boolean }) {
   const issues = (health?.issues ?? []).filter((i) => i.severity !== "info" || i.code === "field_removed");

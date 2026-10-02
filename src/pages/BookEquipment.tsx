@@ -20,7 +20,7 @@ import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
 import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
 import { TemplateHealthAdvice, focusTemplateField } from "@/components/booking-templates/TemplateHealthAdvice";
-import { clampTemplateValues, templateApplyNotice, templateHealthBadge } from "@/lib/templateHealth";
+import { clampTemplateValues, templateApplyNotice, templateHealthBadge, templateSaveBlocker } from "@/lib/templateHealth";
 import { BookingAttemptFollowUp, type BookingAttemptSnapshot } from "@/components/BookingAttemptFollowUp";
 import {
   draftFromTemplate,
@@ -3774,12 +3774,19 @@ const BookEquipment = () => {
     };
   }, [templateParam, equipmentDetail?.equipment_id, userId, isTemplateFlow, applyBookingTemplate]);
 
+  const templateSaveBlockedBy = isTemplateFlow ? templateSaveBlocker(templateHealth) : null;
+
   const handleSaveTemplate = async () => {
     const eqId = equipmentDetail?.equipment_id;
     if (eqId == null) return;
     const name = templateName.trim();
     if (!name) {
       toast.error("Give the template a name.");
+      return;
+    }
+    if (templateSaveBlockedBy) {
+      toast.error(templateSaveBlockedBy.message);
+      focusTemplateField(templateSaveBlockedBy.field, templateSaveBlockedBy.set);
       return;
     }
     const options: BookingTemplateOptions = {
@@ -3815,6 +3822,8 @@ const BookEquipment = () => {
         : await apiClient.createBookingTemplate({ equipment: eqId, ...body });
       if (res.error || !res.data) {
         toast.error(res.error || "Could not save the template.");
+        const limit = (res.data as { error_field?: { field?: string; set?: number } } | undefined)?.error_field;
+        if (res.error && limit?.field) focusTemplateField(limit.field, limit.set);
         return;
       }
       const saved = templateHealthBadge(res.data.health);
@@ -11386,7 +11395,8 @@ const BookEquipment = () => {
                           type="button"
                           className="flex-1 min-w-[140px]"
                           onClick={() => void handleSaveTemplate()}
-                          disabled={savingTemplate || !templateName.trim()}
+                          disabled={savingTemplate || !templateName.trim() || !!templateSaveBlockedBy}
+                          aria-describedby={templateSaveBlockedBy ? "template-save-blocked" : undefined}
                         >
                           {savingTemplate ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -11396,6 +11406,20 @@ const BookEquipment = () => {
                           {editTemplateId ? "Update template" : "Save template"}
                         </Button>
                       </div>
+                      {templateSaveBlockedBy ? (
+                        <p id="template-save-blocked" className="text-sm text-destructive" role="alert">
+                          {templateSaveBlockedBy.message} Change it to save the template.
+                          {templateSaveBlockedBy.field ? (
+                            <button
+                              type="button"
+                              className="ml-1.5 font-medium underline underline-offset-2 hover:no-underline"
+                              onClick={() => focusTemplateField(templateSaveBlockedBy.field, templateSaveBlockedBy.set)}
+                            >
+                              Go to field
+                            </button>
+                          ) : null}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 )}

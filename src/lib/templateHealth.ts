@@ -19,6 +19,8 @@ const APPLY_NOTICE_CODES = new Set([
   "no_wallet",
 ]);
 const MAX_NOTICE_ITEMS = 3;
+/** Numbers outside their limits: the server refuses to save a template with one. */
+const SAVE_BLOCKING_CODES = new Set(["numeric_min", "numeric_max", "numeric_formula_max"]);
 
 export type TemplateHealthBadge = { tone: "attention" | "advice"; label: string; issue: TemplateHealthIssue; count: number };
 
@@ -30,6 +32,11 @@ export function templateHealthBadge(health: TemplateHealth | null | undefined): 
   const advice = issues.filter((i) => i.severity === "warning" || (i.severity === "error" && i.code === "no_charge_profile"));
   if (advice.length) return { tone: "advice", label: "Advice", issue: advice[0], count: advice.length };
   return null;
+}
+
+/** The first number outside its limits, which must be changed before the template can be saved. */
+export function templateSaveBlocker(health: TemplateHealth | null | undefined): TemplateHealthIssue | null {
+  return (health?.issues ?? []).find((i) => i.severity === "error" && SAVE_BLOCKING_CODES.has(i.code)) ?? null;
 }
 
 /** Template editor opened at the input (or preferred slot) the issue is about. */
