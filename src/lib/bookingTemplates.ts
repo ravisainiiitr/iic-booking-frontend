@@ -1,26 +1,35 @@
 import { format, parseISO } from "date-fns";
-import type { BookingTemplate, BookingTemplateOptions, BookingTemplateWriteBody, TemplateIfSlotTaken } from "@/lib/api";
+import type { BookingTemplate, BookingTemplateOptions, BookingTemplateWriteBody } from "@/lib/api";
 import { catalogParentId, type CatalogEquipmentLike } from "@/lib/equipmentCatalog";
+import { normaliseTemplateSlotOptions, slotFallbackFrom, slotFallbackSummary } from "@/lib/slotOptions";
 
 export const BOOKING_TEMPLATES_PATH = "/booking-templates";
 const MAX_TEMPLATE_NAME_LENGTH = 80;
 const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+/** Option badges on template cards; how slots are chosen and the fallback are shown by templateSlotSummary. */
 export const TEMPLATE_OPTION_LABELS: Array<[keyof BookingTemplateOptions, string]> = [
-  ["auto_slot_selection", "Auto-select slots"],
-  ["book_any_available_slots", "Book any available slots"],
-  ["book_even_if_single_slot_available", "Single slot is fine"],
-  ["waitlist_on_failure", "Waitlist if unsuccessful"],
+  ["waitlist_on_failure", "Waitlist if nothing is booked"],
   ["auto_allocate_alternative", "Auto-allocate alternate equipment"],
   ["sample_return_after_analysis", "Return sample"],
   ["atmosphere_sensitive_sample", "Atmosphere-sensitive sample"],
 ];
 
-export const IF_SLOT_TAKEN_SHORT: Record<TemplateIfSlotTaken, string> = {
-  ask: "Ask me if it is taken",
-  next_available_same_day: "Auto-book next free slot same day",
-  next_available_any: "Auto-book next free slot any day",
-};
+/** "Auto-select slots" / "You pick the slots" and "If taken: …" for a template card (preferred slot shown separately). */
+export function templateSlotSummary(t: Pick<BookingTemplate, "options" | "preferred_slot" | "if_slot_taken" | "if_slot_taken_consented_at">) {
+  const { options, ifSlotTaken } = normaliseTemplateSlotOptions(t);
+  const fallback = slotFallbackFrom({
+    bookAny: options.book_any_available_slots === true,
+    single: options.book_even_if_single_slot_available === true,
+    templateMode: t.if_slot_taken_consented_at ? ifSlotTaken : null,
+  });
+  return {
+    choice: t.preferred_slot ? null : options.auto_slot_selection ? "Auto-select slots" : "You pick the slots",
+    fallback,
+    fallbackLabel: slotFallbackSummary(fallback),
+    autoBooks: fallback !== "none",
+  };
+}
 
 export const filledInputCount = (values: Record<string, unknown>) =>
   Object.entries(values || {}).filter(([key, v]) => {

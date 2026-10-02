@@ -125,12 +125,14 @@ export function SaveAsTemplateDialog({
     }
     setSaving(true);
     try {
+      const slotBody = preferredSlotBody();
       const res = await apiClient.createBookingTemplate({
         equipment: snapshot.equipmentId,
         name: trimmed,
         input_values: snapshot.inputValues,
-        options: snapshot.options,
-        ...preferredSlotBody(),
+        // A preferred slot replaces auto-select; "any free slots" stays as the template's fallback.
+        options: slotBody.preferred_slot ? { ...snapshot.options, auto_slot_selection: false } : snapshot.options,
+        ...slotBody,
       });
       if (res.error || !res.data) {
         toast.error(res.error || "Could not save the template.");
@@ -183,8 +185,7 @@ export function SaveAsTemplateDialog({
                 <span className="space-y-0.5 text-sm">
                   <span className="block">Pre-select a weekly preferred slot next time</span>
                   <span className="block text-xs text-muted-foreground">
-                    Saved as a weekly preference. If it is taken you will be asked; edit the template to allow booking the
-                    next free slot automatically.
+                    Replaces auto-select. Edit the template to choose what happens if it is taken.
                   </span>
                 </span>
               </label>
@@ -218,8 +219,7 @@ export function SaveAsTemplateDialog({
                   Pre-select this slot next time: <strong>{describePreferredSlot(snapshot.preferredSlot)}</strong>
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  Saved as a weekly preference. If it is taken you will be asked; edit the template to allow booking the
-                  next free slot automatically.
+                  Replaces auto-select. Edit the template to choose what happens if it is taken.
                 </span>
               </span>
             </label>

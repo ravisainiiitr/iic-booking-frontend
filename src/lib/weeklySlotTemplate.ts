@@ -210,12 +210,12 @@ export function preferredSlotDraftProblem(
   rows: readonly WeeklySlotRow[]
 ): string | null {
   if (!draft.enabled) return null;
-  if (!draft.startTime) return "Choose your preferred slot in the calendar, or turn Preferred slot off.";
+  if (!draft.startTime) return "Choose your preferred slot in the calendar, or choose another way to pick slots.";
   if (rows.length === 0) return null;
   const idx = rowIndexForStart(rows, draft.startTime);
   const weekdayOk = (PREFERRED_SLOT_WEEKDAYS as readonly number[]).includes(draft.weekday);
   if (idx < 0 || !weekdayOk || !consecutiveRun(rows, idx, draft.slotCount).ok) {
-    return "Your preferred slot no longer matches this equipment's slot timings. Choose it again in the calendar, or turn Preferred slot off.";
+    return "Your preferred slot no longer matches this equipment's slot timings. Choose it again in the calendar, or choose another way to pick slots.";
   }
   return null;
 }

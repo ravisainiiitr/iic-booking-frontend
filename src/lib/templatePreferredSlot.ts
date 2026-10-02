@@ -9,29 +9,9 @@ import type {
 export const WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 export const MAX_PREFERRED_SLOT_COUNT = 24;
 
-export const IF_SLOT_TAKEN_OPTIONS: Array<{ value: TemplateIfSlotTaken; label: string; description: string }> = [
-  {
-    value: "ask",
-    label: "Ask me (recommended)",
-    description: "Nothing is booked. You see the nearest free slots and choose one yourself.",
-  },
-  {
-    value: "next_available_same_day",
-    label: "Book the next free slot later the same day",
-    description: "Same number of slots and duration, after your preferred time, on the same date.",
-  },
-  {
-    value: "next_available_any",
-    label: "Book the next free slot on any day I can book",
-    description: "Same number of slots and duration, after your preferred time, on any day you can currently book.",
-  },
-];
-
 export const autoBookConsentText = (mode: TemplateIfSlotTaken) =>
-  `I agree that if my preferred slot has just been taken when I click Book, the portal may book the next free slot ` +
-  `after it (${mode === "next_available_same_day" ? "later the same day" : "on any day I can currently book"}) ` +
-  "with these same inputs and charge my wallet for it. Wallet balance, spending limits and booking limits are still " +
-  "checked, and the booking can be cancelled under the usual rules.";
+  `I agree the portal may book the next free time ${mode === "next_available_same_day" ? "later the same day" : "on any day I can book"} ` +
+  "if my preferred slot is taken, and charge my wallet. Wallet, spending and booking limits and the usual cancellation rules still apply.";
 
 export interface PreferredSlotDraft {
   enabled: boolean;

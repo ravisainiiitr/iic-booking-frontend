@@ -123,7 +123,7 @@ function bookerFaqs(g: Gate): GuideFaq[] {
     },
     {
       question: "The slot I picked was taken. What now?",
-      answer: "Another user booked it first. Reload the calendar and choose another free slot, or join the waitlist if offered.",
+      answer: "Another user booked it first. Reload the calendar and choose another free slot, or join the waitlist if offered. To have the portal book other free slots instead next time, choose Any free slots this week under If your slots are taken.",
     },
   ]);
 }

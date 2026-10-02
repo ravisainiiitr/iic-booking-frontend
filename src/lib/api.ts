@@ -7389,6 +7389,8 @@ class ApiClient {
     sample_return_after_analysis?: boolean;
     /** The user's template loaded for this booking: enables its consented "if my slot is taken" choice. */
     booking_template_id?: number;
+    /** False when the user picked another "if my slots are taken" choice than the template's on the booking page. */
+    use_template_slot_fallback?: boolean;
   }) {
     return this.request<{
       id: number;

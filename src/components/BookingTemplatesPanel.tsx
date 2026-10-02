@@ -10,6 +10,8 @@ import {
   editTemplateUrl,
   filledInputCount,
   formatTemplateUpdated,
+  shortPreferredSlotLabel,
+  templateSlotSummary,
 } from "@/lib/bookingTemplates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -91,7 +93,12 @@ export function BookingTemplatesPanel({ equipmentId, canBook }: { equipmentId: n
           {templates.map((t) => {
             const updated = formatTemplateUpdated(t.updated_at);
             const inputs = filledInputCount(t.input_values);
-            const optionBadges = TEMPLATE_OPTION_LABELS.filter(([key]) => t.options?.[key] === true);
+            const slots = templateSlotSummary(t);
+            const optionBadges: Array<[string, string]> = [
+              ["slots", t.preferred_slot ? shortPreferredSlotLabel(t.preferred_slot) : slots.choice ?? ""],
+              ["fallback", slots.fallbackLabel],
+              ...TEMPLATE_OPTION_LABELS.filter(([key]) => t.options?.[key] === true),
+            ];
             return (
               <li key={t.id} className="rounded-xl border border-border/80 bg-card p-4 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-3">

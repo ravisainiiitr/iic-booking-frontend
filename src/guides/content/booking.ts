@@ -31,10 +31,14 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Select slots",
-        body: "Pick consecutive free slots on the weekly calendar; it works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days.",
+        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
       },
+      g.when(!g.is("startup", "external"), {
+        title: "If your slots are taken",
+        body: "Choose one answer: Let me choose again (nothing is booked), Any free slots this week (other free slots, possibly not back-to-back), or Any free slots, or just one (books one slot with fewer samples if that is all that is free). The i buttons explain each choice.",
+      }),
       g.only(WALLET_MEMBERS, {
         title: "Confirm",
         body: "Check the Review line above Confirm (slots, time and charge), then confirm. The charge goes to your supervisor's wallet.",
@@ -64,7 +68,7 @@ export function bookSection(g: Gate): GuideSection {
       g.only(WALLET_MEMBERS, "Your supervisor's spending limit, if set, is checked before the booking is made."),
     ]),
     tips: compact([
-      "If no slot is free, choose Add to the waitlist if the booking cannot be completed (when offered). You are told your place in the queue.",
+      "If no slot is free, tick Join the waitlist (when offered). You are told your place in the queue.",
       g.when(g.flags.assistant, "After a failed booking, click Ask the Booking Assistant under Need help? for the reason and the next step."),
     ]),
   };
@@ -119,12 +123,12 @@ export function templatesSection(): GuideSection {
         body: "On the dashboard open Booking Templates and click New template, choose a Department and the equipment, then Continue. Fill the form, enter a Template name and click Save template.",
       },
       {
-        title: "Set a preferred slot (optional)",
-        body: "Turn on Preferred slot (optional). Slots required is worked out from your sample details; click a green slot in the Monday–Friday calendar and that many consecutive slots of the day are selected. It is pre-selected on the booking page when free.",
+        title: "Choose slots",
+        body: "Under Choose slots, pick one: I'll pick, Auto-select, or My preferred slot. For a preferred slot, click a green slot in the Monday–Friday calendar; the number of slots comes from your sample details. It is pre-selected on the booking page when free.",
       },
       {
-        title: "Choose what happens if the slot is taken",
-        body: "Under If this slot is already taken when I click Book, choose Ask me (recommended) or one of the two automatic options and tick the consent.",
+        title: "Choose what happens if they are taken",
+        body: "Under If your slots are taken, pick one: Let me choose again, Any free slots this week or Any free slots, or just one. With a preferred slot you can also pick Next free time, same day or Next free time, any day and tick the consent. Join the waitlist if nothing is booked is a separate tick box.",
       },
       {
         title: "Book with it",
@@ -138,6 +142,7 @@ export function templatesSection(): GuideSection {
     rules: [
       "Up to 25 templates per equipment, private to you, and only for equipment you may book.",
       "Automatic options may book the next free slot of the same length and charge the wallet; the usual booking checks still apply.",
+      "On the booking page the template's choices are already selected; you can change them for that booking only.",
     ],
     tips: ["Use Edit, Duplicate and Delete from the card's ⋯ menu. Deleting a template does not affect your bookings."],
   };

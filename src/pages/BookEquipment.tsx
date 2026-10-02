@@ -10,13 +10,14 @@ import {
   type GroupAlternative,
   type GroupAlternativesPayload,
   type PrintMaterial,
+  type TemplateIfSlotTaken,
   type TemplatePreferredSlotResolution,
   type TemplateSlotAlternative,
   type TemplateSlotFallback,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
-import { TemplatePreferredSlotFields } from "@/components/TemplatePreferredSlotFields";
+import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
 import { BookingAttemptFollowUp, type BookingAttemptSnapshot } from "@/components/BookingAttemptFollowUp";
 import {
   draftFromTemplate,
@@ -27,6 +28,16 @@ import {
   type PreferredSlotDraft,
 } from "@/lib/templatePreferredSlot";
 import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
+import {
+  fallbackForMode,
+  flagsForFallback,
+  isTemplateFallback,
+  normaliseTemplateSlotOptions,
+  slotFallbackFrom,
+  type SlotChoice,
+  type SlotFallback,
+} from "@/lib/slotOptions";
+import { SlotChoiceOptions } from "@/components/booking/SlotChoiceOptions";
 import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
 import { offerAssistantHelp } from "@/lib/assistantHelp";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
@@ -3431,7 +3442,17 @@ const BookEquipment = () => {
 
   // Booking templates: the user's named inputs + booking options for this equipment.
   const [bookingTemplates, setBookingTemplates] = useState<BookingTemplate[]>([]);
-  const [appliedTemplate, setAppliedTemplate] = useState<{ id: number; name: string } | null>(null);
+  const [appliedTemplate, setAppliedTemplate] = useState<{
+    id: number;
+    name: string;
+    /** The template's consented "if my slot is taken" auto mode, or "ask". */
+    fallbackMode: TemplateIfSlotTaken;
+    hasPreferredSlot: boolean;
+  } | null>(null);
+  /** Booking page: the user kept the template's fallback (false once another fallback is chosen). */
+  const [useTemplateFallback, setUseTemplateFallback] = useState(true);
+  /** Booking page: slots come from the template's preferred slot (until the user picks or auto-selects instead). */
+  const [preferredSlotChosen, setPreferredSlotChosen] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const templatePickerAvailable =
@@ -3511,8 +3532,10 @@ const BookEquipment = () => {
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
-      const o = template.options || {};
-      if (typeof o.auto_slot_selection === "boolean") setAutoSlotSelection(o.auto_slot_selection);
+      const { options: o, ifSlotTaken } = normaliseTemplateSlotOptions(template);
+      const fallbackMode = ifSlotTaken !== "ask" && template.if_slot_taken_consented_at ? ifSlotTaken : "ask";
+      if (template.preferred_slot) setAutoSlotSelection(false);
+      else if (typeof o.auto_slot_selection === "boolean") setAutoSlotSelection(o.auto_slot_selection);
       if (typeof o.book_any_available_slots === "boolean") setBookAnyAvailableSlots(o.book_any_available_slots);
       if (typeof o.book_even_if_single_slot_available === "boolean") {
         setBookEvenIfSingleSlotAvailable(o.book_any_available_slots !== false && o.book_even_if_single_slot_available);
@@ -3530,11 +3553,18 @@ const BookEquipment = () => {
         setResearchWorkspaceId(o.research_workspace || null);
       }
       appliedTemplateOptionsRef.current = o;
-      setAppliedTemplate({ id: template.id, name: template.name });
+      setAppliedTemplate({
+        id: template.id,
+        name: template.name,
+        fallbackMode,
+        hasPreferredSlot: !!template.preferred_slot,
+      });
+      setUseTemplateFallback(true);
+      setPreferredSlotChosen(!!template.preferred_slot);
       setPreferredSlotResolution(null);
       setPendingPreselect(null);
       if (isTemplateFlow) {
-        setPreferredSlotDraft(draftFromTemplate(template));
+        setPreferredSlotDraft(draftFromTemplate({ ...template, if_slot_taken: ifSlotTaken }));
       } else if (template.preferred_slot && opts?.resolvePreferredSlot !== false) {
         setPreferredResolveRequest({ templateId: template.id, nonce: Date.now() });
       } else {
@@ -3623,6 +3653,45 @@ const BookEquipment = () => {
     if (appliedTemplate) setPreferredResolveRequest({ templateId: appliedTemplate.id, nonce: Date.now() });
   };
 
+  // Booking page: one "how are slots chosen" and one "if they are taken" choice, reflecting the applied template.
+  const templateHasPreferredSlot = !isTemplateFlow && !!appliedTemplate?.hasPreferredSlot;
+  const bookingSlotChoice: SlotChoice = autoSlotSelection
+    ? "auto"
+    : templateHasPreferredSlot && preferredSlotChosen
+    ? "preferred"
+    : "manual";
+  const changeBookingSlotChoice = (next: SlotChoice) => {
+    const wasPreferred = bookingSlotChoice === "preferred";
+    setPreferredSlotChosen(next === "preferred");
+    setAutoSlotSelection(next === "auto");
+    if (next === "preferred") {
+      setSelectedSlots([]);
+      refreshPreferredSlot();
+    } else if (next === "auto" && wasPreferred) {
+      setSelectedSlots([]);
+    }
+  };
+  const templateFallbackMode =
+    !isTemplateFlow && appliedTemplate && appliedTemplate.fallbackMode !== "ask" ? appliedTemplate.fallbackMode : null;
+  const bookingSlotFallback = slotFallbackFrom({
+    bookAny: bookAnyAvailableSlots,
+    single: bookEvenIfSingleSlotAvailable,
+    templateMode: useTemplateFallback ? templateFallbackMode : null,
+  });
+  const bookingFallbackChoices: SlotFallback[] = hasBookableSlotInSelectedWeek
+    ? [
+        "none",
+        ...(templateFallbackMode ? [fallbackForMode(templateFallbackMode)] : []),
+        ...(bookingAsExternalTarget ? [] : (["any_slots", "any_slots_or_one"] as const)),
+      ]
+    : ["none"];
+  const changeBookingSlotFallback = (next: SlotFallback) => {
+    const flags = flagsForFallback(next);
+    setBookAnyAvailableSlots(flags.bookAny);
+    setBookEvenIfSingleSlotAvailable(flags.single);
+    setUseTemplateFallback(isTemplateFallback(next));
+  };
+
   const handleApplyTemplate = (templateId: string) => {
     if (templateId === NO_TEMPLATE_VALUE) {
       resetBookingPageToDefaults();
@@ -3704,7 +3773,7 @@ const BookEquipment = () => {
       return;
     }
     const options: BookingTemplateOptions = {
-      auto_slot_selection: autoSlotSelection,
+      auto_slot_selection: autoSlotSelection && !preferredSlotDraft.enabled,
       book_any_available_slots: bookAnyAvailableSlots,
       book_even_if_single_slot_available: bookAnyAvailableSlots && bookEvenIfSingleSlotAvailable,
       waitlist_on_failure: waitlistIntentMode,
@@ -3713,20 +3782,21 @@ const BookEquipment = () => {
       atmosphere_sensitive_sample: atmosphereSensitiveSample,
       research_workspace: researchWorkspaceId,
     };
-    const preferredSlotProblem = preferredSlotDraftProblem(preferredSlotDraft, weeklyTemplateSlotRows);
+    const slotDraft = bookAnyAvailableSlots ? { ...preferredSlotDraft, ifSlotTaken: "ask" as const } : preferredSlotDraft;
+    const preferredSlotProblem = preferredSlotDraftProblem(slotDraft, weeklyTemplateSlotRows);
     if (preferredSlotProblem) {
       toast.error(preferredSlotProblem);
       return;
     }
-    if (draftNeedsConsent(preferredSlotDraft)) {
-      toast.error("Tick the consent box to let the portal book the next free slot, or choose \"Ask me\".");
+    if (draftNeedsConsent(slotDraft)) {
+      toast.error("Tick the consent box to let the portal book the next free time, or choose \"Let me choose again\".");
       return;
     }
     const body = {
       name,
       input_values: withSampleSets({ ...inputFieldValues }, sampleSets),
       options,
-      ...draftToBody(preferredSlotDraft),
+      ...draftToBody(slotDraft),
     };
     setSavingTemplate(true);
     try {
@@ -6722,7 +6792,12 @@ const BookEquipment = () => {
           ...(alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment.id)
             ? { alternative_of_equipment_id: alternativeOf.equipmentId }
             : {}),
-          ...(attemptForFollowUp?.templateId ? { booking_template_id: attemptForFollowUp.templateId } : {}),
+          ...(attemptForFollowUp?.templateId
+            ? {
+                booking_template_id: attemptForFollowUp.templateId,
+                use_template_slot_fallback: isTemplateFallback(bookingSlotFallback),
+              }
+            : {}),
           ...print3dBookExtras,
         };
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
@@ -10122,28 +10197,18 @@ const BookEquipment = () => {
                     <div className="mb-2">
                       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <h3 className="text-base font-semibold">Step 3: Select Time Slots</h3>
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="auto-slot-selection" className="text-sm font-normal cursor-pointer">
-                            Auto-select all required slots
-                          </Label>
-                          <InfoTip label="About auto-selecting slots">
-                            When enabled, the system will automatically select all required consecutive slots.
-                            {equipmentDetail?.split_booking_enabled
-                              ? " If consecutive slots aren't available, random slots will be selected."
-                              : " Only consecutive slots will be selected (non-consecutive selection is not allowed)."}
-                          </InfoTip>
-                          <Switch
-                            id="auto-slot-selection"
-                            checked={autoSlotSelection}
-                            onCheckedChange={(checked) => {
-                              setAutoSlotSelection(checked);
-                              // If enabling auto selection and no slots are selected, trigger auto-selection
-                              if (checked && selectedSlots.length === 0 && calculatedCharge && equipmentDetail?.daily_slots) {
-                                // This will be handled by the useEffect that watches autoSlotSelection
-                              }
-                            }}
-                          />
-                        </div>
+                        <SlotChoiceOptions
+                          heading="Choose slots:"
+                          choices={templateHasPreferredSlot ? ["manual", "auto", "preferred"] : ["manual", "auto"]}
+                          value={bookingSlotChoice}
+                          onChange={changeBookingSlotChoice}
+                          helps={{
+                            auto: equipmentDetail?.split_booking_enabled
+                              ? "Selects the required consecutive slots for you; if none are consecutive, separate free slots are selected."
+                              : "Selects the required consecutive slots for you (only consecutive slots can be booked here).",
+                            preferred: "Selects your template's weekly preferred slot in the next week you can book.",
+                          }}
+                        />
                       </div>
                     </div>
 
@@ -10975,10 +11040,13 @@ const BookEquipment = () => {
                       </div>
                     )}
 
-                    {/* Booking options — waitlist / fallback options are internal only; external users book selected slots or get an unsuccessful result (no waitlist). */}
-                    {(!bookingAsExternalTarget || groupAlternativeOption) && (
+                    {/* Waitlist and "any free slots" are internal only; external users only see alternate equipment and a template's own fallback. */}
+                    {(!bookingAsExternalTarget || groupAlternativeOption || templateFallbackMode) && (
                       <BookingFallbackOptions
                         className="mt-3"
+                        choices={bookingFallbackChoices}
+                        value={bookingSlotFallback}
+                        onChange={changeBookingSlotFallback}
                         alternate={{
                           show: groupAlternativeOption,
                           checked: autoAllocateAlternative,
@@ -10991,16 +11059,6 @@ const BookEquipment = () => {
                             !hasBookableSlotInSelectedWeek,
                           checked: waitlistIntentMode,
                           onChange: setWaitlistIntentMode,
-                        }}
-                        anySlots={{
-                          show: !bookingAsExternalTarget && hasBookableSlotInSelectedWeek,
-                          checked: bookAnyAvailableSlots,
-                          onChange: setBookAnyAvailableSlots,
-                        }}
-                        singleSlot={{
-                          show: true,
-                          checked: bookEvenIfSingleSlotAvailable,
-                          onChange: setBookEvenIfSingleSlotAvailable,
                         }}
                         hint={groupAlternativeSearchWithoutSlots ? NO_SLOT_ALTERNATE_HINT : undefined}
                       />
@@ -11193,58 +11251,39 @@ const BookEquipment = () => {
 
                 {isTemplateFlow && equipmentDetail && (
                   <div className="mt-4 space-y-3">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 dark:bg-muted/20">
-                        <Label htmlFor="template-auto-slot-selection" className="text-sm font-normal cursor-pointer">
-                          Auto-select all required slots
-                        </Label>
-                        <Switch
-                          id="template-auto-slot-selection"
-                          checked={autoSlotSelection}
-                          onCheckedChange={setAutoSlotSelection}
-                        />
-                        <InfoTip label="About template booking options">
-                          Slots are chosen when you book. These options are applied to that booking.
-                        </InfoTip>
-                      </div>
-                      <BookingFallbackOptions
-                        idPrefix="template-"
-                        alternate={{
-                          show: groupAlternativeOption,
-                          checked: autoAllocateAlternative,
-                          onChange: setAutoAllocateAlternative,
-                        }}
-                        waitlist={{
-                          show: !bookingAsExternalTarget,
-                          label: "Add to waitlist if booking fails",
-                          checked: waitlistIntentMode,
-                          onChange: setWaitlistIntentMode,
-                        }}
-                        anySlots={{
-                          show: !bookingAsExternalTarget,
-                          checked: bookAnyAvailableSlots,
-                          onChange: setBookAnyAvailableSlots,
-                        }}
-                        singleSlot={{
-                          show: true,
-                          checked: bookEvenIfSingleSlotAvailable,
-                          onChange: setBookEvenIfSingleSlotAvailable,
-                        }}
-                      />
-                    </div>
+                    <TemplateSlotSettings
+                      autoSlotSelection={autoSlotSelection}
+                      onAutoSlotSelectionChange={setAutoSlotSelection}
+                      draft={preferredSlotDraft}
+                      onDraftChange={setPreferredSlotDraft}
+                      bookAny={bookAnyAvailableSlots}
+                      single={bookEvenIfSingleSlotAvailable}
+                      onFallbackFlagsChange={({ bookAny, single }) => {
+                        setBookAnyAvailableSlots(bookAny);
+                        setBookEvenIfSingleSlotAvailable(single);
+                      }}
+                      allowAnySlots={!bookingAsExternalTarget}
+                      alternate={{
+                        show: groupAlternativeOption,
+                        checked: autoAllocateAlternative,
+                        onChange: setAutoAllocateAlternative,
+                      }}
+                      waitlist={{
+                        show: !bookingAsExternalTarget,
+                        checked: waitlistIntentMode,
+                        onChange: setWaitlistIntentMode,
+                      }}
+                      picker={{
+                        slotRows: weeklyTemplateSlotRows,
+                        hideTimes: weeklyRowsHideTimes,
+                        slotsRequired: templateSlotsRequired,
+                        slotsRequiredPending: loadingCharge || templateStaffAnalysis.loading,
+                        slotDurationMinutes: equipmentDetail.slot_duration_minutes,
+                        availableColor: equipmentDetail.calendar_colors?.slot_colors?.AVAILABLE,
+                      }}
+                    />
 
                     <ResearchWorkspacePicker value={researchWorkspaceId} onChange={setResearchWorkspaceId} />
-
-                    <TemplatePreferredSlotFields
-                      draft={preferredSlotDraft}
-                      onChange={setPreferredSlotDraft}
-                      slotRows={weeklyTemplateSlotRows}
-                      hideTimes={weeklyRowsHideTimes}
-                      slotsRequired={templateSlotsRequired}
-                      slotsRequiredPending={loadingCharge || templateStaffAnalysis.loading}
-                      slotDurationMinutes={equipmentDetail.slot_duration_minutes}
-                      availableColor={equipmentDetail.calendar_colors?.slot_colors?.AVAILABLE}
-                    />
 
                     <div className="rounded-xl border border-primary/25 bg-primary/5 p-4 space-y-3">
                       <Label htmlFor="booking-template-name" className="text-sm font-medium">
@@ -11309,10 +11348,10 @@ const BookEquipment = () => {
               <DialogTitle>Auto-select is on</DialogTitle>
               <DialogDescription className="text-left space-y-2">
                 <span className="block">
-                  &quot;Auto-select all required slots&quot; is enabled, so the calendar in <span className="font-medium text-foreground">Select Time Slots</span> is filled automatically for your required duration.
+                  &quot;Auto-select&quot; is chosen, so the calendar in <span className="font-medium text-foreground">Select Time Slots</span> is filled automatically for your required duration.
                 </span>
                 <span className="block">
-                  To clear your selection or tap the calendar yourself, turn off auto-select first.
+                  To clear your selection or tap the calendar yourself, switch to &quot;I&apos;ll pick&quot; first.
                 </span>
               </DialogDescription>
             </DialogHeader>
@@ -11339,7 +11378,7 @@ const BookEquipment = () => {
                   }
                 }}
               >
-                Turn off auto-select
+                Pick myself
                 {autoSlotGuardPending === "clear" ? " and clear" : ""}
               </Button>
             </DialogFooter>

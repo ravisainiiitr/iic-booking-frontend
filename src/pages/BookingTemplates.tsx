@@ -49,8 +49,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   BOOKING_TEMPLATES_PATH,
-  IF_SLOT_TAKEN_SHORT,
   TEMPLATE_OPTION_LABELS,
+  templateSlotSummary,
   bookWithTemplateUrl,
   copyTemplateName,
   createTemplateUrl,
@@ -211,7 +211,7 @@ export default function BookingTemplates() {
     setTemplates((prev) => [...(prev ?? []), copy]);
     toast.success(
       t.if_slot_taken && t.if_slot_taken !== "ask"
-        ? `Created "${copy.name}". Its "if my slot is taken" choice is set to Ask me; edit it to turn automatic booking back on.`
+        ? `Created "${copy.name}". If its slot is taken you now choose again; edit it to turn automatic booking back on.`
         : `Created "${copy.name}".`
     );
   };
@@ -517,7 +517,7 @@ function TemplateCard({
   const sets = t.sample_set_count ?? 1;
   const options = TEMPLATE_OPTION_LABELS.filter(([key]) => t.options?.[key] === true);
   const blocked = t.bookable === false;
-  const autoBook = t.if_slot_taken && t.if_slot_taken !== "ask";
+  const slots = templateSlotSummary(t);
 
   return (
     <article className="flex h-full flex-col rounded-xl border border-border/80 bg-card shadow-sm transition-shadow hover:shadow-md dark:hover:border-primary/40">
@@ -590,21 +590,20 @@ function TemplateCard({
         </div>
 
         <div className="rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:bg-muted/20">
-          {t.preferred_slot ? (
-            <div className="flex items-start gap-2">
-              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-primary dark:text-sky-300" aria-hidden />
-              <div className="min-w-0">
-                <p className="font-medium text-foreground">{shortPreferredSlotLabel(t.preferred_slot)}</p>
-                <p className={cn("text-xs", autoBook ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground")}>
-                  {IF_SLOT_TAKEN_SHORT[t.if_slot_taken ?? "ask"]}
-                </p>
-              </div>
+          <div className="flex items-start gap-2">
+            <CalendarClock
+              className={cn("mt-0.5 h-4 w-4 shrink-0", t.preferred_slot ? "text-primary dark:text-sky-300" : "text-muted-foreground")}
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className={cn(t.preferred_slot ? "font-medium text-foreground" : "text-muted-foreground")}>
+                {t.preferred_slot ? shortPreferredSlotLabel(t.preferred_slot) : slots.choice}
+              </p>
+              <p className={cn("text-xs", slots.autoBooks ? "text-amber-700 dark:text-amber-300" : "text-muted-foreground")}>
+                {slots.fallbackLabel}
+              </p>
             </div>
-          ) : (
-            <p className="flex items-center gap-2 text-muted-foreground">
-              <CalendarClock className="h-4 w-4 shrink-0" aria-hidden /> No preferred slot
-            </p>
-          )}
+          </div>
         </div>
 
         {blocked ? (

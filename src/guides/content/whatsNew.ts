@@ -20,6 +20,7 @@ const ALL_ROLES: GuideAudienceId[] = [...BOOKERS, "oic", "operator", "dept_admin
 /** Items are taken in order until MAX_ITEMS, so the newest come first. */
 const CATALOG: CatalogItem[] = [
   // Newest: booking page, My Bookings and catalog
+  { id: "slot-options", roles: BOOKERS, theme: "booking", icon: "calendar", title: "Simpler slot options", benefit: "Pick one way to choose slots (I'll pick, Auto-select or My preferred slot) and one answer to If your slots are taken, on the booking page and in templates.", sectionId: "book" },
   { id: "form-kept", roles: BOOKERS, theme: "booking", icon: "shield", title: "Failed booking? Form kept", benefit: "Only taken slots are dropped, and an unsaved booking comes back on your next visit.", sectionId: "book" },
   { id: "wallet-link-student", roles: ["student"], theme: "wallet", icon: "mail", title: "Link or invite your supervisor", benefit: "The booking page asks you to link your supervisor's wallet first, or invite them by email if they are not on the portal.", sectionId: "wallet" },
   { id: "wallet-link-staff", roles: ["project_staff"], theme: "wallet", icon: "mail", title: "Link or invite your PI", benefit: "The booking page asks you to link your PI's wallet first, or invite them by email if they are not on the portal.", sectionId: "wallet" },
