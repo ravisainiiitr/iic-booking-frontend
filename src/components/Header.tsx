@@ -20,7 +20,7 @@ import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { BackButton } from "@/components/BackButton";
 import { ServerClock } from "@/components/ServerClock";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -142,7 +142,7 @@ const Header = () => {
                     <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                       <Avatar className="h-9 w-9 cursor-pointer transition-opacity hover:opacity-80">
                         <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={formatUserDisplayName(user)} />
-                        <AvatarFallback>{formatUserDisplayName(user)[0].toUpperCase()}</AvatarFallback>
+                        <AvatarFallback>{getNameInitial(formatPersonName(user), user?.email, "U")}</AvatarFallback>
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>

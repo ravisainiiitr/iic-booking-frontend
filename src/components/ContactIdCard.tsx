@@ -1,5 +1,6 @@
 import { Building2, Mail, Phone } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/displayName";
 
 interface ContactIdCardProps {
   name?: string | null;
@@ -23,18 +24,6 @@ function PhoneLink({ phone }: { phone: string }) {
   );
 }
 
-function initialsOf(value: string): string {
-  return (
-    value
-      .split(/[\s@._-]+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "U"
-  );
-}
-
 /** Staff contact shown as an ID card: large photo on the left, role, name and contact details on the right. */
 export default function ContactIdCard({
   name,
@@ -54,7 +43,7 @@ export default function ContactIdCard({
         <Avatar className="h-32 w-28 rounded-xl border-2 border-white/70 shadow-lg sm:h-36 sm:w-32">
           <AvatarImage src={photoUrl || undefined} alt={displayName} className="object-cover" />
           <AvatarFallback className="rounded-xl bg-white/20 text-3xl font-bold text-white">
-            {initialsOf(displayName)}
+            {getInitials(name, { email, max: 2, fallback: "U" })}
           </AvatarFallback>
         </Avatar>
       </div>

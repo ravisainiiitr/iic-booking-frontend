@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { apiClient } from "@/lib/api";
+import { getNameInitial } from "@/lib/displayName";
 import { cn } from "@/lib/utils";
 import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +33,7 @@ export default function ClickableProfileAvatar({
   const [uploading, setUploading] = useState(false);
   const [cacheBust, setCacheBust] = useState(0);
 
-  const initial = (userName || userEmail || "U").charAt(0).toUpperCase();
+  const initial = getNameInitial(userName, userEmail, "U");
   const imageSrc =
     hasProfilePicture && userId != null
       ? `${apiClient.getProfilePictureUrl(userId)}?v=${cacheBust}`

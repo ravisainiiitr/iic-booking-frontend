@@ -45,6 +45,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { UserIdentityCardDialog } from "@/components/UserIdentityCardDialog";
 import { formatProgramme } from "@/lib/programmeLabel";
+import { getNameInitial } from "@/lib/displayName";
 import DashboardHeader from "@/components/DashboardHeader";
 import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
 import { Users, Loader2, Send, IdCard, GraduationCap } from "lucide-react";
@@ -402,7 +403,7 @@ const StudentManagement = () => {
                                 className="object-cover"
                               />
                               <AvatarFallback className="rounded-lg bg-primary/10 dark:bg-primary/20 text-primary dark:text-sky-200 text-sm">
-                                {(row.student_name || row.student_email || "?").charAt(0).toUpperCase()}
+                                {getNameInitial(row.student_name, row.student_email)}
                               </AvatarFallback>
                             </Avatar>
                           </TableCell>

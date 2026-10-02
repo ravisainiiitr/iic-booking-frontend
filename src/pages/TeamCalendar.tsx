@@ -37,6 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
 import { HOLIDAY_LABEL, holidayHoverText } from "@/lib/holidayDisplay";
+import { getInitials } from "@/lib/displayName";
 import {
   ABSENCE_FILTER_KEYS,
   ABSENCE_META,
@@ -48,7 +49,6 @@ import {
   daysInMonth,
   daysInWeek,
   designationLabel,
-  initialsFromName,
   isApprovedLeave,
   isWeekendMeta,
   monthForDate,
@@ -116,7 +116,7 @@ function MemberIdentity({
     <div className="flex min-w-0 items-center gap-3">
       <Avatar className="h-9 w-9 border border-border/60">
         <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-          {initialsFromName(member.name, member.email)}
+          {getInitials(member.name, { email: member.email, max: 2 })}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">

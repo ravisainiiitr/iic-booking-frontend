@@ -83,6 +83,55 @@ export function formatWelcomeGreeting(name: string | null | undefined): string {
   return /[.!?]$/.test(cleaned) ? `Welcome, ${cleaned}` : `Welcome, ${cleaned}.`;
 }
 
+const NAME_HONORIFIC =
+  "(?:professor|prof|dr|mrs|mr|ms|miss|shri|smt|er|श्रीमती|श्री|सुश्री|डॉ|डा|प्रोफेसर|प्रो)";
+const LEADING_HONORIFICS_RE = new RegExp(String.raw`^(?:${NAME_HONORIFIC}(?:\.\s*|,\s*|\s+|$))+`, "iu");
+const LEADING_NON_LETTERS_RE = /^[^\p{L}\p{N}]+/u;
+
+/** Drops leading honorifics ("Prof.", "Dr", "Prof. Dr.", "Mrs.", "श्री", ...) so only the person's own name remains. */
+export function stripHonorifics(name: string | null | undefined): string {
+  return (name || "").replace(/\s+/g, " ").trim().replace(LEADING_HONORIFICS_RE, "").trim();
+}
+
+type GraphemeSegmenter = { segment(text: string): Iterable<{ segment: string }> };
+const SegmenterCtor = (Intl as unknown as {
+  Segmenter?: new (locale?: string, options?: { granularity: "grapheme" }) => GraphemeSegmenter;
+}).Segmenter;
+const graphemeSegmenter = SegmenterCtor ? new SegmenterCtor(undefined, { granularity: "grapheme" }) : null;
+
+function firstGrapheme(word: string): string {
+  const text = word.replace(LEADING_NON_LETTERS_RE, "");
+  if (!text) return "";
+  const first = graphemeSegmenter
+    ? graphemeSegmenter.segment(text)[Symbol.iterator]().next().value?.segment
+    : Array.from(text)[0];
+  return (first || "").toUpperCase();
+}
+
+/**
+ * Avatar initials from a person's name, ignoring honorifics: "Prof. Ravi Saini" → "R" (or "RS" with max 2).
+ * Falls back to the email's first letter, then `fallback`, when no name is known.
+ */
+export function getInitials(
+  name: string | null | undefined,
+  options: { email?: string | null; max?: 1 | 2; fallback?: string } = {}
+): string {
+  const { email, max = 1, fallback = "?" } = options;
+  const words = stripHonorifics(name)
+    .split(" ")
+    .filter((word) => firstGrapheme(word));
+  if (words.length) {
+    const first = firstGrapheme(words[0]);
+    return max === 2 && words.length > 1 ? first + firstGrapheme(words[words.length - 1]) : first;
+  }
+  return firstGrapheme((email || "").trim()) || fallback;
+}
+
+/** Single avatar letter for a person: first letter of the actual name, not of a "Prof."/"Dr." title. */
+export function getNameInitial(name: string | null | undefined, email?: string | null, fallback = "?"): string {
+  return getInitials(name, { email, fallback });
+}
+
 /** "Signed in as <name>", falling back to the email; "" when neither is known. */
 export function formatSignedInAs(name: string | null | undefined, email?: string | null): string {
   const who = cleanPersonName(name) || (email || "").trim();

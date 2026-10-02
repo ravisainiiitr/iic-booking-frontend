@@ -4,13 +4,7 @@ import { Building2, GraduationCap, IdCard, Loader2, Mail, Phone, UserRound, User
 import { apiClient, type UserIdentityCard } from "@/lib/api";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
-
-function initialsOf(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
+import { getInitials } from "@/lib/displayName";
 
 function Field({ icon, label, value }: { icon: ReactNode; label: string; value?: string | null }) {
   return (
@@ -104,7 +98,7 @@ export function UserIdentityCardDialog({
                       />
                     ) : (
                       <div className="h-32 w-28 sm:h-40 sm:w-36 rounded-lg border bg-gradient-to-br from-primary/15 to-violet-500/15 flex items-center justify-center text-3xl font-semibold text-primary">
-                        {initialsOf(name)}
+                        {getInitials(card?.name || fallbackName, { email, max: 2 })}
                       </div>
                     )}
                     <div className="text-center space-y-0.5">

@@ -95,15 +95,6 @@ export function weekRangeLabel(days: string[]): string {
   return `${format(a, "d MMM")} – ${format(b, "d MMM yyyy")}`;
 }
 
-export function initialsFromName(name: string, email?: string): string {
-  const base = (name || email || "?").trim();
-  const parts = base.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-  }
-  return base.slice(0, 2).toUpperCase();
-}
-
 export function designationLabel(userType?: string): string {
   const code = normalizeUserTypeCode(userType) || "";
   return USER_TYPE_DISPLAY_NAMES[code] || (code ? code.replace(/_/g, " ") : "");

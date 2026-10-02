@@ -18,7 +18,7 @@ import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { BackButton } from "@/components/BackButton";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { ServerClock } from "@/components/ServerClock";
@@ -354,7 +354,7 @@ const DashboardHeader = () => {
               <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
                 <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
                   <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "User"} />
-                  <AvatarFallback>{(user?.name || user?.email || "U")[0].toUpperCase()}</AvatarFallback>
+                  <AvatarFallback>{getNameInitial(formatPersonName(user), user?.email, "U")}</AvatarFallback>
                 </Avatar>
               </button>
             </DropdownMenuTrigger>

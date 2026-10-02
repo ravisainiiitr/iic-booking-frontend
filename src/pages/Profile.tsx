@@ -14,7 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import { formatUserDisplayName } from "@/lib/displayName";
+import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 
 const Profile = () => {
@@ -542,7 +542,7 @@ const Profile = () => {
               <Avatar className="h-24 w-24 ring-4 ring-primary/15">
                 <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })} />
                 <AvatarFallback className="text-3xl bg-primary/10 text-primary dark:text-sky-100">
-                  {formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })[0].toUpperCase()}
+                  {getNameInitial(profileData.name || user?.name, profileData.email || user?.email, "U")}
                 </AvatarFallback>
               </Avatar>
               {/* Only show upload button if no profile picture exists */}

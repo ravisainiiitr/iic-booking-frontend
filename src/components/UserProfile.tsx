@@ -1,6 +1,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Mail, Phone, Building2 } from 'lucide-react';
+import { getInitials } from '@/lib/displayName';
 
 interface UserProfileProps {
   name?: string | null;
@@ -45,19 +46,14 @@ const UserProfile: React.FC<UserProfileProps> = ({
 }) => {
   const sizes = sizeClasses[size];
   const displayName = name || email || 'Unknown User';
-  const initials = displayName
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = getInitials(name, { email, max: 2, fallback: 'U' });
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <Avatar className={sizes.avatar}>
         <AvatarImage src={profilePicture || undefined} alt={displayName} />
         <AvatarFallback className={sizes.text}>
-          {initials || 'U'}
+          {initials}
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">

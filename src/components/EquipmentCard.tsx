@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import { TruncatableText } from "@/components/TruncatableText";
 import { RichTextContent } from "@/components/RichTextContent";
 import { looksLikeRichHtml } from "@/lib/richText";
+import { getNameInitial } from "@/lib/displayName";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 
 interface EquipmentCardProps {
@@ -598,7 +599,7 @@ const EquipmentCard = ({
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={operator.operator_profile_picture && operator.operator != null ? apiClient.getProfilePictureUrl(operator.operator) : undefined} />
                             <AvatarFallback>
-                              {operator.operator_name?.charAt(0).toUpperCase() || "O"}
+                              {getNameInitial(operator.operator_name, operator.operator_email, "O")}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1">
@@ -632,7 +633,7 @@ const EquipmentCard = ({
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={manager.manager_profile_picture && manager.manager != null ? apiClient.getProfilePictureUrl(manager.manager) : undefined} />
                             <AvatarFallback>
-                              {manager.manager_name?.charAt(0).toUpperCase() || "M"}
+                              {getNameInitial(manager.manager_name, manager.manager_email, "M")}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1">

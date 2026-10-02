@@ -7,7 +7,68 @@ import {
   formatSignedInAs,
   formatUserDisplayName,
   formatWelcomeGreeting,
+  getInitials,
+  getNameInitial,
+  stripHonorifics,
 } from "./displayName";
+
+describe("getNameInitial / getInitials", () => {
+  it.each([
+    ["Prof. Ravi Saini", "R"],
+    ["Dr. Kalpana", "K"],
+    ["Prof. Dr. Shriniwas Yadav", "S"],
+    ["Mrs. Anita", "A"],
+    ["prof ravi", "R"],
+    ["PROF.RAVI SAINI", "R"],
+    ["Professor Neha Gupta", "N"],
+    ["Mr Aman Kumar", "A"],
+    ["Ms. Priya", "P"],
+    ["Miss Riya", "R"],
+    ["Shri Mohan Lal", "M"],
+    ["Smt. Kamla Devi", "K"],
+    ["Er. Vikas Jain", "V"],
+    ["Dr.Kalpana", "K"],
+    ["Ravi Saini", "R"],
+    ["  ravi   saini ", "R"],
+  ])("%s gives %s", (name, initial) => {
+    expect(getNameInitial(name)).toBe(initial);
+  });
+
+  it("keeps names that merely start like a title", () => {
+    expect(getNameInitial("Drishti Rao")).toBe("D");
+    expect(getNameInitial("Profulla Das")).toBe("P");
+    expect(getNameInitial("Mrinal Sen")).toBe("M");
+    expect(getNameInitial("Shriniwas Yadav")).toBe("S");
+    expect(getNameInitial("Eran Cohen")).toBe("E");
+  });
+
+  it("gives two initials (first + last) after dropping titles", () => {
+    expect(getInitials("Ravi Saini", { max: 2 })).toBe("RS");
+    expect(getInitials("Prof. Ravi Kumar Saini", { max: 2 })).toBe("RS");
+    expect(getInitials("Prof. Dr. Shriniwas Yadav", { max: 2 })).toBe("SY");
+    expect(getInitials("Prof. Kalpana", { max: 2 })).toBe("K");
+  });
+
+  it("falls back to the email, then the fallback", () => {
+    expect(getNameInitial("", "ravi@iitr.ac.in")).toBe("R");
+    expect(getNameInitial("Prof.", "neha@iitr.ac.in")).toBe("N");
+    expect(getNameInitial(null, null)).toBe("?");
+    expect(getNameInitial("", "", "U")).toBe("U");
+    expect(getInitials(undefined, { email: "ops@acme.example", max: 2 })).toBe("O");
+  });
+
+  it("handles Devanagari names and honorifics", () => {
+    expect(getNameInitial("रवि सैनी")).toBe("र");
+    expect(getNameInitial("डॉ. रवि सैनी")).toBe("र");
+    expect(getNameInitial("श्री मोहन लाल")).toBe("मो");
+    expect(getInitials("प्रो. रवि सैनी", { max: 2 })).toBe("रसै");
+  });
+
+  it("stripHonorifics leaves only the name", () => {
+    expect(stripHonorifics("Prof. Dr. Shriniwas Yadav")).toBe("Shriniwas Yadav");
+    expect(stripHonorifics("Prof.")).toBe("");
+  });
+});
 
 describe("applyFacultyNamePrefix", () => {
   it("prefixes faculty names with Prof.", () => {
