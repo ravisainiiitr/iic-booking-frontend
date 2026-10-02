@@ -52,8 +52,13 @@ describe("cancel and reschedule locked after the lab accepts the sample", () => 
     }
   });
 
-  it("is not triggered by an owner-only cancel block (supervisor view)", () => {
-    const fields = { can_cancel: false, cancel_block_reason: "cancel_owner_only", can_reschedule: true };
+  it("is not triggered by owner-only blocks (supervisor view)", () => {
+    const fields = {
+      can_cancel: false,
+      cancel_block_reason: "cancel_owner_only",
+      can_reschedule: false,
+      reschedule_block_reason: "reschedule_owner_only",
+    };
     expect(isSampleAcceptedLocked(fields)).toBe(false);
     expect(formatDeadlineText(cancelRescheduleDeadline(booking(fields), NOW))).toBe(
       "Cancel/reschedule until Wed 7 Oct, 9:00 pm",
@@ -91,10 +96,21 @@ describe("owner Cancel / Reschedule button visibility from server flags", () => 
     expect(serverAllowsReschedule(LOCKED)).toBe(false);
   });
 
-  it("hides Cancel for a supervisor (owner-only) while Reschedule follows its own flag", () => {
-    const supervisor = { can_cancel: false, cancel_block_reason: "cancel_owner_only", can_reschedule: true };
+  it("hides Cancel and Reschedule for a supervisor (owner-only), even before acceptance", () => {
+    const supervisor = {
+      can_cancel: false,
+      cancel_block_reason: "cancel_owner_only",
+      can_reschedule: false,
+      reschedule_block_reason: "reschedule_owner_only",
+    };
     expect(serverAllowsOwnerCancel(supervisor)).toBe(false);
-    expect(serverAllowsReschedule(supervisor)).toBe(true);
+    expect(serverAllowsReschedule(supervisor)).toBe(false);
+  });
+
+  it("keeps Reschedule for staff viewing someone else's booking", () => {
+    const staff = { can_cancel: true, can_reschedule: true, reschedule_block_reason: null };
+    expect(serverAllowsReschedule(staff)).toBe(true);
+    expect(isSampleAcceptedLocked(staff)).toBe(false);
   });
 
   it("shows both before acceptance, and when the server did not say (older payloads)", () => {

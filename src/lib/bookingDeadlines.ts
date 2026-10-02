@@ -15,7 +15,7 @@ export interface DeadlineBookingFields {
   source_booking_id?: number | null;
   virtual_booking_id?: string | null;
   input_edit_refund_deadline?: string | null;
-  /** Server rules for the viewer; false once the lab has accepted the sample. */
+  /** Server rules for the viewer; false once the lab has accepted the sample, and for non-owners (block reason `*_owner_only`). */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
   can_cancel?: boolean | null;
@@ -44,7 +44,7 @@ export function isSampleAcceptedLocked(booking: DeadlineBookingFields): boolean 
   return (
     booking.reschedule_block_reason === RESCHEDULE_LOCKED_SAMPLE_ACCEPTED ||
     booking.cancel_block_reason === CANCEL_LOCKED_SAMPLE_ACCEPTED ||
-    booking.can_reschedule === false
+    (booking.can_reschedule === false && !booking.reschedule_block_reason)
   );
 }
 

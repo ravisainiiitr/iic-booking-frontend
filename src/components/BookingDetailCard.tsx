@@ -232,7 +232,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   maintenance_reschedule_extra_week?: boolean;
   /** True when this booking is already in maintenance-disruption workflow (Admin/OIC flag or equipment maintenance). */
   maintenance_disruption_flag?: boolean;
-  /** Server rule for the viewer: false once the lab has accepted the sample (owner / supervisor); null when unknown. */
+  /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
   reschedule_block_message?: string | null;
