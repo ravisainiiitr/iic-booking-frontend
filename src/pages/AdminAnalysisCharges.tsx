@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, FileText, Loader2, Upload, ExternalLink } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 const DOC_KEY = "analysis_charges";
 
@@ -92,10 +93,12 @@ export default function AdminAnalysisCharges() {
     <div className="page-shell">
       <DashboardHeader />
       <div className="container mx-auto px-4 py-8">
-        <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate("/content-management")}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to Content Management
-        </Button>
+        <StandaloneOnly>
+          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate("/content-management")}>
+            <ArrowLeft className="h-4 w-4" />
+            Back to Content Management
+          </Button>
+        </StandaloneOnly>
 
         <Card>
           <CardHeader>

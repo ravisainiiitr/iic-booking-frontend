@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type RewardConfig = {
   is_enabled: boolean;
@@ -130,10 +131,12 @@ export default function AdminRewardsConfig() {
       <main className="container mx-auto px-4 py-5 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Admin Settings
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Admin Settings
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold">Reward Config (Per Equipment)</h1>
             <p className="text-muted-foreground mt-1">Manage TA reward policy per equipment.</p>
           </div>

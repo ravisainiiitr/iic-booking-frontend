@@ -26,6 +26,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { ArrowLeft, CreditCard, Loader2, RefreshCw, Save } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type FacilitySettings = {
   department_id: number;
@@ -198,10 +199,12 @@ export default function DepartmentFacultyCreditFacilityPage() {
       <DashboardHeader />
       <main className="container mx-auto max-w-6xl px-4 py-5 space-y-6">
         <div>
-          <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate(hubPath)}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Department Administration
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate(hubPath)}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Department Administration
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <CreditCard className="h-8 w-8" />
             Faculty Credit Facility

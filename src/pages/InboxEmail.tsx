@@ -20,6 +20,7 @@ import { ArrowLeft, Inbox, Loader2, Mail, ChevronDown, ChevronRight, RefreshCw }
 import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type InboxEmail = {
   uid: string;
@@ -129,15 +130,17 @@ const InboxEmailPage = () => {
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/admin-settings/communication")}
-              className="mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Communication
-            </Button>
+            <StandaloneOnly>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/admin-settings/communication")}
+                className="mb-2"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Communication
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Inbox className="h-8 w-8" />
               Inbox Email

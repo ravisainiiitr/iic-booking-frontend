@@ -34,6 +34,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type TicketRow = TicketDetailsData & {
   comments_count?: number;
@@ -153,15 +154,17 @@ const AdminSettingsSupport = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate("/admin-settings")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin Settings
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-            Dashboard
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => navigate("/admin-settings")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Admin Settings
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+              Dashboard
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <div className="mb-4">
           <TicketAlertRecipientsCard />

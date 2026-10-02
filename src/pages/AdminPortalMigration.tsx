@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type MigrationDashboard = {
   phase?: string;
@@ -255,9 +256,11 @@ export default function AdminPortalMigration() {
     <div className="container mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button aria-label="Back to user management" title="Back to user management" variant="ghost" size="icon" onClick={() => navigate("/user-management")}>
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-          </Button>
+          <StandaloneOnly>
+            <Button aria-label="Back to user management" title="Back to user management" variant="ghost" size="icon" onClick={() => navigate("/user-management")}>
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+            </Button>
+          </StandaloneOnly>
           <div>
             <h1 className="text-2xl font-semibold">Portal Migration</h1>
             <p className="text-sm text-muted-foreground">

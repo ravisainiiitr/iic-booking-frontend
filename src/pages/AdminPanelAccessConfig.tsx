@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type AdminPanelModuleNode, type AdminPanelRoleConfig } from "@/lib/api";
 import { ArrowLeft, Loader2, Pencil, Plus, ShieldCheck } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type DepartmentRow = { id: number; name: string; code?: string | null };
 type UserTypeOption = { value: string; label: string };
@@ -281,10 +282,12 @@ export default function AdminPanelAccessConfig() {
       <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Admin Settings
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Admin Settings
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold tracking-tight">Admin Panel Access</h1>
             <p className="mt-1 text-muted-foreground">
               Enable Admin Panel access per user type and department, and choose which modules they may use.

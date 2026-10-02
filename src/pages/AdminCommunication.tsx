@@ -46,6 +46,7 @@ import { ArrowLeft, Loader2, Search, Plus, Pencil, Trash2 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type TemplateRow = {
   id: number;
@@ -647,10 +648,12 @@ const AdminCommunication = () => {
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Admin Settings
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-2">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Admin Settings
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold">Communication</h1>
             <p className="text-muted-foreground mt-1">
               Manage templates and view communication logs (same as Django admin /admin/communication/).

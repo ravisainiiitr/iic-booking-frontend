@@ -27,6 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowLeftRight, Loader2, Search } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type SourceDept = {
   id: number;
@@ -241,10 +242,12 @@ export default function WalletPeerTransfer() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-4xl">
-        <Button variant="ghost" size="sm" className="mb-3" onClick={() => navigate("/wallet")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Wallet
-        </Button>
+        <StandaloneOnly>
+          <Button variant="ghost" size="sm" className="mb-3" onClick={() => navigate("/wallet")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Wallet
+          </Button>
+        </StandaloneOnly>
         <h1 className="text-3xl font-bold flex items-center gap-2 mb-1">
           <ArrowLeftRight className="h-7 w-7 text-primary" />
           Wallet Transfer

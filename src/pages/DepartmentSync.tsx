@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type AgentRow = {
   id: string;
@@ -217,15 +218,17 @@ export default function DepartmentSync() {
         <div className="mb-5 rounded-2xl border border-border/50 bg-gradient-to-br from-primary via-primary to-accent p-4 text-white shadow-lg sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate("/dashboard")}
-                className="shrink-0 text-white/90 hover:bg-white/15 hover:text-white"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
+              <StandaloneOnly>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/dashboard")}
+                  className="shrink-0 text-white/90 hover:bg-white/15 hover:text-white"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+              </StandaloneOnly>
               <div>
                 <div className="flex items-center gap-2">
                   <Server className="h-5 w-5 opacity-90" />

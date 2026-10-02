@@ -25,6 +25,7 @@ import { ArrowLeft, Loader2, CheckCircle, XCircle } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type TicketRow = {
   ticket_id: number;
@@ -139,12 +140,14 @@ const AdminSettingsQualityImprovement = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate("/admin-settings")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin Settings
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => navigate("/admin-settings")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Admin Settings
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <Card>
           <CardHeader>

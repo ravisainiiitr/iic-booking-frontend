@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, HardDrive, Loader2, Monitor, Network, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type DashboardMetrics = {
   total_workstations: number;
@@ -511,9 +512,11 @@ export default function RemoteAnalysis() {
             <Button variant="outline" onClick={() => navigate("/remote-analysis/agent-installer")}>
               <HardDrive className="mr-2 h-4 w-4" /> Agent Installer
             </Button>
-            <Button variant="outline" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Dashboard
-            </Button>
+            <StandaloneOnly>
+              <Button variant="outline" onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Dashboard
+              </Button>
+            </StandaloneOnly>
             <Button variant="secondary" onClick={loadAll} disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Refresh

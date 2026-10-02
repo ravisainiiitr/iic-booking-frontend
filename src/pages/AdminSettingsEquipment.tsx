@@ -43,6 +43,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { hasAdminModule } from "@/lib/adminPanelAccess";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type SubCard = {
   key: string;
@@ -261,15 +262,17 @@ const AdminSettingsEquipment = () => {
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/admin-settings")}
-              className="mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Admin Settings
-            </Button>
+            <StandaloneOnly>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/admin-settings")}
+                className="mb-2"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Admin Settings
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold">Equipment</h1>
             <p className="text-muted-foreground mt-1">
               Booking requests log, addition proposals, bookings, slots, equipment, categories, groups and holidays.

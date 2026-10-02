@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Mail } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface WalletSricSettingsData {
   id: number;
@@ -136,10 +137,12 @@ export default function AdminWalletSricSettings() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-2xl">
         <div className="mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate(backPath)} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {isDeptAdmin && !isAdmin ? "Back to Department Administration" : "Back to User Management"}
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" onClick={() => navigate(backPath)} className="mb-2">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {isDeptAdmin && !isAdmin ? "Back to Department Administration" : "Back to User Management"}
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Mail className="h-8 w-8 text-primary" />
             {isAdmin ? "Wallet Recharge Routing Emails" : "SRIC Bill Section Email Settings"}

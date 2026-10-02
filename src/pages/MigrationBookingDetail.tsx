@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { StandaloneOnly } from "@/components/PageShell";
 
 export default function MigrationBookingDetail() {
   const { legacyBookingId } = useParams();
@@ -47,9 +48,11 @@ export default function MigrationBookingDetail() {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center gap-3">
-        <Button aria-label="Back to legacy bookings" title="Back to legacy bookings" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration/legacy-bookings")}>
-          <ArrowLeft className="h-4 w-4" aria-hidden />
-        </Button>
+        <StandaloneOnly>
+          <Button aria-label="Back to legacy bookings" title="Back to legacy bookings" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration/legacy-bookings")}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+          </Button>
+        </StandaloneOnly>
         <div>
           <h1 className="text-2xl font-semibold">Legacy booking {legacyBookingId}</h1>
           <p className="text-sm text-muted-foreground">Occupancy audit — not a new-portal Booking row.</p>

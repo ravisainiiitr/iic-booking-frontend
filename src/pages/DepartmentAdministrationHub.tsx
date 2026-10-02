@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { ArrowLeft, CreditCard, FlaskConical, Mail, ShieldCheck, UserCog, Wallet } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 const MODULES = [
   {
@@ -84,10 +85,12 @@ export default function DepartmentAdministrationHub() {
       <DashboardHeader />
       <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div>
-          <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" className="mb-2" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to dashboard
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <ShieldCheck className="h-8 w-8" />
             Department Administration

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Tab =
   | "dashboard"
@@ -86,9 +87,11 @@ export default function IdentityAdministration() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-6xl space-y-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/user-management")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/user-management")}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Back
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold">Identity &amp; Affiliation</h1>
         </div>
         <div className="flex flex-wrap gap-2">

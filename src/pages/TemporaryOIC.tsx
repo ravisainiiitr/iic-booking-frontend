@@ -46,6 +46,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type EquipmentOption = { id: number; code: string; name: string };
 type OicUser = { id: number; name: string; email: string };
@@ -206,15 +207,17 @@ export default function TemporaryOIC() {
       <DashboardHeader />
       <main className="container max-w-4xl mx-auto p-4 pb-5 space-y-6">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-3 -ml-2 gap-2 text-white/90 hover:text-white hover:bg-white/20"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </StandaloneOnly>
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
               <UserCheck className="h-5 w-5" />

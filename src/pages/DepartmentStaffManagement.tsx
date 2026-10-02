@@ -33,6 +33,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { ArrowLeft, Loader2, Pencil, Plus, UserPlus } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type StaffRoleKey = "oic" | "lab" | "accounts";
 
@@ -300,15 +301,17 @@ export default function DepartmentStaffManagement() {
       <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-2"
-              onClick={() => navigate("/manage/department-administration")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Department Administration
-            </Button>
+            <StandaloneOnly>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mb-2"
+                onClick={() => navigate("/manage/department-administration")}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Department Administration
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
             <p className="mt-1 text-muted-foreground max-w-2xl">{config.description}</p>
           </div>

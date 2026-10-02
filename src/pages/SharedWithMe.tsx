@@ -10,6 +10,7 @@ import { BookingResultsDialog } from "@/components/BookingResultsDialog";
 import { ArrowLeft, Download, Loader2, Lock, RefreshCw, Share2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 function formatDate(value: string | null | undefined, withTime = false): string {
   if (!value) return "—";
@@ -62,11 +63,13 @@ export default function SharedWithMe() {
       <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="gap-2">
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Button>
+            </StandaloneOnly>
+            <Button variant="outline" size="sm" onClick={() => load(true)} disabled={loading} className="ml-auto gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>

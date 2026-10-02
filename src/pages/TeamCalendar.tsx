@@ -56,6 +56,7 @@ import {
   reviewerRoleLabel,
   weekRangeLabel,
 } from "@/lib/teamCalendar";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -414,16 +415,18 @@ export default function TeamCalendar() {
           <div className="mb-5 rounded-2xl border border-border/50 bg-gradient-to-br from-primary via-primary to-accent p-4 text-white shadow-lg sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate("/dashboard")}
-                  className="shrink-0 text-white/90 hover:bg-white/15 hover:text-white"
-                  aria-label="Back to dashboard"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+                <StandaloneOnly>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate("/dashboard")}
+                    className="shrink-0 text-white/90 hover:bg-white/15 hover:text-white"
+                    aria-label="Back to dashboard"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
+                  </Button>
+                </StandaloneOnly>
                 <div className="min-w-0">
                   <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Team Calendar</h1>
                   <p className="mt-1 max-w-xl text-sm text-white/85">

@@ -10,6 +10,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Loader2, FileUp, Download, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 export default function MyNominationRequests() {
   const navigate = useNavigate();
@@ -100,12 +101,14 @@ export default function MyNominationRequests() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </div>
+          <StandaloneOnly>
+            <div className="flex flex-wrap items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Button>
+            </div>
+          </StandaloneOnly>
 
           <Card className="overflow-hidden border-0 shadow-lg">
             <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">

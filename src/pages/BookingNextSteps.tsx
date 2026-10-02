@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { IstemFbrSeal, isIstemFbrVerifiedStatus } from "@/components/IstemFbrSeal";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 const DEFAULT_ISTEM_URL = "https://www.istem.gov.in/";
 
@@ -92,15 +93,17 @@ export default function BookingNextSteps() {
       <DashboardHeader />
       <main className="container max-w-2xl py-5 space-y-6">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/my-bookings")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            My bookings
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/my-bookings")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              My bookings
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold tracking-tight">Booking confirmed — next steps</h1>
           <p className="mt-2 text-sm text-white/85">
             Complete any remaining verification so your slot stays on track.

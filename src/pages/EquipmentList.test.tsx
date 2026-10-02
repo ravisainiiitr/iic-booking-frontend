@@ -38,7 +38,6 @@ vi.mock("@/hooks/use-peak-window", () => ({
   usePeakWindow: () => ({ loaded: true, active: false, externalPaused: false, externalNotice: false, window: null, message: "" }),
 }));
 vi.mock("@/contexts/EmbeddedModeContext", () => ({ useEmbeddedMode: () => false }));
-vi.mock("@/components/WorkspaceHeaderActions", () => ({ useWorkspaceChrome: () => null }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/DepartmentFilter", () => ({ default: () => null }));
 vi.mock("@/components/NoticeExpiryDialog", () => ({ NoticeExpiryDialog: () => null }));

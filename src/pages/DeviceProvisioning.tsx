@@ -18,6 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Tab = "pending" | "devices" | "retired" | "audit" | "policies";
 
@@ -291,11 +292,13 @@ export default function DeviceProvisioningPage() {
       <main className="container mx-auto max-w-6xl px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-              </Link>
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="icon" asChild>
+                <Link to="/dashboard">
+                  <ArrowLeft className="h-4 w-4" />
+                </Link>
+              </Button>
+            </StandaloneOnly>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Device Provisioning</h1>
               <p className="text-sm text-muted-foreground">

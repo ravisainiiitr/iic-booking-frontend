@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type AdditionRequest = {
   id: number;
@@ -234,15 +235,17 @@ const EquipmentAdditionRequests = () => {
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mb-3 -ml-2 text-white hover:text-white hover:bg-white/20"
-                onClick={() => navigate("/admin-settings/equipment")}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Equipment settings
-              </Button>
+              <StandaloneOnly>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mb-3 -ml-2 text-white hover:text-white hover:bg-white/20"
+                  onClick={() => navigate("/admin-settings/equipment")}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Equipment settings
+                </Button>
+              </StandaloneOnly>
               <h1 className="text-2xl font-semibold tracking-tight text-white">Equipment addition requests</h1>
               <p className="mt-2 text-sm text-primary-foreground/95 max-w-2xl">
                 {isAdmin

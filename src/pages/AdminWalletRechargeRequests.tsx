@@ -51,6 +51,7 @@ import {
   Wand2,
   AlertTriangle,
 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface AuditLog {
   id: number;
@@ -495,15 +496,17 @@ export default function AdminWalletRechargeRequests() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(isFinance || isDeptAdmin ? "/dashboard" : "/user-management")}
-            className="mb-2"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {isFinance || isDeptAdmin ? "Back to Dashboard" : "Back to User Management"}
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(isFinance || isDeptAdmin ? "/dashboard" : "/user-management")}
+              className="mb-2"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              {isFinance || isDeptAdmin ? "Back to Dashboard" : "Back to User Management"}
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Banknote className="h-8 w-8 text-primary" />
             Wallet Recharge Requests

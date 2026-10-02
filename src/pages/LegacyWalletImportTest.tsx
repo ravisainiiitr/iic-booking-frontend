@@ -22,6 +22,7 @@ import {
 import { ArrowLeft, Loader2, Search, AlertTriangle, CheckCircle2, List } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { StandaloneOnly } from "@/components/PageShell";
 
 function statusLabel(status: LegacyWalletLookupResult["status"]): string {
   switch (status) {
@@ -145,10 +146,12 @@ const LegacyWalletImportTest = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Admin Settings
-        </Button>
+        <StandaloneOnly>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings")} className="mb-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Admin Settings
+          </Button>
+        </StandaloneOnly>
 
         <h1 className="text-3xl font-bold mb-1">Legacy Wallet Lookup (Test)</h1>
         <p className="text-muted-foreground mb-6">

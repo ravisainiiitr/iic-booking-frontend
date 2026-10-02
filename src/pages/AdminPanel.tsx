@@ -25,6 +25,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type SectionItem = { key: string; label: string; icon: React.ReactNode };
 
@@ -122,12 +123,14 @@ const AdminPanel = () => {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5 max-w-5xl">
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>

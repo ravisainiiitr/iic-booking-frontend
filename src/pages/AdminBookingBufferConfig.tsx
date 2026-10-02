@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Timer } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface BookingBufferConfigData {
   id: number;
@@ -94,10 +95,12 @@ export default function AdminBookingBufferConfig() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-2xl">
         <div className="mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings/equipment")} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Equipment settings
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings/equipment")} className="mb-2">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Equipment settings
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Timer className="h-8 w-8 text-primary" />
             Booking Buffer Configuration

@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Release = {
   product?: string;
@@ -148,10 +149,12 @@ export default function DeploymentCenterPage() {
       <main className="container mx-auto max-w-6xl px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Dashboard
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Dashboard
+              </Button>
+            </StandaloneOnly>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Deployment Center</h1>
               <p className="text-sm text-muted-foreground">

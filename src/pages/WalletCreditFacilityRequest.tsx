@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, CreditCard, ScrollText } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Eligibility = { allowed: boolean; code: string; message: string };
 
@@ -168,9 +169,11 @@ export default function WalletCreditFacilityRequest() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/wallet")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Wallet
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/wallet")}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Wallet
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <CreditCard className="h-6 w-6" /> Credit Facility
           </h1>

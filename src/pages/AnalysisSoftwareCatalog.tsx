@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Archive, Eye, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type CatalogRow = {
   id: string;
@@ -317,9 +318,11 @@ export default function AnalysisSoftwareCatalog() {
       <div className="container mx-auto space-y-4 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/remote-analysis")}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> Back
-            </Button>
+            <StandaloneOnly>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/remote-analysis")}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> Back
+              </Button>
+            </StandaloneOnly>
             <div>
               <h1 className="text-2xl font-semibold">Analysis Software Catalog</h1>
               <p className="text-sm text-muted-foreground">

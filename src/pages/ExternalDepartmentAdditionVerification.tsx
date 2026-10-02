@@ -23,6 +23,7 @@ import {
 import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Building2, Loader2, Pencil, Check, X, ThumbsUp, ThumbsDown, Upload, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 const EXTERNAL_SUBCATEGORIES = [
   { value: "educational_institute", label: "Educational Institute" },
@@ -353,15 +354,17 @@ const ExternalDepartmentAdditionVerification = () => {
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5 max-w-5xl">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/manage/external-user-management")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            External user management
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/manage/external-user-management")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              External user management
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold tracking-tight">External department addition / verification</h1>
           <p className="mt-2 text-sm text-white/85">
             Add external departments with State/Union Territory and type, or verify departments added during registration.

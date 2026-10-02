@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Home, Layout, Menu, Loader2, Image, FileText } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { PageHero, PageShell, SettingsTile } from "@/components/PageShell";
+import { PageHero, PageShell, SettingsTile, StandaloneOnly } from "@/components/PageShell";
 
 const ContentManagement = () => {
   const navigate = useNavigate();
@@ -48,15 +48,17 @@ const ContentManagement = () => {
           title="Content Management"
           description="Manage menu, pages, home content, and hero images for the public site."
         >
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          </StandaloneOnly>
         </PageHero>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

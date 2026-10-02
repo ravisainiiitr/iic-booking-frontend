@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
-import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,7 +123,6 @@ const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
 const EquipmentList = () => {
   const navigate = useNavigate();
   const embedded = useEmbeddedMode();
-  const workspaceChrome = useWorkspaceChrome();
   const { user } = useAuth();
   // The open family and department live in the URL so Back from an equipment page returns to them.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -469,10 +467,7 @@ const EquipmentList = () => {
           </div>
         )}
 
-        <div className="mb-3 flex items-center justify-between gap-3 max-w-5xl">
-          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Equipment catalog</p>
-          {workspaceChrome?.backButton}
-        </div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">Equipment catalog</p>
 
         {isOic ? (
           <div className="mb-3 flex flex-wrap gap-2">

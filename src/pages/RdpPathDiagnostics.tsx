@@ -27,6 +27,7 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type PipelineStage = {
   name?: string;
@@ -221,11 +222,13 @@ export default function RdpPathDiagnosticsPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" asChild>
-              <Link to="/remote-analysis">
-                <ArrowLeft className="mr-2 h-4 w-4" /> Remote Analysis
-              </Link>
-            </Button>
+            <StandaloneOnly>
+              <Button variant="outline" asChild>
+                <Link to="/remote-analysis">
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Remote Analysis
+                </Link>
+              </Button>
+            </StandaloneOnly>
             <Button variant="secondary" onClick={() => void loadReport()} disabled={loading || running}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Refresh

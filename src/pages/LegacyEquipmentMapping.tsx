@@ -45,6 +45,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type CapacitySplit = {
   id: number;
@@ -555,9 +556,11 @@ export default function LegacyEquipmentMapping() {
     <div className="container mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-          </Button>
+          <StandaloneOnly>
+            <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+            </Button>
+          </StandaloneOnly>
           <div>
             <h1 className="text-2xl font-semibold">Equipment Mapping</h1>
             <p className="text-sm text-muted-foreground">

@@ -37,6 +37,7 @@ import { Loader2, ArrowLeft, Plus, Pencil, Trash2, FileText, ExternalLink } from
 import DashboardHeader from "@/components/DashboardHeader";
 import { EquipmentForm, type EquipmentFormData } from "@/components/admin/EquipmentForm";
 import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
+import { StandaloneOnly } from "@/components/PageShell";
 
 /** Staff roles Department Administrators may create or map. */
 const DEPT_ADMIN_STAFF_USER_TYPES: Array<{ value: string; label: string }> = [
@@ -1218,12 +1219,14 @@ export default function AdminSection() {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5 max-w-6xl">
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Admin
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <Card>
           <CardHeader>

@@ -1416,8 +1416,6 @@ const Dashboard = () => {
   // These pages show their own title with Back beside it, so the workspace header row would repeat them.
   const workspacePageHasOwnTitleRow = /^\/(urgent-requests-wallet|my-urgent-requests)\/?([?#]|$)/.test(activeWorkspacePath);
   const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(activeWorkspacePath) || workspacePageHasOwnTitleRow;
-  // The equipment catalog shows Back in its own header row instead.
-  const workspaceShowsOwnBack = /^\/equipments\/?$/.test(activeWorkspacePath) || workspacePageHasOwnTitleRow;
   const workspaceBackButton = (
     <Button
       type="button"
@@ -3870,7 +3868,7 @@ const Dashboard = () => {
                     </CardHeader>
                   </>
                 )}
-                {hideWorkspaceHeader && !workspaceShowsOwnBack && (
+                {hideWorkspaceHeader && !workspacePageHasOwnTitleRow && (
                   <div className="flex items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5">
                     {workspaceBackButton}
                   </div>

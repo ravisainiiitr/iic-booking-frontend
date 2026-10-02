@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, CreditCard, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { loadRazorpayScript } from "@/lib/razorpay";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type FeeBreakup = {
   base_amount: string;
@@ -186,10 +187,12 @@ export default function BookingPayment() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container max-w-lg py-5 space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/my-bookings")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          My bookings
-        </Button>
+        <StandaloneOnly>
+          <Button variant="ghost" onClick={() => navigate("/my-bookings")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            My bookings
+          </Button>
+        </StandaloneOnly>
         <Card>
           <CardHeader>
             <CardTitle>Complete payment</CardTitle>

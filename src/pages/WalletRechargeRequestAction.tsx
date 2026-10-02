@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import DashboardHeader from '@/components/DashboardHeader';
 import { CheckCircle, XCircle, Loader2, ArrowLeft } from 'lucide-react';
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface RechargeRequest {
   id: number;
@@ -171,12 +172,14 @@ const WalletRechargeRequestAction = () => {
     <div className="page-shell">
       <DashboardHeader />
       <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <div className="mb-6">
-          <Button onClick={() => navigate('/wallet')} variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Wallet
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6">
+            <Button onClick={() => navigate('/wallet')} variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Wallet
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <Card>
           <CardHeader>

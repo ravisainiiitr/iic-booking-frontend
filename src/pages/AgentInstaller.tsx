@@ -24,6 +24,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Release = {
   id?: string;
@@ -166,9 +167,11 @@ export default function AgentInstallerPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => navigate("/remote-analysis")}>
-              <ArrowLeft className="mr-2 h-4 w-4" /> Operations
-            </Button>
+            <StandaloneOnly>
+              <Button variant="outline" onClick={() => navigate("/remote-analysis")}>
+                <ArrowLeft className="mr-2 h-4 w-4" /> Operations
+              </Button>
+            </StandaloneOnly>
             <Button variant="secondary" onClick={() => void load()} disabled={loading}>
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Refresh

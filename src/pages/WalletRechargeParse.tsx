@@ -54,6 +54,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { StandaloneOnly } from "@/components/PageShell";
 
 /** Unique key for an entry: date + receipt_no + emp_no (cumulative table dedup). */
 function rowKey(r: WalletRechargeParseRow): string {
@@ -1143,15 +1144,17 @@ const WalletRechargeParsePage = () => {
       <DashboardHeader />
       <main className="relative mx-auto w-full max-w-[min(100%,1920px)] px-4 py-5 sm:px-6 lg:px-8 xl:px-10 sm:py-6">
         <div className="mb-5 sm:mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/admin-settings")}
-            className="mb-4 -ml-1 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Admin Settings
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/admin-settings")}
+              className="mb-4 -ml-1 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Admin Settings
+            </Button>
+          </StandaloneOnly>
           <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/80 p-6 shadow-sm backdrop-blur-md sm:p-8">
             <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-primary/20 to-transparent blur-2xl dark:from-primary/25" />
             <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-gradient-to-tr from-amber-500/10 to-transparent blur-2xl" />

@@ -17,6 +17,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, ShieldCheck } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type CurrentUser = {
   id: number;
@@ -258,10 +259,12 @@ export default function DepartmentRbacManagement() {
       <DashboardHeader />
       <main className="container mx-auto max-w-5xl px-4 py-5 space-y-6">
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </StandaloneOnly>
           <Button variant="outline" size="sm" onClick={() => navigate("/admin/section/users")}>
             Users
           </Button>

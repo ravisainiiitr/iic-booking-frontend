@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Plus, Pencil, Trash2, FlaskConical, Search } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface IcpmsStandardRow {
   id: number;
@@ -174,10 +175,12 @@ export default function AdminIcpmsStandards() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings/equipment")} className="mb-2">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Equipment settings
-          </Button>
+          <StandaloneOnly>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/admin-settings/equipment")} className="mb-2">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Equipment settings
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <FlaskConical className="h-8 w-8 text-primary" />
             ICPMS Standard Sample Database

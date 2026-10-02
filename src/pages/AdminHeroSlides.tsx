@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Plus, Pencil, Trash2, Loader2, ImageIcon } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface HeroSlideItem {
   id: number;
@@ -170,10 +171,12 @@ export default function AdminHeroSlides() {
     <div className="page-shell">
       <DashboardHeader />
       <div className="container mx-auto px-4 py-8">
-        <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to Dashboard
-        </Button>
+        <StandaloneOnly>
+          <Button variant="ghost" className="mb-4 gap-2" onClick={() => navigate("/dashboard")}>
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </StandaloneOnly>
 
         <Card>
           <CardHeader>

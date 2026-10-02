@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type LegacyBookingRow = {
   legacy_booking_id?: number;
@@ -126,9 +127,11 @@ export default function LegacyBookingMapping() {
     <div className="container mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
-            <ArrowLeft className="h-4 w-4" aria-hidden />
-          </Button>
+          <StandaloneOnly>
+            <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
+              <ArrowLeft className="h-4 w-4" aria-hidden />
+            </Button>
+          </StandaloneOnly>
           <div>
             <h1 className="text-2xl font-semibold">Legacy Booking Mapping</h1>
             <p className="text-sm text-muted-foreground">

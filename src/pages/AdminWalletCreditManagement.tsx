@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Shield } from "lucide-react";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Profile = Record<string, unknown>;
 
@@ -196,13 +197,15 @@ export default function AdminWalletCreditManagement() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => (facilityId ? navigate("/admin/wallet-credit") : navigate("/dashboard"))}
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => (facilityId ? navigate("/admin/wallet-credit") : navigate("/dashboard"))}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" /> Back
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <Shield className="h-6 w-6" /> Wallet Credit Management
           </h1>

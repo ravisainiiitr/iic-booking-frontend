@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowLeft, Package, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type Eq = { equipment_id: number; code?: string; name?: string };
 
@@ -213,15 +214,17 @@ export default function EquipmentLifecycleHub() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 space-y-6 max-w-5xl">
         <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold tracking-tight">Equipment lifecycle &amp; expenses</h1>
           <p className="mt-2 text-sm text-white/85 max-w-3xl">
             Track purchase and supplier data, warranty, AMC, classified expenses, and accessories. Write-off follows Lab

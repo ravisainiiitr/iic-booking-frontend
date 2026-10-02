@@ -6,6 +6,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Building2, UserCheck, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { StandaloneOnly } from "@/components/PageShell";
 
 const ExternalUserManagement = () => {
   const navigate = useNavigate();
@@ -51,15 +52,17 @@ const ExternalUserManagement = () => {
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5">
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate("/dashboard")}
-            className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Dashboard
-          </Button>
+          <StandaloneOnly>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/dashboard")}
+              className="mb-3 -ml-2 text-white/90 hover:text-white hover:bg-white/20"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+          </StandaloneOnly>
           <h1 className="text-2xl font-semibold tracking-tight">External user management</h1>
           <p className="mt-2 text-sm text-white/85">
             Verification workflows for external organizations/departments and external users.

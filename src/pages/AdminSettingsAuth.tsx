@@ -18,6 +18,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import PeakWindowSettingsCard from "@/components/admin/PeakWindowSettingsCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { StandaloneOnly } from "@/components/PageShell";
 
 type UserTypeChoice = { code: string; name: string };
 
@@ -119,15 +120,17 @@ const AdminSettingsAuth = () => {
       <main className="container mx-auto px-4 py-5">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/admin-settings")}
-              className="mb-2"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Admin Settings
-            </Button>
+            <StandaloneOnly>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/admin-settings")}
+                className="mb-2"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Admin Settings
+              </Button>
+            </StandaloneOnly>
             <h1 className="text-3xl font-bold">Session / Auto-logout by user type</h1>
             <p className="text-muted-foreground mt-1">
               Set how long each user type stays logged in when there is no activity. Leave a type empty to use the default.

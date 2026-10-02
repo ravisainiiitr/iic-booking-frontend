@@ -12,7 +12,7 @@ import {
   type CopilotUsage,
 } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { PageHero, PageShell } from "@/components/PageShell";
+import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -302,15 +302,17 @@ const AdminSettingsCopilotAnswers = () => {
       title="Booking Assistant Answers & Console"
       description="Reviewed answers the Booking Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
     >
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate("/admin-settings")}
-        className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Admin Settings
-      </Button>
+      <StandaloneOnly>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/admin-settings")}
+          className="mb-4 text-white/90 hover:text-white hover:bg-white/20"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Admin Settings
+        </Button>
+      </StandaloneOnly>
     </PageHero>
   );
 

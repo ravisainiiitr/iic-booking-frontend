@@ -15,6 +15,7 @@ import {
 import DashboardHeader from "@/components/DashboardHeader";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
 import { type BookingRef } from "@/lib/bookingRef";
+import { StandaloneOnly } from "@/components/PageShell";
 
 interface BookingRow extends BookingRef {
   equipment_name: string;
@@ -118,12 +119,14 @@ const ReportBookingsList = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
-        <div className="mb-6 flex flex-wrap items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate("/reports")}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Reports
-          </Button>
-        </div>
+        <StandaloneOnly>
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => navigate("/reports")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Reports
+            </Button>
+          </div>
+        </StandaloneOnly>
 
         <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">Booking details</h1>
