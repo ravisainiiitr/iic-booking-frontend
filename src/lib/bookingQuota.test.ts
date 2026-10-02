@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { quotaBlockReason, quotaBlocksBooking, quotaReferenceDate, quotaSummaryText, type MyBookingQuota } from "./bookingQuota";
+import {
+  quotaBlockReason,
+  quotaBlocksBooking,
+  quotaLimitIsEffectivelyUnlimited,
+  quotaReferenceDate,
+  quotaSummaryText,
+  unlimitedQuotaConfigHint,
+  visibleQuota,
+  type MyBookingQuota,
+} from "./bookingQuota";
 
 function quota(over: Partial<MyBookingQuota> = {}, binding: Partial<NonNullable<MyBookingQuota["binding"]>> = {}): MyBookingQuota {
   const b = {
@@ -58,6 +67,44 @@ describe("booking quota", () => {
     );
     expect(quotaBlockReason(quota({ remaining_minutes: 0 }, { remaining_minutes: 0 }), 30)).toMatch(/used all your booking time for this week/);
     expect(quotaBlockReason(quota(), 30)).toBeNull();
+  });
+
+  it("treats limits nobody can use up as no limit", () => {
+    expect(quotaLimitIsEffectivelyUnlimited("WEEKLY", 10075)).toBe(true);
+    expect(quotaLimitIsEffectivelyUnlimited("WEEKLY", 8999)).toBe(false);
+    expect(quotaLimitIsEffectivelyUnlimited("MONTHLY", 44640)).toBe(true);
+    expect(quotaLimitIsEffectivelyUnlimited("MONTHLY", 10075)).toBe(false);
+
+    const unlimitedWeek = quota({}, { limit_minutes: 10075, used_minutes: 0, remaining_minutes: 10075 });
+    expect(quotaSummaryText(unlimitedWeek)).toBeNull();
+    expect(quotaBlocksBooking(unlimitedWeek, 600)).toBe(false);
+    expect(visibleQuota(unlimitedWeek)?.applies).toBe(false);
+
+    const unlimitedMonth = quota({}, { period: "MONTHLY", limit_minutes: 44000, used_minutes: 0, remaining_minutes: 44000 });
+    expect(quotaSummaryText(unlimitedMonth)).toBeNull();
+  });
+
+  it("keeps a realistic limit when another period is effectively unlimited", () => {
+    const week = { period: "WEEKLY" as const, scope: "Individual Weekly", shared: false, limit_minutes: 10075, used_minutes: 0, remaining_minutes: 10075, period_start: "2026-10-05", period_end: "2026-10-11" };
+    const month = { ...week, period: "MONTHLY" as const, scope: "Individual Monthly", limit_minutes: 600, used_minutes: 100, remaining_minutes: 500, period_start: "2026-10-01" };
+    const q = quota({ periods: [week, month], binding: week, remaining_minutes: 10075 });
+    expect(quotaSummaryText(q)).toBe("You've used 100 of 600 min on XPS this month (500 min left).");
+    expect(quotaBlocksBooking(q, 501)).toBe(true);
+    expect(quotaSummaryText(quota({}, { limit_minutes: 600, used_minutes: 0, remaining_minutes: 600 }))).toBe(
+      "You've used 0 of 600 min on XPS this week (600 min left).",
+    );
+  });
+
+  it("notes unreachable limits in the quota form", () => {
+    expect(unlimitedQuotaConfigHint([{ quota_type: "WEEKLY", internal_individual_quota_minutes: 600 }])).toBeNull();
+    expect(unlimitedQuotaConfigHint([{ quota_type: "WEEKLY", external_faculty_quota_minutes: 10075 }])).toMatch(/^Weekly limits .* no limit\./);
+    const both = unlimitedQuotaConfigHint([
+      { quota_type: "WEEKLY", internal_individual_quota_minutes: 9999 },
+      { quota_type: "MONTHLY", internal_faculty_quota_minutes: 44640 },
+    ]);
+    expect(both).toContain("Weekly limits");
+    expect(both).toContain("Monthly limits");
+    expect(unlimitedQuotaConfigHint(undefined)).toBeNull();
   });
 
   it("uses the visible week's Monday as the reference date", () => {

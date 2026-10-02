@@ -23,6 +23,55 @@ export type MyBookingQuota = {
   binding: BookingQuotaPeriod | null;
 };
 
+/**
+ * Same thresholds as the backend (quota_utils.EFFECTIVELY_UNLIMITED_QUOTA_MINUTES): ~90% of the 10,080 min in a
+ * week / 44,640 in a 31-day month. Nobody can use that up, so such limits (e.g. 10075/week) mean "no limit".
+ */
+export const EFFECTIVELY_UNLIMITED_QUOTA_MINUTES: Record<BookingQuotaPeriod["period"], number> = {
+  WEEKLY: 9000,
+  MONTHLY: 40000,
+};
+
+export function quotaLimitIsEffectivelyUnlimited(period: string | null | undefined, limitMinutes: unknown): boolean {
+  const threshold = EFFECTIVELY_UNLIMITED_QUOTA_MINUTES[String(period ?? "").toUpperCase() as BookingQuotaPeriod["period"]];
+  const limit = Number(limitMinutes);
+  return threshold != null && Number.isFinite(limit) && limit >= threshold;
+}
+
+const QUOTA_CONFIG_MINUTE_KEYS = [
+  "internal_individual_quota_minutes",
+  "internal_faculty_quota_minutes",
+  "external_individual_quota_minutes",
+  "external_faculty_quota_minutes",
+] as const;
+
+/** Admin/OIC quota form note when an entered weekly/monthly limit is more than can ever be booked. */
+export function unlimitedQuotaConfigHint(rows: ReadonlyArray<Record<string, unknown>> | null | undefined): string | null {
+  const notes: string[] = [];
+  for (const period of ["WEEKLY", "MONTHLY"] as const) {
+    const row = (rows ?? []).find((r) => String(r.quota_type ?? "").toUpperCase() === period);
+    if (!row || !QUOTA_CONFIG_MINUTE_KEYS.some((k) => quotaLimitIsEffectivelyUnlimited(period, row[k]))) continue;
+    notes.push(
+      period === "WEEKLY"
+        ? "Weekly limits of 9,000 min or more are more than can be booked in a week (10,080 min), so they are treated as no limit."
+        : "Monthly limits of 40,000 min or more are more than can be booked in a month (44,640 min at most), so they are treated as no limit.",
+    );
+  }
+  return notes.length ? `${notes.join(" ")} Users won't see a usage message for them.` : null;
+}
+
+/** The quota without limits nobody can reach; `applies` is false when only such limits are configured. */
+export function visibleQuota(q: MyBookingQuota | null | undefined): MyBookingQuota | null {
+  if (!q) return null;
+  if (!q.applies) return q;
+  const all = q.periods?.length ? q.periods : q.binding ? [q.binding] : [];
+  const periods = all.filter((p) => !quotaLimitIsEffectivelyUnlimited(p.period, p.limit_minutes));
+  if (periods.length === all.length) return q;
+  if (!periods.length) return { ...q, applies: false, periods: [], binding: null, remaining_minutes: null };
+  const binding = periods.reduce((min, p) => (p.remaining_minutes < min.remaining_minutes ? p : min));
+  return { ...q, periods, binding, remaining_minutes: binding.remaining_minutes };
+}
+
 /** @param todayIso yyyy-MM-dd; a period starting after today is "next week" / "next month". */
 export function quotaPeriodWord(p: Pick<BookingQuotaPeriod, "period" | "period_start">, todayIso?: string): string {
   const upcoming = !!todayIso && !!p.period_start && p.period_start > todayIso;
@@ -31,7 +80,8 @@ export function quotaPeriodWord(p: Pick<BookingQuotaPeriod, "period" | "period_s
 }
 
 /** "You've used 120 of 240 min on XPS this week (120 min left)." */
-export function quotaSummaryText(q: MyBookingQuota | null | undefined, todayIso?: string): string | null {
+export function quotaSummaryText(quota: MyBookingQuota | null | undefined, todayIso?: string): string | null {
+  const q = visibleQuota(quota);
   if (!q || !q.applies || !q.binding) return null;
   const b = q.binding;
   const target = b.shared && q.equipment_group_name ? q.equipment_group_name : q.equipment_name;
@@ -42,7 +92,8 @@ export function quotaSummaryText(q: MyBookingQuota | null | undefined, todayIso?
 }
 
 /** True when this booking needs more minutes than the quota still allows. */
-export function quotaBlocksBooking(q: MyBookingQuota | null | undefined, requiredMinutes: number | null | undefined): boolean {
+export function quotaBlocksBooking(quota: MyBookingQuota | null | undefined, requiredMinutes: number | null | undefined): boolean {
+  const q = visibleQuota(quota);
   if (!q || !q.applies || q.remaining_minutes == null) return false;
   const need = Number(requiredMinutes);
   if (!Number.isFinite(need) || need <= 0) return q.remaining_minutes <= 0;
@@ -50,10 +101,11 @@ export function quotaBlocksBooking(q: MyBookingQuota | null | undefined, require
 }
 
 export function quotaBlockReason(
-  q: MyBookingQuota | null | undefined,
+  quota: MyBookingQuota | null | undefined,
   requiredMinutes: number | null | undefined,
   todayIso?: string,
 ): string | null {
+  const q = visibleQuota(quota);
   if (!quotaBlocksBooking(q, requiredMinutes) || !q?.binding) return null;
   const left = Math.max(0, Math.round(q.binding.remaining_minutes));
   const when = q.binding.period === "MONTHLY" ? "month" : "week";

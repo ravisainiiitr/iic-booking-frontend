@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { RICH_TEXT_PLAIN_MAX_LENGTH, richTextToPlain } from "@/lib/richText";
+import { unlimitedQuotaConfigHint } from "@/lib/bookingQuota";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -680,6 +681,9 @@ export default function OICEquipmentSettings() {
                             </TableBody>
                           </Table>
                         </div>
+                        {unlimitedQuotaConfigHint(quotaDraft) ? (
+                          <p className="text-xs text-muted-foreground">{unlimitedQuotaConfigHint(quotaDraft)}</p>
+                        ) : null}
                       </>
                     )}
                   </CardContent>

@@ -3,6 +3,7 @@ import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS, flattenApiErrorMessage } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { richTextToPlain } from "@/lib/richText";
+import { unlimitedQuotaConfigHint } from "@/lib/bookingQuota";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -2546,6 +2547,11 @@ export default function AdminSection() {
                         </TableBody>
                       </Table>
                     </div>
+                    {unlimitedQuotaConfigHint(formData.quotas as Array<Record<string, unknown>> | undefined) ? (
+                      <p className="text-xs text-muted-foreground">
+                        {unlimitedQuotaConfigHint(formData.quotas as Array<Record<string, unknown>> | undefined)}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
                 <DialogFooter>
