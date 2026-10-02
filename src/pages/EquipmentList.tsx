@@ -486,9 +486,9 @@ const EquipmentList = () => {
           </div>
         ) : null}
 
-        <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4 max-w-5xl">
+        <div className="mb-5 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
           {isDeptAdmin ? (
-            <div className="min-w-0 flex-1 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
+            <div className="min-w-0 w-full md:w-1/3 md:shrink-0 rounded-xl border bg-muted/40 px-3 text-sm flex items-center gap-2 h-11">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
               <p className="font-semibold truncate whitespace-nowrap">
                 {user?.department_name
@@ -506,8 +506,9 @@ const EquipmentList = () => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
               }}
-              className="min-w-0 flex-1"
-              triggerClassName="h-11 rounded-xl w-full text-sm font-semibold"
+              hideLabel
+              className="md:w-1/3 md:shrink-0"
+              triggerClassName="h-11 min-w-0 rounded-xl w-full text-sm font-semibold shadow-sm"
               defaultDepartmentName="Institute Instrumentation Centre"
               disabled={!departmentReady}
             />
@@ -518,7 +519,7 @@ const EquipmentList = () => {
               onValueChange={(v) => setCategoryFilter(v === ALL_CATEGORIES ? "" : v)}
             >
               <SelectTrigger
-                className="h-11 w-full sm:w-56 shrink-0 rounded-xl text-sm"
+                className="h-11 w-full md:w-1/4 md:shrink-0 rounded-xl text-sm shadow-sm"
                 aria-label="Filter by category or technique"
               >
                 <SelectValue placeholder="All categories" />
@@ -536,14 +537,15 @@ const EquipmentList = () => {
               </SelectContent>
             </Select>
           ) : null}
-          <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
+          <div className="relative w-full min-w-0 md:flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
+              aria-label="Search equipment by name or code"
               placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm text-sm"
+              className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm"
               disabled={showCatalogLoading && !departmentReady}
             />
             {loading && departmentReady && (

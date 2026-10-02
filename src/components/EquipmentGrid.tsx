@@ -312,9 +312,9 @@ const EquipmentGrid = () => {
             </Button>
           </div>
         ) : null}
-        <div className="w-full mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2.5 sm:gap-4">
+        <div className="w-full mb-4 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">
           {isDeptAdmin ? (
-            <div className="min-w-0 flex-1 rounded-xl border bg-muted/40 px-3 py-2 text-sm flex items-center gap-2 min-h-11">
+            <div className="min-w-0 w-full md:w-1/2 md:shrink-0 rounded-xl border bg-muted/40 px-3 text-sm flex items-center gap-2 h-11">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground shrink-0">Dept</p>
               <p className="font-semibold truncate whitespace-nowrap">
                 {user?.department_name
@@ -343,20 +343,22 @@ const EquipmentGrid = () => {
                 setSelectedDepartmentId(v);
                 setDepartmentReady(true);
               }}
-              className="min-w-0 max-w-none sm:max-w-md"
-              triggerClassName="h-11 w-full rounded-md text-base font-semibold"
+              hideLabel
+              className="md:w-1/2 md:shrink-0"
+              triggerClassName="h-11 min-w-0 w-full rounded-xl text-sm font-semibold shadow-sm"
               defaultDepartmentName="Institute Instrumentation Centre"
               disabled={!departmentReady && !isDeptAdmin}
             />
           )}
-          <div className="relative w-full sm:w-72 md:w-80 shrink-0 sm:ml-auto">
+          <div className="relative w-full min-w-0 md:flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
+              aria-label="Search equipment by name or code"
               placeholder="Search by name or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-11 rounded-md text-base md:text-base"
+              className="pl-9 h-11 rounded-xl border-border bg-background shadow-sm"
             />
             {loading && (
               <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />

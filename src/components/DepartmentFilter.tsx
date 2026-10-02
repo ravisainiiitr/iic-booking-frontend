@@ -30,6 +30,8 @@ interface DepartmentFilterProps {
   defaultDepartmentName?: string;
   /** Fires once after departments load (and optional default applied). Use to gate first fetch. */
   onResolved?: (value: DepartmentFilterValue) => void;
+  /** Keep the label for screen readers only, so the trigger lines up with sibling controls in a filter row. */
+  hideLabel?: boolean;
 }
 
 const DepartmentFilter = ({
@@ -40,6 +42,7 @@ const DepartmentFilter = ({
   disabled = false,
   defaultDepartmentName,
   onResolved,
+  hideLabel = false,
 }: DepartmentFilterProps) => {
   const [departments, setDepartments] = useState<CatalogDepartment[]>(() => peekCatalogDepartments() ?? []);
   const [loading, setLoading] = useState(() => peekCatalogDepartments() == null);
@@ -96,10 +99,15 @@ const DepartmentFilter = ({
   const selectValue = value === "all" ? "all" : String(value);
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 min-w-0 max-w-md w-full", className)}>
+    <div
+      className={cn(
+        hideLabel ? "min-w-0 w-full" : "flex flex-wrap items-center gap-2 min-w-0 max-w-md w-full",
+        className,
+      )}
+    >
       <Label
         htmlFor="catalog-department-filter"
-        className="shrink-0 text-base font-semibold text-foreground whitespace-nowrap"
+        className={hideLabel ? "sr-only" : "shrink-0 text-base font-semibold text-foreground whitespace-nowrap"}
       >
         Select Department/Centre
       </Label>
@@ -117,6 +125,7 @@ const DepartmentFilter = ({
       >
         <SelectTrigger
           id="catalog-department-filter"
+          title={hideLabel ? "Select Department/Centre" : undefined}
           className={cn(
             "min-w-[12rem] max-w-full w-full h-11 text-base font-semibold text-foreground",
             triggerClassName,
@@ -130,7 +139,7 @@ const DepartmentFilter = ({
             )}
             <SelectValue
               placeholder="All departments"
-              className="truncate whitespace-nowrap font-semibold text-foreground text-base"
+              className="truncate whitespace-nowrap font-semibold text-foreground"
             />
           </div>
         </SelectTrigger>
