@@ -439,9 +439,10 @@ export default function OICEquipmentSettings() {
                       Important instruction
                     </CardTitle>
                     <CardDescription>
-                      Shown as a note on the equipment page and when booking. Use the toolbar to choose the font, size,
-                      style and colour. The default applies to every user type that has no instruction of its own.
-                      Leave empty to show nothing.
+                      Shown as a note on the equipment page and when booking. Format it like a Word document: text
+                      size, bold, colours, bulleted and numbered lists, and links. Click Preview to see it as users
+                      will. The default applies to every user type that has no instruction of its own. Leave empty
+                      to show nothing.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">

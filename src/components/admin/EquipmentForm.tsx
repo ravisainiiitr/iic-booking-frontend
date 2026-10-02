@@ -31,6 +31,7 @@ import {
 import { isNumericHelpTextConvention, parseNumericHelpText } from "@/lib/numericFieldLimits";
 import { formatCoordinate } from "@/lib/equipmentGps";
 import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   Dialog,
   DialogContent,
@@ -2092,12 +2093,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </FormSection>
 
       <FormSection id="eq-sec-instruction" title="Important Instruction" description="Optional instructions shown prominently on the equipment page (above specifications)." defaultOpen>
-        <Textarea
-          id="equipment-important-instruction"
+        <RichTextEditor
           value={formData.important_instruction ?? ""}
-          onChange={(e) => setFormData((p) => ({ ...p, important_instruction: e.target.value || "" }))}
+          onChange={(html) => setFormData((p) => ({ ...p, important_instruction: html }))}
           placeholder="Important instructions for users"
-          rows={3}
+          ariaLabel="Important instruction"
         />
       </FormSection>
 

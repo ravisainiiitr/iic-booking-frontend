@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS, flattenApiErrorMessage } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { richTextToPlain } from "@/lib/richText";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1120,7 +1121,7 @@ export default function AdminSection() {
           currentUserDepartmentId ?? data.internal_department ?? ""
         );
         const noteParts: string[] = [];
-        if (data.important_instruction) noteParts.push(String(data.important_instruction));
+        if (data.important_instruction) noteParts.push(richTextToPlain(String(data.important_instruction)));
         if (primaryMgr?.manager) noteParts.push(`Proposed OIC user id: ${primaryMgr.manager}`);
         if (primaryOp?.operator) noteParts.push(`Proposed Lab Operator user id: ${primaryOp.operator}`);
         append("notes", noteParts.join("\n"));

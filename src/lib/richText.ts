@@ -1,85 +1,340 @@
-const ALLOWED_TAGS = new Set([
-  "P", "DIV", "SPAN", "BR", "B", "STRONG", "I", "EM", "U", "S", "STRIKE",
-  "FONT", "UL", "OL", "LI", "H1", "H2", "H3", "H4", "BLOCKQUOTE",
-]);
-const ALLOWED_STYLE_PROPS = new Set([
-  "color", "background-color", "font-family", "font-size", "font-weight",
-  "font-style", "text-decoration", "text-decoration-line", "text-align",
-]);
-const SAFE_STYLE_VALUE = /^[#(),.%\-\w\s'"]+$/;
-const HTML_TAG = /<\/?(p|div|span|br|b|strong|i|em|u|s|strike|font|ul|ol|li|h[1-4]|blockquote)\b/i;
+import DOMPurify from "dompurify";
 
+/**
+ * OIC-formatted text (e.g. the equipment important instruction).
+ *
+ * Stored as a small HTML subset; colours are palette tokens (`var(--rt-red)`) whose light/dark shades
+ * live in `index.css`. Legacy plain text is rendered with its line breaks. Mirrors the backend
+ * sanitizer in `iic_booking/equipment/rich_text.py`.
+ */
+
+export const TEXT_COLORS = ["red", "orange", "amber", "green", "blue", "purple", "pink", "gray"] as const;
+export const HIGHLIGHT_COLORS = ["yellow", "orange", "green", "blue", "pink"] as const;
+export const RICH_TEXT_PLAIN_MAX_LENGTH = 5000;
+
+export const textColorToken = (name: string) => `var(--rt-${name})`;
+export const highlightColorToken = (name: string) => `var(--rt-hl-${name})`;
+
+const ALLOWED_TAGS = ["p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "h3", "h4", "span", "a", "mark"];
+const STYLE_PROPS_BY_TAG: Record<string, string[]> = {
+  span: ["color"],
+  mark: ["background-color"],
+  p: ["text-align"],
+  h3: ["text-align"],
+  h4: ["text-align"],
+  li: ["text-align"],
+};
+const TEXT_ALIGNS = new Set(["center", "right"]);
+const TAG_RENAMES: Record<string, string> = {
+  div: "p", h1: "h3", h2: "h3", h5: "h4", h6: "h4", blockquote: "p",
+  strike: "s", del: "s", ins: "u", font: "span", b: "strong", i: "em",
+};
+const DROP_CONTENT_TAGS = new Set(["script", "style", "iframe", "object", "embed", "noscript", "template", "title", "head"]);
+const BLOCK_TAGS = new Set(["p", "h3", "h4", "li"]);
+const RICH_TAG = /<\/?(p|div|span|br|b|strong|i|em|u|s|strike|font|ul|ol|li|h[1-6]|blockquote|a|mark)\b/i;
+const VAR_TOKEN = /^var\(\s*--rt-(hl-)?([a-z]+)\s*(,[^)]*)?\)$/;
+const SAFE_HREF = /^(?:https?:\/\/|mailto:)/i;
+
+const NAMED_COLORS: Record<string, [number, number, number]> = {
+  black: [0, 0, 0], white: [255, 255, 255], gray: [128, 128, 128], grey: [128, 128, 128],
+  red: [255, 0, 0], darkred: [139, 0, 0], orange: [255, 165, 0], yellow: [255, 255, 0],
+  gold: [255, 215, 0], green: [0, 128, 0], lime: [0, 255, 0], darkgreen: [0, 100, 0],
+  blue: [0, 0, 255], navy: [0, 0, 128], darkblue: [0, 0, 139], teal: [0, 128, 128],
+  cyan: [0, 255, 255], purple: [128, 0, 128], violet: [238, 130, 238], magenta: [255, 0, 255],
+  pink: [255, 192, 203], brown: [165, 42, 42], maroon: [128, 0, 0],
+};
+const TEXT_HUES: [number, string][] = [
+  [15, "red"], [40, "orange"], [70, "amber"], [170, "green"], [255, "blue"], [290, "purple"], [345, "pink"], [361, "red"],
+];
+const HIGHLIGHT_HUES: [number, string][] = [
+  [15, "pink"], [40, "orange"], [75, "yellow"], [170, "green"], [290, "blue"], [361, "pink"],
+];
+
+/** True when the value is HTML from the editor (or the older formatting toolbar) rather than plain text. */
 export function looksLikeRichHtml(value: string | null | undefined): boolean {
-  return !!value && HTML_TAG.test(value);
+  return !!value && RICH_TAG.test(value);
 }
 
-function cleanStyle(raw: string): string {
-  return raw
+function parseRgb(value: string): [number, number, number] | null {
+  const v = value.trim().toLowerCase();
+  if (NAMED_COLORS[v]) return NAMED_COLORS[v];
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(v);
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].split("").map((c) => c + c).join("") : hex[1];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  const rgb = /^rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})(?:[\s,/]+([\d.]+%?))?\s*\)$/.exec(v);
+  if (rgb) {
+    if (rgb[4] !== undefined) {
+      const alpha = parseFloat(rgb[4]) / (rgb[4].endsWith("%") ? 100 : 1);
+      if (alpha < 0.15) return null;
+    }
+    return [1, 2, 3].map((i) => Math.min(255, parseInt(rgb[i], 10))) as [number, number, number];
+  }
+  return null;
+}
+
+function rgbToHls([r, g, b]: [number, number, number]): [number, number, number] {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  if (max === min) return [0, l, 0];
+  const d = max - min;
+  const s = l <= 0.5 ? d / (max + min) : d / (2 - max - min);
+  let h: number;
+  if (max === rn) h = ((gn - bn) / d) % 6;
+  else if (max === gn) h = (bn - rn) / d + 2;
+  else h = (rn - gn) / d + 4;
+  return [((h * 60) + 360) % 360, l, s];
+}
+
+/** Canonical palette token for a colour; arbitrary colours snap to the nearest hue, black/white are dropped. */
+export function paletteColor(value: string, kind: "text" | "highlight"): string | null {
+  const palette: readonly string[] = kind === "text" ? TEXT_COLORS : HIGHLIGHT_COLORS;
+  const token = kind === "text" ? textColorToken : highlightColorToken;
+  const v = (value || "").trim().toLowerCase().replace("!important", "").trim();
+  const m = VAR_TOKEN.exec(v);
+  if (m) {
+    const isHighlight = Boolean(m[1]);
+    return isHighlight === (kind !== "text") && palette.includes(m[2]) ? token(m[2]) : null;
+  }
+  const rgb = parseRgb(v);
+  if (!rgb) return null;
+  const [hue, lightness, sat] = rgbToHls(rgb);
+  if (sat < 0.25 || lightness < 0.1 || lightness > 0.95) {
+    return kind === "text" && lightness >= 0.3 && lightness <= 0.7 ? textColorToken("gray") : null;
+  }
+  const buckets = kind === "text" ? TEXT_HUES : HIGHLIGHT_HUES;
+  const name = buckets.find(([upper]) => hue < upper)?.[1] ?? buckets[0][1];
+  return token(name);
+}
+
+function styleDecls(raw: string): [string, string][] {
+  return (raw || "")
     .split(";")
     .map((decl) => {
       const idx = decl.indexOf(":");
-      if (idx < 0) return "";
-      const prop = decl.slice(0, idx).trim().toLowerCase();
-      const value = decl.slice(idx + 1).trim();
-      const lowered = value.toLowerCase();
-      if (!ALLOWED_STYLE_PROPS.has(prop) || !value || value.length > 80) return "";
-      if (lowered.includes("url(") || lowered.includes("expression") || lowered.includes("javascript")) return "";
-      if (!SAFE_STYLE_VALUE.test(value)) return "";
-      return `${prop}: ${value}`;
+      return idx < 0 ? null : ([decl.slice(0, idx).trim().toLowerCase(), decl.slice(idx + 1).trim()] as [string, string]);
     })
-    .filter(Boolean)
-    .join("; ");
+    .filter((d): d is [string, string] => d !== null);
 }
 
-function sanitizeNode(node: Node, doc: Document): Node | null {
-  if (node.nodeType === Node.TEXT_NODE) return doc.createTextNode(node.textContent ?? "");
-  if (node.nodeType !== Node.ELEMENT_NODE) return null;
+function styleValue(raw: string, ...props: string[]): string {
+  let found = "";
+  for (const [prop, value] of styleDecls(raw)) if (props.includes(prop)) found = value;
+  return found;
+}
+
+/** Keep only palette colours (span/mark) and centre/right alignment (blocks). */
+export function cleanStyle(tag: string, raw: string): string {
+  const allowed = STYLE_PROPS_BY_TAG[tag] ?? [];
+  const kept = new Map<string, string>();
+  for (const [rawProp, value] of styleDecls(raw)) {
+    const prop = rawProp === "background" ? "background-color" : rawProp;
+    if (!allowed.includes(prop) || value.length > 120) continue;
+    let token: string | null;
+    if (prop === "color") token = paletteColor(value, "text");
+    else if (prop === "background-color") token = paletteColor(value, "highlight");
+    else token = TEXT_ALIGNS.has(value.toLowerCase()) ? value.toLowerCase() : null;
+    if (token) kept.set(prop, token);
+  }
+  return Array.from(kept, ([k, v]) => `${k}: ${v}`).join("; ");
+}
+
+function inlineMarksFromStyle(raw: string): string[] {
+  const marks: string[] = [];
+  for (const [prop, value] of styleDecls(raw)) {
+    const v = value.toLowerCase();
+    if (prop === "font-weight" && (v === "bold" || v === "bolder" || (/^\d+$/.test(v) && Number(v) >= 600))) marks.push("strong");
+    else if (prop === "font-style" && (v === "italic" || v === "oblique")) marks.push("em");
+    else if (prop === "text-decoration" || prop === "text-decoration-line") {
+      if (v.includes("underline")) marks.push("u");
+      if (v.includes("line-through")) marks.push("s");
+    }
+  }
+  return Array.from(new Set(marks));
+}
+
+const isBlankText = (node: Node) => node.nodeType === Node.TEXT_NODE && !(node.textContent ?? "").trim();
+
+function convertNode(node: Node, doc: Document): Node[] {
+  if (node.nodeType === Node.TEXT_NODE) return [doc.createTextNode(node.textContent ?? "")];
+  if (node.nodeType !== Node.ELEMENT_NODE) return [];
   const el = node as Element;
-  if (el.tagName === "SCRIPT" || el.tagName === "STYLE") return null;
+  const tag = el.tagName.toLowerCase();
+  if (DROP_CONTENT_TAGS.has(tag)) return [];
+  if (tag === "br") return [doc.createElement("br")];
   const children = Array.from(el.childNodes)
-    .map((c) => sanitizeNode(c, doc))
-    .filter((c): c is Node => c !== null);
-  if (!ALLOWED_TAGS.has(el.tagName)) {
-    const frag = doc.createDocumentFragment();
-    children.forEach((c) => frag.appendChild(c));
-    return frag;
+    .filter((c) => !((tag === "ul" || tag === "ol") && isBlankText(c)))
+    .flatMap((c) => convertNode(c, doc));
+  let style = el.getAttribute("style") || "";
+  if (tag === "font" && el.getAttribute("color")) style = `color: ${el.getAttribute("color")}; ${style}`;
+  let target = TAG_RENAMES[tag] ?? tag;
+  if (target === "strong" && /font-weight\s*:\s*(normal|[1-5]00)\b/i.test(style)) target = "span";
+
+  const wrappers: Element[] = [];
+  if (target === "span") {
+    const background = cleanStyle("mark", `background-color: ${styleValue(style, "background-color", "background")}`);
+    const color = cleanStyle("span", `color: ${styleValue(style, "color")}`);
+    if (background) {
+      const mark = doc.createElement("mark");
+      mark.setAttribute("style", background);
+      wrappers.push(mark);
+    }
+    if (color) {
+      const span = doc.createElement("span");
+      span.setAttribute("style", color);
+      wrappers.push(span);
+    }
+  } else if (ALLOWED_TAGS.includes(target) && (target !== "a" || SAFE_HREF.test((el.getAttribute("href") || "").trim()))) {
+    const out = doc.createElement(target);
+    let cleaned = cleanStyle(target, style);
+    if (BLOCK_TAGS.has(target) && !cleaned) cleaned = cleanStyle(target, `text-align: ${el.getAttribute("align") || ""}`);
+    if (cleaned) out.setAttribute("style", cleaned);
+    const href = el.getAttribute("href");
+    if (target === "a" && href) out.setAttribute("href", href.trim());
+    const start = el.getAttribute("start") || "";
+    if (target === "ol" && /^\d{1,4}$/.test(start)) out.setAttribute("start", start);
+    wrappers.push(out);
   }
-  const out = doc.createElement(el.tagName.toLowerCase());
-  const style = cleanStyle(el.getAttribute("style") || "");
-  if (style) out.setAttribute("style", style);
-  if (el.tagName === "FONT") {
-    const color = el.getAttribute("color") || "";
-    const face = el.getAttribute("face") || "";
-    const size = el.getAttribute("size") || "";
-    if (color && SAFE_STYLE_VALUE.test(color) && color.length <= 30) out.setAttribute("color", color);
-    if (face && SAFE_STYLE_VALUE.test(face) && face.length <= 80) out.setAttribute("face", face);
-    if (/^[1-7]$/.test(size)) out.setAttribute("size", size);
-  }
-  children.forEach((c) => out.appendChild(c));
-  return out;
+  for (const mark of inlineMarksFromStyle(style)) if (mark !== target) wrappers.push(doc.createElement(mark));
+
+  if (wrappers.length === 0) return children;
+  wrappers.reduce((parent, child) => (parent.appendChild(child), child));
+  const innermost = wrappers[wrappers.length - 1];
+  children.forEach((c) => innermost.appendChild(c));
+  return [wrappers[0]];
 }
 
-/** Allow-list sanitizer mirroring the backend (`equipment/rich_text.py`). */
-export function sanitizeRichHtml(html: string): string {
+/** Rewrite legacy / pasted markup (div, font, inline bold styles, arbitrary colours) into the editor schema. */
+export function normalizeRichHtml(html: string): string {
   if (typeof DOMParser === "undefined") return "";
-  const parsed = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
-  const root = parsed.body.firstElementChild;
-  if (!root) return "";
+  const parsed = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
   const container = parsed.createElement("div");
-  Array.from(root.childNodes).forEach((c) => {
-    const clean = sanitizeNode(c, parsed);
-    if (clean) container.appendChild(clean);
-  });
+  Array.from(parsed.body.childNodes)
+    .filter((c) => !(isBlankText(c) && (c.textContent ?? "").includes("\n")))
+    .flatMap((c) => convertNode(c, parsed))
+    .forEach((c) => container.appendChild(c));
   return container.innerHTML;
 }
 
+let purifier: ReturnType<typeof DOMPurify> | null = null;
+
+function getPurifier() {
+  if (purifier || typeof window === "undefined") return purifier;
+  const instance = DOMPurify(window);
+  instance.addHook("uponSanitizeAttribute", (node, data) => {
+    const tag = node.nodeName.toLowerCase();
+    if (data.attrName === "style") {
+      const cleaned = cleanStyle(tag, data.attrValue);
+      if (cleaned) data.attrValue = cleaned;
+      else data.keepAttr = false;
+    } else if (data.attrName === "start") {
+      data.keepAttr = tag === "ol" && /^\d{1,4}$/.test(data.attrValue);
+    } else if (["href", "target", "rel"].includes(data.attrName)) {
+      data.keepAttr = tag === "a";
+    }
+  });
+  instance.addHook("afterSanitizeAttributes", (node) => {
+    if (node.nodeName === "A" && (node as Element).hasAttribute("href")) {
+      (node as Element).setAttribute("target", "_blank");
+      (node as Element).setAttribute("rel", "noopener noreferrer");
+    }
+  });
+  purifier = instance;
+  return purifier;
+}
+
+/** Allow-list sanitizer (legacy markup is normalized first, DOMPurify is the final gate). */
+export function sanitizeRichHtml(html: string): string {
+  const purify = getPurifier();
+  if (!purify) return "";
+  return purify.sanitize(normalizeRichHtml(html), {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR: ["style", "href", "target", "rel", "start"],
+    ALLOWED_URI_REGEXP: SAFE_HREF,
+    ADD_URI_SAFE_ATTR: ["start", "target", "rel"],
+    KEEP_CONTENT: true,
+  }) as string;
+}
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** Legacy plain text → paragraphs (blank lines) and line breaks (single newlines). */
+export function plainTextToHtml(text: string): string {
+  const normalized = (text || "").replace(/\r\n?/g, "\n").trim();
+  if (!normalized) return "";
+  return normalized
+    .split(/\n\s*\n/)
+    .map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+/** Safe HTML for any stored instruction, whether editor HTML, older toolbar HTML or plain text. */
+export function instructionToHtml(value: string | null | undefined): string {
+  const text = (value ?? "").trim();
+  if (!text) return "";
+  return looksLikeRichHtml(text) ? sanitizeRichHtml(text) : plainTextToHtml(text);
+}
+
+/** Plain-text rendering for PDFs and character counts (lists become "•" / "1." lines, like the backend). */
 export function richTextToPlain(value: string | null | undefined): string {
   const text = value ?? "";
-  if (!looksLikeRichHtml(text)) return text.trim();
-  const withBreaks = text
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h[1-4]|blockquote)>/gi, "\n");
-  if (typeof DOMParser === "undefined") return withBreaks.replace(/<[^>]+>/g, "").trim();
-  const doc = new DOMParser().parseFromString(withBreaks, "text/html");
-  return (doc.body.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  if (!looksLikeRichHtml(text) || typeof DOMParser === "undefined") return text.trim();
+  const doc = new DOMParser().parseFromString(`<body>${text}</body>`, "text/html");
+  const out: string[] = [];
+  const lists: { ordered: boolean; n: number }[] = [];
+  const newline = () => {
+    if (out.length && !out[out.length - 1].endsWith("\n")) out.push("\n");
+  };
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out.push(node.textContent ?? "");
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = (node as Element).tagName.toLowerCase();
+    if (DROP_CONTENT_TAGS.has(tag)) return;
+    if (tag === "br") {
+      out.push("\n");
+      return;
+    }
+    const isList = tag === "ul" || tag === "ol";
+    const isBlock = /^(p|div|h[1-6]|blockquote)$/.test(tag);
+    if (isList) {
+      newline();
+      const start = Number((node as Element).getAttribute("start") || "1");
+      lists.push({ ordered: tag === "ol", n: Number.isFinite(start) ? start - 1 : 0 });
+    } else if (tag === "li") {
+      newline();
+      const list = lists[lists.length - 1];
+      let marker = "•";
+      if (list?.ordered) {
+        list.n += 1;
+        marker = `${list.n}.`;
+      }
+      out.push(`${"  ".repeat(Math.max(0, lists.length - 1))}${marker} `);
+    } else if (isBlock && !(lists.length && out[out.length - 1]?.endsWith(" "))) {
+      newline();
+    }
+    node.childNodes.forEach(walk);
+    if (isList) {
+      lists.pop();
+      newline();
+    } else if (isBlock || tag === "li") {
+      newline();
+    }
+  };
+  doc.body.childNodes.forEach(walk);
+  return out
+    .join("")
+    .replace(/\u00a0/g, " ")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
