@@ -157,8 +157,8 @@ export default function AdminStudentNominations() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={fetchRows} title="Refresh">
-                <RotateCcw className="h-4 w-4" />
+              <Button aria-label="Refresh list" variant="outline" size="icon" onClick={fetchRows} title="Refresh">
+                <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
             </div>
           </CardHeader>

@@ -192,6 +192,7 @@ export default function LeaveManagement() {
           <div className="mb-4 flex items-center justify-end gap-3">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Year</Label>
             <Input
+              aria-label="Year"
               type="number"
               className="h-9 w-28"
               value={String(year)}
@@ -223,6 +224,7 @@ export default function LeaveManagement() {
             <div className="flex items-center gap-3">
               <Label className="text-xs font-semibold uppercase tracking-wide text-white/70">Year</Label>
               <Input
+                aria-label="Year"
                 type="number"
                 className="w-28 bg-white/95 text-foreground"
                 value={String(year)}

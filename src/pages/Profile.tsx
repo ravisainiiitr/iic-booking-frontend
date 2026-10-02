@@ -1118,6 +1118,7 @@ const Profile = () => {
                 <div className="space-y-2">
                   <Label>Member Since</Label>
                   <Input
+                    aria-label="Member Since"
                     type="text"
                     value={profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString('en-US', { 
                       year: 'numeric', 
@@ -1133,6 +1134,7 @@ const Profile = () => {
                 <div className="space-y-2">
                   <Label>Last Login</Label>
                   <Input
+                    aria-label="Last Login"
                     type="text"
                     value={profileData.last_login ? new Date(profileData.last_login).toLocaleString('en-US', { 
                       year: 'numeric', 
@@ -1395,22 +1397,24 @@ const Profile = () => {
                               </div>
                               <div className="flex gap-1">
                                 <Button
+                                  aria-label="Edit project"
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleEditProject(project)}
                                   className="text-primary hover:text-primary"
                                   title="Edit project"
                                 >
-                                  <Edit className="h-4 w-4" />
+                                  <Edit className="h-4 w-4" aria-hidden />
                                 </Button>
                                 <Button
+                                  aria-label="Delete project"
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteProject(project.id)}
                                   className="text-destructive hover:text-destructive"
                                   title="Delete project"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" aria-hidden />
                                 </Button>
                               </div>
                             </div>

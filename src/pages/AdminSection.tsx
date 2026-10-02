@@ -1337,6 +1337,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Search</Label>
                     <Input
+                      aria-label="Search"
                       placeholder="Code, name, category, group..."
                       value={equipmentSearchFilter}
                       onChange={(e) => setEquipmentSearchFilter(e.target.value)}
@@ -1552,6 +1553,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Date</Label>
                     <Input
+                      aria-label="Date"
                       type="date"
                       value={dailySlotDateFilter}
                       onChange={(e) => setDailySlotDateFilter(e.target.value)}
@@ -1632,6 +1634,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Created date</Label>
                     <Input
+                      aria-label="Created date"
                       type="date"
                       value={bookingDateFilter}
                       onChange={(e) => setBookingDateFilter(e.target.value)}
@@ -1712,6 +1715,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">From date</Label>
                     <Input
+                      aria-label="From date"
                       type="date"
                       value={repeatSampleDateFromFilter}
                       onChange={(e) => setRepeatSampleDateFromFilter(e.target.value)}
@@ -1721,6 +1725,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">To date</Label>
                     <Input
+                      aria-label="To date"
                       type="date"
                       value={repeatSampleDateToFilter}
                       onChange={(e) => setRepeatSampleDateToFilter(e.target.value)}
@@ -1730,6 +1735,7 @@ export default function AdminSection() {
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Search</Label>
                     <Input
+                      aria-label="Search"
                       placeholder="Booking ID, email, equipment"
                       value={repeatSampleSearchFilter}
                       onChange={(e) => setRepeatSampleSearchFilter(e.target.value)}
@@ -1778,7 +1784,7 @@ export default function AdminSection() {
             ) : (
               <>
                 <div className="overflow-x-auto rounded-md border">
-                  <Table>
+                  <Table stickyFirstColumn>
                     <TableHeader>
                       {sectionKey === "repeatSampleRequests" ? (
                         <TableRow>
@@ -1968,11 +1974,11 @@ export default function AdminSection() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
-                                  <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                                    <Pencil className="h-4 w-4" />
+                                  <Button aria-label="Edit entry" title="Edit entry" variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
                                 </div>
                               </TableCell>
@@ -2018,8 +2024,8 @@ export default function AdminSection() {
                               <TableCell>{row.equipment_count != null ? String(row.equipment_count) : "—"}</TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
-                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
                                 </div>
                               </TableCell>
@@ -2080,8 +2086,8 @@ export default function AdminSection() {
                                   >
                                     Debit
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
                                 </div>
                               </TableCell>
@@ -2166,11 +2172,11 @@ export default function AdminSection() {
                                       )}
                                     </Button>
                                   )}
-                                  <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                                    <Pencil className="h-4 w-4" />
+                                  <Button aria-label="Edit entry" title="Edit entry" variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
                                 </div>
                               </TableCell>
@@ -2188,11 +2194,11 @@ export default function AdminSection() {
                               ))}
                               <TableCell>
                                 <div className="flex gap-2">
-                                  <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                                    <Pencil className="h-4 w-4" />
+                                  <Button aria-label="Edit entry" title="Edit entry" variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
                                 </div>
                               </TableCell>
@@ -2279,6 +2285,7 @@ export default function AdminSection() {
                     <div className="space-y-2">
                       <Label className="text-muted-foreground text-xs">Name</Label>
                       <Input
+                        aria-label="Basic Information"
                         value={String(formData.name ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                         placeholder="Group name (must be unique)"
@@ -2287,6 +2294,7 @@ export default function AdminSection() {
                     <div className="space-y-2">
                       <Label className="text-muted-foreground text-xs">Description</Label>
                       <textarea
+                        aria-label="Description"
                         className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={String(formData.description ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
@@ -2555,6 +2563,7 @@ export default function AdminSection() {
                     <Label className="text-right">Label</Label>
                     <div className="col-span-3">
                       <Input
+                        aria-label="Label"
                         value={String(formData.label ?? "")}
                         onChange={(e) => setFormData((prev) => ({ ...prev, label: e.target.value }))}
                         placeholder="Menu label"
@@ -2605,6 +2614,7 @@ export default function AdminSection() {
                       <Label className="text-right">URL / path</Label>
                       <div className="col-span-3">
                         <Input
+                          aria-label="URL / path"
                           value={String(formData.url ?? "")}
                           onChange={(e) => setFormData((prev) => ({ ...prev, url: e.target.value }))}
                           placeholder="#section or /path or https://..."
@@ -2651,6 +2661,7 @@ export default function AdminSection() {
                     <Label className="text-right">Priority</Label>
                     <div className="col-span-3">
                       <Input
+                        aria-label="Priority"
                         type="number"
                         value={String(formData.priority ?? 0)}
                         onChange={(e) => setFormData((prev) => ({ ...prev, priority: Number(e.target.value) || 0 }))}
@@ -2702,6 +2713,7 @@ export default function AdminSection() {
                   <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                     <Label className="text-right whitespace-nowrap">Title</Label>
                     <Input
+                      aria-label="Title"
                       value={String(formData.title ?? "")}
                       onChange={(e) => {
                         const title = e.target.value;
@@ -2717,6 +2729,7 @@ export default function AdminSection() {
                   <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                     <Label className="text-right whitespace-nowrap">Slug (URL)</Label>
                     <Input
+                      aria-label="Slug (URL)"
                       value={String(formData.slug ?? "")}
                       onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
                       placeholder="page-slug"
@@ -2898,13 +2911,14 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Key</Label>
                     <div className="col-span-3">
-                      <Input value={String(formData.key ?? "")} readOnly disabled className="bg-muted" />
+                      <Input aria-label="Key" value={String(formData.key ?? "")} readOnly disabled className="bg-muted" />
                     </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Value</Label>
                     <div className="col-span-3">
                       <Input
+                        aria-label="Value"
                         value={formData.value !== null && formData.value !== undefined ? String(formData.value) : ""}
                         onChange={(e) => setFormData((prev) => ({ ...prev, value: e.target.value }))}
                         placeholder="Content text"
@@ -2915,6 +2929,7 @@ export default function AdminSection() {
                     <Label className="text-right">Font size</Label>
                     <div className="col-span-3">
                       <Input
+                        aria-label="Font size"
                         value={formData.font_size !== null && formData.font_size !== undefined ? String(formData.font_size) : ""}
                         onChange={(e) => setFormData((prev) => ({ ...prev, font_size: e.target.value }))}
                         placeholder="e.g. 16px, 1.2rem, 120%"
@@ -3395,7 +3410,7 @@ export default function AdminSection() {
                       <Label className="text-right">Channel-i user</Label>
                       <div className="col-span-3">
                         <Select value={mapSelectedUserId || "__none__"} onValueChange={(v) => setMapSelectedUserId(v === "__none__" ? "" : v)}>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Channel-i user">
                             <SelectValue placeholder={mappableLoading ? "Loading…" : "Select user"} />
                           </SelectTrigger>
                           <SelectContent>
@@ -3417,7 +3432,7 @@ export default function AdminSection() {
                       <Label className="text-right">Assign as</Label>
                       <div className="col-span-3">
                         <Select value={mapTargetUserType} onValueChange={setMapTargetUserType}>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Assign as">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>

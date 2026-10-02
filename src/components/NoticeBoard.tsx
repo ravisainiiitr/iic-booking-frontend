@@ -305,7 +305,7 @@ const NoticeBoard = () => {
                   )}
                 >
                   {label}
-                  <span className={cn("tabular-nums", selected ? "opacity-90" : "text-slate-400")}>{count}</span>
+                  <span className={cn("tabular-nums", selected ? "opacity-90" : "text-slate-500 dark:text-slate-400")}>{count}</span>
                 </button>
               );
             })}

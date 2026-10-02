@@ -360,15 +360,15 @@ export default function AdminWalletCreditManagement() {
                   <div className="grid sm:grid-cols-3 gap-3">
                     <div>
                       <Label>Approved Amount</Label>
-                      <Input value={approvedAmount} onChange={(e) => setApprovedAmount(e.target.value)} />
+                      <Input aria-label="Approved Amount" value={approvedAmount} onChange={(e) => setApprovedAmount(e.target.value)} />
                     </div>
                     <div>
                       <Label>Due Date</Label>
-                      <Input type="date" value={dueDate || ""} onChange={(e) => setDueDate(e.target.value)} />
+                      <Input aria-label="Due Date" type="date" value={dueDate || ""} onChange={(e) => setDueDate(e.target.value)} />
                     </div>
                     <div className="sm:col-span-3">
                       <Label>Reason (mandatory for reduce / reject / clarification)</Label>
-                      <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
+                      <Textarea aria-label="Reason (mandatory for reduce / reject / clarification)" value={reason} onChange={(e) => setReason(e.target.value)} />
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">

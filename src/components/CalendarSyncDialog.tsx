@@ -149,8 +149,8 @@ export function CalendarSyncDialog({ open, onOpenChange }: CalendarSyncDialogPro
                   onFocus={(e) => e.currentTarget.select()}
                   className="font-mono text-xs"
                 />
-                <Button type="button" variant="secondary" size="icon" onClick={copyLink} title="Copy link">
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                <Button aria-label={copied ? "Link copied" : "Copy link"} type="button" variant="secondary" size="icon" onClick={copyLink} title="Copy link">
+                  {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">

@@ -169,7 +169,7 @@ export default function OICAccessories() {
               <div className="space-y-2">
                 <Label>Equipment</Label>
                 <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Equipment">
                     <SelectValue placeholder="Select equipment" />
                   </SelectTrigger>
                   <SelectContent>

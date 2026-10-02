@@ -245,7 +245,7 @@ export default function RdpPathDiagnosticsPage() {
             <div className="min-w-[240px] space-y-2">
               <Label>Select workstation</Label>
               <Select value={workstationId} onValueChange={setWorkstationId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Select workstation">
                   <SelectValue placeholder="Choose workstation" />
                 </SelectTrigger>
                 <SelectContent>

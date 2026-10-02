@@ -447,12 +447,12 @@ export function FilesTab({
                     </button>
                     <div className="flex shrink-0 items-center gap-1">
                       {file.preview_kind !== "none" ? (
-                        <Button variant="ghost" size="icon" className="hidden h-7 w-7 sm:inline-flex" title="Preview" onClick={() => setPreview(file)}>
-                          <Eye className="h-4 w-4" />
+                        <Button aria-label="Preview file" variant="ghost" size="icon" className="hidden h-7 w-7 sm:inline-flex" title="Preview" onClick={() => setPreview(file)}>
+                          <Eye className="h-4 w-4" aria-hidden />
                         </Button>
                       ) : null}
-                      <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" title="Download" onClick={() => void downloadResearchFile(file)}>
-                        <Download className="h-4 w-4" />
+                      <Button aria-label="Download file" variant="ghost" size="icon" className="h-10 w-10 sm:h-7 sm:w-7" title="Download" onClick={() => void downloadResearchFile(file)}>
+                        <Download className="h-4 w-4" aria-hidden />
                       </Button>
                       {canEdit ? (
                         <DropdownMenu>

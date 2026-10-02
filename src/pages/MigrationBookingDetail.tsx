@@ -47,8 +47,8 @@ export default function MigrationBookingDetail() {
   return (
     <div className="container mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration/legacy-bookings")}>
-          <ArrowLeft className="h-4 w-4" />
+        <Button aria-label="Back to legacy bookings" title="Back to legacy bookings" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration/legacy-bookings")}>
+          <ArrowLeft className="h-4 w-4" aria-hidden />
         </Button>
         <div>
           <h1 className="text-2xl font-semibold">Legacy booking {legacyBookingId}</h1>

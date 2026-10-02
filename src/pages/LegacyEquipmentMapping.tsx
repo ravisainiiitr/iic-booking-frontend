@@ -555,8 +555,8 @@ export default function LegacyEquipmentMapping() {
     <div className="container mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">Equipment Mapping</h1>
@@ -689,6 +689,7 @@ export default function LegacyEquipmentMapping() {
               <div className="space-y-2">
                 <Label>Legacy equipment ID</Label>
                 <Input
+                  aria-label="Legacy equipment ID"
                   type="number"
                   value={splitOldId === "" ? "" : String(splitOldId)}
                   onChange={(e) =>
@@ -801,12 +802,12 @@ export default function LegacyEquipmentMapping() {
         <CardContent className="flex flex-wrap gap-4">
           <div className="min-w-[200px] flex-1 space-y-2">
             <Label>Search</Label>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Legacy ID or name" />
+            <Input aria-label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Legacy ID or name" />
           </div>
           <div className="w-48 space-y-2">
             <Label>Mapping</Label>
             <Select value={mappedFilter} onValueChange={setMappedFilter}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Mapping">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

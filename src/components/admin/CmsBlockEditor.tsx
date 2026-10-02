@@ -157,20 +157,20 @@ export function CmsBlockEditor({ content, onChange, nested = false }: CmsBlockEd
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-0.5 ml-auto">
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, "up")} disabled={idx === 0}>
-                  <ChevronUp className="h-4 w-4" />
+                <Button aria-label="Move block up" title="Move block up" type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, "up")} disabled={idx === 0}>
+                  <ChevronUp className="h-4 w-4" aria-hidden />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, "down")} disabled={idx === blocks.length - 1}>
-                  <ChevronDown className="h-4 w-4" />
+                <Button aria-label="Move block down" title="Move block down" type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => move(idx, "down")} disabled={idx === blocks.length - 1}>
+                  <ChevronDown className="h-4 w-4" aria-hidden />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => duplicateAt(idx)}>
-                  <Copy className="h-4 w-4" />
+                <Button aria-label="Duplicate block" title="Duplicate block" type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => duplicateAt(idx)}>
+                  <Copy className="h-4 w-4" aria-hidden />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => insertAt(idx + 1, defaultBlock("paragraph"))}>
-                  <Plus className="h-4 w-4" />
+                <Button aria-label="Add paragraph below" title="Add paragraph below" type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => insertAt(idx + 1, defaultBlock("paragraph"))}>
+                  <Plus className="h-4 w-4" aria-hidden />
                 </Button>
-                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeAt(idx)}>
-                  <Trash2 className="h-4 w-4" />
+                <Button aria-label="Remove block" title="Remove block" type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeAt(idx)}>
+                  <Trash2 className="h-4 w-4" aria-hidden />
                 </Button>
               </div>
             </div>
@@ -284,6 +284,7 @@ export function CmsBlockEditor({ content, onChange, nested = false }: CmsBlockEd
                     <Label className="text-xs">Numbered list</Label>
                   </div>
                   <Textarea
+                    aria-label="Numbered list"
                     value={Array.isArray(block.items) ? block.items.join("\n") : ""}
                     onChange={(e) =>
                       setBlock(idx, (b) => ({ ...b, items: e.target.value.split("\n").filter(Boolean) }))
@@ -332,6 +333,7 @@ export function CmsBlockEditor({ content, onChange, nested = false }: CmsBlockEd
                 <div className="flex items-center gap-2">
                   <Label className="text-xs">Height (px)</Label>
                   <Input
+                    aria-label="Height (px)"
                     type="number"
                     min={8}
                     max={200}

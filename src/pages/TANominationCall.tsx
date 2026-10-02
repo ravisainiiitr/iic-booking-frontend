@@ -465,7 +465,7 @@ export default function TANominationCall() {
               <div className="w-[220px]">
                 <Label className="text-xs text-muted-foreground">Select TA call</Label>
                 <Select value={selectedTaCallId} onValueChange={setSelectedTaCallId} disabled={loadingCalls}>
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger aria-label="Select TA call" className="mt-1">
                     <SelectValue placeholder={loadingCalls ? "Loading…" : "Select a call"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -542,6 +542,8 @@ export default function TANominationCall() {
                             <div className="flex items-center gap-1">
                               <span className="text-sm text-muted-foreground">Submitted</span>
                               <Button
+                                aria-label="Download résumé"
+                                title="Download résumé"
                                 size="sm"
                                 variant="ghost"
                                 className="h-7 px-1.5"
@@ -549,9 +551,9 @@ export default function TANominationCall() {
                                 onClick={() => handleDownloadResume(n.id)}
                               >
                                 {downloadingId === n.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                                 ) : (
-                                  <Download className="h-3.5 w-3.5" />
+                                  <Download className="h-3.5 w-3.5" aria-hidden />
                                 )}
                               </Button>
                             </div>
@@ -563,22 +565,26 @@ export default function TANominationCall() {
                           {n.status === "PENDING" && (
                             <div className="flex justify-end gap-1">
                               <Button
+                                aria-label="Approve nomination"
+                                title="Approve nomination"
                                 size="sm"
                                 variant="default"
                                 className="h-8 bg-green-600 hover:bg-green-700"
                                 disabled={actioningId !== null}
                                 onClick={() => handleApprove(n.id)}
                               >
-                                {actioningId === n.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                {actioningId === n.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
                               </Button>
                               <Button
+                                aria-label="Reject nomination"
+                                title="Reject nomination"
                                 size="sm"
                                 variant="destructive"
                                 className="h-8"
                                 disabled={actioningId !== null}
                                 onClick={() => handleRejectClick(n.id)}
                               >
-                                {actioningId === n.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                                {actioningId === n.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <X className="h-3.5 w-3.5" aria-hidden />}
                               </Button>
                             </div>
                           )}
@@ -601,6 +607,7 @@ export default function TANominationCall() {
             <div className="space-y-2 py-2">
               <Label>Remarks (optional)</Label>
               <Textarea
+                aria-label="Remarks (optional)"
                 placeholder="e.g. Resume did not meet eligibility criteria"
                 value={rejectDialog.remarks}
                 onChange={(e) => setRejectDialog((p) => ({ ...p, remarks: e.target.value }))}

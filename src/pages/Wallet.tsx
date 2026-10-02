@@ -2600,7 +2600,7 @@ const Wallet = () => {
                   )}
                 </div>
                 <div className="rounded-xl border border-border/80 overflow-hidden shadow-sm">
-                  <div className="table-scroll overflow-x-auto">                <Table>
+                  <div className="table-scroll overflow-x-auto">                <Table stackOnMobile>
                   <TableHeader>
                     <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
                       <TableHead className="font-semibold text-foreground min-w-[180px]">Equipment Name</TableHead>

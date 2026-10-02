@@ -1639,8 +1639,8 @@ const WalletRechargeParsePage = () => {
                     />
                     Use SSL
                     {imapParamsLocked && (
-                      <Button type="button" variant="ghost" size="sm" className="h-6 px-1 text-xs" onClick={() => setImapFieldEditable("use_ssl", true)}>
-                        <Pencil className="h-3 w-3" />
+                      <Button aria-label="Edit Use SSL setting" title="Edit Use SSL setting" type="button" variant="ghost" size="sm" className="h-6 px-1 text-xs" onClick={() => setImapFieldEditable("use_ssl", true)}>
+                        <Pencil className="h-3 w-3" aria-hidden />
                       </Button>
                     )}
                   </label>

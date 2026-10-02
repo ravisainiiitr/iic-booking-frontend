@@ -1202,15 +1202,15 @@ export default function RemoteAnalysis() {
                   <CardContent className="flex flex-wrap gap-3 items-end">
                     <div>
                       <Label className="text-xs">Booking ID</Label>
-                      <Input value={bookingIdInput} onChange={(e) => setBookingIdInput(e.target.value)} placeholder="optional" className="w-36" />
+                      <Input aria-label="Booking ID" value={bookingIdInput} onChange={(e) => setBookingIdInput(e.target.value)} placeholder="optional" className="w-36" />
                     </div>
                     <div>
                       <Label className="text-xs">Start</Label>
-                      <Input type="datetime-local" value={manualStart} onChange={(e) => setManualStart(e.target.value)} />
+                      <Input aria-label="Start" type="datetime-local" value={manualStart} onChange={(e) => setManualStart(e.target.value)} />
                     </div>
                     <div>
                       <Label className="text-xs">End</Label>
-                      <Input type="datetime-local" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} />
+                      <Input aria-label="End" type="datetime-local" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} />
                     </div>
                     <Button
                       disabled={busyAction}

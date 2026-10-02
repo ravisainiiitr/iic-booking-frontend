@@ -106,7 +106,7 @@ export function UploadToMyResearchDialog({ bookingId, bookingLabel, open, onOpen
             <div className="space-y-1.5">
               <Label>Project</Label>
               <Select value={choice} onValueChange={setChoice} disabled={uploads.busy}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Project">
                   <SelectValue placeholder="Choose a project" />
                 </SelectTrigger>
                 <SelectContent>

@@ -126,8 +126,8 @@ export default function LegacyBookingMapping() {
     <div className="container mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button aria-label="Back to portal migration" title="Back to portal migration" variant="ghost" size="icon" onClick={() => navigate("/admin/portal-migration")}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">Legacy Booking Mapping</h1>
@@ -209,7 +209,7 @@ export default function LegacyBookingMapping() {
             <div className="w-48 space-y-2">
               <Label>Migration status</Label>
               <Select value={eligibility} onValueChange={setEligibility}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Migration status">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -225,7 +225,7 @@ export default function LegacyBookingMapping() {
             <div className="w-48 space-y-2">
               <Label>User mapping</Label>
               <Select value={userMap} onValueChange={setUserMap}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="User mapping">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,7 +237,7 @@ export default function LegacyBookingMapping() {
             </div>
             <div className="min-w-[200px] flex-1 space-y-2">
               <Label>Search</Label>
-              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Booking or equipment ID" />
+              <Input aria-label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Booking or equipment ID" />
             </div>
             <div className="flex items-end">
               <Button onClick={() => void load()} disabled={loading}>
@@ -249,6 +249,7 @@ export default function LegacyBookingMapping() {
             <div className="space-y-2">
               <Label>Preview fixture rows (JSON array — dry-run only, no production blocks)</Label>
               <textarea
+                aria-label="Preview fixture rows (JSON array — dry-run only, no production blocks)"
                 className="min-h-[80px] w-full rounded-md border bg-background p-2 font-mono text-xs"
                 value={previewJson}
                 onChange={(e) => setPreviewJson(e.target.value)}

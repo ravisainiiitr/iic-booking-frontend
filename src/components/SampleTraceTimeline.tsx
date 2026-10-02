@@ -630,6 +630,7 @@ export default function SampleTraceTimeline({
                   {canBookingUserReply ? (
                     <>
                       <Textarea
+                        aria-label="Your reply"
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         placeholder="Add your reply to the reason above..."

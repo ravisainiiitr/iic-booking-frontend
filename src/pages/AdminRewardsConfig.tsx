@@ -182,12 +182,12 @@ export default function AdminRewardsConfig() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><Label>Points per duty hour</Label><Input value={form.points_per_duty_hour} onChange={(e) => setForm((p) => ({ ...p, points_per_duty_hour: e.target.value }))} /></div>
-                  <div><Label>Points per sample</Label><Input value={form.points_per_sample} onChange={(e) => setForm((p) => ({ ...p, points_per_sample: e.target.value }))} /></div>
-                  <div><Label>Currency per point</Label><Input value={form.currency_per_point} onChange={(e) => setForm((p) => ({ ...p, currency_per_point: e.target.value }))} /></div>
-                  <div><Label>Max redeem % per booking</Label><Input value={form.max_redeem_percent_per_booking} onChange={(e) => setForm((p) => ({ ...p, max_redeem_percent_per_booking: e.target.value }))} /></div>
-                  <div><Label>Max points per booking</Label><Input type="number" value={form.max_redeem_points_per_booking} onChange={(e) => setForm((p) => ({ ...p, max_redeem_points_per_booking: Number(e.target.value || 0) }))} /></div>
-                  <div><Label>Min booking amount for redeem</Label><Input value={form.min_booking_amount_for_redeem} onChange={(e) => setForm((p) => ({ ...p, min_booking_amount_for_redeem: e.target.value }))} /></div>
-                  <div><Label>Expiry days (blank to disable)</Label><Input type="number" value={form.expiry_days ?? ""} onChange={(e) => setForm((p) => ({ ...p, expiry_days: e.target.value === "" ? null : Number(e.target.value) }))} /></div>
+                  <div><Label>Points per sample</Label><Input aria-label="Points per duty hour" value={form.points_per_sample} onChange={(e) => setForm((p) => ({ ...p, points_per_sample: e.target.value }))} /></div>
+                  <div><Label>Currency per point</Label><Input aria-label="Points per sample" value={form.currency_per_point} onChange={(e) => setForm((p) => ({ ...p, currency_per_point: e.target.value }))} /></div>
+                  <div><Label>Max redeem % per booking</Label><Input aria-label="Currency per point" value={form.max_redeem_percent_per_booking} onChange={(e) => setForm((p) => ({ ...p, max_redeem_percent_per_booking: e.target.value }))} /></div>
+                  <div><Label>Max points per booking</Label><Input aria-label="Max redeem % per booking" type="number" value={form.max_redeem_points_per_booking} onChange={(e) => setForm((p) => ({ ...p, max_redeem_points_per_booking: Number(e.target.value || 0) }))} /></div>
+                  <div><Label>Min booking amount for redeem</Label><Input aria-label="Max points per booking" value={form.min_booking_amount_for_redeem} onChange={(e) => setForm((p) => ({ ...p, min_booking_amount_for_redeem: e.target.value }))} /></div>
+                  <div><Label>Expiry days (blank to disable)</Label><Input aria-label="Min booking amount for redeem" type="number" value={form.expiry_days ?? ""} onChange={(e) => setForm((p) => ({ ...p, expiry_days: e.target.value === "" ? null : Number(e.target.value) }))} /></div>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="stack">Allow stack with other discounts</Label>

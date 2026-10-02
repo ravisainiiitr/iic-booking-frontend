@@ -480,8 +480,8 @@ export default function AnalysisSoftwareCatalog() {
                         )}
                       </TableCell>
                       <TableCell className="space-x-1 text-right">
-                        <Button size="sm" variant="ghost" onClick={() => void showUsage(row)}>
-                          <Eye className="h-4 w-4" />
+                        <Button aria-label="Show usage" title="Show usage" size="sm" variant="ghost" onClick={() => void showUsage(row)}>
+                          <Eye className="h-4 w-4" aria-hidden />
                         </Button>
                         {canManage && (
                           <>
@@ -514,6 +514,8 @@ export default function AnalysisSoftwareCatalog() {
                               </Button>
                             )}
                             <Button
+                              aria-label="Archive"
+                              title="Archive"
                               size="sm"
                               variant="ghost"
                               onClick={async () => {
@@ -522,16 +524,17 @@ export default function AnalysisSoftwareCatalog() {
                                 void load();
                               }}
                             >
-                              <Archive className="h-4 w-4" />
+                              <Archive className="h-4 w-4" aria-hidden />
                             </Button>
                             <Button
+                              aria-label="Delete permanently"
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
                               onClick={() => void deleteOne(row)}
                               title="Delete permanently"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" aria-hidden />
                             </Button>
                           </>
                         )}
@@ -560,16 +563,16 @@ export default function AnalysisSoftwareCatalog() {
           <div className="grid gap-3 py-2">
             <div>
               <Label>Name</Label>
-              <Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input aria-label="Name" value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Vendor</Label>
-                <Input value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
+                <Input aria-label="Vendor" value={form.vendor || ""} onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
               </div>
               <div>
                 <Label>Category</Label>
-                <Input value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                <Input aria-label="Category" value={form.category || ""} onChange={(e) => setForm({ ...form, category: e.target.value })} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -606,6 +609,7 @@ export default function AnalysisSoftwareCatalog() {
               <div>
                 <Label>Version constraint</Label>
                 <Input
+                  aria-label="Version constraint"
                   value={form.version_constraint || ""}
                   onChange={(e) => setForm({ ...form, version_constraint: e.target.value })}
                 />
@@ -615,6 +619,7 @@ export default function AnalysisSoftwareCatalog() {
               <div>
                 <Label>Max concurrent</Label>
                 <Input
+                  aria-label="Max concurrent"
                   type="number"
                   value={form.max_concurrent ?? 0}
                   onChange={(e) => setForm({ ...form, max_concurrent: Number(e.target.value) })}
@@ -623,6 +628,7 @@ export default function AnalysisSoftwareCatalog() {
               <div>
                 <Label>License seats</Label>
                 <Input
+                  aria-label="License seats"
                   type="number"
                   value={form.license_seats ?? 0}
                   onChange={(e) => setForm({ ...form, license_seats: Number(e.target.value) })}
@@ -632,6 +638,7 @@ export default function AnalysisSoftwareCatalog() {
             <div>
               <Label>License server URL</Label>
               <Input
+                aria-label="License server URL"
                 value={form.license_server_url || ""}
                 onChange={(e) => setForm({ ...form, license_server_url: e.target.value })}
                 placeholder="host:port or URL (network / floating)"
@@ -640,6 +647,7 @@ export default function AnalysisSoftwareCatalog() {
             <div>
               <Label>Description</Label>
               <Textarea
+                aria-label="Description"
                 value={form.description || ""}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
@@ -647,6 +655,7 @@ export default function AnalysisSoftwareCatalog() {
             <div>
               <Label>Typical usage</Label>
               <Textarea
+                aria-label="Typical usage"
                 value={form.typical_usage || ""}
                 onChange={(e) => setForm({ ...form, typical_usage: e.target.value })}
               />
@@ -654,6 +663,7 @@ export default function AnalysisSoftwareCatalog() {
             <div>
               <Label>Accepted file types (comma-separated)</Label>
               <Input
+                aria-label="Accepted file types (comma-separated)"
                 value={form.accepted_file_types_text || ""}
                 onChange={(e) => setForm({ ...form, accepted_file_types_text: e.target.value })}
                 placeholder=".raw, .xy, .csv"
@@ -662,6 +672,7 @@ export default function AnalysisSoftwareCatalog() {
             <div>
               <Label>AI tags (metadata only)</Label>
               <Input
+                aria-label="AI tags (metadata only)"
                 value={form.ai_tags_text || ""}
                 onChange={(e) => setForm({ ...form, ai_tags_text: e.target.value })}
                 placeholder="xrd, peak-fitting"

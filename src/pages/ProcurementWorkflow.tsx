@@ -130,7 +130,7 @@ export default function ProcurementWorkflow() {
               <div>
                 <Label>Equipment</Label>
                 <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
-                  <SelectTrigger><SelectValue placeholder="Select equipment" /></SelectTrigger>
+                  <SelectTrigger aria-label="Equipment"><SelectValue placeholder="Select equipment" /></SelectTrigger>
                   <SelectContent>
                     {equipments.map((e) => (
                       <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
@@ -143,7 +143,7 @@ export default function ProcurementWorkflow() {
               <div>
                 <Label>Classification</Label>
                 <Select value={classification} onValueChange={(v: any) => setClassification(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Classification"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MAS">Major Assets (MAS)</SelectItem>
                     <SelectItem value="MIA_LLTA">Minor Assets / LLTA</SelectItem>
@@ -154,7 +154,7 @@ export default function ProcurementWorkflow() {
               <div>
                 <Label>Status Filter</Label>
                 <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); loadData(selectedEquipmentId, v); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Status Filter"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {["ALL","PENDING_OIC_REVIEW","UNDER_OFFICE_VERIFICATION","PENDING_STORE_APPROVAL","PENDING_HEAD_APPROVAL_EMAIL","PENDING_HEAD_APPROVAL_OFFLINE","HEAD_APPROVED","PURCHASE_COMPLETED_PENDING_OFFICE_SEEN","OFFICE_SEEN_COMPLETED","REJECTED_BY_OIC","REJECTED_BY_OFFICE","REJECTED_BY_STORE","REJECTED_BY_HEAD"].map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
@@ -166,20 +166,20 @@ export default function ProcurementWorkflow() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
                 <Label>Manual Item Name</Label>
-                <Input value={manualItemName} onChange={(e) => setManualItemName(e.target.value)} placeholder="Enter requested item name" />
+                <Input aria-label="Manual Item Name" value={manualItemName} onChange={(e) => setManualItemName(e.target.value)} placeholder="Enter requested item name" />
               </div>
               <div>
                 <Label>Quantity</Label>
-                <Input value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                <Input aria-label="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
               </div>
               <div>
                 <Label>Tentative Unit Cost</Label>
-                <Input value={tentativeCost} onChange={(e) => setTentativeCost(e.target.value)} />
+                <Input aria-label="Tentative Unit Cost" value={tentativeCost} onChange={(e) => setTentativeCost(e.target.value)} />
               </div>
             </div>
             <div>
               <Label>Remarks</Label>
-              <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Estimate notes, urgency, etc." />
+              <Textarea aria-label="Remarks" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Estimate notes, urgency, etc." />
             </div>
             <Button onClick={createRequest} disabled={creating}>
               {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

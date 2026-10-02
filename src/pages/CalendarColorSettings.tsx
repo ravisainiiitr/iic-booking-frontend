@@ -191,6 +191,7 @@ export default function CalendarColorSettings() {
               <div className="flex flex-wrap items-center gap-3 pt-2 border-t">
                 <Label className="w-40 shrink-0">Holiday default</Label>
                 <input
+                  aria-label="Holiday default"
                   type="color"
                   value={holidayDefault}
                   onChange={(e) => setHolidayDefault(e.target.value)}
@@ -226,6 +227,7 @@ export default function CalendarColorSettings() {
               <div className="flex flex-wrap items-center gap-3 pt-2 border-t">
                 <Label className="w-40 shrink-0">Saturday</Label>
                 <input
+                  aria-label="Saturday"
                   type="color"
                   value={saturdayColor}
                   onChange={(e) => setSaturdayColor(e.target.value)}
@@ -261,6 +263,7 @@ export default function CalendarColorSettings() {
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <Label className="w-40 shrink-0">Sunday</Label>
                 <input
+                  aria-label="Sunday"
                   type="color"
                   value={sundayColor}
                   onChange={(e) => setSundayColor(e.target.value)}
@@ -296,6 +299,7 @@ export default function CalendarColorSettings() {
               <div className="flex flex-wrap items-center gap-3 pt-2 border-t">
                 <Label className="w-40 shrink-0">External user GST %</Label>
                 <Input
+                  aria-label="External user GST %"
                   type="number"
                   min={0}
                   max={100}

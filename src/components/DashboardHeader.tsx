@@ -23,6 +23,7 @@ import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { ServerClock } from "@/components/ServerClock";
 import { cn } from "@/lib/utils";
+import { SkipToContent } from "@/components/SkipToContent";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -300,6 +301,8 @@ const DashboardHeader = () => {
   }
 
   return (
+    <>
+    <SkipToContent />
     <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-primary/5">
       <div
         className={cn(
@@ -311,12 +314,13 @@ const DashboardHeader = () => {
       >
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <BackButton />
-          <div
-            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => navigate("/")}
+          <Link
+            to="/"
+            aria-label="IIC Equipment Booking Portal home"
+            className="flex items-center gap-3 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <IITRBanner size="md" />
-          </div>
+          </Link>
         </div>
         {showServerClock && (
           <div className="server-clock-slot col-span-2 row-start-2 flex min-w-0 justify-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:px-3">
@@ -326,11 +330,13 @@ const DashboardHeader = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           {isAuthenticated && !isOnDashboard && <BackToDashboardButton />}
           <button
+            type="button"
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm font-medium"
+            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="Home"
+            aria-label="Home"
           >
-            <Home className="h-4 w-4" />
+            <Home className="h-4 w-4" aria-hidden />
             <span className="hidden md:inline">Home</span>
           </button>
           {isAuthenticated ? (
@@ -351,9 +357,13 @@ const DashboardHeader = () => {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+              <button
+                type="button"
+                aria-label={`Account menu for ${formatUserDisplayName(user) || "your account"}`}
+                className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
                 <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity">
-                  <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt={user?.name || "User"} />
+                  <AvatarImage src={user?.profile_picture ? (user?.id != null ? apiClient.getProfilePictureUrl(user.id) : user.profile_picture) : undefined} alt="" />
                   <AvatarFallback>{getNameInitial(formatPersonName(user), user?.email, "U")}</AvatarFallback>
                 </Avatar>
               </button>
@@ -432,6 +442,7 @@ const DashboardHeader = () => {
         </div>
       </div>
     </header>
+    </>
   );
 };
 

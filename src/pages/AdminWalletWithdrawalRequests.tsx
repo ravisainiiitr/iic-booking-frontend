@@ -150,8 +150,8 @@ export default function AdminWalletWithdrawalRequests() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="icon" onClick={fetchRows} title="Refresh">
-                <RotateCcw className="h-4 w-4" />
+              <Button aria-label="Refresh list" variant="outline" size="icon" onClick={fetchRows} title="Refresh">
+                <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
             </div>
           </CardHeader>
@@ -163,8 +163,8 @@ export default function AdminWalletWithdrawalRequests() {
             ) : rows.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No withdrawal requests found.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
-                <Table>
+              <div className="overflow-x-auto rounded-md border max-md:border-0">
+                <Table stackOnMobile>
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
@@ -191,8 +191,8 @@ export default function AdminWalletWithdrawalRequests() {
                           {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => setDetailRow(row)}>
-                            <Eye className="h-4 w-4" />
+                          <Button aria-label="View details" title="View details" variant="ghost" size="icon" onClick={() => setDetailRow(row)}>
+                            <Eye className="h-4 w-4" aria-hidden />
                           </Button>
                         </TableCell>
                       </TableRow>

@@ -395,6 +395,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Name</Label>
                 <Input
+                  aria-label="Name"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
                 />
@@ -402,6 +403,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Email</Label>
                 <Input
+                  aria-label="Email"
                   type="email"
                   value={createForm.email}
                   onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
@@ -410,6 +412,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Password</Label>
                 <Input
+                  aria-label="Password"
                   type="password"
                   value={createForm.password}
                   onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
@@ -418,6 +421,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Confirm password</Label>
                 <Input
+                  aria-label="Confirm password"
                   type="password"
                   value={createForm.password_confirm}
                   onChange={(e) =>
@@ -486,6 +490,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Name</Label>
                 <Input
+                  aria-label="Name"
                   value={editForm.name}
                   onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
                 />
@@ -493,6 +498,7 @@ export default function DepartmentStaffManagement() {
               <div className="space-y-1">
                 <Label>Email</Label>
                 <Input
+                  aria-label="Email"
                   type="email"
                   value={editForm.email}
                   onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))}

@@ -279,7 +279,7 @@ export default function Print3DAnalyzerTest() {
                 <div className="space-y-2">
                   <Label>Material</Label>
                   <Select value={materialId} onValueChange={setMaterialId}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Material">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

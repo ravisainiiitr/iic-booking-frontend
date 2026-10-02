@@ -63,12 +63,12 @@ export function UploadQueuePanel({ items, onCancel, onRetry, onClear }: Props) {
                   {item.status === "uploading" ? `${pct}% of ${formatBytes(item.file.size)}` : STAGE_LABEL[item.status]}
                 </span>
                 {active ? (
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onCancel(item.id)} title="Cancel upload">
-                    <X className="h-3.5 w-3.5" />
+                  <Button aria-label="Cancel upload" variant="ghost" size="icon" className="h-6 w-6" onClick={() => onCancel(item.id)} title="Cancel upload">
+                    <X className="h-3.5 w-3.5" aria-hidden />
                   </Button>
                 ) : item.status === "failed" || item.status === "cancelled" ? (
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onRetry(item.id)} title="Retry">
-                    <RotateCcw className="h-3.5 w-3.5" />
+                  <Button aria-label="Retry upload" variant="ghost" size="icon" className="h-6 w-6" onClick={() => onRetry(item.id)} title="Retry">
+                    <RotateCcw className="h-3.5 w-3.5" aria-hidden />
                   </Button>
                 ) : null}
               </div>

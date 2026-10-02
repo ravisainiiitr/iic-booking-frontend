@@ -523,7 +523,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1">
                 <Label>Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Status">
                     <SelectValue placeholder="All status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -539,7 +539,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1">
                 <Label>Fund receipt</Label>
                 <Select value={fundVerifiedFilter} onValueChange={setFundVerifiedFilter}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Fund receipt">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
@@ -552,7 +552,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1">
                 <Label>Recharge mode</Label>
                 <Select value={modeFilter} onValueChange={setModeFilter}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Recharge mode">
                     <SelectValue placeholder="All modes" />
                   </SelectTrigger>
                   <SelectContent>
@@ -565,7 +565,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1">
                 <Label>SRIC cash-book</Label>
                 <Select value={cashbookFilter} onValueChange={setCashbookFilter}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="SRIC cash-book">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
@@ -580,7 +580,7 @@ export default function AdminWalletRechargeRequests() {
                 <div className="space-y-1">
                   <Label>Department</Label>
                   <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Department">
                       <SelectValue placeholder="All departments" />
                     </SelectTrigger>
                     <SelectContent>
@@ -598,6 +598,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1 sm:col-span-2">
                 <Label>Search</Label>
                 <Input
+                  aria-label="Search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Transaction no. (IIC-TXN-…), user, emp no, email, grant…"
@@ -608,15 +609,16 @@ export default function AdminWalletRechargeRequests() {
               </div>
               <div className="space-y-1">
                 <Label>From</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <Input aria-label="From" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>To</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <Input aria-label="To" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>Project grant</Label>
                 <Input
+                  aria-label="Project grant"
                   value={projectGrant}
                   onChange={(e) => setProjectGrant(e.target.value)}
                   placeholder="Grant code"
@@ -628,8 +630,8 @@ export default function AdminWalletRechargeRequests() {
               <Button variant="outline" onClick={clearFilters}>
                 Clear
               </Button>
-              <Button variant="outline" size="icon" onClick={fetchRows} title="Refresh">
-                <RotateCcw className="h-4 w-4" />
+              <Button aria-label="Refresh list" variant="outline" size="icon" onClick={fetchRows} title="Refresh">
+                <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
               <span className="text-sm text-muted-foreground self-center ml-1">
                 {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
@@ -702,7 +704,7 @@ export default function AdminWalletRechargeRequests() {
               <p className="text-muted-foreground text-center py-8">No recharge requests found.</p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
-                <Table>
+                <Table stickyFirstColumn>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Transaction</TableHead>
@@ -834,47 +836,51 @@ export default function AdminWalletRechargeRequests() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openDetails(row)} title="Details">
-                              <Eye className="h-4 w-4" />
+                            <Button aria-label="View details" variant="ghost" size="icon" onClick={() => openDetails(row)} title="Details">
+                              <Eye className="h-4 w-4" aria-hidden />
                             </Button>
                             {canVerifyFundReceipt && !row.fund_receipt_verified ? (
                               <Button
+                                aria-label="Verify fund receipt"
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => openVerify(row)}
                                 title="Verify Fund Receipt"
                               >
-                                <BadgeCheck className="h-4 w-4 text-primary" />
+                                <BadgeCheck className="h-4 w-4 text-primary" aria-hidden />
                               </Button>
                             ) : null}
                             {row.status === "PENDING" && row.user_otp_verified !== false ? (
                               <Button
+                                aria-label="Approve request"
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => openAction(row, "approve")}
                                 title="Approve"
                               >
-                                <Check className="h-4 w-4 text-primary" />
+                                <Check className="h-4 w-4 text-primary" aria-hidden />
                               </Button>
                             ) : null}
                             {!isFinance && canDeclineRow(row) ? (
                               <Button
+                                aria-label="Decline request"
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => openAction(row, "reject")}
                                 title="Decline"
                               >
-                                <X className="h-4 w-4 text-destructive" />
+                                <X className="h-4 w-4 text-destructive" aria-hidden />
                               </Button>
                             ) : null}
                             {!isFinance && row.status === "PENDING" && row.user_otp_verified !== false ? (
                               <Button
+                                aria-label="Cancel request"
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => openAction(row, "cancel")}
                                 title="Cancel"
                               >
-                                <Ban className="h-4 w-4" />
+                                <Ban className="h-4 w-4" aria-hidden />
                               </Button>
                             ) : null}
                           </div>
@@ -1260,7 +1266,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-2">
                 <Label>Decline reason</Label>
                 <Select value={reasonCode} onValueChange={setReasonCode}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Decline reason">
                     <SelectValue placeholder="Select reason" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1275,14 +1281,14 @@ export default function AdminWalletRechargeRequests() {
               {reasonCode === "other" ? (
                 <div className="space-y-2">
                   <Label>Details</Label>
-                  <Textarea value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={3} />
+                  <Textarea aria-label="Details" value={reasonText} onChange={(e) => setReasonText(e.target.value)} rows={3} />
                 </div>
               ) : null}
             </div>
           ) : (
             <div className="space-y-2">
               <Label>Optional note</Label>
-              <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+              <Textarea aria-label="Optional note" value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
             </div>
           )}
           <DialogFooter>

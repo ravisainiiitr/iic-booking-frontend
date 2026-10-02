@@ -346,7 +346,7 @@ export default function InventoryManagement() {
             <div className="md:col-span-2">
               <Label>Item</Label>
               <Select value={stockItemId} onValueChange={setStockItemId}>
-                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                <SelectTrigger aria-label="Item"><SelectValue placeholder="Select item" /></SelectTrigger>
                 <SelectContent>
                   {items.map((it) => (
                     <SelectItem key={it.item_id} value={String(it.item_id)}>
@@ -358,15 +358,15 @@ export default function InventoryManagement() {
             </div>
             <div>
               <Label>Quantity</Label>
-              <Input value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
+              <Input aria-label="Quantity" value={stockQty} onChange={(e) => setStockQty(e.target.value)} />
             </div>
             <div>
               <Label>Unit Cost (optional)</Label>
-              <Input value={stockUnitCost} onChange={(e) => setStockUnitCost(e.target.value)} />
+              <Input aria-label="Unit Cost (optional)" value={stockUnitCost} onChange={(e) => setStockUnitCost(e.target.value)} />
             </div>
             <div>
               <Label>Remarks (optional)</Label>
-              <Input value={stockRemarks} onChange={(e) => setStockRemarks(e.target.value)} />
+              <Input aria-label="Remarks (optional)" value={stockRemarks} onChange={(e) => setStockRemarks(e.target.value)} />
             </div>
             <div className="md:col-span-5">
               <Button onClick={addStock} disabled={addingStock || !selectedEquipmentId}>
@@ -386,7 +386,7 @@ export default function InventoryManagement() {
               <div>
                 <Label>Request Type</Label>
                 <Select value={requestType} onValueChange={(v: any) => setRequestType(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Request Type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CONSUMABLE">CONSUMABLE</SelectItem>
                     <SelectItem value="NON_CONSUMABLE">NON_CONSUMABLE</SelectItem>
@@ -396,18 +396,18 @@ export default function InventoryManagement() {
               </div>
               <div>
                 <Label>Required by</Label>
-                <Input type="date" value={requestRequiredDate} onChange={(e) => setRequestRequiredDate(e.target.value)} />
+                <Input aria-label="Required by" type="date" value={requestRequiredDate} onChange={(e) => setRequestRequiredDate(e.target.value)} />
               </div>
             </div>
             <div>
               <Label>Justification</Label>
-              <Textarea value={requestJustification} onChange={(e) => setRequestJustification(e.target.value)} placeholder="Reason for request..." />
+              <Textarea aria-label="Justification" value={requestJustification} onChange={(e) => setRequestJustification(e.target.value)} placeholder="Reason for request..." />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
               <div className="md:col-span-2">
                 <Label>Item</Label>
                 <Select value={lineItemId} onValueChange={setLineItemId}>
-                  <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                  <SelectTrigger aria-label="Item"><SelectValue placeholder="Select item" /></SelectTrigger>
                   <SelectContent>
                     {items.map((it) => (
                       <SelectItem key={it.item_id} value={String(it.item_id)}>
@@ -419,7 +419,7 @@ export default function InventoryManagement() {
               </div>
               <div>
                 <Label>Qty</Label>
-                <Input value={lineQty} onChange={(e) => setLineQty(e.target.value)} />
+                <Input aria-label="Qty" value={lineQty} onChange={(e) => setLineQty(e.target.value)} />
               </div>
               <Button onClick={addDraftLine} variant="outline">Add Line</Button>
             </div>
@@ -452,12 +452,12 @@ export default function InventoryManagement() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label>Item Name</Label>
-                <Input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="Nitric Acid" />
+                <Input aria-label="Item Name" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="Nitric Acid" />
               </div>
               <div>
                 <Label>Category</Label>
                 <Select value={newItemCategory} onValueChange={(v: any) => setNewItemCategory(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Category"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="MAS">Major Asset (MAS)</SelectItem>
                     <SelectItem value="MIA_LLTA">Minor Asset (MIA) / LLTA</SelectItem>
@@ -473,7 +473,7 @@ export default function InventoryManagement() {
               <div>
                 <Label>UOM</Label>
                 <Select value={newItemUomChoice} onValueChange={setNewItemUomChoice}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="UOM"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COMMON_UOM.map((u) => (
                       <SelectItem key={u} value={u}>{u}</SelectItem>
@@ -486,12 +486,12 @@ export default function InventoryManagement() {
             {newItemUomChoice === "OTHER" && (
               <div>
                 <Label>Other UOM</Label>
-                <Input value={newItemUomOther} onChange={(e) => setNewItemUomOther(e.target.value)} placeholder="Enter custom unit" />
+                <Input aria-label="Other UOM" value={newItemUomOther} onChange={(e) => setNewItemUomOther(e.target.value)} placeholder="Enter custom unit" />
               </div>
             )}
             <div>
               <Label>Specification (optional)</Label>
-              <Textarea value={newItemSpecification} onChange={(e) => setNewItemSpecification(e.target.value)} placeholder="AR grade, brand, size..." />
+              <Textarea aria-label="Specification (optional)" value={newItemSpecification} onChange={(e) => setNewItemSpecification(e.target.value)} placeholder="AR grade, brand, size..." />
             </div>
             <Button onClick={createItem} disabled={creatingItem}>
               {creatingItem ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

@@ -735,7 +735,7 @@ const AdminSettingsCopilotAnswers = () => {
                   <div className="space-y-1">
                     <Label>Category</Label>
                     <Select value={editor.form.category} onValueChange={(v) => setForm({ category: v })}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Category">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -750,7 +750,7 @@ const AdminSettingsCopilotAnswers = () => {
                   <div className="space-y-1">
                     <Label>Audience</Label>
                     <Select value={editor.form.audience} onValueChange={(v) => setForm({ audience: v })}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Audience">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

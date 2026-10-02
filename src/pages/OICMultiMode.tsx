@@ -257,6 +257,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>Start date</Label>
           <Input
+            aria-label="Start date"
             type="date"
             value={form.start_date}
             onChange={(e) => setForm((p) => ({ ...p, start_date: e.target.value }))}
@@ -265,6 +266,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>End date</Label>
           <Input
+            aria-label="End date"
             type="date"
             value={form.end_date}
             onChange={(e) => setForm((p) => ({ ...p, end_date: e.target.value }))}
@@ -273,6 +275,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>Start time (optional)</Label>
           <Input
+            aria-label="Start time (optional)"
             type="time"
             value={form.start_time}
             onChange={(e) => setForm((p) => ({ ...p, start_time: e.target.value }))}
@@ -281,6 +284,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>End time (optional)</Label>
           <Input
+            aria-label="End time (optional)"
             type="time"
             value={form.end_time}
             onChange={(e) => setForm((p) => ({ ...p, end_time: e.target.value }))}
@@ -313,6 +317,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>Unavailable status label (child outside schedule)</Label>
           <Input
+            aria-label="Unavailable status label (child outside schedule)"
             value={form.unavailable_label}
             onChange={(e) => setForm((p) => ({ ...p, unavailable_label: e.target.value }))}
           />
@@ -321,6 +326,7 @@ export default function OICMultiMode() {
           <Label>Unavailable background color</Label>
           <div className="flex gap-2 items-center">
             <Input
+              aria-label="Unavailable background color"
               type="color"
               className="w-14 h-10 p-1"
               value={form.unavailable_color}
@@ -335,6 +341,7 @@ export default function OICMultiMode() {
         <div className="space-y-2">
           <Label>Blocked slot label (parent during exclusive)</Label>
           <Input
+            aria-label="Blocked slot label (parent during exclusive)"
             value={form.exclusive_blocked_label}
             onChange={(e) => setForm((p) => ({ ...p, exclusive_blocked_label: e.target.value }))}
           />
@@ -343,6 +350,7 @@ export default function OICMultiMode() {
           <Label>Blocked background color (exclusive)</Label>
           <div className="flex gap-2 items-center">
             <Input
+              aria-label="Blocked background color (exclusive)"
               type="color"
               className="w-14 h-10 p-1"
               value={form.exclusive_blocked_color}
@@ -422,7 +430,7 @@ export default function OICMultiMode() {
                 <div className="space-y-2">
                   <Label>Parent (base) equipment</Label>
                   <Select value={selectedParentId} onValueChange={setSelectedParentId}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Parent (base) equipment">
                       <SelectValue placeholder="Select parent" />
                     </SelectTrigger>
                     <SelectContent>
@@ -548,6 +556,8 @@ export default function OICMultiMode() {
                                 Slots
                               </Button>
                               <Button
+                                aria-label="Delete schedule"
+                                title="Delete schedule"
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive"
@@ -555,9 +565,9 @@ export default function OICMultiMode() {
                                 onClick={() => void onDelete(s.id)}
                               >
                                 {deletingId === s.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                 ) : (
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" aria-hidden />
                                 )}
                               </Button>
                             </div>

@@ -258,7 +258,7 @@ export default function EquipmentLifecycleHub() {
             <div>
               <Label>Equipment</Label>
               <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Equipment">
                   <SelectValue placeholder="Select equipment" />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,6 +305,7 @@ export default function EquipmentLifecycleHub() {
                 <div className="md:col-span-2">
                   <Label>Supplier contact</Label>
                   <Textarea
+                    aria-label="Supplier contact"
                     value={(lifecycle.supplier_contact as string) || ""}
                     onChange={(e) => updateLifecycleField("supplier_contact", e.target.value)}
                     disabled={!canEditLifecycle}
@@ -330,6 +331,7 @@ export default function EquipmentLifecycleHub() {
                 <div className="md:col-span-2">
                   <Label>Lifecycle notes</Label>
                   <Textarea
+                    aria-label="Lifecycle notes"
                     value={(lifecycle.lifecycle_notes as string) || ""}
                     onChange={(e) => updateLifecycleField("lifecycle_notes", e.target.value)}
                     disabled={!canEditLifecycle}
@@ -379,27 +381,27 @@ export default function EquipmentLifecycleHub() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border-b pb-4">
                     <div>
                       <Label>Vendor</Label>
-                      <Input value={amcVendor} onChange={(e) => setAmcVendor(e.target.value)} />
+                      <Input aria-label="Vendor" value={amcVendor} onChange={(e) => setAmcVendor(e.target.value)} />
                     </div>
                     <div>
                       <Label>Contract ref</Label>
-                      <Input value={amcRef} onChange={(e) => setAmcRef(e.target.value)} />
+                      <Input aria-label="Contract ref" value={amcRef} onChange={(e) => setAmcRef(e.target.value)} />
                     </div>
                     <div>
                       <Label>Start</Label>
-                      <Input type="date" value={amcStart} onChange={(e) => setAmcStart(e.target.value)} />
+                      <Input aria-label="Start" type="date" value={amcStart} onChange={(e) => setAmcStart(e.target.value)} />
                     </div>
                     <div>
                       <Label>End</Label>
-                      <Input type="date" value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
+                      <Input aria-label="End" type="date" value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
                     </div>
                     <div>
                       <Label>Contract value</Label>
-                      <Input value={amcValue} onChange={(e) => setAmcValue(e.target.value)} />
+                      <Input aria-label="Contract value" value={amcValue} onChange={(e) => setAmcValue(e.target.value)} />
                     </div>
                     <div className="md:col-span-2">
                       <Label>Coverage notes</Label>
-                      <Textarea value={amcNotes} onChange={(e) => setAmcNotes(e.target.value)} rows={2} />
+                      <Textarea aria-label="Coverage notes" value={amcNotes} onChange={(e) => setAmcNotes(e.target.value)} rows={2} />
                     </div>
                     <div>
                       <Label>Attachment</Label>
@@ -447,7 +449,7 @@ export default function EquipmentLifecycleHub() {
                   <div>
                     <Label>Type</Label>
                     <Select value={exType} onValueChange={setExType}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Type">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -462,7 +464,7 @@ export default function EquipmentLifecycleHub() {
                   <div>
                     <Label>Classification (optional)</Label>
                     <Select value={exClass || "__"} onValueChange={(v) => setExClass(v === "__" ? "" : v)}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Classification (optional)">
                         <SelectValue placeholder="—" />
                       </SelectTrigger>
                       <SelectContent>
@@ -475,15 +477,15 @@ export default function EquipmentLifecycleHub() {
                   </div>
                   <div>
                     <Label>Date</Label>
-                    <Input type="date" value={exDate} onChange={(e) => setExDate(e.target.value)} />
+                    <Input aria-label="Date" type="date" value={exDate} onChange={(e) => setExDate(e.target.value)} />
                   </div>
                   <div>
                     <Label>Amount</Label>
-                    <Input value={exAmount} onChange={(e) => setExAmount(e.target.value)} />
+                    <Input aria-label="Amount" value={exAmount} onChange={(e) => setExAmount(e.target.value)} />
                   </div>
                   <div className="md:col-span-2">
                     <Label>Description</Label>
-                    <Input value={exDesc} onChange={(e) => setExDesc(e.target.value)} />
+                    <Input aria-label="Description" value={exDesc} onChange={(e) => setExDesc(e.target.value)} />
                   </div>
                   <Button onClick={submitExpense} disabled={exBusy}>
                     {exBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -519,12 +521,12 @@ export default function EquipmentLifecycleHub() {
                 {userType === "manager" || userType === "admin" ? (
                   <div className="grid gap-2 border-b pb-4">
                     <Label>Reason</Label>
-                    <Textarea value={woReason} onChange={(e) => setWoReason(e.target.value)} rows={2} />
+                    <Textarea aria-label="Reason" value={woReason} onChange={(e) => setWoReason(e.target.value)} rows={2} />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div>
                         <Label>Asset class (optional)</Label>
                         <Select value={woClass || "__"} onValueChange={(v) => setWoClass(v === "__" ? "" : v)}>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Asset class (optional)">
                             <SelectValue placeholder="—" />
                           </SelectTrigger>
                           <SelectContent>
@@ -537,7 +539,7 @@ export default function EquipmentLifecycleHub() {
                       </div>
                       <div>
                         <Label>Est. residual value</Label>
-                        <Input value={woResidual} onChange={(e) => setWoResidual(e.target.value)} />
+                        <Input aria-label="Est. residual value" value={woResidual} onChange={(e) => setWoResidual(e.target.value)} />
                       </div>
                     </div>
                     <Button className="w-fit" onClick={submitWriteOff} disabled={woBusy}>

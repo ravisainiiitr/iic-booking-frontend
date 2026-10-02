@@ -391,7 +391,7 @@ const BookingManagement = () => {
           <div className="space-y-1.5">
             <Label>User type</Label>
             <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="User type">
                 <SelectValue placeholder="All users" />
               </SelectTrigger>
               <SelectContent>
@@ -406,7 +406,7 @@ const BookingManagement = () => {
           <div className="space-y-1.5">
             <Label>I-STEM FBR</Label>
             <Select value={istemFbrFilter} onValueChange={setIstemFbrFilter}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="I-STEM FBR">
                 <SelectValue placeholder="All I-STEM" />
               </SelectTrigger>
               <SelectContent>
@@ -509,7 +509,7 @@ const BookingManagement = () => {
           ) : (
             <>
               <CardContent className="p-0 overflow-x-auto">
-                <Table className="min-w-[720px]">
+                <Table className="min-w-[720px]" stackOnMobile>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className="w-14 font-semibold">S.No.</TableHead>

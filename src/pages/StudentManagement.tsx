@@ -310,7 +310,7 @@ const StudentManagement = () => {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table stackOnMobile>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Instrument</TableHead>
@@ -375,7 +375,7 @@ const StudentManagement = () => {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table stackOnMobile>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[56px]"> </TableHead>

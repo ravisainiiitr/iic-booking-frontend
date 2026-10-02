@@ -294,7 +294,7 @@ export default function DepartmentRbacManagement() {
             <div className="space-y-2">
               <Label>Department</Label>
               <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId} disabled={isDeptAdmin}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Department">
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
@@ -334,7 +334,7 @@ export default function DepartmentRbacManagement() {
               <div className="space-y-2">
                 <Label>Department Administrator</Label>
                 <Select value={selectedDeptAdminId} onValueChange={setSelectedDeptAdminId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Department Administrator">
                     <SelectValue placeholder="Select Department Administrator" />
                   </SelectTrigger>
                   <SelectContent>
@@ -387,7 +387,7 @@ export default function DepartmentRbacManagement() {
             <div className="space-y-2">
               <Label>Staff user</Label>
               <Select value={selectedStaffUserId} onValueChange={setSelectedStaffUserId}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Staff user">
                   <SelectValue placeholder="Select staff user" />
                 </SelectTrigger>
                 <SelectContent>

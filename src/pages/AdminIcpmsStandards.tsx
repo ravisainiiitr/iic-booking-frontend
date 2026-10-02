@@ -254,11 +254,11 @@ export default function AdminIcpmsStandards() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
-                            <Pencil className="h-4 w-4" />
+                          <Button aria-label="Edit standard" title="Edit standard" variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                            <Pencil className="h-4 w-4" aria-hidden />
                           </Button>
-                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(row)}>
-                            <Trash2 className="h-4 w-4" />
+                          <Button aria-label="Delete standard" title="Delete standard" variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(row)}>
+                            <Trash2 className="h-4 w-4" aria-hidden />
                           </Button>
                         </TableCell>
                       </TableRow>

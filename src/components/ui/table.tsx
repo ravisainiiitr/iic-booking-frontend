@@ -2,12 +2,75 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
-  ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
-      <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
-    </div>
-  ),
+export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
+  /** Below md, keep the first column in view while the table scrolls sideways. */
+  stickyFirstColumn?: boolean;
+  /** Below md, show each row as a card, labelling every cell with its column heading. */
+  stackOnMobile?: boolean;
+}
+
+const AUTO_LABEL = "data-auto-label";
+
+/**
+ * Stacked rows lose their visual headers, so each cell gets its column heading as data-label
+ * (rendered by CSS). Explicit roles keep table semantics once CSS changes the display type.
+ */
+function labelCellsByColumn(table: HTMLTableElement) {
+  const headerRow = table.tHead?.rows[table.tHead.rows.length - 1];
+  const headings = headerRow ? Array.from(headerRow.cells, (th) => th.textContent?.trim() ?? "") : [];
+  table.setAttribute("role", "table");
+  for (const section of [table.tHead, ...Array.from(table.tBodies), table.tFoot]) {
+    if (!section) continue;
+    section.setAttribute("role", "rowgroup");
+    for (const row of Array.from(section.rows)) {
+      row.setAttribute("role", "row");
+      let column = 0;
+      for (const cell of Array.from(row.cells)) {
+        cell.setAttribute("role", cell.tagName === "TH" ? (section === table.tHead ? "columnheader" : "rowheader") : "cell");
+        if (section !== table.tHead && (!cell.hasAttribute("data-label") || cell.hasAttribute(AUTO_LABEL))) {
+          const heading = cell.colSpan > 1 ? "" : (headings[column] ?? "");
+          cell.setAttribute("data-label", heading);
+          cell.setAttribute(AUTO_LABEL, "");
+        }
+        column += cell.colSpan || 1;
+      }
+    }
+  }
+}
+
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, stickyFirstColumn, stackOnMobile, ...props }, ref) => {
+    const tableRef = React.useRef<HTMLTableElement | null>(null);
+    const setRefs = React.useCallback(
+      (node: HTMLTableElement | null) => {
+        tableRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref],
+    );
+
+    React.useEffect(() => {
+      const table = tableRef.current;
+      if (!stackOnMobile || !table) return;
+      labelCellsByColumn(table);
+      const observer = new MutationObserver(() => labelCellsByColumn(table));
+      observer.observe(table, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }, [stackOnMobile]);
+
+    return (
+      <div
+        className={cn(
+          "relative w-full overflow-auto",
+          stickyFirstColumn && "table-sticky-first",
+          stackOnMobile && "table-stack-mobile",
+        )}
+      >
+        <table ref={setRefs} className={cn("w-full caption-bottom text-sm", className)} {...props} />
+      </div>
+    );
+  },
 );
 Table.displayName = "Table";
 

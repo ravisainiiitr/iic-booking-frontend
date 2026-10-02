@@ -632,10 +632,10 @@ const Reports = () => {
                     <p className="mb-1 text-sm font-semibold">Approved recharges (accounts team)</p>
                     <p className="mb-3 text-xs text-muted-foreground">
                       Offline recharge requests approved in this date range. Project head (PI) is taken from the linked
-                      project; legacy free-text project details appear when no project was selected.
+                      project;                       legacy free-text project details appear when no project was selected.
                     </p>
                     <div className="overflow-x-auto rounded-lg border">
-                      <Table>
+                      <Table stickyFirstColumn>
                         <TableHeader>
                           <TableRow className="bg-muted/40">
                             <TableHead>Credited (approved)</TableHead>
@@ -755,7 +755,7 @@ const Reports = () => {
                       Expand a row to see how much each member spent on individual instruments (still within your date and equipment filters).
                     </p>
                     <div className="overflow-x-auto rounded-lg border">
-                      <Table>
+                      <Table stickyFirstColumn>
                         <TableHeader>
                           <TableRow className="bg-muted/40">
                             <TableHead className="w-10" />
@@ -783,6 +783,7 @@ const Reports = () => {
                                     <TableCell className="align-middle">
                                       {hasEq ? (
                                         <Button
+                                          aria-label="Equipment breakdown"
                                           type="button"
                                           variant="ghost"
                                           size="icon"
@@ -792,7 +793,7 @@ const Reports = () => {
                                             setFacultyExpandedMembers((prev) => ({ ...prev, [m.user_id]: !prev[m.user_id] }))
                                           }
                                         >
-                                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                          {open ? <ChevronDown className="h-4 w-4" aria-hidden /> : <ChevronRight className="h-4 w-4" aria-hidden />}
                                         </Button>
                                       ) : (
                                         <span className="inline-block w-8" />

@@ -1352,14 +1352,17 @@ export default function OICLeaveManagement() {
                         <TableCell>
                           <div className="flex items-center gap-1">
                             <Button
+                              aria-label="Edit date and time"
                               variant="ghost"
                               size="sm"
                               title="Edit date & time"
                               onClick={() => openTempOicEditDialog(d)}
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-4 w-4" aria-hidden />
                             </Button>
                             <Button
+                              aria-label="Cancel delegation"
+                              title="Cancel delegation"
                               variant="ghost"
                               size="sm"
                               className="text-destructive hover:text-destructive"
@@ -1367,9 +1370,9 @@ export default function OICLeaveManagement() {
                               disabled={tempOicCancellingId === d.id}
                             >
                               {tempOicCancellingId === d.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                               ) : (
-                                <X className="h-4 w-4" />
+                                <X className="h-4 w-4" aria-hidden />
                               )}
                             </Button>
                           </div>

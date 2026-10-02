@@ -404,6 +404,7 @@ const FinanceReports = () => {
               <div className="space-y-2">
                 <Label>Custom from</Label>
                 <Input
+                  aria-label="Custom from"
                   type="date"
                   value={customFrom}
                   onChange={(e) => setCustomFrom(e.target.value)}
@@ -412,7 +413,7 @@ const FinanceReports = () => {
               </div>
               <div className="space-y-2">
                 <Label>Custom to</Label>
-                <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-40" />
+                <Input aria-label="Custom to" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-40" />
               </div>
               <Button
                 type="button"

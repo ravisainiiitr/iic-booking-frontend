@@ -292,6 +292,7 @@ export default function WorkflowDesignerPage() {
                     <div>
                       <Label>Name</Label>
                       <Input
+                        aria-label="Name"
                         value={draft.name}
                         onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                       />
@@ -299,6 +300,7 @@ export default function WorkflowDesignerPage() {
                     <div>
                       <Label>Estimated minutes</Label>
                       <Input
+                        aria-label="Estimated minutes"
                         type="number"
                         value={draft.estimated_duration_minutes || 60}
                         onChange={(e) =>
@@ -313,6 +315,7 @@ export default function WorkflowDesignerPage() {
                   <div>
                     <Label>Description</Label>
                     <Textarea
+                      aria-label="Description"
                       value={draft.description || ""}
                       onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                     />
@@ -332,6 +335,7 @@ export default function WorkflowDesignerPage() {
                     <div>
                       <Label>Map equipment ID (default)</Label>
                       <Input
+                        aria-label="Map equipment ID (default)"
                         value={equipmentId}
                         onChange={(e) => setEquipmentId(e.target.value)}
                         placeholder="e.g. 42"

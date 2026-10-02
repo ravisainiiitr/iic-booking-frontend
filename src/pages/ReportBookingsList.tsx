@@ -174,8 +174,8 @@ const ReportBookingsList = () => {
                 {bookings.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">No bookings found.</p>
                 ) : (
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
+                  <div className="overflow-x-auto rounded-md border max-md:border-0">
+                    <Table stackOnMobile>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Booking ID</TableHead>

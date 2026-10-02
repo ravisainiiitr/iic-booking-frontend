@@ -139,11 +139,11 @@ export default function IdentityAdministration() {
                   <div className="flex flex-wrap gap-2 items-end">
                     <div>
                       <Label>Channel-I degree name</Label>
-                      <Input value={degreeName} onChange={(e) => setDegreeName(e.target.value)} />
+                      <Input aria-label="Channel-I degree name" value={degreeName} onChange={(e) => setDegreeName(e.target.value)} />
                     </div>
                     <div>
                       <Label>Classification</Label>
-                      <Input value={degreeClass} onChange={(e) => setDegreeClass(e.target.value)} />
+                      <Input aria-label="Classification" value={degreeClass} onChange={(e) => setDegreeClass(e.target.value)} />
                     </div>
                     <Button
                       onClick={async () => {
@@ -182,11 +182,11 @@ export default function IdentityAdministration() {
                   <div className="flex flex-wrap gap-2 items-end">
                     <div>
                       <Label>Channel-I department</Label>
-                      <Input value={mapName} onChange={(e) => setMapName(e.target.value)} />
+                      <Input aria-label="Channel-I department" value={mapName} onChange={(e) => setMapName(e.target.value)} />
                     </div>
                     <div>
                       <Label>Internal department id</Label>
-                      <Input value={mapDeptId} onChange={(e) => setMapDeptId(e.target.value)} />
+                      <Input aria-label="Internal department id" value={mapDeptId} onChange={(e) => setMapDeptId(e.target.value)} />
                     </div>
                     <Button
                       onClick={async () => {
@@ -223,11 +223,11 @@ export default function IdentityAdministration() {
                   <div className="flex flex-wrap gap-2 items-end">
                     <div>
                       <Label>User id</Label>
-                      <Input value={hodUserId} onChange={(e) => setHodUserId(e.target.value)} />
+                      <Input aria-label="User id" value={hodUserId} onChange={(e) => setHodUserId(e.target.value)} />
                     </div>
                     <div>
                       <Label>Department id</Label>
-                      <Input value={hodDeptId} onChange={(e) => setHodDeptId(e.target.value)} />
+                      <Input aria-label="Department id" value={hodDeptId} onChange={(e) => setHodDeptId(e.target.value)} />
                     </div>
                     <Button
                       onClick={async () => {

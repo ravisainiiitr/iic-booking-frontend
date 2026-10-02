@@ -193,8 +193,8 @@ const NoticeBoardRequests = () => {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <StandaloneOnly>
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-                <ArrowLeft className="h-5 w-5" />
+              <Button aria-label="Back to dashboard" title="Back to dashboard" variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="h-5 w-5" aria-hidden />
               </Button>
               <div>
                 <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -353,6 +353,7 @@ const NoticeBoardRequests = () => {
             <div className="space-y-1.5">
               <Label>Title</Label>
               <Input
+                aria-label="Title"
                 value={form.title}
                 onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
               />
@@ -360,6 +361,7 @@ const NoticeBoardRequests = () => {
             <div className="space-y-1.5">
               <Label>Description</Label>
               <Textarea
+                aria-label="Description"
                 rows={4}
                 value={form.description}
                 onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
@@ -368,6 +370,7 @@ const NoticeBoardRequests = () => {
             <div className="space-y-1.5">
               <Label>Full content (optional)</Label>
               <Textarea
+                aria-label="Full content (optional)"
                 rows={3}
                 value={form.content}
                 onChange={(e) => setForm((p) => ({ ...p, content: e.target.value }))}
@@ -393,6 +396,7 @@ const NoticeBoardRequests = () => {
               <div className="space-y-1.5">
                 <Label>Priority</Label>
                 <Input
+                  aria-label="Priority"
                   type="number"
                   value={form.priority}
                   onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
@@ -415,6 +419,7 @@ const NoticeBoardRequests = () => {
               <div className="space-y-1.5">
                 <Label>Expiry date &amp; time</Label>
                 <Input
+                  aria-label="Expiry date & time"
                   type="datetime-local"
                   value={form.expiry_date}
                   onChange={(e) => setForm((p) => ({ ...p, expiry_date: e.target.value }))}

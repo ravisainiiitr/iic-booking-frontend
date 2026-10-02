@@ -255,8 +255,8 @@ export default function AdminPortalMigration() {
     <div className="container mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/user-management")}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button aria-label="Back to user management" title="Back to user management" variant="ghost" size="icon" onClick={() => navigate("/user-management")}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">Portal Migration</h1>

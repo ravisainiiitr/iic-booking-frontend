@@ -372,7 +372,7 @@ export default function OICPrintMaterials() {
               <div className="space-y-2">
                 <Label>Equipment</Label>
                 <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Equipment">
                     <SelectValue placeholder="Select equipment" />
                   </SelectTrigger>
                   <SelectContent>
@@ -553,6 +553,7 @@ export default function OICPrintMaterials() {
                           <div className="space-y-1.5">
                             <Label className="text-xs">Code</Label>
                             <Input
+                              aria-label="Code"
                               value={draft.code}
                               onChange={(e) => setDraftField(m.id, "code", e.target.value)}
                               placeholder="pla_white"
@@ -561,6 +562,7 @@ export default function OICPrintMaterials() {
                           <div className="space-y-1.5">
                             <Label className="text-xs">Name</Label>
                             <Input
+                              aria-label="Name"
                               value={draft.name}
                               onChange={(e) => setDraftField(m.id, "name", e.target.value)}
                               placeholder="PLA White"
@@ -569,6 +571,7 @@ export default function OICPrintMaterials() {
                           <div className="space-y-1.5">
                             <Label className="text-xs">Density (g/cm³)</Label>
                             <Input
+                              aria-label="Density (g/cm³)"
                               type="number"
                               step="0.001"
                               value={draft.density_g_per_cm3}
@@ -578,6 +581,7 @@ export default function OICPrintMaterials() {
                           <div className="space-y-1.5">
                             <Label className="text-xs">Price per gram (₹)</Label>
                             <Input
+                              aria-label="Price per gram (₹)"
                               type="number"
                               step="0.01"
                               value={draft.price_per_gram}
@@ -606,6 +610,7 @@ export default function OICPrintMaterials() {
                           <div className="space-y-1.5">
                             <Label className="text-xs">Display order</Label>
                             <Input
+                              aria-label="Display order"
                               type="number"
                               min={0}
                               value={draft.display_order}
@@ -635,13 +640,15 @@ export default function OICPrintMaterials() {
                               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
                             </Button>
                             <Button
+                              aria-label="Delete material"
+                              title="Delete material"
                               type="button"
                               size="sm"
                               variant="destructive"
                               disabled={deleting || saving}
                               onClick={() => void onDeleteMaterial(m)}
                             >
-                              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              {deleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
                             </Button>
                           </div>
                         </div>
@@ -664,6 +671,7 @@ export default function OICPrintMaterials() {
                   <div className="space-y-1.5">
                     <Label className="text-xs">Code</Label>
                     <Input
+                      aria-label="Code"
                       value={addDraft.code}
                       onChange={(e) => setAddDraft((p) => ({ ...p, code: e.target.value }))}
                       placeholder="pla_white"
@@ -672,6 +680,7 @@ export default function OICPrintMaterials() {
                   <div className="space-y-1.5">
                     <Label className="text-xs">Name</Label>
                     <Input
+                      aria-label="Name"
                       value={addDraft.name}
                       onChange={(e) => setAddDraft((p) => ({ ...p, name: e.target.value }))}
                       placeholder="PLA White"
@@ -680,6 +689,7 @@ export default function OICPrintMaterials() {
                   <div className="space-y-1.5">
                     <Label className="text-xs">Density (g/cm³)</Label>
                     <Input
+                      aria-label="Density (g/cm³)"
                       type="number"
                       step="0.001"
                       value={addDraft.density_g_per_cm3}
@@ -689,6 +699,7 @@ export default function OICPrintMaterials() {
                   <div className="space-y-1.5">
                     <Label className="text-xs">Price per gram (₹)</Label>
                     <Input
+                      aria-label="Price per gram (₹)"
                       type="number"
                       step="0.01"
                       value={addDraft.price_per_gram}
@@ -717,6 +728,7 @@ export default function OICPrintMaterials() {
                   <div className="space-y-1.5">
                     <Label className="text-xs">Display order</Label>
                     <Input
+                      aria-label="Display order"
                       type="number"
                       min={0}
                       value={addDraft.display_order}

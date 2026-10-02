@@ -193,7 +193,7 @@ export default function OrganizationUsersManagement() {
             <div className="space-y-2">
               <Label>User type</Label>
               <Select value={userType} onValueChange={setUserType}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="User type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -252,7 +252,7 @@ export default function ProformaInvoice() {
                 <div className="w-full sm:w-auto sm:min-w-[240px] space-y-2">
                   <Label>Department</Label>
                   <Select value={departmentId || undefined} onValueChange={handleDepartmentChange} disabled={loadingList}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Department">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -268,7 +268,7 @@ export default function ProformaInvoice() {
               <div className="flex-1 min-w-[200px] space-y-2">
                 <Label>Add equipment</Label>
                 <Select value={selectedEquipId} onValueChange={setSelectedEquipId} disabled={loadingList}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Add equipment">
                     <SelectValue placeholder="Select equipment" />
                   </SelectTrigger>
                   <SelectContent>

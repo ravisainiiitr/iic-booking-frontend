@@ -256,7 +256,110 @@
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer:focus-visible {
   outline: 2px solid hsl(var(--ring));
-  outline-offset: 1px;
+  outline-offset: 2px;
+}
+
+.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer[aria-current="page"] {
+  border-color: hsl(var(--primary)) !important;
+  background: hsl(var(--primary) / 0.08) !important;
+  box-shadow: inset 3px 0 0 hsl(var(--primary)) !important;
+}
+
+.dark .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer[aria-current="page"] {
+  border-color: hsl(var(--ring)) !important;
+  background: hsl(var(--primary) / 0.25) !important;
+  box-shadow: inset 3px 0 0 hsl(var(--ring)) !important;
+}
+
+/* --destructive stays dark in dark mode for filled buttons; as text it needs a lighter red (>= 4.5:1 on cards). */
+.dark .text-destructive {
+  color: hsl(0 84% 71%);
+}
+
+/* <Table stickyFirstColumn> / <Table stackOnMobile> (components/ui/table.tsx) — phones only */
+@media (max-width: 767px) {
+  .table-sticky-first :is(th, td):first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: hsl(var(--card));
+    box-shadow: 1px 0 0 hsl(var(--border));
+  }
+
+  .table-sticky-first thead th:first-child {
+    z-index: 11;
+  }
+
+  .table-stack-mobile > table {
+    min-width: 0 !important;
+  }
+
+  .table-stack-mobile > table,
+  .table-stack-mobile > table > tbody,
+  .table-stack-mobile > table > tfoot,
+  .table-stack-mobile > table > tbody > tr,
+  .table-stack-mobile > table > tfoot > tr {
+    display: block;
+    width: 100%;
+  }
+
+  /* Headings stay available to screen readers; each cell shows its own label instead. */
+  .table-stack-mobile > table > thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .table-stack-mobile > table > tbody > tr,
+  .table-stack-mobile > table > tfoot > tr {
+    margin: 0.6rem 0;
+    padding: 0.35rem 0;
+    /* Beats TableBody's last-row border reset and per-row border utilities. */
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: 0.75rem;
+    background-color: hsl(var(--card));
+  }
+
+  .table-stack-mobile > table > tbody > tr > td,
+  .table-stack-mobile > table > tfoot > tr > td {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: none !important;
+    min-height: 2rem;
+    padding: 0.4rem 0.85rem 0.4rem calc(38% + 0.5rem) !important;
+    border: 0;
+    text-align: left !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  .table-stack-mobile > table > tbody > tr > td::before,
+  .table-stack-mobile > table > tfoot > tr > td::before {
+    content: attr(data-label);
+    position: absolute;
+    top: 0.4rem;
+    left: 0.85rem;
+    width: calc(38% - 0.85rem);
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: hsl(var(--muted-foreground));
+    overflow-wrap: anywhere;
+  }
+
+  .table-stack-mobile > table > tbody > tr > td:is([data-label=""], :not([data-label])) {
+    padding-left: 0.85rem !important;
+  }
+
+  .table-stack-mobile > table > tbody > tr > td:is([data-label=""], :not([data-label]))::before {
+    content: none;
+  }
 }
 
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-1.w-16,

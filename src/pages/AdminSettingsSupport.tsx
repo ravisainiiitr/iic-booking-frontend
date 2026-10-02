@@ -322,8 +322,8 @@ const AdminSettingsSupport = () => {
               </p>
             ) : (
               <>
-                <div className="overflow-x-auto rounded-xl border">
-                  <Table>
+            <div className="overflow-x-auto rounded-xl border max-md:border-0">
+              <Table stackOnMobile>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
                         <TableHead className="w-[72px]">ID</TableHead>
@@ -379,6 +379,8 @@ const AdminSettingsSupport = () => {
                           </TableCell>
                           <TableCell>
                             <Button
+                              aria-label="View ticket"
+                              title="View ticket"
                               variant="ghost"
                               size="sm"
                               onClick={(e) => {
@@ -386,7 +388,7 @@ const AdminSettingsSupport = () => {
                                 openTicket(row);
                               }}
                             >
-                              <Eye className="h-4 w-4" />
+                              <Eye className="h-4 w-4" aria-hidden />
                             </Button>
                           </TableCell>
                         </TableRow>

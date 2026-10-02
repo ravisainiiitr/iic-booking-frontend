@@ -253,7 +253,7 @@ const EquipmentAdditionRequests = () => {
             <div className="w-[220px] space-y-1">
               <Label className="text-primary-foreground text-xs">Filter by status</Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="bg-white text-slate-900 border-0 shadow-md">
+                <SelectTrigger aria-label="Filter by status" className="bg-white text-slate-900 border-0 shadow-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white text-slate-900">
@@ -363,6 +363,7 @@ const EquipmentAdditionRequests = () => {
                       <div className="space-y-1">
                         <Label>Code</Label>
                         <Input
+                          aria-label="Code"
                           value={editDraft.code}
                           onChange={(e) => setEditDraft((p) => ({ ...p, code: e.target.value }))}
                         />
@@ -370,6 +371,7 @@ const EquipmentAdditionRequests = () => {
                       <div className="space-y-1">
                         <Label>Name</Label>
                         <Input
+                          aria-label="Name"
                           value={editDraft.name}
                           onChange={(e) => setEditDraft((p) => ({ ...p, name: e.target.value }))}
                         />
@@ -377,6 +379,7 @@ const EquipmentAdditionRequests = () => {
                       <div className="space-y-1">
                         <Label>Make</Label>
                         <Input
+                          aria-label="Make"
                           value={editDraft.make}
                           onChange={(e) => setEditDraft((p) => ({ ...p, make: e.target.value }))}
                         />
@@ -384,6 +387,7 @@ const EquipmentAdditionRequests = () => {
                       <div className="space-y-1">
                         <Label>Model</Label>
                         <Input
+                          aria-label="Model"
                           value={editDraft.model_information}
                           onChange={(e) =>
                             setEditDraft((p) => ({ ...p, model_information: e.target.value }))
@@ -394,6 +398,7 @@ const EquipmentAdditionRequests = () => {
                     <div className="space-y-1">
                       <Label>Location</Label>
                       <Input
+                        aria-label="Location"
                         value={editDraft.location}
                         onChange={(e) => setEditDraft((p) => ({ ...p, location: e.target.value }))}
                       />
@@ -401,6 +406,7 @@ const EquipmentAdditionRequests = () => {
                     <div className="space-y-1">
                       <Label>Description</Label>
                       <Textarea
+                        aria-label="Description"
                         value={editDraft.description}
                         onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))}
                         rows={2}
@@ -409,6 +415,7 @@ const EquipmentAdditionRequests = () => {
                     <div className="space-y-1">
                       <Label>Submitter notes</Label>
                       <Textarea
+                        aria-label="Submitter notes"
                         value={editDraft.notes}
                         onChange={(e) => setEditDraft((p) => ({ ...p, notes: e.target.value }))}
                         rows={2}

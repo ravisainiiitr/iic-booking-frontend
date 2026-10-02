@@ -230,16 +230,18 @@ export default function AdminHeroSlides() {
                         )}
                       </div>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => openEdit(slide)}>
-                          <Pencil className="h-4 w-4" />
+                        <Button aria-label="Edit slide" title="Edit slide" variant="ghost" size="icon" onClick={() => openEdit(slide)}>
+                          <Pencil className="h-4 w-4" aria-hidden />
                         </Button>
                         <Button
+                          aria-label="Delete slide"
+                          title="Delete slide"
                           variant="ghost"
                           size="icon"
                           className="text-destructive"
                           onClick={() => handleDelete(slide.id)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" aria-hidden />
                         </Button>
                       </div>
                     </div>
@@ -279,6 +281,7 @@ export default function AdminHeroSlides() {
             <div className="space-y-2">
               <Label>Order (lower = first)</Label>
               <Input
+                aria-label="Order (lower = first)"
                 type="number"
                 min={0}
                 value={order}
@@ -288,6 +291,7 @@ export default function AdminHeroSlides() {
             <div className="space-y-2">
               <Label>Alt text (accessibility)</Label>
               <Input
+                aria-label="Alt text (accessibility)"
                 value={altText}
                 onChange={(e) => setAltText(e.target.value)}
                 placeholder="e.g. Laboratory equipment"

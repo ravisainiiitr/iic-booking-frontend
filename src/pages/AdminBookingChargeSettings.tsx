@@ -201,8 +201,8 @@ export default function AdminBookingChargeSettings() {
                         <TableCell className="font-mono font-medium">{row.key}</TableCell>
                         <TableCell>{row.value}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(row)}>
-                            <Pencil className="h-4 w-4" />
+                          <Button aria-label="Edit setting" title="Edit setting" variant="ghost" size="icon" onClick={() => openEdit(row)}>
+                            <Pencil className="h-4 w-4" aria-hidden />
                           </Button>
                         </TableCell>
                       </TableRow>

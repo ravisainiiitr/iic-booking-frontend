@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState, type DragEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, GripVertical, Loader2, RotateCcw, Settings2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,11 +25,14 @@ import {
   removeMenuGroup,
   renameMenuGroup,
 } from "./dashboardMenuLayout";
+import { findActiveMenuId, withMenuItemA11y } from "./menuItemA11y";
 
 export interface DashboardMenuEntry {
   id: string;
   label: string;
   visible: boolean;
+  /** Workspace path the entry opens; marks the entry as the current page. */
+  path?: string;
   render: () => ReactNode;
 }
 
@@ -38,6 +41,8 @@ interface DashboardMenuTreeProps {
   defaultOrder: string[];
   layout: DashboardMenuLayout | null;
   canCustomize: boolean;
+  /** Path of the open workspace page, if any. */
+  activePath?: string | null;
   /** Resolves to an error message, or null when saved. */
   onSaveLayout: (layout: DashboardMenuLayout) => Promise<string | null>;
   /** Rendered after the last menu item (above "Customize menu"). */
@@ -58,12 +63,18 @@ function readCollapsed(): Set<string> {
   }
 }
 
-export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, onSaveLayout, footer }: DashboardMenuTreeProps) {
+export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize, activePath, onSaveLayout, footer }: DashboardMenuTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(readCollapsed);
   const [editorOpen, setEditorOpen] = useState(false);
+  const groupIdPrefix = useId();
 
   const visibleEntries = useMemo(() => entries.filter((e) => e.visible), [entries]);
   const byId = useMemo(() => new Map(visibleEntries.map((e) => [e.id, e])), [visibleEntries]);
+  const activeId = useMemo(() => findActiveMenuId(visibleEntries, activePath), [visibleEntries, activePath]);
+  const renderEntry = (id: string) => {
+    const entry = byId.get(id);
+    return entry ? withMenuItemA11y(entry.render(), id === activeId) : null;
+  };
   const orderedIds = useMemo(
     () => orderMenuIds(visibleEntries.map((e) => e.id), defaultOrder),
     [visibleEntries, defaultOrder],
@@ -89,9 +100,10 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
       <div className="dashboard-uniform-cards flex flex-col gap-2">
         {tree.map((node) => {
           if (node.kind === "item") {
-            return <Fragment key={node.id}>{byId.get(node.id)?.render()}</Fragment>;
+            return <Fragment key={node.id}>{renderEntry(node.id)}</Fragment>;
           }
           const isOpen = !collapsed.has(node.group.id);
+          const listId = `${groupIdPrefix}-group-${node.group.id}`;
           return (
             <div key={`group-${node.group.id}`} className="flex flex-col gap-[0.3rem]" data-dashboard-menu-group>
               {/* Sized like the compact nav rows in index.css (.dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer). */}
@@ -99,6 +111,7 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
                 type="button"
                 className="flex w-full items-center gap-2 rounded-[0.45rem] border border-border/85 bg-card px-[0.55rem] py-[0.4rem] text-left text-card-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-[2.75rem] max-sm:px-[0.7rem] max-sm:py-[0.65rem]"
                 aria-expanded={isOpen}
+                aria-controls={isOpen ? listId : undefined}
                 data-menu-keep-open
                 onClick={() => toggleGroup(node.group.id)}
               >
@@ -114,6 +127,7 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
                 </span>
                 <span className="rounded-full bg-muted px-1.5 text-[0.65rem] font-semibold text-muted-foreground">
                   {node.items.length}
+                  <span className="sr-only"> items</span>
                 </span>
                 {isOpen ? (
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -122,9 +136,9 @@ export function DashboardMenuTree({ entries, defaultOrder, layout, canCustomize,
                 )}
               </button>
               {isOpen && (
-                <div className="dashboard-uniform-cards ml-2 flex flex-col gap-2 border-l-2 border-primary/20 pl-2">
+                <div id={listId} className="dashboard-uniform-cards ml-2 flex flex-col gap-2 border-l-2 border-primary/20 pl-2">
                   {node.items.map((id) => (
-                    <Fragment key={id}>{byId.get(id)?.render()}</Fragment>
+                    <Fragment key={id}>{renderEntry(id)}</Fragment>
                   ))}
                 </div>
               )}
@@ -374,6 +388,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
             value={newName}
             maxLength={60}
             placeholder="New menu name, e.g. Daily work"
+            aria-label="New menu name"
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
@@ -409,7 +424,11 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
           </div>
         </div>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         <DialogFooter className="gap-2 sm:justify-between">
           <Button

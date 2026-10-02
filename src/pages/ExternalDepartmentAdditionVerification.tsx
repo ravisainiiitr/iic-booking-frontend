@@ -549,6 +549,8 @@ const ExternalDepartmentAdditionVerification = () => {
                                   placeholder="Name"
                                 />
                                 <Button
+                                  aria-label="Save name"
+                                  title="Save name"
                                   size="sm"
                                   variant="ghost"
                                   className="h-9 w-9 p-0"
@@ -556,19 +558,21 @@ const ExternalDepartmentAdditionVerification = () => {
                                   disabled={savingId !== null}
                                 >
                                   {savingId !== null ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                   ) : (
-                                    <Check className="h-4 w-4 text-green-600" />
+                                    <Check className="h-4 w-4 text-green-600" aria-hidden />
                                   )}
                                 </Button>
                                 <Button
+                                  aria-label="Cancel editing"
+                                  title="Cancel editing"
                                   size="sm"
                                   variant="ghost"
                                   className="h-9 w-9 p-0"
                                   onClick={cancelEdit}
                                   disabled={savingId !== null}
                                 >
-                                  <X className="h-4 w-4 text-muted-foreground" />
+                                  <X className="h-4 w-4 text-muted-foreground" aria-hidden />
                                 </Button>
                               </div>
                             ) : (
@@ -613,13 +617,14 @@ const ExternalDepartmentAdditionVerification = () => {
                               <div className="flex items-center justify-end gap-1">
                                 {editingId !== row.id && (
                                   <Button
+                                    aria-label="Edit name"
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 p-0"
                                     onClick={() => startEdit(row)}
                                     title="Edit name"
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
                                 )}
                                 <Button
@@ -662,16 +667,18 @@ const ExternalDepartmentAdditionVerification = () => {
                               <div className="flex items-center justify-end gap-1">
                                 {editingId !== row.id && (
                                   <Button
+                                    aria-label="Edit department name"
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 p-0"
                                     onClick={() => startEdit(row)}
                                     title="Edit department name"
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
                                 )}
                                 <Button
+                                  aria-label="Delete department"
                                   size="sm"
                                   variant="ghost"
                                   className="h-8 w-8 p-0"
@@ -680,9 +687,9 @@ const ExternalDepartmentAdditionVerification = () => {
                                   title="Delete department"
                                 >
                                   {deletingDeptId === Number(row.created_department) ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                   ) : (
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   )}
                                 </Button>
                               </div>
@@ -691,16 +698,18 @@ const ExternalDepartmentAdditionVerification = () => {
                               <div className="flex items-center justify-end gap-1">
                                 {editingId !== row.id && (
                                   <Button
+                                    aria-label="Edit department name"
                                     size="sm"
                                     variant="ghost"
                                     className="h-8 w-8 p-0"
                                     onClick={() => startEdit(row)}
                                     title="Edit department name"
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <Pencil className="h-4 w-4" aria-hidden />
                                   </Button>
                                 )}
                                 <Button
+                                  aria-label="Delete department"
                                   size="sm"
                                   variant="ghost"
                                   className="h-8 w-8 p-0"
@@ -709,9 +718,9 @@ const ExternalDepartmentAdditionVerification = () => {
                                   title="Delete department"
                                 >
                                   {deletingDeptId === row.department_id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                   ) : (
-                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   )}
                                 </Button>
                               </div>

@@ -248,8 +248,8 @@ export default function MyPublications() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6 max-w-4xl space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-5 w-5" />
+          <Button aria-label="Back to dashboard" title="Back to dashboard" variant="ghost" size="icon" onClick={() => navigate("/dashboard")}>
+            <ArrowLeft className="h-5 w-5" aria-hidden />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">

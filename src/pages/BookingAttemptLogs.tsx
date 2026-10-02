@@ -638,6 +638,7 @@ const BookingAttemptLogs = () => {
               <div>
                 <Label>Outcome</Label>
                 <select
+                  aria-label="Outcome"
                   className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   value={filters.outcome}
                   onChange={(e) => setFilters((f) => ({ ...f, outcome: e.target.value as "ALL" | "SUCCESS" | "FAILED" }))}
@@ -782,6 +783,7 @@ const BookingAttemptLogs = () => {
                           <div className="flex items-center gap-1">
                             {isQuotaFailure(row) && (
                               <Button
+                                aria-label="View calculation details"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
@@ -790,14 +792,15 @@ const BookingAttemptLogs = () => {
                                 title="View calculation details"
                               >
                                 {quotaBreakdownLoading && quotaBreakdownLogId === row.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                 ) : (
-                                  <Calculator className="h-4 w-4" />
+                                  <Calculator className="h-4 w-4" aria-hidden />
                                 )}
                               </Button>
                             )}
                             {canDeleteLog ? (
                               <Button
+                                aria-label="Delete log entry"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
@@ -806,9 +809,9 @@ const BookingAttemptLogs = () => {
                                 title="Delete log entry (admin only)"
                               >
                                 {deletingLogId === row.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                                 ) : (
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-4 w-4" aria-hidden />
                                 )}
                               </Button>
                             ) : null}
@@ -987,10 +990,11 @@ const BookingAttemptLogs = () => {
         </Dialog>
 
         <Dialog open={bookingDetailPopup !== null || loadingBookingDetail} onOpenChange={(open) => { if (!open) { setBookingDetailPopup(null); } }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0" aria-describedby={undefined}>
+            <DialogTitle className="sr-only">Booking details</DialogTitle>
             {loadingBookingDetail ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+              <div className="flex items-center justify-center py-16" role="status" aria-label="Loading booking details">
+                <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" aria-hidden />
               </div>
             ) : bookingDetailPopup ? (
               <div className="p-4">

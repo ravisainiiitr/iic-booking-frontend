@@ -2132,6 +2132,8 @@ const Auth = () => {
                           className="w-full h-full object-cover"
                         />
                         <Button
+                          aria-label="Remove profile picture"
+                          title="Remove profile picture"
                           type="button"
                           variant="destructive"
                           size="sm"
@@ -2141,7 +2143,7 @@ const Auth = () => {
                             setProfilePicturePreview(null);
                           }}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3 w-3" aria-hidden />
                         </Button>
                       </div>
                     )}
@@ -2269,6 +2271,8 @@ const Auth = () => {
                                 </span>
                               </div>
                               <Button
+                                aria-label="Remove document"
+                                title="Remove document"
                                 type="button"
                                 variant="ghost"
                                 size="sm"
@@ -2277,7 +2281,7 @@ const Auth = () => {
                                   setDocuments((prev) => prev.filter((_, i) => i !== index));
                                 }}
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-4 w-4" aria-hidden />
                               </Button>
                             </div>
                           </div>

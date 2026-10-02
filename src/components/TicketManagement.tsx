@@ -205,8 +205,8 @@ const TicketManagement = () => {
           ) : tickets.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No tickets found</div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border">
-              <Table>
+            <div className="overflow-x-auto rounded-xl border max-md:border-0">
+              <Table stackOnMobile>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
                     <TableHead>ID</TableHead>
@@ -272,6 +272,8 @@ const TicketManagement = () => {
                       </TableCell>
                       <TableCell>
                         <Button
+                          aria-label="View ticket"
+                          title="View ticket"
                           variant="ghost"
                           size="sm"
                           onClick={(e) => {
@@ -279,7 +281,7 @@ const TicketManagement = () => {
                             handleViewTicket(ticket);
                           }}
                         >
-                          <Eye className="h-4 w-4" />
+                          <Eye className="h-4 w-4" aria-hidden />
                         </Button>
                       </TableCell>
                     </TableRow>

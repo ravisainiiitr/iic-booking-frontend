@@ -677,6 +677,7 @@ const AdminCommunication = () => {
                     <div className="relative mt-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
+                        aria-label="Search"
                         placeholder="Name, code, subject..."
                         value={templateFilters.search}
                         onChange={(e) => setTemplateFilters((f) => ({ ...f, search: e.target.value }))}
@@ -766,8 +767,8 @@ const AdminCommunication = () => {
                               {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") : "—"}
                             </TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditTemplate(row)} title="Edit">
-                                <Pencil className="h-4 w-4" />
+                              <Button aria-label="Edit template" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditTemplate(row)} title="Edit">
+                                <Pencil className="h-4 w-4" aria-hidden />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -791,6 +792,7 @@ const AdminCommunication = () => {
                     <div className="relative mt-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
+                        aria-label="Search"
                         placeholder="Recipient, subject..."
                         value={logFilters.search}
                         onChange={(e) => setLogFilters((f) => ({ ...f, search: e.target.value }))}
@@ -835,6 +837,7 @@ const AdminCommunication = () => {
                   <div>
                     <Label>Date from</Label>
                     <Input
+                      aria-label="Date from"
                       type="date"
                       value={logFilters.date_from}
                       onChange={(e) => setLogFilters((f) => ({ ...f, date_from: e.target.value }))}
@@ -844,6 +847,7 @@ const AdminCommunication = () => {
                   <div>
                     <Label>Date to</Label>
                     <Input
+                      aria-label="Date to"
                       type="date"
                       value={logFilters.date_to}
                       onChange={(e) => setLogFilters((f) => ({ ...f, date_to: e.target.value }))}
@@ -1003,6 +1007,7 @@ const AdminCommunication = () => {
                     <div className="relative mt-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
+                        aria-label="Search"
                         placeholder="Title, description, content..."
                         value={noticeFilters.search}
                         onChange={(e) => setNoticeFilters((f) => ({ ...f, search: e.target.value }))}
@@ -1102,10 +1107,11 @@ const AdminCommunication = () => {
                               {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") : "—"}
                             </TableCell>
                             <TableCell>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditNotice(row)} title="Edit">
-                                <Pencil className="h-4 w-4" />
+                              <Button aria-label="Edit notice" variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditNotice(row)} title="Edit">
+                                <Pencil className="h-4 w-4" aria-hidden />
                               </Button>
                               <Button
+                                aria-label="Delete notice"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-destructive hover:text-destructive"
@@ -1113,7 +1119,7 @@ const AdminCommunication = () => {
                                 disabled={deletingNoticeId !== null}
                                 title="Delete"
                               >
-                                {deletingNoticeId === row.notice_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                {deletingNoticeId === row.notice_id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1212,6 +1218,7 @@ const AdminCommunication = () => {
                           <div>
                             <Label>Additional email addresses</Label>
                             <Textarea
+                              aria-label="Additional email addresses"
                               className="mt-1"
                               rows={3}
                               placeholder="one@example.com&#10;two@example.com"
@@ -1273,6 +1280,7 @@ const AdminCommunication = () => {
                     <div>
                       <Label>Subject</Label>
                       <Input
+                        aria-label="Subject"
                         value={draftSubject}
                         onChange={(e) => setDraftSubject(e.target.value)}
                         placeholder="Email subject"
@@ -1282,6 +1290,7 @@ const AdminCommunication = () => {
                     <div>
                       <Label>Body</Label>
                       <Textarea
+                        aria-label="Body"
                         value={draftBody}
                         onChange={(e) => setDraftBody(e.target.value)}
                         placeholder="Write your email…"

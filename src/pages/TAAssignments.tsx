@@ -874,11 +874,11 @@ export default function TAAssignments() {
 
               <div>
                 <Label>Expected Duty Hours</Label>
-                <Input value={expectedHours} onChange={(e) => setExpectedHours(e.target.value)} placeholder="e.g. 2.5" />
+                <Input aria-label="Expected Duty Hours" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value)} placeholder="e.g. 2.5" />
               </div>
               <div>
                 <Label>Allocation Notes</Label>
-                <Input value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)} placeholder="Optional instructions for TA" />
+                <Input aria-label="Allocation Notes" value={allocationNotes} onChange={(e) => setAllocationNotes(e.target.value)} placeholder="Optional instructions for TA" />
               </div>
               <div className="md:col-span-2">
                 <Button

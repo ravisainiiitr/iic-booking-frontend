@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/table";
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
+import { activateOnEnterOrSpace } from "@/components/dashboard/menuItemA11y";
 import { facultyDashboardMenuOrder, normalizeMenuLayout } from "@/components/dashboard/dashboardMenuLayout";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
@@ -341,6 +342,7 @@ const Dashboard = () => {
   /** Remount MemoryRouter when a menu item opens a new section. */
   const [workspaceEpoch, setWorkspaceEpoch] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const [brochureDialogOpen, setBrochureDialogOpen] = useState(false);
   const [urgentRequestsPendingCount, setUrgentRequestsPendingCount] = useState<number>(0);
   const [loadingUrgentCount, setLoadingUrgentCount] = useState(false);
@@ -1202,16 +1204,16 @@ const Dashboard = () => {
   const getStatusColor = (status: string) => {
     const statusLower = status.toLowerCase();
     const colors: Record<string, string> = {
-      pending: "bg-yellow-500",
+      pending: "bg-amber-700",
       booked: "bg-primary",
       confirmed: "bg-primary",
       approved: "bg-primary",
-      in_progress: "bg-green-500",
-      completed: "bg-gray-500",
-      cancelled: "bg-red-500",
-      rejected: "bg-red-500",
+      in_progress: "bg-green-700",
+      completed: "bg-gray-600",
+      cancelled: "bg-red-600",
+      rejected: "bg-red-600",
     };
-    return colors[statusLower] || "bg-gray-500";
+    return colors[statusLower] || "bg-gray-600";
   };
 
   const fetchPendingRatingBookings = async () => {
@@ -1410,6 +1412,7 @@ const Dashboard = () => {
   }
 
   const activeWorkspacePath = workspaceCurrentPath || workspacePath || "";
+  const activeMenuPath = workspacePath ? activeWorkspacePath : null;
   // These pages show their own title with Back beside it, so the workspace header row would repeat them.
   const workspacePageHasOwnTitleRow = /^\/(urgent-requests-wallet|my-urgent-requests)\/?([?#]|$)/.test(activeWorkspacePath);
   const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(activeWorkspacePath) || workspacePageHasOwnTitleRow;
@@ -1459,6 +1462,7 @@ const Dashboard = () => {
     {
       id: "browse_equipment",
       label: "Browse and Book Equipment",
+      path: "/equipments",
       visible: Boolean(!isLabInchargeUser),
       render: () => (
           <Card
@@ -1495,6 +1499,7 @@ const Dashboard = () => {
     {
       id: "operator_availability",
       label: "Intimate Unavailability",
+      path: "/leave-management",
       visible: Boolean(isLabInchargeUser),
       render: () => (
           <Card
@@ -1532,6 +1537,7 @@ const Dashboard = () => {
     {
       id: "leave_management",
       label: "Leave management",
+      path: "/oic-leave-management",
       visible: Boolean(canSeeOicLeaveManagement),
       render: () => (
           <Card
@@ -1569,6 +1575,7 @@ const Dashboard = () => {
     {
       id: "wallet_recharge_requests",
       label: "Wallet recharge requests",
+      path: "/admin-settings/wallet-recharge-requests",
       visible: Boolean((isAdmin || isDeptAdmin)),
       render: () => (
           <Card
@@ -1606,6 +1613,7 @@ const Dashboard = () => {
     {
       id: "wallet_payment_modes",
       label: "Wallet payment modes",
+      path: "/admin-settings/wallet-payment-modes",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -1643,6 +1651,7 @@ const Dashboard = () => {
     {
       id: "team_calendar",
       label: "Team calendar",
+      path: "/team-calendar",
       visible: Boolean((isAdmin || isDeptAdmin)),
       render: () => (
           <Card
@@ -1680,6 +1689,7 @@ const Dashboard = () => {
     {
       id: "view_bookings",
       label: "View Booking",
+      path: "/my-bookings",
       visible: Boolean(!isOperatorOrManager),
       render: () => (
           <Card
@@ -1709,6 +1719,7 @@ const Dashboard = () => {
     {
       id: "booking_templates",
       label: "Booking Templates",
+      path: "/booking-templates",
       visible: Boolean(!isOperatorOrManager),
       render: () => (
           <Card
@@ -1741,6 +1752,7 @@ const Dashboard = () => {
     {
       id: "view_results",
       label: "View results",
+      path: "/my-results",
       visible: Boolean(!isOperatorOrManager),
       render: () => (
           <Card
@@ -1775,6 +1787,7 @@ const Dashboard = () => {
     {
       id: "shared_with_me",
       label: "Shared with me",
+      path: "/shared-data",
       visible: Boolean(!isOperatorOrManager && canReceiveSharedData && !myResearchAvailable),
       render: () => (
           <Card
@@ -1804,6 +1817,7 @@ const Dashboard = () => {
     {
       id: "my_research",
       label: "My Research",
+      path: "/my-research",
       visible: Boolean(!isOperatorOrManager && myResearchAvailable),
       render: () => (
           <Card
@@ -1833,6 +1847,7 @@ const Dashboard = () => {
     {
       id: "my_trainings",
       label: "My Trainings",
+      path: "/my-trainings",
       visible: trainingMenu("my_trainings"),
       render: () => (
           <Card
@@ -1862,6 +1877,7 @@ const Dashboard = () => {
     {
       id: "urgent_booking_requests",
       label: "Urgent booking requests",
+      path: "/urgent-requests-wallet",
       visible: Boolean(showFacultyUrgentWalletCard),
       render: () => (
           <Card
@@ -1898,6 +1914,7 @@ const Dashboard = () => {
     {
       id: "urgent_booking_request",
       label: "Urgent booking request",
+      path: "/my-urgent-requests",
       visible: Boolean((userTypeStr === "student" || userTypeStr === "individual_student")),
       render: () => (
           <Card
@@ -1936,6 +1953,7 @@ const Dashboard = () => {
     {
       id: "proforma_invoice",
       label: "Proforma invoice",
+      path: "/proforma-invoice",
       visible: Boolean(!isOperatorOrManager),
       render: () => (
           <Card
@@ -1965,6 +1983,7 @@ const Dashboard = () => {
     {
       id: "wallet_management",
       label: "Wallet management",
+      path: "/wallet",
       visible: Boolean(!isOperatorOrManager && showWalletOption),
       render: () => (
           <Card
@@ -1996,6 +2015,7 @@ const Dashboard = () => {
     {
       id: "my_publications",
       label: "My publications",
+      path: "/my-publications",
       visible: Boolean((userTypeStr === "student" ||
             userTypeStr === "individual_student" ||
             userTypeStr === "faculty" ||
@@ -2033,6 +2053,7 @@ const Dashboard = () => {
     {
       id: "ta_reward_points",
       label: "TA reward points",
+      path: "/rewards",
       visible: Boolean(userTypeStr === "student"),
       render: () => (
           <Card
@@ -2062,6 +2083,7 @@ const Dashboard = () => {
     {
       id: "nomination_requests",
       label: "Nomination requests",
+      path: "/ta-nomination-call",
       visible: canSeeNominationRequestsCard,
       render: () => (
           <Card
@@ -2091,6 +2113,7 @@ const Dashboard = () => {
     {
       id: "training_workspace",
       label: "Training workspace",
+      path: "/training/oic",
       visible: trainingMenu("training_workspace"),
       render: () => (
           <Card
@@ -2120,6 +2143,7 @@ const Dashboard = () => {
     {
       id: "training_attendance",
       label: "Training attendance",
+      path: "/training/attendance",
       visible: trainingMenu("training_attendance"),
       render: () => (
           <Card
@@ -2149,6 +2173,7 @@ const Dashboard = () => {
     {
       id: "ta_duty_assignments",
       label: "TA duty assignments",
+      path: "/ta-assignments",
       visible: Boolean(canSeeTaDutyAssignmentsCard),
       render: () => (
           <Card
@@ -2180,6 +2205,7 @@ const Dashboard = () => {
     {
       id: "reports_statistics",
       label: "Reports & Statistics",
+      path: "/reports",
       visible: Boolean(!isLabInchargeUser),
       render: () => (
           <Card
@@ -2217,6 +2243,7 @@ const Dashboard = () => {
     {
       id: "user_guide",
       label: "User guide",
+      path: "/user-guide",
       visible: Boolean((userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
             userGuide),
       render: () => (
@@ -2255,6 +2282,7 @@ const Dashboard = () => {
     {
       id: "student_management",
       label: "Student management",
+      path: "/student-management",
       visible: Boolean(userTypeStr === "faculty"),
       render: () => (
           <Card
@@ -2289,6 +2317,7 @@ const Dashboard = () => {
     {
       id: "training_events",
       label: "Training & Demos",
+      path: "/training/nominations",
       visible: trainingMenu("training_events"),
       render: () => (
           <Card
@@ -2360,6 +2389,7 @@ const Dashboard = () => {
     {
       id: "support_tickets",
       label: "Support tickets",
+      path: "/tickets",
       visible: true,
       render: () => (
           <Card
@@ -2389,6 +2419,7 @@ const Dashboard = () => {
     {
       id: "booking_management",
       label: "View Booking",
+      path: "/booking-management",
       visible: Boolean((isOperatorOrManager || isDeptAdmin)),
       render: () => (
           <Card
@@ -2418,6 +2449,7 @@ const Dashboard = () => {
     {
       id: "urgent_requests",
       label: "Urgent booking",
+      path: "/urgent-requests",
       visible: Boolean(isOperatorOrManager && !isLabInchargeUser),
       render: () => (
           <Card
@@ -2454,6 +2486,7 @@ const Dashboard = () => {
     {
       id: "repeat_sample_requests",
       label: "Repeat samples",
+      path: "/repeat-sample-requests",
       visible: Boolean(isOicUser || isAdmin),
       render: () => (
           <Card
@@ -2488,6 +2521,7 @@ const Dashboard = () => {
     {
       id: "notice_board_requests",
       label: "Notice board requests",
+      path: "/notice-board-requests",
       visible: Boolean((isOicUser || isAdmin)),
       render: () => (
           <Card
@@ -2517,6 +2551,7 @@ const Dashboard = () => {
     {
       id: "publication_claims",
       label: "Publication claims",
+      path: "/publication-claims",
       visible: Boolean((isAdmin || isOicUser || (isFacultyUser && !isInternalFacultyUser))),
       render: () => (
           <Card
@@ -2556,6 +2591,7 @@ const Dashboard = () => {
     {
       id: "ta_nomination_call",
       label: "TA nomination call",
+      path: "/ta-nomination-call",
       visible: Boolean(canSeeOicTaNomination),
       render: () => (
           <Card
@@ -2585,6 +2621,7 @@ const Dashboard = () => {
     {
       id: "reward_config",
       label: "Reward config",
+      path: "/admin-settings/rewards",
       visible: Boolean(canSeeOicRewardConfig),
       render: () => (
           <Card
@@ -2617,6 +2654,7 @@ const Dashboard = () => {
     {
       id: "accessories",
       label: "Accessories",
+      path: "/oic/accessories",
       visible: Boolean((isAdmin || isOicUser)),
       render: () => (
           <Card
@@ -2646,6 +2684,7 @@ const Dashboard = () => {
     {
       id: "3d_print_materials",
       label: "3D print materials",
+      path: "/oic/print-materials",
       visible: Boolean(isAdmin || (isOicUser && oicHasPrint3dEquipment)),
       render: () => (
           <Card
@@ -2675,6 +2714,7 @@ const Dashboard = () => {
     {
       id: "equipment_settings",
       label: "Equipment Booking Configuration",
+      path: "/oic/equipment-settings",
       visible: Boolean(isAdmin || isOicUser),
       render: () => (
           <Card
@@ -2704,6 +2744,7 @@ const Dashboard = () => {
     {
       id: "multi_mode_equipment",
       label: "Multi-mode equipment",
+      path: "/oic/multi-mode",
       visible: Boolean(canSeeOicMultiMode),
       render: () => (
           <Card
@@ -2733,6 +2774,7 @@ const Dashboard = () => {
     {
       id: "booking_attempt_log",
       label: "Booking attempt log",
+      path: "/booking-attempt-logs",
       visible: Boolean(canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser)),
       render: () => (
           <Card
@@ -2762,6 +2804,7 @@ const Dashboard = () => {
     {
       id: "external_user_management",
       label: "External user management",
+      path: "/manage/external-user-management",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -2793,6 +2836,7 @@ const Dashboard = () => {
     {
       id: "external_organization_verification",
       label: "External organization verification",
+      path: "/manage/external-user-management",
       visible: Boolean(canVerifyExternalOrgs && !isAdmin),
       render: () => (
           <Card
@@ -2824,6 +2868,7 @@ const Dashboard = () => {
     {
       id: "department_administration",
       label: "Department administration",
+      path: isAdmin ? "/admin/department-administration" : "/manage/department-administration",
       visible: Boolean(canManageDeptRbac),
       render: () => (
           <Card
@@ -2862,6 +2907,7 @@ const Dashboard = () => {
     {
       id: "organization_users",
       label: "Organization users",
+      path: "/organization/users",
       visible: Boolean(isOrgAdmin),
       render: () => (
           <Card
@@ -2893,6 +2939,7 @@ const Dashboard = () => {
     {
       id: "equipment_waitlist",
       label: "Equipment waitlist",
+      path: "/equipment-waitlist",
       visible: Boolean(canAccessBookingAttemptLog && (!showsLabStyleDashboard || isOicUser)),
       render: () => (
           <Card
@@ -2922,6 +2969,7 @@ const Dashboard = () => {
     {
       id: "equipment_lifecycle_expenses",
       label: "Equipment lifecycle & expenses",
+      path: "/equipment-lifecycle",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -2951,6 +2999,7 @@ const Dashboard = () => {
     {
       id: "procurement_workflow",
       label: "Procurement workflow",
+      path: "/procurement-workflow",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -2980,6 +3029,7 @@ const Dashboard = () => {
     {
       id: "inventory_management",
       label: "Inventory management",
+      path: "/inventory-management",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3009,6 +3059,7 @@ const Dashboard = () => {
     {
       id: "remote_analysis",
       label: "Remote analysis",
+      path: "/remote-analysis",
       visible: Boolean((isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage"))),
       render: () => (
           <Card
@@ -3060,6 +3111,7 @@ const Dashboard = () => {
     {
       id: "department_sync_agents",
       label: "Department sync agents",
+      path: "/department-sync",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3089,6 +3141,7 @@ const Dashboard = () => {
     {
       id: "laboratory_infrastructure",
       label: "Laboratory infrastructure",
+      path: "/laboratory-infrastructure",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3126,6 +3179,7 @@ const Dashboard = () => {
     {
       id: "acceptance_test_dashboard",
       label: "Acceptance test dashboard",
+      path: "/test-dashboard",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3228,6 +3282,7 @@ const Dashboard = () => {
     {
       id: "content_management",
       label: "Content management",
+      path: "/content-management",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3257,6 +3312,7 @@ const Dashboard = () => {
     {
       id: "support_tickets_2",
       label: "Support tickets",
+      path: "/admin-settings/support",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3286,6 +3342,7 @@ const Dashboard = () => {
     {
       id: "experience_ratings",
       label: "Experience ratings",
+      path: "/admin-settings/feedback",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3315,6 +3372,7 @@ const Dashboard = () => {
     {
       id: "admin_settings",
       label: "Admin settings",
+      path: "/admin-settings",
       visible: Boolean(canSeeAdminSettingsCard),
       render: () => (
           <Card
@@ -3344,6 +3402,7 @@ const Dashboard = () => {
     {
       id: "calendar_colors",
       label: "Calendar colors",
+      path: "/calendar-colors",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3373,6 +3432,7 @@ const Dashboard = () => {
     {
       id: "legacy_user_sync",
       label: "Legacy user sync",
+      path: "/admin/legacy-user-sync",
       visible: Boolean(isAdmin),
       render: () => (
           <Card
@@ -3420,8 +3480,12 @@ const Dashboard = () => {
         <>
         <div className="dashboard-uniform-cards flex flex-col gap-2">
           <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith("/admin-settings/wallet-recharge-requests") ? "page" : undefined}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-amber-200 dark:hover:border-amber-800 h-full"
             onClick={() => openWorkspace("/admin-settings/wallet-recharge-requests")}
+            onKeyDown={activateOnEnterOrSpace}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -3445,8 +3509,12 @@ const Dashboard = () => {
           </Card>
 
           <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith("/my-bookings") ? "page" : undefined}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
             onClick={() => openWorkspace("/my-bookings")}
+            onKeyDown={activateOnEnterOrSpace}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -3472,9 +3540,10 @@ const Dashboard = () => {
           <Card
             role="button"
             tabIndex={0}
+            aria-current={activeMenuPath?.startsWith("/reports") ? "page" : undefined}
             className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
             onClick={() => { openWorkspace("/reports"); }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkspace("/reports"); } }}
+            onKeyDown={activateOnEnterOrSpace}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
@@ -3508,6 +3577,7 @@ const Dashboard = () => {
           defaultOrder={dashboardMenuDefaultOrder}
           layout={dashboardMenuLayout}
           canCustomize={canCustomizeDashboardMenu}
+          activePath={activeMenuPath}
           onSaveLayout={saveDashboardMenuLayout}
           footer={downloadBrochureButton}
         />
@@ -3519,7 +3589,11 @@ const Dashboard = () => {
     <div className="dashboard-page page-shell">
       <DashboardHeader />
 
-      <main className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-5 sm:px-6 lg:px-8">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-5 focus:outline-none sm:px-6 lg:px-8"
+      >
         {isAdmin || isAccountsInChargeUser ? (
           <WalletFundReceiptFollowUpAlert
             onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
@@ -3605,7 +3679,7 @@ const Dashboard = () => {
                     <Building2 className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Department</dt>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/75 leading-none">Department</dt>
                     <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.department_name || undefined}>
                       {user?.department_name || "—"}
                     </dd>
@@ -3617,7 +3691,7 @@ const Dashboard = () => {
                       <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Enrollment Number</dt>
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/75 leading-none">Enrollment Number</dt>
                       <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
@@ -3630,7 +3704,7 @@ const Dashboard = () => {
                       <IdCard className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Employee Number</dt>
+                      <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/75 leading-none">Employee Number</dt>
                       <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.emp_id || undefined}>
                         {user?.emp_id || "—"}
                       </dd>
@@ -3642,7 +3716,7 @@ const Dashboard = () => {
                     <Phone className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Mobile</dt>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/75 leading-none">Mobile</dt>
                     <dd
                       className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]"
                       title={user?.phone_number || user?.secondary_phone_number || undefined}
@@ -3656,7 +3730,7 @@ const Dashboard = () => {
                     <Mail className="h-4 w-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/60 leading-none">Email</dt>
+                    <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-white/75 leading-none">Email</dt>
                     <dd className="mt-1 text-sm font-semibold leading-snug text-white sm:text-[15px] [overflow-wrap:anywhere]" title={user?.email || undefined}>
                       {user?.email || "—"}
                     </dd>
@@ -3719,9 +3793,12 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-3 items-start">
           <div className="lg:hidden sticky top-16 z-30 -mx-1 mb-2">
             <Button
+              ref={mobileMenuButtonRef}
               type="button"
               variant="outline"
               className="w-full min-h-11 justify-start gap-2 shadow-sm"
+              aria-haspopup="dialog"
+              aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen(true)}
             >
               <Menu className="h-4 w-4 shrink-0" aria-hidden />
@@ -3733,8 +3810,10 @@ const Dashboard = () => {
             <div className="sticky top-6 space-y-2">
               <Card className="overflow-hidden border-0 shadow-sm ring-1 ring-border/50">
                 <div className="h-0.5 w-full bg-gradient-to-r from-primary to-accent" />
-                <CardContent className="space-y-1.5 px-2.5 pb-3 pt-3 dashboard-menu-nav">
+                <CardContent className="px-2.5 pb-3 pt-3">
+                  <nav aria-label="Dashboard menu" className="dashboard-menu-nav space-y-1.5">
         {renderDashboardMenu()}
+                  </nav>
                 </CardContent>
               </Card>
             </div>
@@ -3744,12 +3823,17 @@ const Dashboard = () => {
             <SheetContent
               side="left"
               className="flex w-[min(100vw-1.5rem,20rem)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-sm"
+              onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                mobileMenuButtonRef.current?.focus();
+              }}
             >
               <SheetHeader className="sr-only">
                 <SheetTitle>Dashboard menu</SheetTitle>
                 <SheetDescription>Dashboard navigation</SheetDescription>
               </SheetHeader>
-              <div
+              <nav
+                aria-label="Dashboard menu"
                 className="dashboard-menu-nav space-y-1.5 px-2.5 pb-8 pt-3"
                 onClickCapture={(e) => {
                   const t = e.target as HTMLElement | null;
@@ -3760,7 +3844,7 @@ const Dashboard = () => {
                 }}
               >
         {renderDashboardMenu()}
-              </div>
+              </nav>
             </SheetContent>
           </Sheet>
 
@@ -4609,15 +4693,25 @@ const Dashboard = () => {
                       {upcomingBookings.map((booking) => (
                         <li
                           key={booking.booking_id}
-                          className="group flex cursor-pointer transition-colors hover:bg-muted/40"
+                          className="group relative flex cursor-pointer transition-colors hover:bg-muted/40"
                           onClick={() => navigate(`/my-bookings?booking=${encodeURIComponent(getBookingKey(booking))}`)}
                         >
                           <div className={`w-1 shrink-0 self-stretch ${getStatusColor(booking.status)} opacity-80`} />
                           <div className="flex-1 min-w-0 py-4 px-5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="font-semibold text-foreground truncate">
-                                  {booking.equipment_name}
+                                <p className="font-semibold text-foreground">
+                                  {/* Stretched over the row so the whole row stays clickable with one tab stop. */}
+                                  <button
+                                    type="button"
+                                    className="block w-full truncate text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/my-bookings?booking=${encodeURIComponent(getBookingKey(booking))}`);
+                                    }}
+                                  >
+                                    {booking.equipment_name}
+                                  </button>
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">{booking.equipment_code}</p>
                               </div>
