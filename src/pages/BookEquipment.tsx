@@ -172,6 +172,38 @@ import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { readStashedRebookPrefill, sanitizeRebookInputValues, type RebookPrefill } from "@/lib/rebookPrefill";
 import { takeBookingAssistantPrefill } from "@/lib/bookingAssistantPrefill";
 import { hasIncompleteOptionalEditableParams } from "@/lib/bookingInputValues";
+import {
+  bookingDraftAllowed,
+  clearBookingDraft,
+  draftInputsForFields,
+  draftMatchesDefaults,
+  loadBookingDraft,
+  saveBookingDraft,
+  type BookingDraft,
+} from "@/lib/bookingDraft";
+import { droppedSlotsNotice, partitionSelectionAfterRefresh } from "@/lib/bookingFailure";
+import { bookingWalletStatus, formatRupees, insufficientFundsMessage, type EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
+import { saveReturnToBooking } from "@/lib/rechargeReturn";
+import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
+import { friendlyChargeError } from "@/lib/chargeErrorText";
+import { quotaBlockReason, quotaReferenceDate, quotaSummaryText, type MyBookingQuota } from "@/lib/bookingQuota";
+import {
+  WAITLIST_FOLLOW_UP,
+  WAITLIST_FULL_MESSAGE,
+  isWaitlistedResponse,
+  waitlistPositionFrom,
+  waitlistQueueMessage,
+} from "@/lib/waitlistMessage";
+import { shortSlotReason, slotAccessibleLabel, unavailableBookingSlotReason } from "@/lib/slotReason";
+import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator";
+import { SlotOpeningCountdown } from "@/components/booking/SlotOpeningCountdown";
+import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
+import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
+import { MissingFieldsHint } from "@/components/booking/MissingFieldsHint";
+import { SlotReasonPopover, type SlotReasonTarget } from "@/components/booking/SlotReasonPopover";
+import { RestoredDraftNotice } from "@/components/booking/RestoredDraftNotice";
+import { ChargeErrorNotice } from "@/components/booking/ChargeErrorNotice";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
@@ -365,100 +397,6 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
-}
-
-/** Tooltip text for non-bookable Step 3 booking grid cells. */
-function unavailableBookingSlotReason(opts: {
-  slotExists: boolean;
-  isDisabled: boolean;
-  isSelected: boolean;
-  isPast: boolean;
-  considerBooked: boolean;
-  holidayName?: string;
-  isSaturdayCol: boolean;
-  isSundayCol: boolean;
-  slotStatusUpper: string;
-  slotStatusLabel: string;
-  blockedLabel?: string | null;
-  bookingId?: number | string | null;
-  deptBlockedForUser: boolean;
-  statusDisplay?: string | null;
-  notConsecutive: boolean;
-  limitReached: boolean;
-  wouldExceedLimit: boolean;
-  chargeNotCalculated: boolean;
-  isAdminOrOic: boolean;
-}): string | null {
-  const {
-    slotExists,
-    isDisabled,
-    isSelected,
-    isPast,
-    considerBooked,
-    holidayName,
-    isSaturdayCol,
-    isSundayCol,
-    slotStatusUpper,
-    slotStatusLabel,
-    blockedLabel,
-    bookingId,
-    deptBlockedForUser,
-    statusDisplay,
-    notConsecutive,
-    limitReached,
-    wouldExceedLimit,
-    chargeNotCalculated,
-    isAdminOrOic,
-  } = opts;
-  if (!isDisabled || isSelected) return null;
-  if (!slotExists) {
-    if (holidayName) return `Holiday (${holidayName}). This day has no bookable slots.`;
-    if (isSaturdayCol) return "Saturday — no booking slots on this day.";
-    if (isSundayCol) return "Sunday — no booking slots on this day.";
-    return "This slot is not available for booking.";
-  }
-  if (holidayName && slotStatusUpper === "NOT_AVAILABLE") {
-    return `Holiday (${holidayName}). This slot is not available for booking.`;
-  }
-  if (isPast && !isAdminOrOic) {
-    return "This slot time has expired and is no longer available for booking.";
-  }
-  if (considerBooked) {
-    return bookingId
-      ? `This slot is already booked (#${bookingId}).`
-      : "This slot is already booked.";
-  }
-  if (deptBlockedForUser) {
-    return statusDisplay || "This slot is not available for your department.";
-  }
-  if (slotStatusUpper === "BLOCKED") {
-    return blockedLabel
-      ? `Blocked: ${blockedLabel}`
-      : "This slot is blocked and cannot be booked.";
-  }
-  if (slotStatusUpper === "UNDER_MAINTENANCE") {
-    return "Equipment is under maintenance for this slot.";
-  }
-  if (slotStatusUpper === "OPERATOR_ABSENT") {
-    return "Operator is absent for this slot.";
-  }
-  if (slotStatusUpper === "NOT_AVAILABLE") {
-    if (isSaturdayCol || isSundayCol) return "Weekend — this slot is not available for booking.";
-    return slotStatusLabel || "This slot is marked as Not Available.";
-  }
-  if (chargeNotCalculated) {
-    return "Calculate charges before selecting slots.";
-  }
-  if (notConsecutive) {
-    return "Please select consecutive slots only (immediately before or after your current selection).";
-  }
-  if (limitReached || wouldExceedLimit) {
-    return "You have reached the maximum allowed time for this booking.";
-  }
-  if (slotStatusUpper && slotStatusUpper !== "AVAILABLE") {
-    return slotStatusLabel || `This slot is not bookable (${slotStatusUpper}).`;
-  }
-  return "This slot is not available for booking.";
 }
 
 /** Hover lines for booked slots on Change slot status week view (staff). */
@@ -1194,12 +1132,19 @@ const BookEquipment = () => {
   } | null>(null);
   const [adminBookForUserInfoLoading, setAdminBookForUserInfoLoading] = useState(false);
   const [adminBookForUserInfoError, setAdminBookForUserInfoError] = useState<string | null>(null);
-  const [equipmentDeptWalletBalance, setEquipmentDeptWalletBalance] = useState<{
-    balance: string;
-    is_zero: boolean;
-    has_wallet: boolean;
-    department_id: number | null;
-  } | null>(null);
+  const [equipmentDeptWalletBalance, setEquipmentDeptWalletBalance] = useState<EquipmentWalletBalance | null>(null);
+  const [walletBalanceRefreshTick, setWalletBalanceRefreshTick] = useState(0);
+  const [bookingQuota, setBookingQuota] = useState<MyBookingQuota | null>(null);
+  const [quotaRefreshTick, setQuotaRefreshTick] = useState(0);
+  const [restoredDraft, setRestoredDraft] = useState<BookingDraft | null>(null);
+  /** Slots that were in the user's selection but got booked by someone else during a failed submit. */
+  const [takenSlotIds, setTakenSlotIds] = useState<Set<number>>(() => new Set());
+  const [slotReasonTarget, setSlotReasonTarget] = useState<SlotReasonTarget | null>(null);
+  /** Raw charge-calculation error (shown in plain language instead of "Coming Soon"). */
+  const [chargeErrorRaw, setChargeErrorRaw] = useState<{ message: string; network: boolean } | null>(null);
+  /** Phone layout: which day of the week the slot grid shows. */
+  const [mobileSlotDayOffset, setMobileSlotDayOffset] = useState<number | null>(null);
+  const isMobileViewport = useIsMobile();
   const [usersList, setUsersList] = useState<Array<{ id: number; name?: string; email?: string; user_type?: string }>>([]);
   const [adminUserTypeFilter, setAdminUserTypeFilter] = useState<string>(USER_TYPE_FILTER_ALL);
   const [userComboboxOpen, setUserComboboxOpen] = useState(false);
@@ -1524,6 +1469,8 @@ const BookEquipment = () => {
     bookingDisplayId?: string;
     /** When true, show stronger copy to complete remaining optional (editable) parameters. */
     promptCompleteOptionalParams?: boolean;
+    /** Failure only: the form was kept so the user can fix and retry. */
+    formKept?: boolean;
   }>({ open: false, success: false, variant: "failure", message: "" });
 
   /** Equipment Group: alternatives offered after a slot-unavailable failure (409 GROUP_ALTERNATIVES_AVAILABLE). */
@@ -1682,6 +1629,63 @@ const BookEquipment = () => {
   const groupAlternativeSearchWithoutSlots =
     groupAlternativeOption && !hasBookableSlotInSelectedWeek && selectedSlots.length === 0;
   const canSubmitWithoutSlots = waitlistIntentEffective || groupAlternativeSearchWithoutSlots;
+
+  const bookingDebitAmount = calculatedCharge
+    ? Number(calculatedCharge.reward?.final_payable ?? calculatedCharge.total_charge)
+    : null;
+  const walletStatus = useMemo(
+    () => bookingWalletStatus(equipmentDeptWalletBalance, Number.isFinite(bookingDebitAmount) ? bookingDebitAmount : null),
+    [equipmentDeptWalletBalance, bookingDebitAmount],
+  );
+  const walletLinkRequired = walletStatus.kind === "needs_link" || walletStatus.kind === "link_pending";
+  const todayIso = format(new Date(), "yyyy-MM-dd");
+  const quotaSummary = quotaSummaryText(bookingQuota, todayIso);
+  const quotaBlock = repeatSourceBooking
+    ? null
+    : quotaBlockReason(bookingQuota, calculatedCharge?.total_time_minutes ?? null, todayIso);
+  const missingStep1Fields = useMemo(
+    () =>
+      missingRequiredFields(
+        equipmentDetail?.input_fields as Array<{ field_key?: string; field_label?: string; is_required?: boolean }> | undefined,
+        inputFieldValues,
+        calculateHiddenFieldKeys,
+      ),
+    [equipmentDetail?.input_fields, inputFieldValues, calculateHiddenFieldKeys],
+  );
+
+  const isRegularBookingFlow = !isCalculateChargesFlow && !isTemplateFlow && !isProformaFlow && adminManageMode !== "status";
+  const bookingStepIndex = !chargeCalculated
+    ? loadingCharge
+      ? 1
+      : 0
+    : selectedSlots.length > 0 || (canSubmitWithoutSlots && !hasBookableSlotInSelectedWeek)
+      ? 3
+      : 2;
+
+  const bookingReturnPath = () => {
+    const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+    return equipmentId != null ? `/book-equipment?equipment_id=${equipmentId}` : null;
+  };
+
+  const goToWalletRecharge = (amount?: number) => {
+    const params = new URLSearchParams({ recharge: "1" });
+    const deptId = equipmentDeptWalletBalance?.department_id;
+    if (deptId != null) params.set("department_id", String(deptId));
+    if (amount != null && amount > 0) params.set("amount", String(Math.ceil(amount)));
+    const path = bookingReturnPath();
+    if (path) {
+      saveReturnToBooking({ path, equipmentName: equipmentDetail?.name || selectedEquipment?.name || null, reason: "recharge" });
+    }
+    navigate(`/wallet?${params.toString()}`);
+  };
+
+  const goToWalletLink = () => {
+    const path = bookingReturnPath();
+    if (path) {
+      saveReturnToBooking({ path, equipmentName: equipmentDetail?.name || selectedEquipment?.name || null, reason: "wallet_link" });
+    }
+    navigate("/wallet");
+  };
   const repeatBookableFromMs = useMemo(() => {
     const iso = repeatSourceBooking?.bookable_from;
     if (!iso) return null;
@@ -1941,12 +1945,7 @@ const BookEquipment = () => {
       const res = await apiClient.getEquipmentDepartmentWalletBalance(equipmentId, userId);
       if (cancelled) return;
       if (res.data) {
-        setEquipmentDeptWalletBalance({
-          balance: res.data.balance,
-          is_zero: res.data.is_zero,
-          has_wallet: res.data.has_wallet,
-          department_id: res.data.department_id ?? null,
-        });
+        setEquipmentDeptWalletBalance({ ...res.data, department_id: res.data.department_id ?? null });
       } else {
         setEquipmentDeptWalletBalance(null);
       }
@@ -1954,7 +1953,55 @@ const BookEquipment = () => {
     return () => {
       cancelled = true;
     };
-  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType, isCalculateChargesFlow]);
+  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, adminManageMode, adminBookForUserId, userType, isCalculateChargesFlow, walletBalanceRefreshTick]);
+
+  // Recharge or wallet-link approval may happen in another tab: re-check the wallet when the user comes back.
+  useEffect(() => {
+    let last = Date.now();
+    const onFocus = () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 30_000) return;
+      last = Date.now();
+      setWalletBalanceRefreshTick((t) => t + 1);
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
+
+  // Weekly / monthly minutes quota for the visible week (end users, or staff booking for a selected user).
+  const quotaWeekKey = format(startOfWeek(currentWeekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  useEffect(() => {
+    const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
+    const staffBookingForUser = adminManageMode === "book" && !!adminBookForUserId;
+    const quotaApplicable =
+      !!equipmentId &&
+      !!apiClient.getToken() &&
+      !isCalculateChargesFlow &&
+      !isTemplateFlow &&
+      !isProformaFlow &&
+      !repeatSourceBooking &&
+      (isEndUserBookingType(userType) || staffBookingForUser);
+    if (!quotaApplicable) {
+      setBookingQuota(null);
+      return;
+    }
+    let cancelled = false;
+    void apiClient
+      .getMyBookingQuota(equipmentId!, quotaReferenceDate(startOfWeek(currentWeekStart, { weekStartsOn: 1 })), staffBookingForUser ? adminBookForUserId : undefined)
+      .then((res) => {
+        if (!cancelled) setBookingQuota(res.data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBookingQuota(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [equipmentDetail?.equipment_id, selectedEquipment?.id, quotaWeekKey, userType, adminManageMode, adminBookForUserId, isCalculateChargesFlow, isTemplateFlow, isProformaFlow, !!repeatSourceBooking, quotaRefreshTick]);
 
   useEffect(() => {
     const actor = String(userType ?? "").toLowerCase();
@@ -2899,6 +2946,107 @@ const BookEquipment = () => {
     equipmentDetail?.equipment_id,
   ]);
 
+  // Unsaved-booking draft (per user + equipment, this device). Restored once after the equipment's
+  // defaults are applied; never for prefilled flows (template, repeat, rebook, assistant…) or staff.
+  const draftEquipmentId = equipmentDetail?.equipment_id != null ? Number(equipmentDetail.equipment_id) : null;
+  const draftEnabled =
+    !!userId &&
+    draftEquipmentId != null &&
+    Number(selectedEquipment?.id) === draftEquipmentId &&
+    !isTemplateFlow &&
+    !isCalculateChargesFlow &&
+    !isProformaFlow &&
+    !isEmbedFlow &&
+    isEndUserBookingType(userType) &&
+    bookingDraftAllowed(searchParams, { bookingForAnotherUser: !!adminBookForUserId, staff: false });
+  const draftCheckedKeyRef = useRef<string | null>(null);
+  const draftBaselineRef = useRef<Record<string, unknown> | null>(null);
+  const captureDraftBaselineRef = useRef(false);
+
+  useEffect(() => {
+    if (!draftEnabled || loadingEquipmentDetail || !equipmentDetail || !userId || draftEquipmentId == null) return;
+    const key = `${userId}:${draftEquipmentId}`;
+    if (draftCheckedKeyRef.current === key) return;
+    draftCheckedKeyRef.current = key;
+    draftBaselineRef.current = { ...inputFieldValues };
+    const draft = loadBookingDraft(userId, draftEquipmentId);
+    if (!draft) {
+      setRestoredDraft(null);
+      return;
+    }
+    const fieldKeys = (equipmentDetail.input_fields ?? []).map((f: any) => String(f.field_key || "")).filter(Boolean);
+    const restoredInputs = draftInputsForFields(draft, fieldKeys);
+    setInputFieldValues((prev) => ({ ...prev, ...(restoredInputs as Record<string, string | boolean | string[] | number>) }));
+    if (sampleSetsAllowedFor(equipmentDetail) && draft.sampleSets.length > 0) {
+      setSampleSets(draft.sampleSets as SampleSetValues[]);
+    }
+    const o = draft.options;
+    if (typeof o.auto_slot_selection === "boolean") setAutoSlotSelection(o.auto_slot_selection);
+    if (typeof o.book_any_available_slots === "boolean") setBookAnyAvailableSlots(o.book_any_available_slots);
+    if (typeof o.book_even_if_single_slot_available === "boolean") setBookEvenIfSingleSlotAvailable(o.book_even_if_single_slot_available);
+    if (typeof o.waitlist_on_failure === "boolean") setWaitlistIntentMode(o.waitlist_on_failure);
+    if (typeof o.auto_allocate_alternative === "boolean") setAutoAllocateAlternative(o.auto_allocate_alternative);
+    if (typeof o.sample_return_after_analysis === "boolean") setSampleReturnAfterAnalysis(o.sample_return_after_analysis);
+    if (typeof o.atmosphere_sensitive_sample === "boolean") setAtmosphereSensitiveSample(o.atmosphere_sensitive_sample);
+    if (o.research_workspace && !researchWorkspaceFromUrl) setResearchWorkspaceId(o.research_workspace);
+    setRestoredDraft(draft);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftEnabled, loadingEquipmentDetail, equipmentDetail?.equipment_id, userId, draftEquipmentId]);
+
+  useEffect(() => {
+    if (!draftEnabled || !userId || draftEquipmentId == null) return;
+    if (draftCheckedKeyRef.current !== `${userId}:${draftEquipmentId}`) return;
+    if (captureDraftBaselineRef.current) {
+      captureDraftBaselineRef.current = false;
+      draftBaselineRef.current = { ...inputFieldValues };
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const content = {
+        inputValues: { ...inputFieldValues },
+        sampleSets: sampleSets as Array<Record<string, string | boolean | string[] | number | string[][]>>,
+        options: {
+          auto_slot_selection: autoSlotSelection,
+          book_any_available_slots: bookAnyAvailableSlots,
+          book_even_if_single_slot_available: bookEvenIfSingleSlotAvailable,
+          waitlist_on_failure: waitlistIntentMode,
+          auto_allocate_alternative: autoAllocateAlternative,
+          sample_return_after_analysis: sampleReturnAfterAnalysis,
+          atmosphere_sensitive_sample: atmosphereSensitiveSample,
+          research_workspace: researchWorkspaceId,
+        },
+      };
+      const baseline = (draftBaselineRef.current ?? {}) as Record<string, string | boolean | string[] | number>;
+      if (draftMatchesDefaults(content, baseline)) {
+        clearBookingDraft(userId, draftEquipmentId);
+      } else {
+        saveBookingDraft(userId, draftEquipmentId, content);
+      }
+    }, 600);
+    return () => window.clearTimeout(handle);
+  }, [
+    draftEnabled,
+    userId,
+    draftEquipmentId,
+    inputFieldValues,
+    sampleSets,
+    autoSlotSelection,
+    bookAnyAvailableSlots,
+    bookEvenIfSingleSlotAvailable,
+    waitlistIntentMode,
+    autoAllocateAlternative,
+    sampleReturnAfterAnalysis,
+    atmosphereSensitiveSample,
+    researchWorkspaceId,
+  ]);
+
+  const discardRestoredDraft = () => {
+    if (userId && draftEquipmentId != null) clearBookingDraft(userId, draftEquipmentId);
+    setRestoredDraft(null);
+    resetBookingPageToDefaults();
+    toast.success("Draft discarded.");
+  };
+
   const handleEquipmentSelect = useCallback((equipmentId: number | string) => {
     lastInputFieldsUserTypeRef.current = "";
     fetchEquipmentDetail(equipmentId);
@@ -3734,7 +3882,7 @@ const BookEquipment = () => {
         setCalculatedCharge(null);
         setShowSlots(false);
         lastCalculatedValuesRef.current = currentValuesHash;
-        // Always surface errors for staff (Coming Soon UI is hidden for admin).
+        setChargeErrorRaw({ message: String(response.error), network: false });
         if (isAdminOrOIC() || isCalculateChargesFlow) {
           toast.error(response.error);
         }
@@ -3756,6 +3904,7 @@ const BookEquipment = () => {
         ) {
           const labels = abFields.map((f: any) => f.field_label || f.field_key).join(' and ');
           toast.error(`"${labels}" must be at least 1. Please update Step 1 and recalculate charge.`);
+          setChargeErrorRaw({ message: `"${labels}" must be at least 1. Please update Step 1.`, network: false });
           setChargeCalculationFailed(true);
           setChargeCalculated(false);
           setCalculatedCharge(null);
@@ -3780,6 +3929,7 @@ const BookEquipment = () => {
         setChargeCalculated(true);
         setShowSlots(!isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow);
         setChargeCalculationFailed(false); // Reset failed state on success
+        setChargeErrorRaw(null);
         // When charge is (re)calculated, deselect all slots and turn off auto-select
         const wasAutoSelectOn = autoSlotSelectionRef.current;
         setSelectedSlots([]);
@@ -3793,7 +3943,6 @@ const BookEquipment = () => {
       }
     } catch (error: any) {
       if (requestSeq !== chargeRequestSeqRef.current) return;
-      // Set failed state to show "coming soon" message
       setChargeCalculationFailed(true);
       setChargeCalculated(false);
       setCalculatedCharge(null);
@@ -3801,7 +3950,7 @@ const BookEquipment = () => {
       // Store the hash even on failure to prevent retrying with same values
       lastCalculatedValuesRef.current = currentValuesHash;
       offerAssistantHelpForError("Charge calculation failed", { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
-      // Don't show error toast, just show "coming soon" message
+      setChargeErrorRaw({ message: String(error?.message || ""), network: error instanceof TypeError });
     } finally {
       if (requestSeq === chargeRequestSeqRef.current) {
         setLoadingCharge(false);
@@ -4233,6 +4382,13 @@ const BookEquipment = () => {
     }
   }, [selectedEquipment, currentWeekStart, loadingSlots, lastFetchedWeek, allowUrgentWeekExtension, repeatSourceBooking?.extra_week_granted, repeatSourceBooking?.real_booking_id]);
 
+  // Next week's slots just opened: reload the window. Small random delay so open tabs don't all hit the API in the same second.
+  const handleSlotsOpened = useCallback(() => {
+    window.setTimeout(() => {
+      void fetchSlotsForWeek(true);
+    }, 500 + Math.floor(Math.random() * 3500));
+  }, [fetchSlotsForWeek]);
+
   // After changing slots in mode=status, switching to booking (mode=book or UI) must reload Step 3 slot data
   useEffect(() => {
     const prev = prevAdminManageModeRef.current;
@@ -4451,7 +4607,7 @@ const BookEquipment = () => {
     // 6. Not currently loading slots
     if (isTemplateFlow || !chargeCalculated || !showSlots || !autoSlotSelection || selectedSlots.length > 0 || 
         !equipmentDetail || !equipmentDetail.daily_slots || equipmentDetail.daily_slots.length === 0 || 
-        loadingSlots || !calculatedCharge || pendingPreselect) {
+        loadingSlots || !calculatedCharge || pendingPreselect || quotaBlock) {
       return;
     }
     
@@ -4645,7 +4801,7 @@ const BookEquipment = () => {
         `Please reduce the number of samples/inputs to reduce the required time.`
       );
     }
-  }, [isTemplateFlow, chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId, pendingPreselect]);
+  }, [isTemplateFlow, chargeCalculated, showSlots, autoSlotSelection, selectedSlots.length, equipmentDetail, calculatedCharge, loadingSlots, bookingAsExternalTarget, adminManageMode, adminBookForUserId, pendingPreselect, quotaBlock]);
 
   // Keep ref in sync so async charge recalculation can read current value
   useEffect(() => {
@@ -6036,8 +6192,13 @@ const BookEquipment = () => {
     return () => { cancelled = true; };
   }, [equipmentDetail?.input_fields, inputFieldValues]);
 
-  /** Reset booking page to default state (slots cleared, auto-select off, charge cleared, input fields to defaults, booking options unchecked). Calendar week is left unchanged (same as at time of confirming booking). Call after booking success or failure. */
+  /** Reset booking page to default state (slots cleared, auto-select off, charge cleared, input fields to defaults, booking options unchecked). Calendar week is left unchanged (same as at time of confirming booking). Call after a booking was made or queued; failures keep the form (keepFormAfterFailedBooking). */
   const resetBookingPageToDefaults = useCallback(() => {
+    if (userId && equipmentDetail?.equipment_id != null) clearBookingDraft(userId, equipmentDetail.equipment_id);
+    captureDraftBaselineRef.current = true;
+    setRestoredDraft(null);
+    setTakenSlotIds(new Set());
+    setSampleSets([]);
     setSelectedSlots([]);
     setAutoSlotSelection(false);
     setChargeCalculated(false);
@@ -6064,7 +6225,51 @@ const BookEquipment = () => {
       setInputFieldValues(initialValues);
       setIcpmsCoverageByFieldKey({});
     }
-  }, [equipmentDetail?.input_fields]);
+  }, [equipmentDetail?.input_fields, equipmentDetail?.equipment_id, userId]);
+
+  /**
+   * After a failed submit: keep inputs, sample sets and options; reload the week and drop (and mark)
+   * only the selected slots someone else took meanwhile.
+   */
+  const keepFormAfterFailedBooking = useCallback(async (): Promise<number> => {
+    const before = selectedSlots;
+    if (!selectedEquipment || before.length === 0) return 0;
+    const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
+    const res = await apiClient.getEquipmentSlots(
+      selectedEquipment.id,
+      format(weekStart, "yyyy-MM-dd"),
+      format(addDays(weekStart, 6), "yyyy-MM-dd"),
+      { urgentWeekExtension: allowUrgentWeekExtension },
+    );
+    const fresh = (res.data?.slots ?? null) as DailySlot[] | null;
+    if (!fresh) return 0;
+    setEquipmentDetail((prev) => (prev ? { ...prev, daily_slots: fresh } : prev));
+    const nowMs = Date.now();
+    const { keep, dropped } = partitionSelectionAfterRefresh(before, fresh, (s) => {
+      if (!isDailySlotSelectableForUserBooking(s)) return false;
+      if (isAdminOrOIC()) return true;
+      return !s.start_datetime || parseISO(s.start_datetime).getTime() >= nowMs;
+    });
+    if (dropped.length > 0) {
+      setSelectedSlots(keep as TimeSlot[]);
+      setTakenSlotIds(new Set(dropped.map((s) => s.slotData?.id ?? s.slotId).filter((id): id is number => typeof id === "number")));
+    }
+    return dropped.length;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlots, selectedEquipment, currentWeekStart, allowUrgentWeekExtension]);
+
+  useEffect(() => {
+    setMobileSlotDayOffset(null);
+  }, [currentWeekStart]);
+
+  // Phone grid shows one day: when slots get picked on another day (auto-select), jump to them.
+  useEffect(() => {
+    if (!isMobileViewport || selectedSlots.length === 0) return;
+    const visibleDay = addDays(currentWeekStart, mobileDayOffset);
+    if (selectedSlots.some((s) => isSameDay(s.date, visibleDay))) return;
+    setMobileSlotDayOffset(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlots, isMobileViewport]);
 
   const buildAttemptSnapshot = (): BookingAttemptSnapshot | null => {
     const eqId = equipmentDetail?.equipment_id;
@@ -6109,6 +6314,48 @@ const BookEquipment = () => {
     applyBookingTemplate(template, { resolvePreferredSlot: false });
     setPendingPreselect({ date: alternative.date, slotIds: alternative.slot_ids });
     toast.info(`Template "${template.name}" reloaded with ${alternative.label}. Check the details and click Book.`);
+  };
+
+  /**
+   * Failed or queued submit. Waitlisted: the request is recorded, so the form is reset like a success.
+   * Failed: the form stays as it was, minus slots that are no longer free.
+   */
+  const reportUnsuccessfulBooking = async (
+    errRes: { error?: string | null; waitlist_position?: number | null; waitlist_code?: string | null; waitlist_full?: boolean },
+    opts: { attempt: BookingAttemptSnapshot | null; slotAlternatives?: TemplateSlotAlternative[] | null } = { attempt: null },
+  ) => {
+    setAttemptSnapshot(opts.attempt);
+    if (opts.slotAlternatives !== undefined) setAttemptSlotAlternatives(opts.slotAlternatives);
+    setWalletBalanceRefreshTick((t) => t + 1);
+    setQuotaRefreshTick((t) => t + 1);
+    if (isWaitlistedResponse(errRes)) {
+      resetBookingPageToDefaults();
+      setBookingResultDialog({
+        open: true,
+        success: false,
+        variant: "waitlist",
+        message: waitlistQueueMessage(waitlistPositionFrom(errRes)),
+      });
+      return;
+    }
+    const raw = String(errRes.error || "Booking unsuccessful.");
+    if (selectedEquipment) {
+      offerAssistantHelpForError(raw, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
+    }
+    const message = errRes.waitlist_full ? `${raw} ${WAITLIST_FULL_MESSAGE}` : raw;
+    let dropped = 0;
+    try {
+      dropped = await keepFormAfterFailedBooking();
+    } catch {
+      dropped = 0;
+    }
+    setBookingResultDialog({
+      open: true,
+      success: false,
+      variant: "failure",
+      message: dropped > 0 ? `${message}\n\n${droppedSlotsNotice(dropped)}` : message,
+      formKept: true,
+    });
   };
 
   const handleBooking = async () => {
@@ -6179,9 +6426,13 @@ const BookEquipment = () => {
         });
         setRepeatSourceBooking(null);
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to create repeat booking");
-        resetBookingPageToDefaults();
-        setBookingResultDialog({ open: true, success: false, variant: "failure", message: e instanceof Error ? e.message : "Failed to create repeat booking" });
+        setBookingResultDialog({
+          open: true,
+          success: false,
+          variant: "failure",
+          message: e instanceof Error ? e.message : "Failed to create repeat booking",
+          formKept: true,
+        });
       } finally {
         setIsSubmittingBooking(false);
       }
@@ -6281,23 +6532,9 @@ const BookEquipment = () => {
           });
           return;
         }
-        const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string };
+        const errRes = res as { error?: string; waitlist_position?: number; waitlist_code?: string; waitlist_full?: boolean };
         if (res.error || errRes.waitlist_position != null || errRes.waitlist_code) {
-          const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
-          const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
-          const msg = waitlistLabel
-            ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}.`
-            : (errRes.error || "Booking unsuccessful.");
-          toast.error(msg);
-          if (!waitlistLabel && !backendSaysWaitlisted) offerAssistantHelpForError(msg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
-          resetBookingPageToDefaults();
-          setAttemptSnapshot(attemptForFollowUp);
-          setBookingResultDialog({
-            open: true,
-            success: false,
-            variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
-            message: msg,
-          });
+          await reportUnsuccessfulBooking(errRes, { attempt: attemptForFollowUp });
           return;
         }
         logBookingServerTimings(res);
@@ -6467,23 +6704,11 @@ const BookEquipment = () => {
           return;
         }
         if (res.error) {
-          const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
-          const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
-          const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
-          const msg = waitlistLabel
-            ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}. You will be notified by email about your queue status and booking confirmation/failure.`
-            : errRes.error;
-          toast.error(msg);
-          if (!waitlistLabel && !backendSaysWaitlisted) offerAssistantHelpForError(msg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
-          resetBookingPageToDefaults();
+          const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string; waitlist_full?: boolean };
           const failedBody = res.data as unknown as { slot_alternatives?: TemplateSlotAlternative[] } | undefined;
-          setAttemptSnapshot(attemptForFollowUp);
-          setAttemptSlotAlternatives(Array.isArray(failedBody?.slot_alternatives) ? failedBody.slot_alternatives : null);
-          setBookingResultDialog({
-            open: true,
-            success: false,
-            variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
-            message: msg,
+          await reportUnsuccessfulBooking(errRes, {
+            attempt: attemptForFollowUp,
+            slotAlternatives: Array.isArray(failedBody?.slot_alternatives) ? failedBody.slot_alternatives : null,
           });
           return;
         }
@@ -6714,10 +6939,7 @@ const BookEquipment = () => {
       });
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
-      toast.error(errMsg);
-      if (selectedEquipment) offerAssistantHelpForError(errMsg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
-      resetBookingPageToDefaults();
-      setBookingResultDialog({ open: true, success: false, variant: "failure", message: errMsg });
+      await reportUnsuccessfulBooking({ error: errMsg }, { attempt: null });
       // Failure is already logged server-side in submit_booking / book_equipment; do not call logBookingAttempt here to avoid duplicate entries.
       // No-slot log for internal users (urgent request eligibility)
       if (selectedEquipment && isInternalUser() && !isAdminUser()) {
@@ -6828,23 +7050,11 @@ const BookEquipment = () => {
         skip_group_alternatives: true,
       });
       setGroupAlternatives(null);
-      resetBookingPageToDefaults();
       if (res.error) {
-        const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string };
-        const waitlistLabel = errRes.waitlist_code || (errRes.waitlist_position != null ? `WL${errRes.waitlist_position}` : null);
-        const backendSaysWaitlisted = String(errRes.error || "").toLowerCase().includes("booking waitlisted");
-        const msg = waitlistLabel
-          ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}. You will be notified by email about your queue status and booking confirmation/failure.`
-          : errRes.error;
-        toast.error(msg);
-        setBookingResultDialog({
-          open: true,
-          success: false,
-          variant: (waitlistLabel || backendSaysWaitlisted) ? "waitlist" : "failure",
-          message: msg,
-        });
+        await reportUnsuccessfulBooking(res as { error: string; waitlist_position?: number; waitlist_code?: string; waitlist_full?: boolean });
         return;
       }
+      resetBookingPageToDefaults();
       const resData = res.data as unknown as { real_booking_id?: number; id?: number; virtual_booking_id?: string } | undefined;
       const viewQuery =
         (typeof resData?.virtual_booking_id === "string" && resData.virtual_booking_id.trim()) ||
@@ -6861,6 +7071,35 @@ const BookEquipment = () => {
       setGroupAltWaitlistBusy(false);
     }
   };
+
+  /** Phone grid: a day has a slot this user could pick. */
+  const dayHasSelectableSlot = (day: Date): boolean => {
+    const dateStr = format(day, "yyyy-MM-dd");
+    const nowMs = Date.now();
+    return (equipmentDetail?.daily_slots ?? []).some((s) => {
+      if (String(s.date || "").slice(0, 10) !== dateStr) return false;
+      if (String(s.status || "").toUpperCase() !== "AVAILABLE" || s.booking_id) return false;
+      if (!isAdminOrOIC() && !isDailySlotSelectableForUserBooking(s)) return false;
+      return !s.start_datetime || parseISO(s.start_datetime).getTime() >= nowMs;
+    });
+  };
+
+  const defaultMobileDayOffset = (() => {
+    const firstSelected = selectedSlots.find((s) => {
+      const off = Math.round((startOfDay(s.date).getTime() - startOfDay(currentWeekStart).getTime()) / 86_400_000);
+      return off >= 0 && off <= 6;
+    });
+    if (firstSelected) {
+      return Math.round((startOfDay(firstSelected.date).getTime() - startOfDay(currentWeekStart).getTime()) / 86_400_000);
+    }
+    const todayOffset = Math.round((startOfDay(new Date()).getTime() - startOfDay(currentWeekStart).getTime()) / 86_400_000);
+    const from = todayOffset >= 0 && todayOffset <= 6 ? todayOffset : 0;
+    for (let i = from; i <= 6; i++) {
+      if (dayHasSelectableSlot(addDays(currentWeekStart, i))) return i;
+    }
+    return from;
+  })();
+  const mobileDayOffset = mobileSlotDayOffset ?? defaultMobileDayOffset;
 
   const handleOpenGroupAlternativeForm = (alt: GroupAlternative) => {
     if (!groupAlternatives) return;
@@ -6948,7 +7187,7 @@ const BookEquipment = () => {
                 <EquipmentDepartmentLabel
                   name={(equipmentDetail as any)?.internal_department_name}
                 />
-                {equipmentDeptWalletBalance?.is_zero &&
+                {walletStatus.kind === "zero_balance" &&
                   isEndUserBookingType(userType) &&
                   !canAccessManageEquipmentModes() && (
                   <div className="inline-flex flex-wrap items-center gap-3">
@@ -6959,25 +7198,25 @@ const BookEquipment = () => {
                       type="button"
                       size="sm"
                       className="shrink-0 font-semibold"
-                      onClick={() => {
-                        const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
-                        const params = new URLSearchParams({ recharge: "1" });
-                        const deptId = equipmentDeptWalletBalance?.department_id;
-                        if (deptId != null) {
-                          params.set("department_id", String(deptId));
-                        }
-                        if (equipmentId != null) {
-                          sessionStorage.setItem(
-                            "returnToBookEquipment",
-                            `/book-equipment?equipment_id=${equipmentId}`,
-                          );
-                        }
-                        navigate(`/wallet?${params.toString()}`);
-                      }}
+                      onClick={() => goToWalletRecharge()}
                     >
                       <Wallet className="h-4 w-4 mr-2" />
                       Recharge Wallet
                     </Button>
+                  </div>
+                )}
+                {walletLinkRequired &&
+                  isEndUserBookingType(userType) &&
+                  !canAccessManageEquipmentModes() &&
+                  !isCalculateChargesFlow &&
+                  !isTemplateFlow &&
+                  !isProformaFlow && (
+                  <div className="basis-full">
+                    <WalletLinkBanner
+                      pending={walletStatus.kind === "link_pending"}
+                      supervisorName={walletStatus.kind === "link_pending" ? walletStatus.supervisorName : null}
+                      onLink={goToWalletLink}
+                    />
                   </div>
                 )}
                 {isEndUserBookingType(userType) && !canAccessManageEquipmentModes() && <MySpendingLimitNotice />}
@@ -8846,6 +9085,16 @@ const BookEquipment = () => {
                   />
                 )}
 
+                {isRegularBookingFlow && (
+                  <BookingStepIndicator current={bookingStepIndex} className="mb-3" />
+                )}
+                {restoredDraft && (
+                  <RestoredDraftNotice savedAt={restoredDraft.savedAt} onDiscard={discardRestoredDraft} />
+                )}
+                {isRegularBookingFlow && quotaSummary && (
+                  <QuotaRemainingNotice summary={quotaSummary} className="mb-3" />
+                )}
+
                 {/* Step 1: Input Fields Section */}
                 <Collapsible open={sampleInfoExpanded} onOpenChange={setSampleInfoExpanded} className="mb-3">
                   <div className="flex items-center justify-between gap-2 mb-2">
@@ -9429,7 +9678,7 @@ const BookEquipment = () => {
                             fieldType === 'ICPMS_STANDARD_COVERAGE' ? icpmsCoverageByFieldKey[field.field_key] : undefined;
                           
                           return (
-                            <div key={field.field_key} className="space-y-1.5">
+                            <div key={field.field_key} className="space-y-1.5" data-booking-field={field.field_key}>
                               <DynamicFieldRow
                                 fieldType={fieldType}
                                 label={field.field_label}
@@ -9589,21 +9838,45 @@ const BookEquipment = () => {
                     </div>
                   )}
                   
-                  {/* Charge calculation failed — show for everyone (staff previously had silent failures) */}
-                  {chargeCalculationFailed && !loadingCharge && (
-                    <div className="mt-3 p-4 bg-muted rounded-lg border-2 border-dashed text-center">
-                      <h3 className="text-base font-semibold mb-1">
-                        {isAdminOrOIC() ? "Charge calculation failed" : "Coming Soon"}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {!isAdminOrOIC()
-                          ? "Charge calculation is currently unavailable. Please check back later."
-                          : equipmentDetail?.profile_type === "PRINT_3D"
-                            ? "Could not calculate charges for this 3D print. Check that a user is selected and STL analysis completed, then try again."
-                            : "Could not calculate charges for the selected user. Check that the equipment has an active charge profile for this user's type, then try again."}
-                      </p>
-                    </div>
+                  {!chargeCalculated &&
+                    !loadingCharge &&
+                    !chargeCalculationFailed &&
+                    !repeatSourceBooking &&
+                    equipmentDetail?.profile_type !== "PRINT_3D" &&
+                    missingStep1Fields.length > 0 && (
+                    <MissingFieldsHint
+                      fields={missingStep1Fields}
+                      onFocusField={(key) => {
+                        setSampleInfoExpanded(true);
+                        window.requestAnimationFrame(() => focusBookingField(key));
+                      }}
+                    />
                   )}
+
+                  {chargeCalculationFailed && !loadingCharge && (() => {
+                    const friendly = friendlyChargeError(chargeErrorRaw?.message, { network: chargeErrorRaw?.network });
+                    const staffDetail =
+                      isAdminOrOIC() && friendly.kind === "no_profile"
+                        ? {
+                            ...friendly,
+                            title: "No charges set up for this user's category",
+                            detail:
+                              equipmentDetail?.profile_type === "PRINT_3D"
+                                ? "Check that a user is selected and STL analysis completed, then try again."
+                                : "Add an active charge profile for this user's type on the equipment, then try again.",
+                          }
+                        : friendly;
+                    return (
+                      <ChargeErrorNotice
+                        error={staffDetail}
+                        onRetry={() => {
+                          lastCalculatedValuesRef.current = "";
+                          setChargeErrorRaw(null);
+                          setChargeCalculationFailed(false);
+                        }}
+                      />
+                    );
+                  })()}
                   </CollapsibleContent>
                 </Collapsible>
 
@@ -9810,6 +10083,14 @@ const BookEquipment = () => {
                       )}
                     </div>
 
+                {quotaBlock && quotaSummary && (
+                  <QuotaRemainingNotice summary={quotaSummary} blockReason={quotaBlock} className="mb-2" />
+                )}
+                {takenSlotIds.size > 0 && (
+                  <p className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100" role="status">
+                    Slots marked <span className="font-semibold">"Just taken"</span> were booked by someone else while you were confirming. Pick other slots and confirm again — your details are kept.
+                  </p>
+                )}
                 {/* Week nav + grid: full overlay until API data matches visible week (avoids misleading stale grid when changing weeks, e.g. urgent extension). */}
                 <TooltipProvider delayDuration={200}>
                 <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-3 sm:p-4 min-h-[min(520px,70vh)]">
@@ -9887,9 +10168,16 @@ const BookEquipment = () => {
                       if (!nextWeekAvailable && refWeekday != null && refTime != null) {
                         const schedule = formatSlotReleaseSchedule(Number(refWeekday), String(refTime));
                         return (
-                          <p className="text-base font-semibold text-primary mt-1 bg-primary/10 px-3 py-2 rounded-md">
-                            Current week only — new slots open {schedule}.
-                          </p>
+                          <div className="mt-1 flex flex-col items-center gap-1.5">
+                            <p className="text-base font-semibold text-primary bg-primary/10 px-3 py-2 rounded-md">
+                              Current week only — new slots open {schedule}.
+                            </p>
+                            <SlotOpeningCountdown
+                              refWeekday={Number(refWeekday)}
+                              refTime={String(refTime)}
+                              onOpen={handleSlotsOpened}
+                            />
+                          </div>
                         );
                       }
                       return (
@@ -9948,15 +10236,56 @@ const BookEquipment = () => {
 
                 {/* Slot Grid */}
                 {(() => {
+                  const overQuotaForUser = !!quotaBlock && !isAdminOrOIC();
+                  const visibleDayOffsets = isMobileViewport ? [mobileDayOffset] : [0, 1, 2, 3, 4, 5, 6];
+                  const gridColumnsStyle: CSSProperties | undefined = isMobileViewport
+                    ? { gridTemplateColumns: "5.5rem minmax(0, 1fr)" }
+                    : undefined;
+                  const dayColumnsStyle: CSSProperties | undefined = isMobileViewport
+                    ? { gridTemplateColumns: "minmax(0, 1fr)" }
+                    : undefined;
                   return (
                 <div className="overflow-x-auto relative">
-                  <div className="min-w-[800px]">
+                  {isMobileViewport && (
+                    <div className="mb-2 flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Choose a day">
+                      {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                        const day = addDays(currentWeekStart, dayOffset);
+                        const active = dayOffset === mobileDayOffset;
+                        const hasFree = dayHasSelectableSlot(day);
+                        const hasSelected = selectedSlots.some((s) => isSameDay(s.date, day));
+                        return (
+                          <button
+                            key={dayOffset}
+                            type="button"
+                            aria-pressed={active}
+                            aria-label={`${format(day, "EEEE d MMMM")}${hasFree ? ", has free slots" : ", no free slots"}${hasSelected ? ", has selected slots" : ""}`}
+                            onClick={() => setMobileSlotDayOffset(dayOffset)}
+                            className={cn(
+                              "flex min-w-[3.25rem] flex-col items-center rounded-md border px-2 py-1 text-xs",
+                              active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
+                            )}
+                          >
+                            <span className="font-semibold">{format(day, "EEE")}</span>
+                            <span>{format(day, "d")}</span>
+                            <span
+                              className={cn(
+                                "mt-0.5 h-1.5 w-1.5 rounded-full",
+                                hasSelected ? "bg-sky-500" : hasFree ? "bg-emerald-500" : "bg-transparent",
+                              )}
+                              aria-hidden
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className={isMobileViewport ? undefined : "min-w-[800px]"}>
                     {/* Header with days */}
-                    <div className="grid grid-cols-8 gap-2 mb-2">
-                      <div className="font-semibold text-sm p-2">
+                    <div className={cn("grid gap-2 mb-2", !isMobileViewport && "grid-cols-8")} style={gridColumnsStyle}>
+                      <div className="font-semibold text-sm p-2 sticky left-0 z-10 bg-muted/90 dark:bg-background/95 rounded-md">
                         {getEffectiveWeeklyViewDisplay() === "SLOT_ID" ? "Slot position" : "Time"}
                       </div>
-                      {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                      {visibleDayOffsets.map((dayOffset) => {
                         const day = addDays(currentWeekStart, dayOffset);
                         return (
                           <div key={dayOffset} className="font-semibold text-sm p-2 text-center">
@@ -9987,10 +10316,7 @@ const BookEquipment = () => {
                           <div className="col-span-8 p-4 text-center text-muted-foreground">
                             <p>No time slots available for this equipment.</p>
                             {equipmentDetail?.daily_slots && equipmentDetail.daily_slots.length > 0 && (
-                              <p className="text-xs mt-2">
-                                Found {equipmentDetail.daily_slots.length} slots in API response.
-                                Try navigating to a different week.
-                              </p>
+                              <p className="text-xs mt-2">Try a different week.</p>
                             )}
                           </div>
                         );
@@ -10018,24 +10344,31 @@ const BookEquipment = () => {
                                 <p className="text-muted-foreground text-base leading-relaxed">
                                   No slots available for this week.
                                 </p>
-                                <div className="rounded-lg border bg-muted/40 px-5 py-4">
+                                <div className="rounded-lg border bg-muted/40 px-5 py-4 space-y-2">
                                   <p className="text-base font-medium text-foreground">
                                     New slots open {schedule}.
                                   </p>
-                                  <p className="text-muted-foreground text-base mt-1">
-                                    Please check back then.
-                                  </p>
+                                  <SlotOpeningCountdown
+                                    refWeekday={Number(refWeekday)}
+                                    refTime={String(refTime)}
+                                    onOpen={handleSlotsOpened}
+                                  />
+                                  {draftEnabled && (
+                                    <p className="text-muted-foreground text-sm">
+                                      Your details above are saved on this device, so you can come back and confirm quickly.
+                                    </p>
+                                  )}
                                 </div>
                                 {waitlistDepth > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && (
                                   <div className="rounded-lg border bg-background px-5 py-4">
                                     {waitlistHasRoom ? (
                                       <>
-                                        <p className="text-sm text-foreground">No slots are available now. You can place this request in waitlist queue.</p>
-                                        <p className="text-xs text-muted-foreground mt-1">Queue: {waitlistCount}/{waitlistDepth}</p>
-                                        <Button className="mt-3" size="sm" onClick={() => setWaitlistIntentMode(true)}>Go for Waitlisted Booking</Button>
+                                        <p className="text-sm text-foreground">No slots are free right now. Join the queue and we'll book a slot for you if one frees up.</p>
+                                        <p className="text-xs text-muted-foreground mt-1">People in the queue: {waitlistCount} of {waitlistDepth}</p>
+                                        <Button className="mt-3" size="sm" onClick={() => setWaitlistIntentMode(true)}>Join the queue</Button>
                                       </>
                                     ) : (
-                                      <p className="text-sm font-medium text-destructive">Booking unsuccessful. No more room in the waitlist queue.</p>
+                                      <p className="text-sm text-muted-foreground">{WAITLIST_FULL_MESSAGE}</p>
                                     )}
                                   </div>
                                 )}
@@ -10054,9 +10387,9 @@ const BookEquipment = () => {
                             {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && (
                               <div className="mt-3">
                                 {equipmentDetail?.waitlist_has_room ? (
-                                  <Button size="sm" onClick={() => setWaitlistIntentMode(true)}>Go for Waitlisted Booking</Button>
+                                  <Button size="sm" onClick={() => setWaitlistIntentMode(true)}>Join the queue</Button>
                                 ) : (
-                                  <p className="text-sm font-medium text-destructive">Booking unsuccessful. No more room in the waitlist queue.</p>
+                                  <p className="text-sm text-muted-foreground">{WAITLIST_FULL_MESSAGE}</p>
                                 )}
                               </div>
                             )}
@@ -10067,6 +10400,8 @@ const BookEquipment = () => {
                       const handleSlotGridGuardPointerDown = (e: React.PointerEvent) => {
                         if (!autoSlotSelection || !chargeCalculated || !showSlots) return;
                         if (loadingSlots || isSlotsWeekViewLoading) return;
+                        // Greyed-out cells only explain themselves; they never change the selection.
+                        if ((e.target as HTMLElement | null)?.closest?.('[aria-disabled="true"]')) return;
                         e.preventDefault();
                         e.stopPropagation();
                         setAutoSlotGuardPending("calendar");
@@ -10077,15 +10412,16 @@ const BookEquipment = () => {
                       const rowLabel = rowKeysAndLabels[rowIndex]?.label ?? rowKey;
                       const time = rowKey;
                       return (
-                      <div key={rowKey} className="grid grid-cols-8 gap-2 mb-2">
-                        <div className="text-sm p-2 font-medium flex items-center">
+                      <div key={rowKey} className={cn("grid gap-2 mb-2", !isMobileViewport && "grid-cols-8")} style={gridColumnsStyle}>
+                        <div className="text-sm p-2 font-medium flex items-center sticky left-0 z-10 bg-muted/90 dark:bg-background/95 rounded-md">
                           {rowLabel}
                         </div>
                         <div
-                          className="col-span-7 grid grid-cols-7 gap-2"
+                          className={cn("grid gap-2", !isMobileViewport && "col-span-7 grid-cols-7")}
+                          style={dayColumnsStyle}
                           onPointerDownCapture={handleSlotGridGuardPointerDown}
                         >
-                        {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
+                        {visibleDayOffsets.map((dayOffset) => {
                           const day = addDays(currentWeekStart, dayOffset);
                           const isBooked = isSlotBooked(day, time);
                           const isSelected = isSlotSelected(day, time);
@@ -10249,6 +10585,9 @@ const BookEquipment = () => {
                             } else if (limitReached || wouldExceedLimit) {
                               displayStatus = "Available";
                               isDisabled = true;
+                            } else if (overQuotaForUser) {
+                              displayStatus = "Over your quota";
+                              isDisabled = true;
                             } else {
                               displayStatus = "Available";
                               isDisabled = false;
@@ -10256,6 +10595,8 @@ const BookEquipment = () => {
                           } else {
                             displayStatus = holidayName ? holidayCellLabel(holidayName) : "—";
                           }
+                          const justTaken = considerBooked && slotData?.id != null && takenSlotIds.has(slotData.id);
+                          if (justTaken) displayStatus = "Just taken";
 
                           const deptBlockedForUser =
                             Boolean(slotExists) &&
@@ -10414,6 +10755,8 @@ const BookEquipment = () => {
                             wouldExceedLimit,
                             chargeNotCalculated,
                             isAdminOrOic: isAdminOrOIC(),
+                            justTaken,
+                            overQuotaReason: overQuotaForUser ? quotaBlock : null,
                           });
                           const unavailableReason = restrictedToStaff
                             ? [
@@ -10444,34 +10787,44 @@ const BookEquipment = () => {
                               ? [unavailableReason]
                               : [];
 
+                          const slotStartLabel = slotData?.start_datetime ? format(parseISO(slotData.start_datetime), "HH:mm") : rowLabel;
+                          const slotEndLabel = slotData?.end_datetime ? format(parseISO(slotData.end_datetime), "HH:mm") : null;
+                          const slotWhen = `${format(day, "EEE d MMM")}, ${slotEndLabel ? `${slotStartLabel}–${slotEndLabel}` : slotStartLabel}`;
+                          const accessibleLabel = slotAccessibleLabel({
+                            date: day,
+                            start: slotStartLabel,
+                            end: slotEndLabel,
+                            state: isSelected ? "selected" : isDisabled ? "unavailable" : "available",
+                            shortReason: isDisabled ? shortSlotReason(unavailableReason) : null,
+                          });
+
                           const cellButton = (
                             <button
                               type="button"
-                              onClick={() => {
-                                // Double-check disabled state before allowing toggle
+                              onClick={(e) => {
                                 if (isDisabled) {
-                                  if (notConsecutive) {
-                                    toast.error("Please select consecutive slots only. You can select slots that are immediately before or after your current selection.");
-                                  } else if (limitReached) {
-                                    toast.error(`You have reached the maximum allowed time (${calculatedCharge?.total_time_minutes || 0} minutes).`);
-                                  } else if (wouldExceedLimit) {
-                                    const remaining = getRemainingMinutes();
-                                    toast.error(`Cannot select more slots. Only ${remaining} minutes remaining.`);
-                                  }
+                                  setSlotReasonTarget({
+                                    anchor: e.currentTarget,
+                                    title: slotWhen,
+                                    reason: unavailableReason || "This slot is not available for booking.",
+                                  });
                                   return;
                                 }
                                 toggleSlot(day, time);
                               }}
-                              disabled={isDisabled}
-                              aria-label={hoverLines.length > 0 ? `${displayStatus}. ${hoverLines.join(". ")}` : undefined}
+                              aria-disabled={isDisabled || undefined}
+                              aria-pressed={isSelected}
+                              aria-label={staffStatusLines.length > 0 ? `${accessibleLabel}. ${hoverLines.join(". ")}` : accessibleLabel}
                               className={`
                                 w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
-                                ${!slotExists ? 'cursor-not-allowed' : ''}
-                                ${considerBooked ? 'cursor-not-allowed' : ''}
-                                ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-not-allowed' : ''}
+                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
+                                ${!slotExists ? 'cursor-help' : ''}
+                                ${considerBooked ? 'cursor-help' : ''}
+                                ${justTaken ? 'ring-2 ring-amber-500 ring-offset-1' : ''}
+                                ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-help' : ''}
                                 ${isSelected ? 'bg-primary text-primary-foreground' : ''}
                                 ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
-                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-not-allowed opacity-60' : ''}
+                                ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? 'cursor-help opacity-60' : ''}
                               `}
                               style={cellStyle}
                             >
@@ -10480,7 +10833,7 @@ const BookEquipment = () => {
                             </button>
                           );
 
-                          if (hoverLines.length === 0) {
+                          if (staffStatusLines.length === 0) {
                             return <div key={dayOffset}>{cellButton}</div>;
                           }
 
@@ -10517,6 +10870,7 @@ const BookEquipment = () => {
                 })()}
                 </div>
                 </TooltipProvider>
+                <SlotReasonPopover target={slotReasonTarget} onClose={() => setSlotReasonTarget(null)} />
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (
@@ -10648,6 +11002,62 @@ const BookEquipment = () => {
                       />
                     )}
 
+                    {isRegularBookingFlow && selectedSlots.length > 0 && (() => {
+                      const ordered = [...selectedSlots]
+                        .filter((s) => s.slotData?.start_datetime)
+                        .sort((a, b) => a.slotData!.start_datetime.localeCompare(b.slotData!.start_datetime));
+                      if (ordered.length === 0) return null;
+                      const start = parseISO(ordered[0].slotData!.start_datetime);
+                      const lastEndIso = ordered[ordered.length - 1].slotData!.end_datetime;
+                      const end = lastEndIso ? parseISO(lastEndIso) : null;
+                      const when = !end
+                        ? format(start, "EEE d MMM, HH:mm")
+                        : isSameDay(start, end)
+                        ? `${format(start, "EEE d MMM, HH:mm")}–${format(end, "HH:mm")}`
+                        : `${format(start, "EEE d MMM HH:mm")} – ${format(end, "EEE d MMM HH:mm")}`;
+                      const minutes = calculatedCharge ? getEffectiveSelectedMinutes() : null;
+                      const charge = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
+                      return (
+                        <p className="mt-6 text-sm text-foreground" data-testid="booking-review-line">
+                          <span className="font-medium">Review: </span>
+                          {[
+                            workspaceEquipmentTitle || null,
+                            `${ordered.length} slot${ordered.length !== 1 ? "s" : ""}, ${when}`,
+                            minutes != null ? `${minutes} min` : null,
+                            charge != null && Number.isFinite(charge) ? formatINR(charge) : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      );
+                    })()}
+
+                    {walletLinkRequired && !bookingForAnotherUser && (
+                      <p role="status" className="mt-4 text-sm text-amber-900 dark:text-amber-100">
+                        You can pick slots now, but you can confirm only after your supervisor's wallet is linked.{" "}
+                        <button type="button" className="font-medium underline underline-offset-2" onClick={goToWalletLink}>
+                          {walletStatus.kind === "link_pending" ? "View request" : "Link supervisor's wallet"}
+                        </button>
+                      </p>
+                    )}
+                    {walletStatus.kind === "insufficient" && !bookingForAnotherUser && (
+                      <div
+                        role="alert"
+                        className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-50"
+                        data-testid="insufficient-funds-warning"
+                      >
+                        <p className="flex-1 min-w-[12rem]">{insufficientFundsMessage(walletStatus)}</p>
+                        <Button size="sm" variant="outline" onClick={() => goToWalletRecharge(walletStatus.shortfall)}>
+                          Recharge {formatRupees(walletStatus.shortfall)}
+                        </Button>
+                      </div>
+                    )}
+                    {walletStatus.kind === "blocked" && !bookingForAnotherUser && (
+                      <p role="alert" className="mt-4 rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-50">
+                        {walletStatus.message}
+                      </p>
+                    )}
+
                     {/* Action Buttons */}
                     <div className="mt-6 flex flex-wrap gap-4">
                       {bookingAsExternalTarget &&
@@ -10706,7 +11116,12 @@ const BookEquipment = () => {
                       <Button
                         className="flex-1 min-w-[140px]"
                         onClick={handleBooking}
-                        disabled={!selectedEquipmentIsOperational || (selectedSlots.length === 0 && !canSubmitWithoutSlots) || isSubmittingBooking}
+                        disabled={
+                          !selectedEquipmentIsOperational ||
+                          (selectedSlots.length === 0 && !canSubmitWithoutSlots) ||
+                          isSubmittingBooking ||
+                          (walletLinkRequired && !bookingForAnotherUser)
+                        }
                       >
                         {isSubmittingBooking ? (
                           <>
@@ -11271,19 +11686,27 @@ const BookEquipment = () => {
                   bookingResultDialog.variant === "success"
                     ? "text-green-600 dark:text-green-500"
                     : bookingResultDialog.variant === "waitlist"
-                      ? "text-amber-600 dark:text-amber-500"
+                      ? "text-foreground"
                       : "text-destructive"
                 }
               >
                 {bookingResultDialog.variant === "success"
                   ? "Booking Confirmed Successfully"
                   : bookingResultDialog.variant === "waitlist"
-                    ? "Booking Waitlisted"
+                    ? "You're in the queue"
                     : "Booking unsuccessful"}
               </DialogTitle>
               <DialogDescription asChild>
                 <div className="space-y-3">
                   <p className="text-base text-foreground whitespace-pre-line">{bookingResultDialog.message}</p>
+                  {bookingResultDialog.variant === "waitlist" && (
+                    <p className="text-sm text-muted-foreground rounded-lg border bg-muted/40 px-3 py-2">{WAITLIST_FOLLOW_UP}</p>
+                  )}
+                  {bookingResultDialog.variant === "failure" && bookingResultDialog.formKept && (
+                    <p className="text-sm text-foreground rounded-lg border bg-muted/40 px-3 py-2" data-testid="booking-form-kept-note">
+                      Your details are kept — fix the issue and confirm again.
+                    </p>
+                  )}
                   {bookingResultDialog.variant === "success" && (
                     <p className="text-sm text-muted-foreground rounded-lg border bg-primary/5 dark:bg-primary/10 border-primary/25 dark:border-primary/40 px-3 py-2">
                       Confirmation email and notifications are being sent in the background — your booking is already confirmed.

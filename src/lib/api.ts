@@ -1,5 +1,7 @@
 import { type BookingRef } from "@/lib/bookingRef";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
+import type { MyBookingQuota } from "@/lib/bookingQuota";
+import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
   MyResearchBootstrap,
   MyResearchHome,
@@ -3530,14 +3532,18 @@ class ApiClient {
     if (userId != null && String(userId).trim() !== '') {
       q.set('user_id', String(userId));
     }
-    return this.request<{
-      balance: string;
-      has_wallet: boolean;
-      department_id: number | null;
-      department_name: string;
-      department_code: string | null;
-      is_zero: boolean;
-    }>(`/wallet/equipment-department-balance/?${q.toString()}`);
+    return this.request<EquipmentWalletBalance & { department_name: string; department_code: string | null }>(
+      `/wallet/equipment-department-balance/?${q.toString()}`,
+    );
+  }
+
+  /** Minutes used / left under the weekly or monthly booking quota for the week containing `date`. */
+  async getMyBookingQuota(equipmentId: number | string, date: string, userId?: number | string | null) {
+    const q = new URLSearchParams({ date });
+    if (userId != null && String(userId).trim() !== '') q.set('user_id', String(userId));
+    return this.request<MyBookingQuota>(`/equipments/${equipmentId}/my-booking-quota/?${q.toString()}`, {
+      cache: "no-store",
+    });
   }
 
   /** IITR Faculty: shared-wallet spend / recharges by linked students (optional date + equipment filter). */

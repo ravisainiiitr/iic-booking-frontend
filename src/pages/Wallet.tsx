@@ -20,6 +20,8 @@ import {
   type WalletModeFlags,
 } from "@/lib/walletModes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
+import ReturnToBookingBanner from "@/components/wallet/ReturnToBookingBanner";
+import { clearReturnToBooking, readReturnToBooking } from "@/lib/rechargeReturn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1433,6 +1435,22 @@ const Wallet = () => {
   const handleRechargeSubmitted = () => {
     void fetchWalletData();
     void fetchRechargeRequests();
+    const returnTo = readReturnToBooking();
+    if (returnTo) {
+      toast.info(
+        returnTo.equipmentName ? `Your ${returnTo.equipmentName} booking is saved.` : "Your booking is saved.",
+        {
+          action: {
+            label: "Back to booking",
+            onClick: () => {
+              clearReturnToBooking();
+              navigate(returnTo.path);
+            },
+          },
+          duration: 15000,
+        },
+      );
+    }
   };
 
   const filteredSubWallets = useMemo(() => {
@@ -1494,6 +1512,7 @@ const Wallet = () => {
               Link to a faculty wallet to fund equipment bookings.
             </p>
           </div>
+          <ReturnToBookingBanner />
 
           <Card className="border-border/70 shadow-[var(--shadow-card)] rounded-2xl">
             <CardHeader>
@@ -1883,6 +1902,8 @@ const Wallet = () => {
             </div>
           )}
         </div>
+
+        <ReturnToBookingBanner />
 
         <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
           <div className="min-w-0 space-y-5">

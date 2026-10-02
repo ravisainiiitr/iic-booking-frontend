@@ -1,0 +1,34 @@
+import { Gauge } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+type Props = {
+  summary: string;
+  /** Set when this booking needs more time than is left; slot picking is then stopped. */
+  blockReason?: string | null;
+  className?: string;
+};
+
+export function QuotaRemainingNotice({ summary, blockReason, className }: Props) {
+  return (
+    <div
+      role={blockReason ? "alert" : "status"}
+      className={cn(
+        "flex items-start gap-2 rounded-md border px-3 py-2 text-sm",
+        blockReason
+          ? "border-amber-500/50 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+          : "border-border bg-muted/40 text-foreground",
+        className,
+      )}
+      data-testid="quota-remaining-notice"
+    >
+      <Gauge className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <div>
+        <p>{summary}</p>
+        {blockReason && <p className="mt-0.5 font-medium">{blockReason}</p>}
+      </div>
+    </div>
+  );
+}
+
+export default QuotaRemainingNotice;
