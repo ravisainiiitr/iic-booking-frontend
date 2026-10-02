@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCircle, Clock, Mail, Send, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, type SupervisorInvite, type SupervisorInviteLimits } from "@/lib/api";
+import { applyFacultyNamePrefix } from "@/lib/displayName";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -300,6 +301,8 @@ export function SupervisorInviteList({ invites, onChanged }: InviteListProps) {
         {invites.map((invite) => {
           const busy = busyId === invite.id;
           const pending = invite.status === "pending";
+          const supervisorLabel =
+            invite.supervisor_display_name || applyFacultyNamePrefix(invite.supervisor_name, "faculty");
           return (
             <li key={invite.id} className="rounded-lg border p-4" data-testid={`supervisor-invite-${invite.id}`}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -307,7 +310,7 @@ export function SupervisorInviteList({ invites, onChanged }: InviteListProps) {
                   <p className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="truncate">
-                      {invite.supervisor_name ? `${invite.supervisor_name} · ` : ""}
+                      {supervisorLabel ? `${supervisorLabel} · ` : ""}
                       {invite.email}
                     </span>
                   </p>

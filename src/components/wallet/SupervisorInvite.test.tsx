@@ -190,6 +190,25 @@ describe("SupervisorInviteList", () => {
     expect(api.cancelSupervisorInvite).toHaveBeenCalledWith(1);
   });
 
+  it("names the invited supervisor with Prof.", () => {
+    render(
+      <SupervisorInviteList
+        invites={[
+          invite({ id: 4, supervisor_name: "Meena Rao", supervisor_display_name: "Prof. Meena Rao" }),
+          invite({ id: 5, supervisor_name: "Ravi Kumar", email: "ravi@iitr.ac.in" }),
+          invite({ id: 6, supervisor_name: "Dr. Anil Das", email: "anil@iitr.ac.in" }),
+          invite({ id: 7, supervisor_name: "", email: "noname@iitr.ac.in" }),
+        ]}
+        onChanged={vi.fn()}
+      />
+    );
+    const label = (id: number) => within(screen.getByTestId(`supervisor-invite-${id}`)).getByText(/@iitr\.ac\.in/).textContent;
+    expect(label(4)).toBe("Prof. Meena Rao · prof.a@iitr.ac.in");
+    expect(label(5)).toBe("Prof. Ravi Kumar · ravi@iitr.ac.in");
+    expect(label(6)).toBe("Dr. Anil Das · anil@iitr.ac.in");
+    expect(label(7)).toBe("noname@iitr.ac.in");
+  });
+
   it("shows finished invitations without actions", () => {
     render(
       <SupervisorInviteList

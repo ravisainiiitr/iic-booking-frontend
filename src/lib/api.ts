@@ -757,6 +757,8 @@ export interface SupervisorInvite {
   id: number;
   email: string;
   supervisor_name: string;
+  /** Typed name with "Prof." (only IITR faculty can be invited); older API responses omit it. */
+  supervisor_display_name?: string;
   department_id: number | null;
   department_name: string;
   message: string;
