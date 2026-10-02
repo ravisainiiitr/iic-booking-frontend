@@ -38,6 +38,8 @@ export interface User {
   user_type_alias?: string | null;
   /** Server-computed display name (includes Prof. for faculty). */
   display_name?: string | null;
+  /** Server-computed: account is IIT Roorkee faculty. */
+  is_faculty?: boolean;
   /** True after user completes or dismisses the role-specific onboarding guide. */
   user_guide_viewed?: boolean;
   /** Set by backend from admin Auth settings (inactivity timeout is disabled; this is unused). */
@@ -189,6 +191,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           const sameAccess =
             prev.id === next.id &&
             String(prev.user_type ?? "") === String(next.user_type ?? "") &&
+            (prev.name ?? "") === (next.name ?? "") &&
+            (prev.display_name ?? "") === (next.display_name ?? "") &&
             prev.admin_panel_enabled === next.admin_panel_enabled &&
             JSON.stringify(prev.admin_panel_modules ?? null) ===
               JSON.stringify(next.admin_panel_modules ?? null) &&

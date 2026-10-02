@@ -106,6 +106,11 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
   };
 
   const signedInAs = formatSignedInAs(userName, userEmail);
+  const greeting = (
+    <p className="text-sm font-medium text-foreground" data-testid="user-guide-greeting">
+      {formatWelcomeGreeting(userName)}
+    </p>
+  );
 
   const windowControls = (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -218,6 +223,7 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
             </div>
           ) : !guide ? (
             <div className="space-y-4 p-5">
+              {greeting}
               <p className="text-sm text-muted-foreground" role="status">
                 {loading ? "Loading your user guide…" : "There is no guide for your account type yet."}
               </p>
@@ -255,13 +261,14 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
                 </div>
                 <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
                   <div className="mx-auto max-w-2xl space-y-5 px-4 py-5 sm:px-6">
+                    {greeting}
                     {section ? (
                       <>
                         <GuideSectionHeader section={section} />
                         <GuideSectionBody section={section} large={mode === "maximized"} />
                       </>
                     ) : (
-                      <WhatsNewView guide={guide} onNavigate={go} greeting={formatWelcomeGreeting(userName)} />
+                      <WhatsNewView guide={guide} onNavigate={go} />
                     )}
                   </div>
                 </div>
@@ -271,7 +278,7 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
                     <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={close}>
                       Close
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => openPrintableGuide(guide)}>
+                    <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => openPrintableGuide(guide, userName)}>
                       <Download className="h-3.5 w-3.5" />
                       <span className="hidden sm:inline">Save as PDF</span>
                     </Button>

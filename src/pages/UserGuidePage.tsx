@@ -43,9 +43,15 @@ export default function UserGuidePage() {
     </div>
   );
 
+  const userName = formatPersonName(user);
+  const greeting = formatWelcomeGreeting(userName);
+
   if (!guide) {
     return shell(
-      <main className="container mx-auto max-w-3xl px-4 py-6">
+      <main className="container mx-auto max-w-3xl space-y-2 px-4 py-6">
+        <p className="text-sm font-medium text-foreground" data-testid="user-guide-greeting">
+          {greeting}
+        </p>
         <p className="text-sm text-muted-foreground" role="status">
           {hasGuide ? "Loading your user guide…" : "There is no guide for your account type yet."}
         </p>
@@ -53,7 +59,6 @@ export default function UserGuidePage() {
     );
   }
 
-  const greeting = formatWelcomeGreeting(formatPersonName(user));
   const sections = guide.sections.filter((s) => sectionMatches(s, query));
 
   return shell(
@@ -71,12 +76,14 @@ export default function UserGuidePage() {
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {`${greeting} `}
+              <span className="font-medium text-foreground" data-testid="user-guide-greeting">
+                {greeting}
+              </span>{" "}
               {guide.welcomeBody}
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openPrintableGuide(guide)}>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openPrintableGuide(guide, userName)}>
           <Download className="h-3.5 w-3.5" />
           Save as PDF
         </Button>

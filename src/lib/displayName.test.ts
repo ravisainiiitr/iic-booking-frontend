@@ -57,6 +57,39 @@ describe("formatPersonName / formatUserDisplayName", () => {
     expect(formatUserDisplayName(noName)).toBe("ravi@iitr.ac.in");
   });
 
+  it("adds Prof. for IITR faculty even when a cached display_name lacks it", () => {
+    expect(formatPersonName({ name: "Ravi Saini", display_name: "Ravi Saini", user_type: "faculty" })).toBe("Prof. Ravi Saini");
+    expect(formatPersonName({ name: "Ravi Saini", user_type: "faculty" })).toBe("Prof. Ravi Saini");
+    expect(formatPersonName({ name: "Ravi Saini", display_name: "Ravi Saini", user_type: 2 })).toBe("Prof. Ravi Saini");
+    expect(formatPersonName({ name: "Ravi Saini", user_type: "FACULTY" })).toBe("Prof. Ravi Saini");
+  });
+
+  it("uses the backend is_faculty flag like the guide audience does", () => {
+    expect(formatPersonName({ name: "Ravi Saini", user_type: "", is_faculty: true })).toBe("Prof. Ravi Saini");
+    expect(formatPersonName({ name: "Ravi Saini", user_type: "student", is_faculty: false })).toBe("Ravi Saini");
+  });
+
+  it("does not double titles for faculty", () => {
+    expect(formatPersonName({ name: "Dr. Neha Gupta", display_name: "Prof. Dr. Neha Gupta", user_type: "faculty" })).toBe("Dr. Neha Gupta");
+    expect(formatPersonName({ name: "Neha Gupta", display_name: "Dr. Neha Gupta", user_type: "faculty" })).toBe("Dr. Neha Gupta");
+    expect(formatPersonName({ name: "Prof. Ravi Saini", display_name: "Prof. Ravi Saini", user_type: "faculty" })).toBe("Prof. Ravi Saini");
+  });
+
+  it.each(["student", "manager", "operator", "dept_admin", "admin", "finance", "external", "industry", "individual_student"])(
+    "never adds Prof. for %s, even from a cached object",
+    (userType) => {
+      expect(formatPersonName({ name: "Aman Kumar", display_name: "Aman Kumar", user_type: userType })).toBe("Aman Kumar");
+      expect(formatPersonName({ name: "Aman Kumar", user_type: userType })).toBe("Aman Kumar");
+    }
+  );
+
+  it("treats the server's email fallback in display_name as no name", () => {
+    expect(formatPersonName({ name: "", display_name: "ravi@iitr.ac.in", user_type: "faculty", email: "ravi@iitr.ac.in" })).toBe("");
+    expect(formatUserDisplayName({ name: "", display_name: "ravi@iitr.ac.in", user_type: "faculty", email: "ravi@iitr.ac.in" })).toBe(
+      "ravi@iitr.ac.in"
+    );
+  });
+
   it("falls back to the given label when nothing is known", () => {
     expect(formatUserDisplayName(null)).toBe("User");
     expect(formatUserDisplayName({ name: "", user_type: "faculty" })).toBe("User");

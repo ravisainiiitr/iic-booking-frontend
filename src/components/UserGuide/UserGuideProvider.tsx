@@ -41,7 +41,7 @@ type GuideUser = GuideUserLike & {
 };
 
 export function UserGuideProvider({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [wanted, setWanted] = useState(false);
@@ -109,8 +109,9 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   // First /dashboard visit after this login only (sessionStorage survives remounts / auth flicker).
+  // Waits for the fresh profile so the guide never opens on a stale cached user (name, guide-viewed flag).
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) return;
+    if (!isAuthenticated || !user?.id || authLoading) return;
     if (location.pathname !== "/dashboard") return;
 
     if (autoShowHandledUserIdRef.current === user.id || hasUserGuideAutoShownThisLogin(user.id)) {
@@ -140,7 +141,7 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       setOpen(true);
     }, 900);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user?.id, audience, user?.user_guide_viewed, location.pathname, guide]);
+  }, [isAuthenticated, authLoading, user?.id, audience, user?.user_guide_viewed, location.pathname, guide]);
 
   const value = useMemo(
     () => ({
