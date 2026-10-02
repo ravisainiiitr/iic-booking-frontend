@@ -19,7 +19,7 @@ const CATALOG: CatalogItem[] = [
   // Booking
   { id: "templates", roles: BOOKERS, theme: "booking", icon: "template", title: "Booking templates", benefit: "Save an instrument's form and preferred weekly slot, then book in one click.", sectionId: "templates" },
   { id: "sample-sets", roles: BOOKERS, theme: "booking", icon: "layers", title: "Samples with different parameters", benefit: "Book several sample sets, each with its own inputs, in one booking.", sectionId: "inputs" },
-  { id: "edit-inputs", roles: BOOKERS, theme: "booking", icon: "pencil", title: "Edit inputs after booking", benefit: "Change inputs until completion; pay any difference within 1 minute.", sectionId: "inputs" },
+  { id: "edit-inputs", roles: BOOKERS, theme: "booking", icon: "pencil", title: "Edit inputs after booking", benefit: "Change inputs until completion; pay any extra within 1 minute. A lower charge is refunded straight away if you edit before the cancellation deadline.", sectionId: "inputs" },
   { id: "my-bookings", roles: NON_FACULTY_BOOKERS, theme: "booking", icon: "list", title: "Easier My Bookings", benefit: "Filter by status, date and equipment; cancelled bookings keep their dates.", sectionId: "my-bookings" },
   { id: "calendar-sync", roles: NON_FACULTY_BOOKERS, theme: "booking", icon: "calendar", title: "Sync to calendar", benefit: "See your bookings in Google Calendar, Outlook or Apple Calendar.", sectionId: "my-bookings" },
   { id: "urgent-types", roles: WALLET_MEMBERS, theme: "booking", icon: "alert", title: "Urgent booking: Type A or B", benefit: "Rush relief without surcharge after repeated tries, or urgent with a reason.", sectionId: "urgent" },

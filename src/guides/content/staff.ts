@@ -162,7 +162,10 @@ export function oicChargesSection(): GuideSection {
     group: LAB,
     intro: ["Users can edit booking inputs until completion; the charge is recalculated."],
     steps: [
-      { title: "Lower charge", body: "Use Confirm refund on the booking to refund the difference." },
+      {
+        title: "Lower charge",
+        body: "When the user edits before the cancellation deadline, the difference is refunded to their wallet automatically. For edits after the deadline, and for edits made by lab staff, use Confirm refund on the booking.",
+      },
       { title: "Higher charge, unpaid", body: "Use Deduct Money to debit the difference from the user's wallet." },
     ],
     rules: [

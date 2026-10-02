@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { apiClient, type PrintAnalysisResult } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
+import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
 import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -178,6 +179,9 @@ export interface BookingDetailCardBooking extends BookingRef {
   /** Set while the booking user's own edit awaits payment of the extra amount. */
   charge_recalculation_pay_deadline?: string | null;
   charge_recalculation_pay_seconds_remaining?: number | null;
+  /** Cancellation deadline: a lower charge from the user's own edit before it is refunded at once. */
+  input_edit_refund_deadline?: string | null;
+  input_edit_instant_refund_open?: boolean;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
   repeat_booking_already_created?: boolean;
@@ -1301,6 +1305,11 @@ export function BookingDetailCard({
   };
 
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
+  const inputEditRefundViewer: InputEditRefundViewer = isManagerOrAdmin
+    ? "oic"
+    : currentUserId != null && Number(booking.user) === Number(currentUserId)
+      ? "owner"
+      : "staff";
   const normalizedCurrentUserType = String(currentUserType || "")
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
@@ -3296,6 +3305,11 @@ export function BookingDetailCard({
                 booking.viewer_can_change_sample_sets ??
                 (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager")
               }
+              refundWindow={{
+                deadline: booking.input_edit_refund_deadline,
+                instantOpen: booking.input_edit_instant_refund_open,
+              }}
+              refundViewer={inputEditRefundViewer}
               onUpdate={async (newInputValues) => {
                 if (bookingPk == null) {
                   toast.error("This booking cannot be updated right now.");
@@ -3318,6 +3332,7 @@ export function BookingDetailCard({
                   }, 150);
                 }
                 onUpdated();
+                return inputEditSavedMessage(summary, inputEditRefundViewer);
               }}
             />
           ) : !isFinanceUser ? (
@@ -3409,7 +3424,7 @@ export function BookingDetailCard({
                     <p className="text-muted-foreground text-xs mt-2">
                       {isManagerOrAdmin
                         ? "Confirm the refund to credit this amount to the user's wallet."
-                        : "The refund will be credited to the associated wallet once the Officer In Charge confirms it."}
+                        : "This refund is waiting for the Officer In Charge's approval. Once approved, it is credited to the wallet the booking was paid from."}
                     </p>
                     {isManagerOrAdmin && (
                       <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>

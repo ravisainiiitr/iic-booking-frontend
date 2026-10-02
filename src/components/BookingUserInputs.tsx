@@ -44,6 +44,11 @@ import { computePeriodicElementUpdates } from "@/lib/periodicElementSelection";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import { readSampleSets, SAMPLE_SETS_KEY, type SampleSetValues } from "@/lib/sampleSets";
 import { combinedLimitError } from "@/lib/sampleSetLimits";
+import {
+  inputEditRefundNotice,
+  type InputEditRefundViewer,
+  type InputEditRefundWindow,
+} from "@/lib/inputEditRefund";
 
 export interface InputFieldDef {
   field_key: string;
@@ -62,7 +67,10 @@ interface BookingUserInputsProps {
   inputFields?: InputFieldDef[] | null;
   editableInputFields?: InputFieldDef[] | null;
   status: string;
-  onUpdate?: (newInputValues: Record<string, string | boolean | string[] | number | string[][]>) => Promise<void>;
+  /** May resolve to the success message to show instead of the default one. */
+  onUpdate?: (
+    newInputValues: Record<string, string | boolean | string[] | number | string[][]>
+  ) => Promise<void | string | null>;
   disabled?: boolean;
   /** Legacy flag; editing is still restricted by editable fields. */
   enableChargeRecalculation?: boolean;
@@ -81,6 +89,9 @@ interface BookingUserInputsProps {
   skipFormulaLimits?: boolean;
   /** After booking only the equipment's OIC and main administrators may add or remove sample sets. */
   canChangeSampleSets?: boolean;
+  /** Cancellation deadline that decides whether a lower charge is refunded at once. */
+  refundWindow?: InputEditRefundWindow;
+  refundViewer?: InputEditRefundViewer;
 }
 
 function formatVal(v: unknown): string {
@@ -157,6 +168,8 @@ export function BookingUserInputs({
   slotDurationMinutes,
   skipFormulaLimits = false,
   canChangeSampleSets = false,
+  refundWindow,
+  refundViewer = "owner",
 }: BookingUserInputsProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -454,8 +467,11 @@ export function BookingUserInputs({
       );
       payload[SAMPLE_SETS_KEY] = editSampleSets;
 
-      await onUpdate(payload as Parameters<typeof onUpdate>[0]);
-      toast.success("Booking information has been updated.");
+      const savedMessage = await onUpdate(payload as Parameters<typeof onUpdate>[0]);
+      toast.success(
+        typeof savedMessage === "string" && savedMessage ? savedMessage : "Booking information has been updated.",
+        typeof savedMessage === "string" && savedMessage ? { duration: 8000 } : undefined
+      );
       setEditDialogOpen(false);
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "Failed to update");
@@ -764,9 +780,17 @@ export function BookingUserInputs({
             <DialogDescription className="text-sm">
               Update the values below until the booking is completed (the Officer In Charge can also edit after
               completion). If the charge goes up, pay the difference within 1 minute or the edit is cancelled and the
-              previous values are restored; a lower charge is refunded after the Officer In Charge confirms it.
+              previous values are restored.
             </DialogDescription>
           </DialogHeader>
+          {editDialogOpen ? (
+            <div className="mb-1 flex gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-50">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+              <p className="text-sm leading-relaxed" data-testid="input-edit-refund-notice">
+                {inputEditRefundNotice(refundWindow ?? {}, refundViewer)}
+              </p>
+            </div>
+          ) : null}
           {incompleteOptionalEditableKeys.length > 0 ? (
             <div className="mb-1 flex gap-2.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 text-sky-950 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-50">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" aria-hidden />

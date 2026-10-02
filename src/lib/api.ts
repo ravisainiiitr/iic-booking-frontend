@@ -7170,6 +7170,8 @@ class ApiClient {
         previous_charge: string;
         new_charge: string;
         refund_amount: string | null;
+        /** "refunded": credited to the wallet at once (edit before the cancellation deadline). */
+        refund_status?: "refunded" | "awaiting_oic_confirmation" | null;
         extra_amount: string | null;
         /** Set when the booking user's own edit raised the charge: pay before this time or the edit is reverted. */
         pay_deadline?: string | null;

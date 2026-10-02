@@ -83,7 +83,7 @@ export function inputsSection(): GuideSection {
     rules: [
       "Each sample set is charged and timed separately within the same booking.",
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
-      "A lower charge is refunded after the Officer In Charge confirms it.",
+      "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",
     ],
   };
