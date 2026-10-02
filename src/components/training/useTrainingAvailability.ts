@@ -6,7 +6,8 @@ import type { TrainingBootstrap, TrainingMenuKey } from "@/lib/trainingTypes";
 let cached: { token: string | null; data: TrainingBootstrap | null } | null = null;
 let inflight: Promise<TrainingBootstrap | null> | null = null;
 
-async function loadBootstrap(): Promise<TrainingBootstrap | null> {
+/** Cached per sign-in token; null when signed out or the bootstrap call fails. */
+export async function loadTrainingBootstrap(): Promise<TrainingBootstrap | null> {
   const token = apiClient.getToken();
   if (!token) return null;
   if (cached && cached.token === token) return cached.data;
@@ -39,7 +40,7 @@ export function useTrainingAvailability(enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    void loadBootstrap().then((result) => {
+    void loadTrainingBootstrap().then((result) => {
       if (!alive) return;
       setData(result);
       setLoading(false);

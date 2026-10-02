@@ -19,6 +19,7 @@ const ALL_ON: GuideFeatureFlags = {
   externalBooking: true,
   oicLeaveManagement: true,
   oicTaNomination: true,
+  training: true,
 };
 const ALL_OFF: GuideFeatureFlags = Object.fromEntries(Object.keys(ALL_ON).map((k) => [k, false])) as unknown as GuideFeatureFlags;
 
@@ -85,6 +86,7 @@ const NEEDS_FLAG: Array<[RegExp, keyof GuideFeatureFlags]> = [
   [/Recharge Wallet, choose Direct Cash/, "studentRecharge"],
   [/Transfer wallet balance to bank/, "externalBooking"],
   [/Temporary OIC \/ Leave Management/, "oicLeaveManagement"],
+  [/Training & Certification|Training & Demos|My Trainings|Training workspace|Training attendance|Training Policy|Trained badge/i, "training"],
 ];
 
 const failures: string[] = [];

@@ -55,7 +55,7 @@ import {
   resolveNumericFieldBounds,
 } from "@/lib/numericFieldLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
-import { formatINR } from "@/lib/money";
+import { formatINRAmount } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
@@ -182,7 +182,7 @@ import {
   type BookingDraft,
 } from "@/lib/bookingDraft";
 import { classifyBookingFailure, droppedSlotsNotice, partitionSelectionAfterRefresh } from "@/lib/bookingFailure";
-import { bookingWalletStatus, formatRupees, insufficientFundsMessage, type EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
+import { bookingWalletStatus, insufficientFundsMessage, type EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import { saveReturnToBooking } from "@/lib/rechargeReturn";
 import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
 import { friendlyChargeError } from "@/lib/chargeErrorText";
@@ -1136,6 +1136,10 @@ const BookEquipment = () => {
     wallet_faculty_owner: { name: string; email: string } | null;
     wallet_balance: string;
   } | null>(null);
+  const adminBookForUserWalletBalance = (() => {
+    const raw = (adminBookForUserInfo?.wallet_balance ?? "").trim();
+    return raw && Number.isFinite(Number(raw.replace(/,/g, ""))) ? formatINRAmount(raw) : null;
+  })();
   const [adminBookForUserInfoLoading, setAdminBookForUserInfoLoading] = useState(false);
   const [adminBookForUserInfoError, setAdminBookForUserInfoError] = useState<string | null>(null);
   const [equipmentDeptWalletBalance, setEquipmentDeptWalletBalance] = useState<EquipmentWalletBalance | null>(null);
@@ -6596,7 +6600,7 @@ const BookEquipment = () => {
         resetBookingPageToDefaults();
         if (allocatedData?.payment_required && allocatedRealId != null) {
           navigate(`/bookings/${allocatedRealId}/payment`);
-          toast.info(`Booking reserved on ${allocatedName}. Please pay ₹${Number(allocatedData.amount_due || 0).toFixed(2)} to confirm.`);
+          toast.info(`Booking reserved on ${allocatedName}. Please pay ${formatINRAmount(allocatedData.amount_due || 0)} to confirm.`);
           return;
         }
         if (allocatedRealId != null && (allocatedData?.require_istem_fbr === true || allocatedData?.istem_fbr_status != null)) {
@@ -6786,7 +6790,7 @@ const BookEquipment = () => {
         if (resData?.payment_required && realId != null && bookingAsExternalTarget) {
           resetBookingPageToDefaults();
           navigate(`/bookings/${realId}/payment`);
-          toast.info(`Booking reserved. Please pay ₹${Number(resData.amount_due || 0).toFixed(2)} to confirm.`);
+          toast.info(`Booking reserved. Please pay ${formatINRAmount(resData.amount_due || 0)} to confirm.`);
           return;
         }
         // Success: API returns { data: { booking_id, daily_slots, input_values_adjusted?, input_values? } }
@@ -6838,7 +6842,7 @@ const BookEquipment = () => {
             const pointsUsed = Number(resData?.reward?.points_used ?? 0);
             const discountAmount = resData?.reward?.discount_amount;
             if (pointsUsed > 0 && discountAmount) {
-              return `${baseMsg} Reward applied: ${pointsUsed.toFixed(2)} points (₹${discountAmount}).`;
+              return `${baseMsg} Reward applied: ${pointsUsed.toFixed(2)} points (${formatINRAmount(discountAmount)}).`;
             }
             return baseMsg;
           })(),
@@ -7054,7 +7058,7 @@ const BookEquipment = () => {
       if (resData?.payment_required && realId != null) {
         resetBookingPageToDefaults();
         navigate(`/bookings/${realId}/payment`);
-        toast.info(`Booking reserved on ${alt.name}. Please pay ₹${Number(resData.amount_due || 0).toFixed(2)} to confirm.`);
+        toast.info(`Booking reserved on ${alt.name}. Please pay ${formatINRAmount(resData.amount_due || 0)} to confirm.`);
         return;
       }
       if (realId != null && (resData?.require_istem_fbr === true || resData?.istem_fbr_status != null)) {
@@ -8693,7 +8697,7 @@ const BookEquipment = () => {
                         <>
                           {Number(selectedEquipment.internalRate) > 0 && (
                             <>
-                              ₹{Number(selectedEquipment.internalRate).toFixed(2)}
+                              {formatINRAmount(selectedEquipment.internalRate)}
                               {getChargeUnitColumnLabels(equipmentDetail?.profile_type).rateSuffix}
                             </>
                           )}
@@ -8991,7 +8995,7 @@ const BookEquipment = () => {
                               <div className="flex flex-col gap-1 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 sm:col-span-2 lg:col-span-4">
                                 <span className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400">Wallet balance</span>
                                 <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
-                                  ₹{adminBookForUserInfo?.wallet_balance ?? "—"}
+                                  {adminBookForUserWalletBalance ?? "—"}
                                 </span>
                               </div>
                             </div>
@@ -9950,7 +9954,7 @@ const BookEquipment = () => {
                         {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
                         {!chargeCalcExpanded && (
                           <span className="ml-2 text-sm font-normal text-muted-foreground">
-                            ({formatINR(calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge)})
+                            ({formatINRAmount(calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge)})
                           </span>
                         )}
                       </h3>
@@ -9997,7 +10001,7 @@ const BookEquipment = () => {
                           {calculatedCharge.charge_breakdown.map((item, index) => (
                             <div key={index} className="flex justify-between gap-4 text-sm items-start">
                               <span className="text-muted-foreground whitespace-pre-line shrink min-w-0">{item.description}</span>
-                              <span className="shrink-0 tabular-nums">{formatINR(item.amount)}</span>
+                              <span className="shrink-0 tabular-nums">{formatINRAmount(item.amount)}</span>
                             </div>
                           ))}
                         </div>
@@ -10008,12 +10012,12 @@ const BookEquipment = () => {
                         calculatedCharge.applied_profile !== "Normal" ? (
                           <div className="flex justify-between text-sm text-muted-foreground">
                             <span>Normal Charge</span>
-                            <span>{formatINR(calculatedCharge.normal_charge)}</span>
+                            <span>{formatINRAmount(calculatedCharge.normal_charge)}</span>
                           </div>
                         ) : null}
                         <div className="flex justify-between font-semibold text-base pt-1">
                           <span>Final amount</span>
-                          <span>{formatINR(calculatedCharge.total_charge)}</span>
+                          <span>{formatINRAmount(calculatedCharge.total_charge)}</span>
                         </div>
                       </div>
                       {rewardSummary?.config?.is_enabled && !isCalculateChargesFlow && (
@@ -10041,7 +10045,7 @@ const BookEquipment = () => {
                           )}
                           {!!Number(calculatedCharge?.reward?.points_applied ?? 0) && (
                             <p className="text-xs text-emerald-600">
-                              Applied {calculatedCharge?.reward?.points_applied} points for discount of ₹{calculatedCharge?.reward?.discount_amount}
+                              Applied {calculatedCharge?.reward?.points_applied} points for discount of {formatINRAmount(calculatedCharge?.reward?.discount_amount)}
                             </p>
                           )}
                         </div>
@@ -10049,7 +10053,7 @@ const BookEquipment = () => {
                       <div className="flex justify-between items-center pt-3 border-t">
                         <span className="text-base font-semibold">Total Charge:</span>
                         <span className="text-xl font-bold text-primary">
-                          ₹{calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge}
+                          {formatINRAmount(calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge)}
                         </span>
                       </div>
                     </div>
@@ -10961,7 +10965,7 @@ const BookEquipment = () => {
                         <span className="ml-auto flex items-baseline gap-2">
                           <span className="text-muted-foreground">Total Cost</span>
                           <span className="text-xl font-bold">
-                            {formatINR(
+                            {formatINRAmount(
                               calculatedCharge
                                 ? calculatedCharge.total_charge
                                 : calculateTotalCost()
@@ -11035,7 +11039,7 @@ const BookEquipment = () => {
                             workspaceEquipmentTitle || null,
                             `${ordered.length} slot${ordered.length !== 1 ? "s" : ""}, ${when}`,
                             minutes != null ? `${minutes} min` : null,
-                            charge != null && Number.isFinite(charge) ? formatINR(charge) : null,
+                            charge != null && Number.isFinite(charge) ? formatINRAmount(charge) : null,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
@@ -11059,7 +11063,7 @@ const BookEquipment = () => {
                       >
                         <p className="flex-1 min-w-[12rem]">{insufficientFundsMessage(walletStatus)}</p>
                         <Button size="sm" variant="outline" onClick={() => goToWalletRecharge(walletStatus.shortfall)}>
-                          Recharge {formatRupees(walletStatus.shortfall)}
+                          Recharge {formatINRAmount(walletStatus.shortfall)}
                         </Button>
                       </div>
                     )}
@@ -11929,8 +11933,8 @@ const BookEquipment = () => {
               ) : userTransactionHistory.transactions.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8 px-4">
                   No wallet transactions found for this user yet.
-                  {adminBookForUserInfo?.wallet_balance && adminBookForUserInfo.wallet_balance !== "—"
-                    ? ` Current wallet balance shown on the booking page: ₹${adminBookForUserInfo.wallet_balance}.`
+                  {adminBookForUserWalletBalance
+                    ? ` Current wallet balance shown on the booking page: ${adminBookForUserWalletBalance}.`
                     : " If a booking debit was expected, confirm the booking completed and the user has an accessible wallet."}
                 </p>
               ) : (
@@ -11983,13 +11987,13 @@ const BookEquipment = () => {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {tx.transaction_type === "credit" ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">+₹{Number(tx.amount).toFixed(2)}</span>
+                            <span className="text-emerald-600 dark:text-emerald-400">+{formatINRAmount(tx.amount)}</span>
                           ) : (
-                            <span className="text-red-600 dark:text-red-400">−₹{Number(tx.amount).toFixed(2)}</span>
+                            <span className="text-red-600 dark:text-red-400">−{formatINRAmount(tx.amount)}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-semibold">
-                          {tx.balance_after != null && String(tx.balance_after) !== "" ? `₹${Number(tx.balance_after).toFixed(2)}` : "—"}
+                          {tx.balance_after != null && String(tx.balance_after) !== "" ? formatINRAmount(tx.balance_after) : "—"}
                         </TableCell>
                       </TableRow>
                     ))}

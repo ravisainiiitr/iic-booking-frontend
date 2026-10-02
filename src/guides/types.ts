@@ -47,6 +47,8 @@ export interface GuideFeatureFlags {
   externalBooking: boolean;
   oicLeaveManagement: boolean;
   oicTaNomination: boolean;
+  /** Training & Certification module is switched on (training bootstrap `enabled`). */
+  training: boolean;
 }
 
 export const DEFAULT_GUIDE_FLAGS: GuideFeatureFlags = {
@@ -61,6 +63,7 @@ export const DEFAULT_GUIDE_FLAGS: GuideFeatureFlags = {
   externalBooking: false,
   oicLeaveManagement: false,
   oicTaNomination: false,
+  training: false,
 };
 
 export interface GuideContext {

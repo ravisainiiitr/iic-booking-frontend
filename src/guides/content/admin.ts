@@ -2,6 +2,7 @@ import { compact, type RoleGuide } from "../gate";
 import { assistantSection } from "./booking";
 import { helpSection } from "./help";
 import { slotStatusSection, staffViewBookingSection, urgentApprovalSection, waitlistConfirmSection } from "./staff";
+import { trainingSection } from "./training";
 
 const ADMIN = "Administration";
 
@@ -29,8 +30,20 @@ export const adminGuide: RoleGuide = {
           { title: "Admin Panel Access", body: "Choose which user types and departments may open Admin Settings modules." },
           { title: "Department Administration", body: "Oversee staff roles and permission caps across departments." },
           { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers, charges and mode schedules." },
+          {
+            title: "Equipment form",
+            body: "Pick a title (Mr., Mrs., Ms., Miss, Dr. or Prof.) for each Officer In Charge and Lab Operator; the preview shows how the name appears. Untick Allow samples with different parameters to stop users adding extra sample sets on that equipment.",
+          },
+          {
+            title: "Peak booking window",
+            body: "In Admin Settings → Session / Auto-logout, set the minutes before and after the weekly slot opening and choose Pause external users. Internal users then go straight to booking from the catalog.",
+          },
           { title: "Communications and CMS", body: "Keep Communication templates and Home Page content accurate." },
           { title: "Legacy user sync", body: "Map a user to their old-portal ID, run a test sync, then sync wallet balance and legacy bookings." },
+        ],
+        rules: [
+          "Only the Main Administrator or a superuser can change the sample sets switch; bookings made earlier keep their sets.",
+          "By default external users are paused from 8:55 to 9:15 pm on Wednesdays; admins, Officers In Charge and staff are never paused.",
         ],
       },
       {
@@ -67,6 +80,7 @@ export const adminGuide: RoleGuide = {
       urgentApprovalSection(g),
       waitlistConfirmSection(g),
       slotStatusSection(g),
+      trainingSection(g),
       {
         id: "support-admin",
         title: "Support and feedback",

@@ -15,11 +15,37 @@ type CatalogItem = WhatsNewItem & {
   sectionFor?: Partial<Record<GuideAudienceId, string>>;
 };
 
+const ALL_ROLES: GuideAudienceId[] = [...BOOKERS, "oic", "operator", "dept_admin", "admin", "finance", "external_relations"];
+
+/** Items are taken in order until MAX_ITEMS, so the newest come first. */
 const CATALOG: CatalogItem[] = [
+  // Newest: booking page, My Bookings and catalog
+  { id: "form-kept", roles: BOOKERS, theme: "booking", icon: "shield", title: "Failed booking? Form kept", benefit: "Only taken slots are dropped, and an unsaved booking comes back on your next visit.", sectionId: "book" },
+  { id: "wallet-link-student", roles: ["student"], theme: "wallet", icon: "mail", title: "Link or invite your supervisor", benefit: "The booking page asks you to link your supervisor's wallet first, or invite them by email if they are not on the portal.", sectionId: "wallet" },
+  { id: "wallet-link-staff", roles: ["project_staff"], theme: "wallet", icon: "mail", title: "Link or invite your PI", benefit: "The booking page asks you to link your PI's wallet first, or invite them by email if they are not on the portal.", sectionId: "wallet" },
+  { id: "invited-requests", roles: ["faculty"], theme: "students", icon: "mail", title: "Students can invite you", benefit: "A student can invite you by email; after you sign in, their request waits for your Approve.", sectionId: "students" },
+  { id: "edit-inputs", roles: BOOKERS, theme: "booking", icon: "pencil", title: "Edit inputs after booking", benefit: "Change inputs until completion; pay any extra within 1 minute. A lower charge is refunded straight away if you edit before the cancellation deadline.", sectionId: "inputs" },
+  { id: "quota-countdown", roles: BOOKERS, theme: "booking", icon: "clock", title: "Quota left and opening countdown", benefit: "See how much weekly quota you have left and a live countdown to the next slot opening.", sectionId: "book" },
+  { id: "slot-picker", roles: BOOKERS, theme: "booking", icon: "calendar", title: "Easier slot picking", benefit: "Tap a greyed slot to see why, pick slots on a phone, and check the Review line before Confirm.", sectionId: "book" },
+  { id: "deadlines", roles: BOOKERS, theme: "booking", icon: "list", title: "Deadlines in My Bookings", benefit: "Each booking shows its cancel/reschedule deadline, and a legend explains every status.", sectionId: "my-bookings" },
+  { id: "sample-sets", roles: BOOKERS, theme: "booking", icon: "layers", title: "Sample sets and number limits", benefit: "New sample sets start from the equipment's defaults; number boxes start at 1 and show Max N allowed.", sectionId: "inputs" },
+  { id: "catalog", roles: BOOKERS, theme: "booking", icon: "search", title: "Catalog prices and Book now", benefit: "Equipment cards show a From price and a Book now button; filter by category.", sectionId: "book" },
+  { id: "peak-external", roles: ["startup", "external"], when: (f) => f.externalBooking, theme: "booking", icon: "clock", title: "Paused at slot opening", benefit: "External access pauses 8:55–9:15 pm on Wednesdays so IIT Roorkee users can book new slots.", sectionId: "book" },
+  { id: "assistant-need-help", roles: BOOKERS, when: (f) => f.assistant, theme: "assistant", icon: "bot", title: "Need help? after a failed booking", benefit: "The Booking Assistant explains what went wrong; rate answers with Was this helpful?", sectionId: "assistant" },
+  { id: "training-faculty", roles: ["faculty"], when: (f) => f.training, theme: "students", icon: "star", title: "Training & Demos", benefit: "Request equipment demonstrations and nominate students for hands-on training.", sectionId: "training" },
+  { id: "training-student", roles: ["student"], when: (f) => f.training, theme: "booking", icon: "star", title: "My Trainings", benefit: "Follow your training applications and sessions, and earn Trained badges.", sectionId: "training" },
+
+  // Newest: lab and administration
+  { id: "instruction-per-type", roles: ["oic"], theme: "lab", icon: "settings", title: "Richer important instruction", benefit: "Write it per user type, with fonts, point sizes and subscript/superscript.", sectionId: "equipment-config" },
+  { id: "charges", roles: ["oic"], theme: "lab", icon: "receipt", title: "Input edits and charges", benefit: "Lower charges from user edits before the deadline are refunded automatically; otherwise Confirm refund or Deduct Money.", sectionId: "charges" },
+  { id: "training-oic", roles: ["oic"], when: (f) => f.training, theme: "lab", icon: "star", title: "Training workspace", benefit: "Answer demonstration requests, select trainees fairly, schedule sessions and certify.", sectionId: "training" },
+  { id: "training-operator", roles: ["operator"], when: (f) => f.training, theme: "lab", icon: "star", title: "Training attendance", benefit: "Mark who attended training sessions on your equipment.", sectionId: "training" },
+  { id: "equipment-form", roles: ["admin"], theme: "admin", icon: "settings", title: "Titles and sample sets switch", benefit: "Pick Dr., Prof. or another title for OICs and Lab Operators, and turn sample sets on or off per equipment.", sectionId: "administration" },
+  { id: "peak-admin", roles: ["admin"], theme: "admin", icon: "clock", title: "Peak booking window", benefit: "Pause external users around the weekly slot opening; internal users go straight to booking.", sectionId: "administration" },
+  { id: "training-admin", roles: ["admin"], when: (f) => f.training, theme: "admin", icon: "star", title: "Training Policy", benefit: "Set the rules for Training & Certification.", sectionId: "training" },
+
   // Booking
   { id: "templates", roles: BOOKERS, theme: "booking", icon: "template", title: "Booking templates", benefit: "Save an instrument's form and preferred weekly slot, then book in one click.", sectionId: "templates" },
-  { id: "sample-sets", roles: BOOKERS, theme: "booking", icon: "layers", title: "Samples with different parameters", benefit: "Book several sample sets, each with its own inputs, in one booking.", sectionId: "inputs" },
-  { id: "edit-inputs", roles: BOOKERS, theme: "booking", icon: "pencil", title: "Edit inputs after booking", benefit: "Change inputs until completion; pay any extra within 1 minute. A lower charge is refunded straight away if you edit before the cancellation deadline.", sectionId: "inputs" },
   { id: "my-bookings", roles: NON_FACULTY_BOOKERS, theme: "booking", icon: "list", title: "Easier My Bookings", benefit: "Filter by status, date and equipment; cancelled bookings keep their dates.", sectionId: "my-bookings" },
   { id: "calendar-sync", roles: NON_FACULTY_BOOKERS, theme: "booking", icon: "calendar", title: "Sync to calendar", benefit: "See your bookings in Google Calendar, Outlook or Apple Calendar.", sectionId: "my-bookings" },
   { id: "urgent-types", roles: WALLET_MEMBERS, theme: "booking", icon: "alert", title: "Urgent booking: Type A or B", benefit: "Rush relief without surcharge after repeated tries, or urgent with a reason.", sectionId: "urgent" },
@@ -45,9 +71,7 @@ const CATALOG: CatalogItem[] = [
   { id: "slot-status-week", roles: ["oic", "admin"], theme: "lab", icon: "calendar", title: "Quicker Change slot status", benefit: "Opens on the current week; one click on an arrow changes the week.", sectionId: "slot-status" },
   { id: "awaiting-completion", roles: ["oic", "operator"], theme: "lab", icon: "clock", title: "Bookings awaiting completion", benefit: "A dashboard card and a daily 9:00 AM reminder until runs are completed.", sectionId: "view-booking" },
   { id: "tickets-marked", roles: ["oic"], theme: "lab", icon: "ticket", title: "Tickets marked to me", benefit: "See tickets assigned to you or raised for your equipment.", sectionId: "tickets" },
-  { id: "instruction-per-type", roles: ["oic"], theme: "lab", icon: "settings", title: "Instructions per user type", benefit: "Write a formatted important instruction for each user type.", sectionId: "equipment-config" },
   { id: "walk-in", roles: ["oic"], theme: "lab", icon: "flask", title: "Walk-in equipment", benefit: "Set both sample timings to 0 to stop sample emails and auto Not Utilized.", sectionId: "equipment-config" },
-  { id: "charges", roles: ["oic"], theme: "lab", icon: "receipt", title: "Input edits and charges", benefit: "Confirm refund or Deduct Money after edits; calculate charges on any equipment.", sectionId: "charges" },
   { id: "operator-rename", roles: ["operator"], theme: "lab", icon: "users", title: "Now called Lab Operator", benefit: "The Lab In-charge role has a new name across the portal and emails.", sectionId: "getting-started" },
   { id: "operator-tickets", roles: ["operator"], theme: "lab", icon: "ticket", title: "Support tickets on your dashboard", benefit: "Raise and follow your own tickets, and see tickets marked to you.", sectionId: "tickets" },
   { id: "intimate", roles: ["operator"], theme: "lab", icon: "clock", title: "Unavailability without approval", benefit: "Intimate Unavailability is recorded at once and your OIC is emailed.", sectionId: "unavailability" },
@@ -68,6 +92,7 @@ const CATALOG: CatalogItem[] = [
   { id: "assistant-help", roles: BOOKERS, when: (f) => f.assistant && !f.inChatBooking, theme: "assistant", icon: "bot", title: "Guided Booking Assistant", benefit: "Step-by-step help from department to slot, then finish on the booking page.", sectionId: "assistant" },
   { id: "assistant-staff", roles: ["oic", "admin"], when: (f) => f.assistant, theme: "assistant", icon: "bot", title: "Booking Assistant", benefit: "Ask about equipment, slots, charges and bookings in plain language.", sectionId: "assistant" },
   { id: "back-button", roles: ["finance", "external_relations"], theme: "assistant", icon: "rocket", title: "Back button on every page", benefit: "Return to where you came from without the browser's back button.", sectionId: "getting-started" },
+  { id: "keyboard", roles: ALL_ROLES, theme: "assistant", icon: "help", title: "Keyboard-friendly menus", benefit: "Dashboard menus open with Tab and Enter, and buttons are labelled for screen readers.", sectionId: "help" },
 ];
 
 export function buildWhatsNew(g: Gate, sections: GuideSection[]): { date: string; items: WhatsNewItem[] } {

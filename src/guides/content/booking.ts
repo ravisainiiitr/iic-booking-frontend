@@ -15,7 +15,7 @@ export function bookSection(g: Gate): GuideSection {
     steps: compact([
       {
         title: "Find the equipment",
-        body: "Open Equipments, search or filter by department, and open the equipment page.",
+        body: "Open Equipments, search or filter by department or category. Each card shows a From price and a Book now button.",
         screenshotCaption: "Equipment catalog",
         screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
       },
@@ -31,29 +31,41 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Select slots",
-        body: "Pick consecutive free slots on the weekly calendar. Saturday/Sunday and Holiday labels mark closed days.",
+        body: "Pick consecutive free slots on the weekly calendar; it works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
       },
       g.only(WALLET_MEMBERS, {
         title: "Confirm",
-        body: "Confirm the booking. The charge goes to your supervisor's wallet.",
+        body: "Check the Review line above Confirm (slots, time and charge), then confirm. The charge goes to your supervisor's wallet.",
       }),
       g.only(["faculty"], {
         title: "Confirm",
-        body: "Confirm the booking. The charge is debited from your department sub-wallet.",
+        body: "Check the Review line above Confirm (slots, time and charge), then confirm. The charge is debited from your department sub-wallet.",
       }),
       g.only(["startup", "external"], {
         title: "Confirm and pay",
-        body: "Confirm the booking and complete payment if the status shows Awaiting payment.",
+        body: "Check the Review line above Confirm, confirm the booking and complete payment if the status shows Awaiting payment.",
       }),
+      {
+        title: "If the booking fails",
+        body: "Your form stays filled in; only slots someone else took are dropped and marked. An unsaved booking is also kept on this device and restored next time (Discard clears it).",
+      },
     ]),
     rules: compact([
-      "Next week's slots normally open every Wednesday at 9:00 PM. The booking page shows the window for your account, for example Current week only — new slots open ….",
+      "Next week's slots normally open every Wednesday at 9:00 PM; a countdown on the booking page shows the time left. The page also shows the window for your account, for example Current week only — new slots open ….",
+      g.when(g.is("student", "project_staff", "faculty"), "During the weekly slot opening, clicking an equipment card opens its booking page directly."),
       g.when(g.flags.externalBooking, "External bookings follow the external booking window and any slots the lab reserves for external users."),
+      g.when(g.flags.externalBooking, "To give IIT Roorkee users a fair start, external access is paused from 8:55 to 9:15 pm on Wednesdays; a notice appears beforehand."),
+      "The booking page shows how much of your weekly booking quota is left. A booking that needs more time is stopped before you pick slots.",
+      g.only(WALLET_MEMBERS, "Until your supervisor's wallet is linked, a banner offers Link supervisor's wallet or Invite your supervisor; you can still fill in the form."),
+      g.only([...WALLET_MEMBERS, "faculty"], "If the wallet cannot cover the charge, the page says how much to add before you confirm."),
       g.only(WALLET_MEMBERS, "Your supervisor's spending limit, if set, is checked before the booking is made."),
     ]),
-    tips: ["If no slot is free, choose Add to the waitlist if the booking cannot be completed (when offered)."],
+    tips: compact([
+      "If no slot is free, choose Add to the waitlist if the booking cannot be completed (when offered). You are told your place in the queue.",
+      g.when(g.flags.assistant, "After a failed booking, click Ask the Booking Assistant under Need help? for the reason and the next step."),
+    ]),
   };
 }
 
@@ -83,6 +95,7 @@ export function inputsSection(): GuideSection {
     rules: [
       "Each sample set is charged and timed separately within the same booking.",
       "Sample sets are offered only where the equipment allows them; bookings made earlier keep their sets.",
+      "Number boxes start at 1 and show Max N allowed when you reach the limit. Limits that depend on another input (for example, samples up to 4 × slots) apply to every user type and to each sample set.",
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",
@@ -169,6 +182,8 @@ export function assistantSection(g: Gate): GuideSection | null {
         ]
       : undefined,
     tips: compact([
+      g.when(booker, "After a failed booking or charge calculation, Need help? opens the assistant with what went wrong."),
+      "Rate any answer with Was this helpful?; you can add what you were looking for.",
       g.when(booker, "Change your mind at any step with Change slot, Change samples/inputs or Change equipment."),
       g.when(booker && g.flags.inChatBooking, "Open Analysis Workspace appears after booking only when the equipment offers Remote Analysis."),
       booker
@@ -188,13 +203,13 @@ export function myBookingsSection(g: Gate): GuideSection {
     steps: [
       {
         title: "Find a booking",
-        body: "Use search, Status, dates and All equipment; More filters shows the rest. Click Apply, or Clear to reset.",
+        body: "Use search, Status, dates and All equipment; More filters shows the rest. Click Apply, or Clear to reset. What do these statuses mean? explains each status badge.",
         screenshotCaption: "My Bookings",
         screenshotSrc: "/guides/my-bookings-dashboard.png",
       },
       {
         title: "Cancel or reschedule",
-        body: "Open the booking and choose cancel (full or partial where allowed) or reschedule to another free slot.",
+        body: "Each booking shows its cancel/reschedule deadline. Open the booking and choose cancel (full or partial where allowed) or reschedule to another free slot. After the deadline it shows Deadline passed - contact the Officer in Charge.",
       },
       {
         title: "Book again",

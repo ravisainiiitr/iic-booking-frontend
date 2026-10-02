@@ -22,6 +22,7 @@ const ALL_ON: GuideFeatureFlags = {
   externalBooking: true,
   oicLeaveManagement: true,
   oicTaNomination: true,
+  training: true,
 };
 
 /** Admin-only review of every role's guide, as each role sees it. Visit: /dev/user-guides */

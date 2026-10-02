@@ -3,7 +3,7 @@ import { Gauge } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import type { StudentSpendingLimit } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatINRWithPaise as formatInr } from "@/lib/money";
+import { formatINRAmount as formatInr } from "@/lib/money";
 
 /** Shows a student the weekly / monthly limit their supervisor set and what is left. Renders nothing otherwise. */
 export function MySpendingLimitNotice({ className = "" }: { className?: string }) {

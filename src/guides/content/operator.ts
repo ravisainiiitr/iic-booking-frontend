@@ -1,11 +1,12 @@
-import type { RoleGuide } from "../gate";
+import { compact, type RoleGuide } from "../gate";
 import { helpSection } from "./help";
 import { staffViewBookingSection, ticketsSection } from "./staff";
+import { trainingSection } from "./training";
 
 export const operatorGuide: RoleGuide = {
   title: "Lab Operator guide",
   welcome: "Close each day's runs on the equipment assigned to you and keep your Officer In Charge informed.",
-  sections: (g) => [
+  sections: (g) => compact([
     {
       id: "getting-started",
       title: "Getting started",
@@ -37,6 +38,7 @@ export const operatorGuide: RoleGuide = {
         "Dates cannot overlap an entry you already submitted.",
       ],
     },
+    trainingSection(g),
     ticketsSection(g),
     helpSection(g, {
       faqs: [
@@ -50,5 +52,5 @@ export const operatorGuide: RoleGuide = {
         },
       ],
     }),
-  ],
+  ]),
 };

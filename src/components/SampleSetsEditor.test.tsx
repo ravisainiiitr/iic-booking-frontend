@@ -8,7 +8,7 @@ import SampleSetsEditor, {
   SAMPLE_SETS_SWITCHED_OFF_NOTE,
   type SampleSetField,
 } from "@/components/SampleSetsEditor";
-import { AllowSampleSetsField } from "@/components/admin/AllowSampleSetsField";
+import { AllowSampleSetsField, canEditSampleSetsSwitch } from "@/components/admin/AllowSampleSetsField";
 import { defaultSampleSetValues, sampleSetSummary, sampleSetsAllowedFor } from "@/lib/sampleSets";
 
 const fields: SampleSetField[] = [
@@ -119,5 +119,12 @@ describe("AllowSampleSetsField (equipment form)", () => {
     expect(html).toMatch(/aria-checked="false"/);
     expect(html).toMatch(/<button[^>]*disabled=""/);
     expect(html).toContain("Only the main administrator can change this.");
+  });
+
+  it("follows the API's edit flag (superuser of any user type) and falls back to the main-admin type", () => {
+    expect(canEditSampleSetsSwitch(true, false)).toBe(true);
+    expect(canEditSampleSetsSwitch(false, true)).toBe(false);
+    expect(canEditSampleSetsSwitch(undefined, true)).toBe(true);
+    expect(canEditSampleSetsSwitch(undefined, false)).toBe(false);
   });
 });

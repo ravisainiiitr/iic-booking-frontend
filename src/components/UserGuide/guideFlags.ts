@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { walletModeFlagsFromSettings } from "@/lib/walletModes";
 import { isViteCopilotEnabled } from "@/components/ResearchCopilot/softGate";
+import { loadTrainingBootstrap } from "@/components/training/useTrainingAvailability";
 import type { GuideAudienceId, GuideFeatureFlags } from "@/guides/types";
 
 type FlagUser = {
@@ -13,6 +14,7 @@ type FlagUser = {
 const WALLET_OWNER_AUDIENCES: GuideAudienceId[] = ["faculty", "startup", "external"];
 const WALLET_MEMBER_AUDIENCES: GuideAudienceId[] = ["student", "project_staff"];
 const ASSISTANT_AUDIENCES: GuideAudienceId[] = ["student", "project_staff", "faculty", "startup", "external", "oic", "admin"];
+const TRAINING_AUDIENCES: GuideAudienceId[] = ["student", "faculty", "oic", "operator", "admin"];
 
 /** Features that change what this user's guide shows. Failed look-ups keep the safe defaults. */
 export async function loadGuideFlags(audience: GuideAudienceId, user: FlagUser): Promise<Partial<GuideFeatureFlags>> {
@@ -44,6 +46,14 @@ export async function loadGuideFlags(audience: GuideAudienceId, user: FlagUser):
         const data = res.data as { enabled?: boolean; mutation_flags?: { booking_create?: boolean } };
         flags.assistant = data.enabled !== false;
         flags.inChatBooking = flags.assistant && data.mutation_flags?.booking_create === true;
+      })
+    );
+  }
+
+  if (TRAINING_AUDIENCES.includes(audience)) {
+    tasks.push(
+      loadTrainingBootstrap().then((data) => {
+        flags.training = data?.enabled === true;
       })
     );
   }

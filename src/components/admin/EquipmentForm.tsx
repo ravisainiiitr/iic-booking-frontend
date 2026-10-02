@@ -34,7 +34,7 @@ import { isNumericHelpTextConvention, parseNumericHelpText } from "@/lib/numeric
 import { formatCoordinate } from "@/lib/equipmentGps";
 import { CONTACT_HONORIFICS, formatNameWithHonorific } from "@/lib/displayName";
 import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
-import { AllowSampleSetsField } from "@/components/admin/AllowSampleSetsField";
+import { AllowSampleSetsField, canEditSampleSetsSwitch } from "@/components/admin/AllowSampleSetsField";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   Dialog,
@@ -412,6 +412,7 @@ type EquipmentFormChoices = {
   status_choices: Array<{ value: string; label: string }>;
   user_type_choices?: Array<{ value: string; label: string }>;
   dynamic_input_field_type_choices?: Array<{ value: string; label: string }>;
+  can_edit_sample_sets_flag?: boolean;
 };
 
 const DYNAMIC_INPUT_FIELD_KEYS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
@@ -442,6 +443,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const [choices, setChoices] = useState<EquipmentFormChoices | null>(null);
   const [choicesLoading, setChoicesLoading] = useState(true);
   const [choicesError, setChoicesError] = useState<string | null>(null);
+  const canEditSampleSetsFlag = canEditSampleSetsSwitch(choices?.can_edit_sample_sets_flag, isMainAdmin);
   const [formData, setFormData] = useState<EquipmentFormData>({
     name: "",
     code: "",
@@ -1006,7 +1008,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : 24,
       skip_quota_check: formData.skip_quota_check === true,
       enable_charge_recalculation: formData.enable_charge_recalculation === true,
-      ...(isMainAdmin ? { allow_multiple_sample_sets: formData.allow_multiple_sample_sets !== false } : {}),
+      ...(canEditSampleSetsFlag ? { allow_multiple_sample_sets: formData.allow_multiple_sample_sets !== false } : {}),
       user_rating_enabled: formData.user_rating_enabled !== false,
       sample_preparation_by_user: formData.sample_preparation_by_user === true,
       urgent_peak_window_minutes:
@@ -2233,7 +2235,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         <AllowSampleSetsField
           className="sm:col-span-2"
           checked={formData.allow_multiple_sample_sets}
-          canEdit={isMainAdmin}
+          canEdit={canEditSampleSetsFlag}
           onCheckedChange={(c) => setFormData((p) => ({ ...p, allow_multiple_sample_sets: c }))}
         />
       </div>

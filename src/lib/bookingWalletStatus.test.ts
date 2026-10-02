@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { bookingWalletStatus, insufficientFundsMessage } from "./bookingWalletStatus";
+import { formatINRAmount } from "./money";
 
 const base = {
   balance: "500.00",
@@ -33,7 +34,21 @@ describe("bookingWalletStatus", () => {
     const s = bookingWalletStatus({ ...base, spendable: "300.00" }, 450);
     expect(s).toEqual({ kind: "insufficient", spendable: 300, charge: 450, shortfall: 150 });
     if (s.kind === "insufficient") {
-      expect(insufficientFundsMessage(s)).toContain("₹150.00");
+      expect(insufficientFundsMessage(s)).toBe(
+        "This booking costs ₹450 but your wallet can cover ₹300. Recharge at least ₹150 before you confirm, or the booking will fail.",
+      );
+    }
+  });
+
+  it("formats prices like the review line: Indian grouping, paise only when present", () => {
+    expect(formatINRAmount(1200)).toBe("₹1,200");
+    expect(formatINRAmount("125000.5")).toBe("₹1,25,000.50");
+    expect(formatINRAmount("1,200.00")).toBe("₹1,200");
+    expect(formatINRAmount(99.999)).toBe("₹100");
+    expect(formatINRAmount(null)).toBe("₹0");
+    const s = bookingWalletStatus({ ...base, spendable: "1000.25" }, 1200);
+    if (s.kind === "insufficient") {
+      expect(insufficientFundsMessage(s)).toContain("costs ₹1,200 but your wallet can cover ₹1,000.25");
     }
   });
 

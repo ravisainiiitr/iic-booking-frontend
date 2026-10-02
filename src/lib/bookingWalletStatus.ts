@@ -1,5 +1,7 @@
 /** What the booking page should say about the wallet before the user fills in the form or confirms. */
 
+import { formatINRAmount } from "@/lib/money";
+
 export type EquipmentWalletBalance = {
   balance: string;
   has_wallet: boolean;
@@ -57,10 +59,6 @@ export function bookingWalletStatus(wallet: EquipmentWalletBalance | null | unde
   return { kind: "ok" };
 }
 
-export function formatRupees(amount: number): string {
-  return `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
 export function insufficientFundsMessage(s: Extract<BookingWalletStatus, { kind: "insufficient" }>): string {
-  return `This booking costs ${formatRupees(s.charge)} but your wallet can cover ${formatRupees(s.spendable)}. Recharge at least ${formatRupees(s.shortfall)} before you confirm, or the booking will fail.`;
+  return `This booking costs ${formatINRAmount(s.charge)} but your wallet can cover ${formatINRAmount(s.spendable)}. Recharge at least ${formatINRAmount(s.shortfall)} before you confirm, or the booking will fail.`;
 }

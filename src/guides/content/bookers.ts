@@ -13,6 +13,7 @@ import {
 } from "./booking";
 import { helpSection } from "./help";
 import { disruptionsSection, samplesSection, statusesSection, urgentSection, waitlistSection } from "./policies";
+import { trainingSection } from "./training";
 
 function gettingStartedSection(g: Gate): GuideSection {
   const campus = g.is("student", "project_staff", "faculty");
@@ -137,6 +138,7 @@ export function bookerSections(g: Gate): GuideSection[] {
     myBookingsSection(g),
     g.is(...WALLET_MEMBERS) ? memberWalletSection(g) : ownerWalletSection(g),
     g.when(g.is("faculty"), studentsSection(g)),
+    trainingSection(g),
     urgentSection(g),
     waitlistSection(),
     disruptionsSection(),

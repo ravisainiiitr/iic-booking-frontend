@@ -17,7 +17,7 @@ export function waitlistSection(): GuideSection {
     steps: [
       {
         title: "Join",
-        body: "Choose the waitlist option when the booking cannot be completed. You are emailed your WL position.",
+        body: "Choose the waitlist option when the booking cannot be completed. The page shows your place in the queue (for example, You're #2 in the queue) and you are emailed your WL position.",
       },
       {
         title: "Get promoted",

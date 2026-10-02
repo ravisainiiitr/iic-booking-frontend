@@ -133,7 +133,7 @@ export function oicConfigSection(g: Gate): GuideSection {
     steps: compact([
       {
         title: "Important instruction",
-        body: "In Equipment Booking Configuration, write the Default (all user types) text with the toolbar. Use Add an instruction for a user type for a different note to, say, students or external users.",
+        body: "In Equipment Booking Configuration, write the Default (all user types) text with the toolbar: font, point size, subscript and superscript (for H₂O or cm⁻¹), lists, colours and links. Use Add an instruction for a user type for a different note to, say, students or external users.",
       },
       {
         title: "Booking and sample timings",

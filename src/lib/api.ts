@@ -11482,6 +11482,8 @@ class ApiClient {
       status_choices: Array<{ value: string; label: string }>;
       dynamic_input_field_type_choices: Array<{ value: string; label: string }>;
       user_type_choices: Array<{ value: string; label: string }>;
+      /** Main administrator or superuser: may change "Allow samples with different parameters". */
+      can_edit_sample_sets_flag?: boolean;
     }>('/admin/equipment-form-choices/', { method: 'GET' });
   }
 

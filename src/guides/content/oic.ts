@@ -1,6 +1,7 @@
 import { compact, type RoleGuide } from "../gate";
 import { assistantSection } from "./booking";
 import { helpSection } from "./help";
+import { trainingSection } from "./training";
 import {
   oicChargesSection,
   oicConfigSection,
@@ -45,6 +46,7 @@ export const oicGuide: RoleGuide = {
       slotStatusSection(g),
       oicConfigSection(g),
       oicChargesSection(),
+      trainingSection(g),
       ticketsSection(g),
       assistantSection(g),
       helpSection(g, {
