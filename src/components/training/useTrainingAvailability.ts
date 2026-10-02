@@ -1,0 +1,54 @@
+import { useEffect, useState } from "react";
+import { apiClient } from "@/lib/api";
+import { trainingApi } from "@/lib/trainingApi";
+import type { TrainingBootstrap, TrainingMenuKey } from "@/lib/trainingTypes";
+
+let cached: { token: string | null; data: TrainingBootstrap | null } | null = null;
+let inflight: Promise<TrainingBootstrap | null> | null = null;
+
+async function loadBootstrap(): Promise<TrainingBootstrap | null> {
+  const token = apiClient.getToken();
+  if (!token) return null;
+  if (cached && cached.token === token) return cached.data;
+  if (!inflight) {
+    inflight = trainingApi
+      .bootstrap()
+      .then((res) => {
+        const data = res.error ? null : (res.data ?? null);
+        cached = { token, data };
+        return data;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  }
+  return inflight;
+}
+
+function cachedForCurrentToken(): TrainingBootstrap | null | undefined {
+  if (!cached) return undefined;
+  return cached.token === apiClient.getToken() ? cached.data : undefined;
+}
+
+/** Training & Certification module state and the menus the signed-in user may see. */
+export function useTrainingAvailability(enabled = true) {
+  const initial = cachedForCurrentToken();
+  const [data, setData] = useState<TrainingBootstrap | null>(initial ?? null);
+  const [loading, setLoading] = useState(initial === undefined);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    void loadBootstrap().then((result) => {
+      if (!alive) return;
+      setData(result);
+      setLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [enabled]);
+
+  const menu = (key: TrainingMenuKey) => Boolean(data?.menus?.[key]);
+  return { loading, bootstrap: data, enabled: Boolean(data?.enabled), menu };
+}

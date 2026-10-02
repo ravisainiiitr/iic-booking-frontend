@@ -63,7 +63,7 @@ const getApiBaseUrl = (): string => {
   return 'http://127.0.0.1:8000/api';
 };
 
-const API_BASE_URL = getApiBaseUrl();
+export const API_BASE_URL = getApiBaseUrl();
 
 export interface UserIdentityCard {
   user_id: number;

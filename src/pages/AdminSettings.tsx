@@ -16,10 +16,12 @@ import {
   BookOpen,
   FolderTree,
   FileSpreadsheet,
+  GraduationCap,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
 import { PageHero, PageShell, SettingsTile, StandaloneOnly } from "@/components/PageShell";
+import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
 
 /**
  * Admin Settings hub. Tile visibility is driven by Admin Panel Access config
@@ -31,6 +33,7 @@ const AdminSettings = () => {
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
   const panelOk = hasAdminPanelAccess(user);
+  const { menu: trainingMenu } = useTrainingAvailability();
 
   const can = (moduleKey: string) => isAdmin || (panelOk && canAccessModule(user, moduleKey));
 
@@ -205,6 +208,14 @@ const AdminSettings = () => {
               title="Reward Config (Per Equipment)"
               description="Per-equipment reward settings"
               onClick={() => navigate("/admin-settings/rewards")}
+            />
+          )}
+          {(can("admin_settings.training") || trainingMenu("training_policy_settings")) && (
+            <SettingsTile
+              icon={<GraduationCap className="h-5 w-5" />}
+              title="Training Policy"
+              description="Training & Certification caps, scoring weights, timelines and demo charges"
+              onClick={() => navigate("/admin-settings/training")}
             />
           )}
         </div>

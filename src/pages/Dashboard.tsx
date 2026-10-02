@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2 } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
@@ -33,6 +33,8 @@ import DashboardHeader from "@/components/DashboardHeader";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
+import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
+import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
 import DashboardWorkspace from "@/components/DashboardWorkspace";
 import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
@@ -131,6 +133,12 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Legacy User Sync",
     description: "Map a user to their old booking portal account, test sync, then confirm wallet and booking sync.",
   },
+  "/training/nominations": { title: "Training & Demos", description: "Nominate your students for equipment training calls." },
+  "/training/demo-requests": { title: "Demonstration Requests", description: "Request equipment demonstrations for your class or group." },
+  "/training/oic": { title: "Training Workspace", description: "Demonstration requests, nomination calls, sessions, attendance and certifications." },
+  "/training/attendance": { title: "Training Attendance", description: "Mark attendance for training sessions and demonstrations." },
+  "/my-trainings": { title: "My Trainings", description: "Your training applications, sessions and certifications." },
+  "/admin-settings/training": { title: "Training Policy" },
 };
 
 function getWorkspacePageMeta(path: string): { title: string; description?: string } | null {
@@ -467,6 +475,7 @@ const Dashboard = () => {
   const canReceiveSharedData =
     userTypeStr === "student" || userTypeStr === "individual_student" || isInternalFacultyUser;
   const { available: myResearchAvailable } = useMyResearchAvailability(Boolean(user) && canReceiveSharedData);
+  const { menu: trainingMenu } = useTrainingAvailability(Boolean(user));
   const [newResultsCount, setNewResultsCount] = useState(0);
   useEffect(() => {
     if (!user || isOperatorOrManager) return;
@@ -1818,6 +1827,35 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "my_trainings",
+      label: "My Trainings",
+      visible: trainingMenu("my_trainings"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/my-trainings")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My Trainings</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Training applications, upcoming sessions and your equipment certifications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open My Trainings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "urgent_booking_requests",
       label: "Urgent booking requests",
       visible: Boolean(showFacultyUrgentWalletCard),
@@ -2018,6 +2056,64 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "training_workspace",
+      label: "Training workspace",
+      visible: trainingMenu("training_workspace"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/training/oic")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <School className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Training workspace</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Demonstration requests, nomination calls, sessions, attendance and certifications
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open training workspace</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "training_attendance",
+      label: "Training attendance",
+      visible: trainingMenu("training_attendance"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/training/attendance")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <CalendarCheck2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Training attendance</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Mark attendance for training sessions and demonstrations on your equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Mark attendance</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "ta_duty_assignments",
       label: "TA duty assignments",
       visible: Boolean(canSeeTaDutyAssignmentsCard),
@@ -2152,6 +2248,48 @@ const Dashboard = () => {
                   onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
                 >
                   View students
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "training_events",
+      label: "Training & Demos",
+      visible: trainingMenu("training_events"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/training/nominations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <GraduationCap className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Training &amp; Demos</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Nominate students for equipment training and request demonstrations
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Button
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  onClick={(e) => { e.stopPropagation(); openWorkspace("/training/nominations"); }}
+                >
+                  Nominations
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={(e) => { e.stopPropagation(); openWorkspace("/training/demo-requests"); }}
+                >
+                  <Presentation className="mr-1.5 h-4 w-4" />
+                  Demo requests
                 </Button>
               </CardContent>
             </Card>
@@ -3419,6 +3557,7 @@ const Dashboard = () => {
                     <BadgeCheck className="h-3.5 w-3.5 shrink-0 opacity-95" />
                     {getUserCategoryLabel(user?.user_type, user?.user_type_display)}
                   </span>
+                  <TrainingBadgeChips userId={user?.id} onDark />
                 </div>
               <dl
                 className={cn(

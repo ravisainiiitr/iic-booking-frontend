@@ -111,6 +111,17 @@ describe("facultyDashboardMenuOrder", () => {
     ]);
   });
 
+  it("puts Training & Demos right after Student management when it is shown", () => {
+    const ids = [...facultyMenu, "training_events"];
+    expect(orderMenuIds(ids, facultyDashboardMenuOrder(ids)).slice(0, 5)).toEqual([
+      "browse_equipment",
+      "view_bookings",
+      "student_management",
+      "training_events",
+      "wallet_management",
+    ]);
+  });
+
   it("shows Shared with me in My Research's place when My Research is off", () => {
     const ids = facultyMenu.map((id) => (id === "my_research" ? "shared_with_me" : id));
     const ordered = orderMenuIds(ids, facultyDashboardMenuOrder(ids));

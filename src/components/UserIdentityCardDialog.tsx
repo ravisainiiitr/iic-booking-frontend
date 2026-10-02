@@ -3,6 +3,7 @@ import { Building2, GraduationCap, IdCard, Loader2, Mail, Phone, UserRound, User
 
 import { apiClient, type UserIdentityCard } from "@/lib/api";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -117,6 +118,7 @@ export function UserIdentityCardDialog({
                   <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-3.5 content-start">
                     <div className="sm:col-span-2">
                       <Field icon={<UserRound className="h-4 w-4" />} label="User name" value={name} />
+                      <TrainingBadgeChips userId={userId} className="mt-1.5 pl-[26px]" />
                     </div>
                     <Field icon={<UsersRound className="h-4 w-4" />} label="Supervisor" value={card?.supervisor_name} />
                     <Field icon={<Building2 className="h-4 w-4" />} label="Department" value={card?.department_name} />

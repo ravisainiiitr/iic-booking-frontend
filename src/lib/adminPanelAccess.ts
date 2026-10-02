@@ -113,6 +113,7 @@ const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/admin-settings/feedback", key: "admin_settings.feedback" },
   { path: "/admin-settings/quality-improvement", key: "admin_settings.quality_improvement" },
   { path: "/admin-settings/rewards", key: "admin_settings.rewards" },
+  { path: "/admin-settings/training", key: "admin_settings.training" },
 ];
 
 export function moduleKeyForPath(path: string | null | undefined): string | null {

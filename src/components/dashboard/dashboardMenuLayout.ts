@@ -10,6 +10,7 @@ const FACULTY_DASHBOARD_MENU_HEAD = [
   "browse_equipment",
   "view_bookings",
   "student_management",
+  "training_events",
   "wallet_management",
   "my_research",
   "shared_with_me",

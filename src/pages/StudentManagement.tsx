@@ -47,7 +47,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserIdentityCardDialog } from "@/components/UserIdentityCardDialog";
 import { formatProgramme } from "@/lib/programmeLabel";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, IdCard } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Wallet, Send, ClipboardList, IdCard, GraduationCap } from "lucide-react";
+import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
+import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -86,6 +88,7 @@ function ProgramCell({ row }: { row: WalletStudentRow | EquipmentNomination }) {
 const StudentManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const { menu: trainingMenu } = useTrainingAvailability(isAuthenticated);
   const [students, setStudents] = useState<WalletStudentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openTACalls, setOpenTACalls] = useState<TANominationCall[]>([]);
@@ -468,14 +471,26 @@ const StudentManagement = () => {
                     </CardDescription>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  className="gap-2 border-primary/25 dark:border-primary/40"
-                  onClick={() => navigate("/wallet")}
-                >
-                  <Wallet className="h-4 w-4" />
-                  Manage in Wallet
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {trainingMenu("training_events") && (
+                    <Button
+                      variant="outline"
+                      className="gap-2 border-primary/25 dark:border-primary/40"
+                      onClick={() => navigate("/training/nominations?tab=students")}
+                    >
+                      <GraduationCap className="h-4 w-4" />
+                      Training &amp; demos
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-primary/25 dark:border-primary/40"
+                    onClick={() => navigate("/wallet")}
+                  >
+                    <Wallet className="h-4 w-4" />
+                    Manage in Wallet
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -542,6 +557,7 @@ const StudentManagement = () => {
                               {row.student_name || row.student_email || "—"}
                               <IdCard className="h-3.5 w-3.5 opacity-60" />
                             </button>
+                            <TrainingBadgeChips userId={row.student} max={3} className="mt-1 flex" />
                           </TableCell>
                           <TableCell>
                             <p className="text-muted-foreground text-sm">{row.student_email || "—"}</p>

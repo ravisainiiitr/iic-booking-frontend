@@ -134,6 +134,12 @@ const MyResearch = lazyPage(() => import("@/pages/MyResearch"));
 const ResearchWorkspace = lazyPage(() => import("@/pages/ResearchWorkspace"));
 const ResearchGroup = lazyPage(() => import("@/pages/ResearchGroup"));
 const EquipmentAvailability = lazyPage(() => import("@/pages/EquipmentAvailability"));
+const TrainingDemoRequests = lazyPage(() => import("@/pages/TrainingDemoRequests"));
+const TrainingNominations = lazyPage(() => import("@/pages/TrainingNominations"));
+const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
+const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
+const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
+const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
 function RouteFallback() {
@@ -177,6 +183,11 @@ export default function AppRoutes() {
           <Route path="/my-research" element={<MyResearch />} />
           <Route path="/my-research/groups/:groupId" element={<ResearchGroup />} />
           <Route path="/my-research/:workspaceId" element={<ResearchWorkspace />} />
+          <Route path="/training/demo-requests" element={<TrainingDemoRequests />} />
+          <Route path="/training/nominations" element={<TrainingNominations />} />
+          <Route path="/training/oic" element={<TrainingWorkspace />} />
+          <Route path="/training/attendance" element={<TrainingAttendance />} />
+          <Route path="/my-trainings" element={<MyTrainings />} />
           <Route path="/availability" element={<EquipmentAvailability />} />
           <Route path="/booking-calendar" element={<BookingCalendar />} />
           <Route path="/booking-management" element={<BookingManagement />} />
@@ -304,6 +315,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/feedback" element={<AdminSettingsFeedback />} />
           <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
+          <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
