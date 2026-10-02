@@ -16,24 +16,16 @@ import {
   MessageSquarePlus,
   Send,
   Sparkles,
-  ThumbsDown,
-  ThumbsUp,
   X,
 } from "lucide-react";
 import { prepareBookingAssistantHandoff } from "@/lib/bookingAssistantPrefill";
+import { helpAction, helpUtterance, type AssistantHelpDetail } from "@/lib/assistantHelp";
 import { ASSISTANT_CARD_TYPES, AssistantCard, type AssistantActionHandler } from "./AssistantCards";
+import { AssistantFeedback } from "./AssistantFeedback";
 import { CopilotMarkdown } from "./CopilotMarkdown";
 import { safeHref } from "./markdown";
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
 import { isViteCopilotEnabled } from "./softGate";
-
-const FEEDBACK_REASONS: Array<{ value: string; label: string }> = [
-  { value: "incorrect", label: "Wrong answer" },
-  { value: "missing_information", label: "Incomplete" },
-  { value: "not_useful", label: "Not relevant" },
-  { value: "action_failed", label: "Action didn't work" },
-  { value: "other", label: "Other" },
-];
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return "";
@@ -736,11 +728,14 @@ type ResearchCopilotProps = {
   initialOpen?: boolean;
   /** Enabled flag already resolved by the launcher; skips the duplicate mount-time bootstrap. */
   initialBackendEnabled?: boolean | null;
+  /** "Need help?" accepted on a page after a booking failure: opens the panel and asks with the failure context. */
+  helpRequest?: { id: number; detail: AssistantHelpDetail } | null;
 };
 
 export default function ResearchCopilot({
   initialOpen = false,
   initialBackendEnabled = null,
+  helpRequest = null,
 }: ResearchCopilotProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -776,9 +771,7 @@ export default function ResearchCopilot({
   const [commandGroups, setCommandGroups] = useState<CopilotCommandGroup[]>([]);
   const [intelligenceOn, setIntelligenceOn] = useState(false);
   const [canEscalate, setCanEscalate] = useState(false);
-  const [feedbackFor, setFeedbackFor] = useState<{ messageId: string | null; step: "reason" | "done" } | null>(null);
-  const [feedbackReason, setFeedbackReason] = useState("");
-  const [feedbackComment, setFeedbackComment] = useState("");
+  const [starterActions, setStarterActions] = useState<CopilotAction[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [escalating, setEscalating] = useState(false);
@@ -795,7 +788,8 @@ export default function ResearchCopilot({
   const [quickOpen, setQuickOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasUserMessages = messages.some((m) => m.role === "user");
-  const showQuick = !hasUserMessages || quickOpen;
+  // The welcome message carries the role-based starter chips; the full quick-action list stays one tap away.
+  const showQuick = quickOpen || (!hasUserMessages && !starterActions.length);
   const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
 
   const appendEnvelope = useCallback((envelope: CopilotEnvelope | undefined, fallback: string, isError = false) => {
@@ -884,12 +878,23 @@ export default function ResearchCopilot({
 
   const welcome = useMemo(
     () =>
-      isAuthenticated && intelligenceOn
+      isAuthenticated && starterActions.length
+        ? `Hi! I can find free slots, estimate charges and help with your bookings, wallet and results. Pick one below or ask in your own words — nothing is booked until you press **Confirm booking**.`
+        : isAuthenticated && intelligenceOn
         ? `Hello! How can I help?\n\nAsk in your own words, for example **"I need FESEM tomorrow — what are my options?"**. I show live free slots you can tap to book, equipment details, charges, contacts and your bookings. Nothing is booked until you press **Confirm booking**.`
         : isAuthenticated
         ? `I am **${assistantName}** — your booking assistant for IIC IIT Roorkee.\n\nTry **"I need FESEM tomorrow — what are my options?"**, "Where is the XRD?", "What are the TEM charges?" or "Show my upcoming bookings". I use live portal data, and nothing is booked until you press **Confirm booking**.`
         : `I am **${assistantName}** (guest mode).\n\nAsk about equipment, free slots, rough charge estimates, HOLD meaning, sample acceptance, manuals, or Remote Analysis troubleshooting. Sign in to book, check wallet, or view your bookings.`,
-    [assistantName, isAuthenticated, intelligenceOn],
+    [assistantName, isAuthenticated, intelligenceOn, starterActions.length],
+  );
+  const welcomeMessage = useMemo<CopilotMessage>(
+    () => ({
+      id: "welcome",
+      role: "assistant",
+      content: welcome,
+      suggested_actions: isAuthenticated && starterActions.length ? starterActions : undefined,
+    }),
+    [welcome, isAuthenticated, starterActions],
   );
 
   useEffect(() => {
@@ -950,8 +955,10 @@ export default function ResearchCopilot({
         const extra = res.data as {
           command_groups?: CopilotCommandGroup[];
           intelligence?: { enabled?: boolean; knowledge?: boolean };
+          starter_actions?: CopilotAction[];
         };
         setCommandGroups(isAuthenticated ? extra.command_groups || [] : []);
+        setStarterActions(isAuthenticated && Array.isArray(extra.starter_actions) ? extra.starter_actions.slice(0, 6) : []);
         setIntelligenceOn(Boolean(isAuthenticated && extra.intelligence?.enabled));
         setCanEscalate(Boolean(isAuthenticated && (extra.intelligence?.enabled || extra.intelligence?.knowledge)));
       } else if (res.error) {
@@ -967,13 +974,11 @@ export default function ResearchCopilot({
   useEffect(() => {
     if (!open) return;
     setMessages((m) => {
-      if (!m.length) return [{ id: "welcome", role: "assistant", content: welcome }];
-      if (m.length === 1 && m[0].id === "welcome" && m[0].content !== welcome) {
-        return [{ ...m[0], content: welcome }];
-      }
+      if (!m.length) return [welcomeMessage];
+      if (m.length === 1 && m[0].id === "welcome" && m[0] !== welcomeMessage) return [welcomeMessage];
       return m;
     });
-  }, [open, welcome]);
+  }, [open, welcomeMessage]);
 
   useEffect(() => {
     if (!isViteCopilotEnabled) return;
@@ -1025,14 +1030,14 @@ export default function ResearchCopilot({
     if (res.error) return;
     if (archived && id === conversationId) {
       setConversationId(null);
-      setMessages([{ id: "welcome", role: "assistant", content: welcome }]);
+      setMessages([welcomeMessage]);
     }
     await refreshList();
   };
 
   const startNew = async () => {
     setConversationId(null);
-    setMessages([{ id: "welcome", role: "assistant", content: welcome }]);
+    setMessages([welcomeMessage]);
     if (!isAuthenticated) return;
     const res = await apiClient.researchCopilotCreateConversation();
     if (res.data?.conversation?.id) {
@@ -1146,21 +1151,22 @@ export default function ResearchCopilot({
     }
   };
 
-  const feedback = async (rating: "up" | "down", messageId?: string, comment?: string, reason?: string) => {
-    if (!conversationId) return false;
+  /** Saves a rating (or, with `feedbackId`, adds a note to one already saved); resolves to the feedback id. */
+  const feedback = async (
+    rating: "up" | "down",
+    messageId?: string,
+    comment?: string,
+    feedbackId?: string,
+  ): Promise<string | null> => {
+    if (!conversationId) return null;
     const res = await apiClient.researchCopilotFeedback(conversationId, {
       rating,
       message_id: messageId && isServerMessageId(messageId) ? messageId : undefined,
       comment,
-      reason,
+      feedback_id: feedbackId,
     });
-    if (res.error) {
-      setMessages((m) => [
-        ...m,
-        { id: `e-${Date.now()}`, role: "assistant", content: "Your feedback could not be saved. Please try again." },
-      ]);
-    }
-    return !res.error;
+    if (res.error || !res.data?.id) return null;
+    return String(res.data.id);
   };
 
   const escalate = async (messageId: string | null, reason: string, note?: string) => {
@@ -1232,32 +1238,16 @@ export default function ResearchCopilot({
     }
   };
 
-  const openFeedbackDialog = (messageId: string | null) => {
-    setFeedbackReason("");
-    setFeedbackComment("");
-    setFeedbackFor({ messageId, step: "reason" });
-  };
-
-  const submitFeedbackReason = async () => {
-    if (!feedbackFor || !feedbackReason) return;
-    const ok = await feedback(
-      "down",
-      feedbackFor.messageId ?? undefined,
-      feedbackComment.trim() || undefined,
-      feedbackReason,
-    );
-    if (ok) setFeedbackFor({ ...feedbackFor, step: "done" });
-  };
-
-  const closeFeedback = () => {
-    setFeedbackFor(null);
-    setFeedbackReason("");
-    setFeedbackComment("");
-  };
-
-  const lastServerAssistantId = [...messages]
-    .reverse()
-    .find((m) => m.role === "assistant" && isServerMessageId(m.id))?.id ?? null;
+  const handledHelp = useRef<number | null>(null);
+  useEffect(() => {
+    if (!helpRequest || handledHelp.current === helpRequest.id) return;
+    if (!open) setOpen(true);
+    if (!isAuthenticated || backendEnabled !== true || bootstrapping || loading) return;
+    handledHelp.current = helpRequest.id;
+    void send(helpUtterance(helpRequest.detail), undefined, helpAction(helpRequest.detail));
+    // send() is recreated every render; the request id guards against re-sending.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [helpRequest, open, isAuthenticated, backendEnabled, bootstrapping, loading]);
 
   if (!isCopilotEnabled) return null;
   if (hideOnAnalysisDesktop || isEmbed) return null;
@@ -1399,26 +1389,6 @@ export default function ResearchCopilot({
               <Button type="button" size="icon" variant="ghost" onClick={() => void copyLastAssistant()} aria-label="Copy reply">
                 <Copy className="h-4 w-4" />
               </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => void feedback("up", lastServerAssistantId ?? undefined)}
-                aria-label="Helpful"
-                disabled={!conversationId}
-              >
-                <ThumbsUp className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                onClick={() => openFeedbackDialog(lastServerAssistantId)}
-                aria-label="Not helpful"
-                disabled={!conversationId}
-              >
-                <ThumbsDown className="h-4 w-4" />
-              </Button>
             </div>
 
             {!isAuthenticated ? (
@@ -1550,28 +1520,6 @@ export default function ResearchCopilot({
                               </ul>
                             </div>
                           )}
-                          {msg.role === "assistant" && isServerMessageId(msg.id) && conversationId && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 gap-1 px-2 text-[11px]"
-                                onClick={() => void feedback("up", msg.id)}
-                              >
-                                <ThumbsUp className="h-3 w-3" /> Helpful
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 gap-1 px-2 text-[11px]"
-                                onClick={() => openFeedbackDialog(msg.id)}
-                              >
-                                <ThumbsDown className="h-3 w-3" /> Not helpful
-                              </Button>
-                            </div>
-                          )}
                           {msg.role === "assistant" && msg.suggested_actions && msg.suggested_actions.length > 0 && (() => {
                             const cardChoiceKeys = msg.metadata?.intelligence
                               ? renderedChoiceKeys(msg.cards as unknown as Record<string, unknown>[])
@@ -1629,6 +1577,14 @@ export default function ResearchCopilot({
                               If this doesn&apos;t answer your question, open Support Tickets or try a more specific prompt.
                             </p>
                           )}
+                          {msg.role === "assistant" && isServerMessageId(msg.id) && conversationId && (
+                            <AssistantFeedback
+                              onRate={(rating) => feedback(rating, msg.id)}
+                              onComment={async (fid, note) => Boolean(await feedback("down", msg.id, note, fid))}
+                              canEscalate={canEscalate}
+                              onEscalate={(note) => void escalate(msg.id, "negative_feedback", note)}
+                            />
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1637,14 +1593,15 @@ export default function ResearchCopilot({
                   </div>
                 </ScrollArea>
 
-                {hasUserMessages && (commands.length > 0 || suggested.length > 0) && (
+                {(hasUserMessages || starterActions.length > 0) &&
+                  (commands.length > 0 || suggested.length > 0 || commandGroups.length > 0) && (
                   <button
                     type="button"
                     onClick={() => setQuickOpen((v) => !v)}
                     aria-expanded={quickOpen}
                     className="border-t px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted"
                   >
-                    {quickOpen ? "Hide quick actions" : "Show quick actions"}
+                    {quickOpen ? "Hide quick actions" : "More quick actions"}
                   </button>
                 )}
 
@@ -1733,75 +1690,6 @@ export default function ResearchCopilot({
                         {s}
                       </button>
                     ))}
-                  </div>
-                )}
-
-                {feedbackFor && (
-                  <div className="border-t bg-muted/40 p-3" role="region" aria-label="Feedback">
-                    {feedbackFor.step === "reason" ? (
-                      <>
-                        <div className="mb-2 text-xs font-semibold">What was missing?</div>
-                        <div className="mb-2 flex flex-wrap gap-1.5">
-                          {FEEDBACK_REASONS.map((r) => (
-                            <button
-                              key={r.value}
-                              type="button"
-                              onClick={() => setFeedbackReason(r.value)}
-                              aria-pressed={feedbackReason === r.value}
-                              className={`rounded-full border px-3 py-1 text-xs ${
-                                feedbackReason === r.value
-                                  ? "border-slate-900 bg-slate-900 text-amber-50 dark:border-amber-100 dark:bg-amber-100 dark:text-slate-900"
-                                  : "bg-background hover:bg-muted"
-                              }`}
-                            >
-                              {r.label}
-                            </button>
-                          ))}
-                        </div>
-                        <Input
-                          placeholder="Optional comment"
-                          value={feedbackComment}
-                          maxLength={1000}
-                          onChange={(e) => setFeedbackComment(e.target.value)}
-                          className="mb-2"
-                        />
-                        <div className="flex gap-2">
-                          <Button type="button" size="sm" onClick={() => void submitFeedbackReason()} disabled={!feedbackReason}>
-                            Submit
-                          </Button>
-                          <Button type="button" size="sm" variant="ghost" onClick={closeFeedback}>
-                            Cancel
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="mb-2 text-xs">
-                          Thanks, your feedback was recorded.
-                          {canEscalate ? " Do you want the IIC team to look into this?" : ""}
-                        </div>
-                        <div className="flex gap-2">
-                          {canEscalate ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            disabled={escalating}
-                            onClick={() => {
-                              const note = feedbackComment.trim() || undefined;
-                              const messageId = feedbackFor.messageId;
-                              closeFeedback();
-                              void escalate(messageId, "negative_feedback", note);
-                            }}
-                          >
-                            Raise Support Ticket
-                          </Button>
-                          ) : null}
-                          <Button type="button" size="sm" variant="ghost" onClick={closeFeedback}>
-                            {canEscalate ? "No, thanks" : "Close"}
-                          </Button>
-                        </div>
-                      </>
-                    )}
                   </div>
                 )}
 

@@ -28,6 +28,7 @@ import {
 } from "@/lib/templatePreferredSlot";
 import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
 import { useShowServerClockInHeader } from "@/lib/serverClockHeader";
+import { offerAssistantHelpForError } from "@/lib/assistantHelp";
 import { ResearchWorkspacePicker } from "@/components/my-research/ResearchWorkspacePicker";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
 import {
@@ -3737,6 +3738,7 @@ const BookEquipment = () => {
         if (isAdminOrOIC() || isCalculateChargesFlow) {
           toast.error(response.error);
         }
+        offerAssistantHelpForError(`Charge calculation failed: ${response.error}`, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
         return;
       }
 
@@ -3798,6 +3800,7 @@ const BookEquipment = () => {
       setShowSlots(false);
       // Store the hash even on failure to prevent retrying with same values
       lastCalculatedValuesRef.current = currentValuesHash;
+      offerAssistantHelpForError("Charge calculation failed", { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
       // Don't show error toast, just show "coming soon" message
     } finally {
       if (requestSeq === chargeRequestSeqRef.current) {
@@ -6286,6 +6289,7 @@ const BookEquipment = () => {
             ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}.`
             : (errRes.error || "Booking unsuccessful.");
           toast.error(msg);
+          if (!waitlistLabel && !backendSaysWaitlisted) offerAssistantHelpForError(msg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
           resetBookingPageToDefaults();
           setAttemptSnapshot(attemptForFollowUp);
           setBookingResultDialog({
@@ -6470,6 +6474,7 @@ const BookEquipment = () => {
             ? `Booking Waitlisted. You have been added to the waitlist at position ${waitlistLabel}. You will be notified by email about your queue status and booking confirmation/failure.`
             : errRes.error;
           toast.error(msg);
+          if (!waitlistLabel && !backendSaysWaitlisted) offerAssistantHelpForError(msg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
           resetBookingPageToDefaults();
           const failedBody = res.data as unknown as { slot_alternatives?: TemplateSlotAlternative[] } | undefined;
           setAttemptSnapshot(attemptForFollowUp);
@@ -6710,6 +6715,7 @@ const BookEquipment = () => {
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
       toast.error(errMsg);
+      if (selectedEquipment) offerAssistantHelpForError(errMsg, { equipmentId: Number(selectedEquipment.id), equipmentName: selectedEquipment.name });
       resetBookingPageToDefaults();
       setBookingResultDialog({ open: true, success: false, variant: "failure", message: errMsg });
       // Failure is already logged server-side in submit_booking / book_equipment; do not call logBookingAttempt here to avoid duplicate entries.

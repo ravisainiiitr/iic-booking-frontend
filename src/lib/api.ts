@@ -9771,6 +9771,8 @@ class ApiClient {
         can_manage_knowledge: boolean;
         can_approve_knowledge: boolean;
       };
+      /** Role-based first questions shown as chips on the welcome message. */
+      starter_actions?: Array<{ id: string; label: string; href?: string; prompt?: string; action_type?: string; payload?: Record<string, unknown> }>;
     }>('/v1/research-copilot/bootstrap/');
   }
 
@@ -9965,7 +9967,7 @@ class ApiClient {
 
   async researchCopilotFeedback(
     conversationId: string,
-    params: { rating: 'up' | 'down'; comment?: string; message_id?: string; reason?: string },
+    params: { rating: 'up' | 'down'; comment?: string; message_id?: string; reason?: string; feedback_id?: string },
   ) {
     return this.request<{ id: string; rating: string; reason?: string }>(
       `/v1/research-copilot/conversations/${conversationId}/feedback/`,
