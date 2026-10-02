@@ -1409,9 +1409,12 @@ const Dashboard = () => {
     );
   }
 
-  const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(workspaceCurrentPath || workspacePath || "");
+  const activeWorkspacePath = workspaceCurrentPath || workspacePath || "";
+  // These pages show their own title with Back beside it, so the workspace header row would repeat them.
+  const workspacePageHasOwnTitleRow = /^\/(urgent-requests-wallet|my-urgent-requests)\/?([?#]|$)/.test(activeWorkspacePath);
+  const hideWorkspaceHeader = /^\/equipments?(\/|$)/.test(activeWorkspacePath) || workspacePageHasOwnTitleRow;
   // The equipment catalog shows Back in its own header row instead.
-  const workspaceShowsOwnBack = /^\/equipments\/?$/.test(workspaceCurrentPath || workspacePath || "");
+  const workspaceShowsOwnBack = /^\/equipments\/?$/.test(activeWorkspacePath) || workspacePageHasOwnTitleRow;
   const workspaceBackButton = (
     <Button
       type="button"

@@ -25,7 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
-import { ArrowLeft, Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
+import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
+import { Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -86,6 +87,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const MyUrgentRequests = () => {
   const navigate = useNavigate();
+  const workspaceChrome = useWorkspaceChrome();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [list, setList] = useState<MyUrgentRequestRow[]>([]);
@@ -391,18 +393,14 @@ const MyUrgentRequests = () => {
       </AlertDialog>
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} aria-label="Back to dashboard">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Urgent booking request</h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                Submit a new urgent request or view the status of your submitted requests
-              </p>
-            </div>
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 mb-6">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Urgent booking request</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Submit a new urgent request or view the status of your submitted requests
+            </p>
           </div>
+          {workspaceChrome?.backButton}
         </div>
 
         {/* Submit new urgent request */}

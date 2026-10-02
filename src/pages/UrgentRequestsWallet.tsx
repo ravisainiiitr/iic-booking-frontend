@@ -34,7 +34,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, AlertTriangle, Clock, CheckCircle, XCircle } from "lucide-react";
+import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
+import { Loader2, Check, X, FileText, ExternalLink, AlertTriangle, Clock, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 
 type WalletRequestRow = {
@@ -123,6 +124,7 @@ function sanitizeEvidenceFilename(name: string | undefined, requestId: number): 
 
 const UrgentRequestsWallet = () => {
   const navigate = useNavigate();
+  const workspaceChrome = useWorkspaceChrome();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const isFacultyUser = String(user?.user_type || "").toLowerCase() === "faculty";
@@ -283,6 +285,14 @@ const UrgentRequestsWallet = () => {
     );
   };
 
+  // The first card's title is the page heading; in the dashboard workspace, Back sits beside it.
+  const pageTitleRow = (title: string) => (
+    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+      <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight">{title}</h1>
+      {workspaceChrome?.backButton}
+    </div>
+  );
+
   const emptyMessage = {
     pending: "No urgent requests pending your approval.",
     approved: "No requests you have approved yet.",
@@ -293,15 +303,10 @@ const UrgentRequestsWallet = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-6">
-        <Button variant="ghost" className="mb-4 -ml-2" onClick={() => navigate("/dashboard")}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
-        </Button>
-
         {showFacultySubmitForm && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Submit new urgent request</CardTitle>
+              {pageTitleRow("Submit new urgent request")}
               <CardDescription>
                 Raise an &quot;Urgent comment from reviewer&quot; request from this page. You may select slot(s) on the booking page first, then return here to attach your comment, evidence, and submit.
               </CardDescription>
@@ -455,7 +460,11 @@ const UrgentRequestsWallet = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Urgent requests – Supervisor approval</CardTitle>
+            {showFacultySubmitForm ? (
+              <CardTitle>Urgent requests – Supervisor approval</CardTitle>
+            ) : (
+              pageTitleRow("Urgent requests – Supervisor approval")
+            )}
             <CardDescription>
               Review urgent booking requests (50% surcharge) raised by students linked to your wallet. Approve or reject each one;
               after your approval the Officer in charge takes the final decision and allocates slots.
