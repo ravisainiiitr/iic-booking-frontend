@@ -11118,7 +11118,7 @@ const BookEquipment = () => {
                             {total != null && Number.isFinite(total) ? (
                               <>
                                 <span className="text-muted-foreground"> · Total </span>
-                                <span className="font-semibold">{formatINR(total)}</span>
+                                <span className="font-semibold">{formatINRAmount(total)}</span>
                               </>
                             ) : null}
                           </>
