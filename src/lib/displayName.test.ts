@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONTACT_HONORIFICS,
   applyFacultyNamePrefix,
   cleanPersonName,
+  formatNameWithHonorific,
   formatNamedPerson,
   formatPersonName,
   formatSignedInAs,
@@ -206,5 +208,65 @@ describe("guide welcome and header text", () => {
     expect(formatWelcomeGreeting("Prof. R. K. Jr.")).toBe("Welcome, Prof. R. K. Jr.");
     expect(formatWelcomeGreeting("Prof.")).toBe("Welcome.");
     expect(formatSignedInAs("Prof.", null)).toBe("");
+  });
+});
+
+describe("stripHonorifics on equipment contact names", () => {
+  it.each([
+    ["Dr. Shriniwas Yadav", "Shriniwas Yadav"],
+    ["dr shriniwas yadav", "shriniwas yadav"],
+    ["Prof. Dr. Kalpana", "Kalpana"],
+    ["Professor Ravi Saini", "Ravi Saini"],
+    ["MRS. Asha Rani", "Asha Rani"],
+    ["Miss Neha", "Neha"],
+    ["Ms Neha", "Neha"],
+    ["Mr.Kamal Singh", "Kamal Singh"],
+    ["Drishti Sharma", "Drishti Sharma"],
+    ["Mrinal Sen", "Mrinal Sen"],
+    ["  Kamal   Singh Gotyan ", "Kamal Singh Gotyan"],
+    ["Dr.", ""],
+    ["", ""],
+  ])("%j -> %j", (input, expected) => {
+    expect(stripHonorifics(input)).toBe(expected);
+  });
+
+  it("handles null and undefined", () => {
+    expect(stripHonorifics(null)).toBe("");
+    expect(stripHonorifics(undefined)).toBe("");
+  });
+});
+
+describe("formatNameWithHonorific", () => {
+  it("replaces a title already in the name instead of doubling it", () => {
+    expect(formatNameWithHonorific("Dr. Shriniwas Yadav", "Prof.")).toBe("Prof. Shriniwas Yadav");
+    expect(formatNameWithHonorific("Dr. Shriniwas Yadav", "Dr.")).toBe("Dr. Shriniwas Yadav");
+    expect(formatNameWithHonorific("Prof. Kalpana", "Miss")).toBe("Miss Kalpana");
+  });
+
+  it("prefixes a plain name", () => {
+    expect(formatNameWithHonorific("Neha Verma", "Ms.")).toBe("Ms. Neha Verma");
+  });
+
+  it("keeps the current name when the honorific is blank", () => {
+    expect(formatNameWithHonorific("Dr. Shriniwas Yadav", "")).toBe("Dr. Shriniwas Yadav");
+    expect(formatNameWithHonorific("Kamal Singh Gotyan", null)).toBe("Kamal Singh Gotyan");
+    expect(formatNameWithHonorific("Ravi Saini", "", "Prof. Ravi Saini")).toBe("Prof. Ravi Saini");
+  });
+
+  it("overrides the automatic faculty prefix when an honorific is chosen", () => {
+    expect(formatNameWithHonorific("Ravi Saini", "Dr.", "Prof. Ravi Saini")).toBe("Dr. Ravi Saini");
+  });
+
+  it("falls back when the name is only a title", () => {
+    expect(formatNameWithHonorific("Dr.", "Prof.", "oic@iitr.ac.in")).toBe("oic@iitr.ac.in");
+  });
+
+  it("is idempotent on an already composed name", () => {
+    const once = formatNameWithHonorific("Dr. Shriniwas Yadav", "Prof.");
+    expect(formatNameWithHonorific(once, "Prof.")).toBe(once);
+  });
+
+  it("offers the requested honorifics", () => {
+    expect([...CONTACT_HONORIFICS]).toEqual(["Mr.", "Mrs.", "Ms.", "Miss", "Dr.", "Prof."]);
   });
 });

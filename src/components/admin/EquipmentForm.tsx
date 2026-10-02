@@ -32,6 +32,7 @@ import {
 } from "@/lib/numericFieldConfig";
 import { isNumericHelpTextConvention, parseNumericHelpText } from "@/lib/numericFieldLimits";
 import { formatCoordinate } from "@/lib/equipmentGps";
+import { CONTACT_HONORIFICS, formatNameWithHonorific } from "@/lib/displayName";
 import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFields";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
@@ -300,7 +301,51 @@ const LEGACY_CHARGE_PROFILE_TYPES = new Set(["SAMPLE", "HOUR", "SAMPLE_ELEMENT"]
 const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D"]);
 
 /** Per-equipment contact details of an Officer In Charge / Lab Operator (shown in Contact us). */
-type AssignmentContact = { office_address?: string; alternate_phone_number?: string };
+type AssignmentContact = { honorific?: string; office_address?: string; alternate_phone_number?: string };
+
+const AUTOMATIC_HONORIFIC = "__automatic__";
+
+function HonorificSelect({
+  id,
+  personName,
+  value,
+  onChange,
+}: {
+  id: string;
+  personName: string;
+  value?: string;
+  onChange: (honorific: string) => void;
+}) {
+  const shownAs = value ? formatNameWithHonorific(personName, value) : "";
+  return (
+    <div className="flex items-center gap-2">
+      <Label htmlFor={id} className="sr-only">
+        Honorific
+      </Label>
+      <Select
+        value={value || AUTOMATIC_HONORIFIC}
+        onValueChange={(v) => onChange(v === AUTOMATIC_HONORIFIC ? "" : v)}
+      >
+        <SelectTrigger
+          id={id}
+          className="w-[150px] h-8 text-xs"
+          title="Title shown before this person's name for this equipment. Leave blank to use the automatic title."
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTOMATIC_HONORIFIC}>Title: automatic</SelectItem>
+          {CONTACT_HONORIFICS.map((h) => (
+            <SelectItem key={h} value={h}>
+              {h}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {shownAs ? <span className="text-xs text-muted-foreground">Shown as {shownAs}</span> : null}
+    </div>
+  );
+}
 
 function AssignmentContactInputs({
   idPrefix,
@@ -752,8 +797,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         updated_at: (d.updated_at as string) ?? null,
         image_url: (d.image_url as string) ?? null,
         video_url: (d.video_url as string) ?? null,
-        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number, disable_booking_confirmation_email: m.disable_booking_confirmation_email === true, office_address: m.office_address ?? "", alternate_phone_number: m.alternate_phone_number ?? "" })) : prev.equipment_managers ?? [],
-        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY", disable_booking_confirmation_email: o.disable_booking_confirmation_email === true, office_address: o.office_address ?? "", alternate_phone_number: o.alternate_phone_number ?? "" })) : prev.equipment_operators ?? [],
+        equipment_managers: Array.isArray(managers) ? managers.map((m) => ({ manager: typeof m.manager === "number" ? m.manager : (m as Record<string, unknown>).manager as number, disable_booking_confirmation_email: m.disable_booking_confirmation_email === true, honorific: m.honorific ?? "", office_address: m.office_address ?? "", alternate_phone_number: m.alternate_phone_number ?? "" })) : prev.equipment_managers ?? [],
+        equipment_operators: Array.isArray(operators) ? operators.map((o) => ({ operator: typeof o.operator === "number" ? o.operator : (o as Record<string, unknown>).operator as number, role: o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY", disable_booking_confirmation_email: o.disable_booking_confirmation_email === true, honorific: o.honorific ?? "", office_address: o.office_address ?? "", alternate_phone_number: o.alternate_phone_number ?? "" })) : prev.equipment_operators ?? [],
         equipment_pis: Array.isArray(pis)
           ? pis
               .map((p) => ({
@@ -3244,6 +3289,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           (formData.equipment_managers ?? []).map((m, idx) => (
             <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2">
               <span className="text-sm flex-1">{(choices.managers ?? []).find((c) => c.id === m.manager)?.name || (choices.managers ?? []).find((c) => c.id === m.manager)?.email || `ID ${m.manager}`}</span>
+              <HonorificSelect
+                id={`eq-manager-${idx}-honorific`}
+                personName={(choices.managers ?? []).find((c) => c.id === m.manager)?.name || ""}
+                value={m.honorific}
+                onChange={(honorific) =>
+                  setFormData((p) => {
+                    const arr = [...(p.equipment_managers ?? [])];
+                    arr[idx] = { ...arr[idx], honorific };
+                    return { ...p, equipment_managers: arr };
+                  })
+                }
+              />
               <label className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Checkbox
                   checked={m.disable_booking_confirmation_email === true}
@@ -3393,6 +3450,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           (formData.equipment_operators ?? []).map((o, idx) => (
             <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2">
               <span className="text-sm flex-1">{(choices.operators ?? []).find((c) => c.id === o.operator)?.name || (choices.operators ?? []).find((c) => c.id === o.operator)?.email || `ID ${o.operator}`}</span>
+              <HonorificSelect
+                id={`eq-operator-${idx}-honorific`}
+                personName={(choices.operators ?? []).find((c) => c.id === o.operator)?.name || ""}
+                value={o.honorific}
+                onChange={(honorific) =>
+                  setFormData((p) => {
+                    const arr = [...(p.equipment_operators ?? [])];
+                    arr[idx] = { ...arr[idx], honorific };
+                    return { ...p, equipment_operators: arr };
+                  })
+                }
+              />
               <Select
                 value={o.role === "SECONDARY" ? "SECONDARY" : "PRIMARY"}
                 onValueChange={(v) =>

@@ -137,3 +137,23 @@ export function formatSignedInAs(name: string | null | undefined, email?: string
   const who = cleanPersonName(name) || (email || "").trim();
   return who ? `Signed in as ${who}` : "";
 }
+
+/** Honorifics an admin can pick for an equipment Officer in Charge / Lab Operator ("" = automatic). */
+export const CONTACT_HONORIFICS = ["Mr.", "Mrs.", "Ms.", "Miss", "Dr.", "Prof."] as const;
+export type ContactHonorific = (typeof CONTACT_HONORIFICS)[number] | "";
+
+/**
+ * Name of an equipment contact with the honorific chosen for that equipment:
+ * ("Dr. Shriniwas Yadav", "Prof.") -> "Prof. Shriniwas Yadav". A blank honorific (or a name that is
+ * only a title) returns `fallback`, which defaults to the name as given, so current behaviour is kept.
+ */
+export function formatNameWithHonorific(
+  name: string | null | undefined,
+  honorific: string | null | undefined,
+  fallback?: string
+): string {
+  const title = (honorific || "").trim();
+  const bare = stripHonorifics(name);
+  if (title && bare) return `${title} ${bare}`;
+  return fallback ?? (name || "").trim();
+}
