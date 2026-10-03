@@ -32,6 +32,9 @@ import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "luc
 import { format } from "date-fns";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
+import { InlineDateTime, StackedDateTime } from "@/components/StaffListCells";
+import { useElementWidth } from "@/hooks/use-element-width";
+import { cn } from "@/lib/utils";
 
 /** Format seconds as HH:MM:SS (e.g. 3665 -> "01:01:05"). */
 function formatTimeRemaining(totalSeconds: number): string {
@@ -117,6 +120,9 @@ const URGENT_VIEWS: Array<{ value: UrgentView; label: string; status: string }> 
 
 const PAGE_SIZE = 100;
 
+/** Below this list width the requests are shown as stacked cards instead of a table. */
+const URGENT_TABLE_MIN_WIDTH = 700;
+
 const REQUEST_TYPE_LABELS: Record<string, string> = {
   NO_SLOT: "Type A · rush relief",
   REVIEWER_URGENT: "Type B · 50% surcharge",
@@ -146,6 +152,7 @@ const UrgentRequests = () => {
   const [validityDaysEditing, setValidityDaysEditing] = useState(false);
   const [validityDaysSaving, setValidityDaysSaving] = useState(false);
   const [validityDaysInput, setValidityDaysInput] = useState("1");
+  const [listRef, listWidth] = useElementWidth();
 
   const userType = user?.user_type ? String(user.user_type).toLowerCase() : "";
   const canAccess = ["admin", "dept_admin", "manager", "operator"].includes(userType);
@@ -281,6 +288,71 @@ const UrgentRequests = () => {
     }
   };
 
+  const rowView = (row: UrgentRequestRow) => {
+    const secondsLeft = getSecondsRemaining(row.expiry_at ?? null);
+    const expired = row.status === "EXPIRED" || (!!row.expiry_at && secondsLeft <= 0);
+    const timeLeft =
+      row.status === "APPROVED" || row.status === "REJECTED"
+        ? "—"
+        : secondsLeft <= 0 && row.expiry_at
+          ? "Expired"
+          : row.expiry_at
+            ? formatTimeRemaining(secondsLeft)
+            : "—";
+    const badge =
+      row.status === "APPROVED" ? (
+        <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">Approved</Badge>
+      ) : row.status === "REJECTED" ? (
+        <Badge className="whitespace-nowrap bg-red-600 hover:bg-red-600">Rejected</Badge>
+      ) : expired ? (
+        <Badge className="whitespace-nowrap bg-gray-500 hover:bg-gray-500">Expired</Badge>
+      ) : row.pending_wallet_approval ? (
+        <Badge variant="outline" className="whitespace-nowrap border-amber-500 text-amber-700 dark:text-amber-300">
+          Awaiting supervisor
+        </Badge>
+      ) : (
+        <Badge className="whitespace-nowrap bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
+      );
+    return {
+      timeLeft,
+      badge,
+      actionable: row.status === "PENDING" && !row.pending_wallet_approval && secondsLeft > 0,
+    };
+  };
+
+  const renderEquipment = (row: UrgentRequestRow) => (
+    <div className="min-w-0">
+      <div className="line-clamp-2 text-sm leading-snug" title={row.equipment_name}>
+        {row.equipment_name}
+      </div>
+      <div className="truncate text-xs text-muted-foreground">{row.equipment_code}</div>
+    </div>
+  );
+
+  const renderType = (row: UrgentRequestRow) => {
+    const [code, note] = (REQUEST_TYPE_LABELS[row.request_type] ?? row.request_type).split(" · ");
+    return (
+      <div className="leading-tight">
+        <div className="whitespace-nowrap font-medium">{code}</div>
+        {note ? <div className="whitespace-nowrap text-xs text-muted-foreground">{note}</div> : null}
+      </div>
+    );
+  };
+
+  const renderOpenButton = (row: UrgentRequestRow, actionable: boolean, className?: string) => (
+    <Button
+      variant={actionable ? "default" : "outline"}
+      size="sm"
+      className={cn("h-8", className)}
+      onClick={() => {
+        setDetailRow(row);
+        setAdminNotes(row.admin_notes || "");
+      }}
+    >
+      {actionable ? "Review" : "View"}
+    </Button>
+  );
+
   if (!canAccess) return null;
 
   return (
@@ -304,7 +376,8 @@ const UrgentRequests = () => {
           </div>
         </StandaloneOnly>
 
-        <Card className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
+        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        <Card className="mb-20 overflow-hidden rounded-xl border border-border/60 shadow-sm">
           <CardHeader className="space-y-3 border-b border-border/40 bg-muted/20 px-4 py-3 dark:bg-muted/10">
             <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -421,87 +494,97 @@ const UrgentRequests = () => {
                     : "No urgent requests found."}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-border/60 hover:bg-transparent">
-                      <TableHead className="font-medium text-muted-foreground">User</TableHead>
-                      <TableHead className="font-medium text-muted-foreground">Equipment</TableHead>
-                      {isAdminView && <TableHead className="font-medium text-muted-foreground">Type</TableHead>}
-                      <TableHead className="font-medium text-muted-foreground">Requested</TableHead>
-                      <TableHead className="font-medium text-muted-foreground">Time left</TableHead>
-                      <TableHead className="font-medium text-muted-foreground">Status</TableHead>
-                      <TableHead className="w-[110px]"><span className="sr-only">Action</span></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+              <div ref={listRef}>
+                {listWidth >= URGENT_TABLE_MIN_WIDTH ? (
+                  <Table className="table-fixed">
+                    <TableHeader>
+                      <TableRow className="border-b border-border/60 hover:bg-transparent">
+                        <TableHead className="w-[21%] px-3 font-medium text-muted-foreground">User</TableHead>
+                        <TableHead className="px-3 font-medium text-muted-foreground">Equipment</TableHead>
+                        {isAdminView && <TableHead className="w-[6.75rem] px-3 font-medium text-muted-foreground">Type</TableHead>}
+                        <TableHead className="w-[6.75rem] px-3 font-medium text-muted-foreground">Requested</TableHead>
+                        <TableHead className="w-[10rem] px-3 font-medium text-muted-foreground">Status · time left</TableHead>
+                        <TableHead className="sticky right-0 z-[1] w-24 bg-card px-3">
+                          <span className="sr-only">Action</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedList.map((row) => {
+                        const view = rowView(row);
+                        return (
+                          <TableRow key={row.id} className="group border-b border-border/40 transition-colors hover:bg-muted/30">
+                            <TableCell className="px-3 py-2.5">
+                              <RequesterIdentityButton
+                                userId={row.user_id}
+                                name={row.user_name}
+                                email={row.user_email}
+                                userNotes={row.reviewer_comment}
+                                className="max-w-full [overflow-wrap:anywhere]"
+                              />
+                            </TableCell>
+                            <TableCell className="px-3 py-2.5">{renderEquipment(row)}</TableCell>
+                            {isAdminView && <TableCell className="px-3 py-2.5 text-sm">{renderType(row)}</TableCell>}
+                            <TableCell className="px-3 py-2.5 text-sm text-muted-foreground">
+                              <StackedDateTime value={row.requested_at} />
+                            </TableCell>
+                            <TableCell className="px-3 py-2.5">
+                              {view.badge}
+                              {view.timeLeft !== "—" ? (
+                                <div className="mt-1 whitespace-nowrap font-mono text-xs tabular-nums text-muted-foreground">
+                                  {view.timeLeft === "Expired" ? "Expired" : `${view.timeLeft} left`}
+                                </div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="sticky right-0 bg-card px-3 py-2.5 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))] group-hover:bg-muted">
+                              {renderOpenButton(row, view.actionable)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <ul className={cn("grid gap-3 p-3", listWidth >= 560 && "grid-cols-2")} aria-label="Urgent requests">
                     {displayedList.map((row) => {
-                      const secondsLeft = getSecondsRemaining(row.expiry_at ?? null);
-                      const actionable = row.status === "PENDING" && !row.pending_wallet_approval && secondsLeft > 0;
+                      const view = rowView(row);
                       return (
-                        <TableRow key={row.id} className="border-b border-border/40 transition-colors hover:bg-muted/30">
-                          <TableCell className="py-2.5">
+                        <li key={row.id} className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                          <div className="flex items-start justify-between gap-2">
                             <RequesterIdentityButton
                               userId={row.user_id}
                               name={row.user_name}
                               email={row.user_email}
                               userNotes={row.reviewer_comment}
+                              className="min-w-0 [overflow-wrap:anywhere]"
                             />
-                          </TableCell>
-                          <TableCell className="py-2.5">
-                            <div className="text-sm">{row.equipment_name}</div>
-                            <div className="text-xs text-muted-foreground">{row.equipment_code}</div>
-                          </TableCell>
-                          {isAdminView && (
-                            <TableCell className="whitespace-nowrap py-2.5 text-sm">
-                              {REQUEST_TYPE_LABELS[row.request_type] ?? row.request_type}
-                            </TableCell>
-                          )}
-                          <TableCell className="whitespace-nowrap py-2.5 text-sm text-muted-foreground">
-                            {row.requested_at ? format(new Date(row.requested_at), "dd MMM yyyy, HH:mm") : "—"}
-                          </TableCell>
-                          <TableCell className="py-2.5 font-mono text-sm tabular-nums">
-                            {row.status === "APPROVED" || row.status === "REJECTED"
-                              ? "—"
-                              : secondsLeft <= 0 && row.expiry_at
-                                ? "Expired"
-                                : row.expiry_at
-                                  ? formatTimeRemaining(secondsLeft)
-                                  : "—"}
-                          </TableCell>
-                          <TableCell className="py-2.5">
-                            {row.status === "APPROVED" ? (
-                              <Badge className="bg-green-600 hover:bg-green-600">Approved</Badge>
-                            ) : row.status === "REJECTED" ? (
-                              <Badge className="bg-red-600 hover:bg-red-600">Rejected</Badge>
-                            ) : row.status === "EXPIRED" || (row.expiry_at && secondsLeft <= 0) ? (
-                              <Badge className="bg-gray-500 hover:bg-gray-500">Expired</Badge>
-                            ) : row.pending_wallet_approval ? (
-                              <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-300">
-                                Awaiting supervisor
-                              </Badge>
-                            ) : (
-                              <Badge className="bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-2.5 text-right">
-                            <Button
-                              variant={actionable ? "default" : "outline"}
-                              size="sm"
-                              className="h-8"
-                              onClick={() => {
-                                setDetailRow(row);
-                                setAdminNotes(row.admin_notes || "");
-                              }}
-                            >
-                              {actionable ? "Review" : "View"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                            <div className="shrink-0">{view.badge}</div>
+                          </div>
+                          {renderEquipment(row)}
+                          <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-border/50 pt-2.5 text-sm">
+                            {isAdminView ? (
+                              <div className="min-w-0">
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Type</dt>
+                                <dd>{renderType(row)}</dd>
+                              </div>
+                            ) : null}
+                            <div className="min-w-0">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Requested</dt>
+                              <dd className="text-muted-foreground">
+                                <InlineDateTime value={row.requested_at} />
+                              </dd>
+                            </div>
+                            <div className="min-w-0">
+                              <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Time left</dt>
+                              <dd className="font-mono tabular-nums">{view.timeLeft}</dd>
+                            </div>
+                          </dl>
+                          {renderOpenButton(row, view.actionable, "w-full")}
+                        </li>
                       );
                     })}
-                  </TableBody>
-                </Table>
+                  </ul>
+                )}
                 <div className="flex items-center justify-between gap-2 border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
                   <span>
                     Showing {displayCount}

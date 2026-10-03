@@ -119,8 +119,9 @@ export function StaffListFilterRow({ filters, equipmentOptions, className, child
           onResolved={filters.onDepartmentResolved}
           defaultDepartmentName={filters.defaultDepartmentName}
           hideLabel
-          className="sm:w-80 sm:shrink-0"
-          triggerClassName="h-9 min-w-0 w-full rounded-lg text-sm font-semibold shadow-sm [&_span]:whitespace-nowrap"
+          compactTrigger
+          className="sm:w-auto sm:shrink-0"
+          triggerClassName="h-9 min-w-0 w-full gap-2 rounded-lg text-sm font-semibold shadow-sm sm:w-auto sm:min-w-[10rem] [&_span]:whitespace-nowrap"
           disabled={!filters.departmentReady}
         />
       ) : null}
@@ -128,7 +129,10 @@ export function StaffListFilterRow({ filters, equipmentOptions, className, child
         value={selected === ALL ? ALL : String(selected)}
         onValueChange={(v) => filters.setEquipment(v === ALL ? ALL : Number(v))}
       >
-        <SelectTrigger className="h-9 w-full rounded-lg text-sm font-semibold shadow-sm sm:w-72" aria-label="Filter by equipment">
+        <SelectTrigger
+          className="h-9 w-full min-w-0 rounded-lg text-sm font-semibold shadow-sm sm:w-72 sm:max-w-full"
+          aria-label="Filter by equipment"
+        >
           <div className="flex min-w-0 items-center gap-2">
             <Package className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             <SelectValue placeholder="All equipment" className="truncate" />

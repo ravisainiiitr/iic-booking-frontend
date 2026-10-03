@@ -80,7 +80,7 @@ export const deptAdminGuide: RoleGuide = {
         },
         {
           title: "Manage the waitlist",
-          body: "Click Confirm manually on an entry, pick any unbooked slot and click Confirm booking. Select one equipment to use Clear queue.",
+          body: "Click Confirm manually next to an entry (shown as Confirm in the table), pick any unbooked slot and click Confirm booking. Long reasons are cut to two lines: click more to read them. Select one equipment to use Clear queue.",
         },
         {
           title: "Arrange a repeat sample",

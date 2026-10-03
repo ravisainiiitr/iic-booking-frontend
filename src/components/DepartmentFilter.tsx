@@ -41,6 +41,8 @@ interface DepartmentFilterProps {
   showAllOption?: boolean;
   /** Counts shown next to each department instead of its catalog equipment count. */
   equipmentCounts?: Record<number, number>;
+  /** Show only the department code and count on the trigger, with the full name as its tooltip. */
+  compactTrigger?: boolean;
 }
 
 const DepartmentFilter = ({
@@ -55,6 +57,7 @@ const DepartmentFilter = ({
   allowedDepartmentIds,
   showAllOption = true,
   equipmentCounts,
+  compactTrigger = false,
 }: DepartmentFilterProps) => {
   const restrict = (list: CatalogDepartment[]) =>
     allowedDepartmentIds ? list.filter((d) => allowedDepartmentIds.includes(d.id)) : list;
@@ -113,6 +116,22 @@ const DepartmentFilter = ({
   }, []);
 
   const selectValue = value === "all" ? "all" : String(value);
+  const countOf = (dept: CatalogDepartment) => equipmentCounts?.[dept.id] ?? dept.equipment_count;
+  const selectedDept = value === "all" ? undefined : departments.find((d) => d.id === value);
+  const compactLabel = compactTrigger
+    ? value === "all"
+      ? "All departments"
+      : selectedDept
+        ? `${selectedDept.code || selectedDept.name} · ${countOf(selectedDept)}`
+        : undefined
+    : undefined;
+  const triggerTitle = compactTrigger
+    ? selectedDept
+      ? `${selectedDept.name}${selectedDept.code ? ` (${selectedDept.code})` : ""}: ${countOf(selectedDept)} equipment`
+      : "Select Department/Centre"
+    : hideLabel
+      ? "Select Department/Centre"
+      : undefined;
 
   return (
     <div
@@ -141,7 +160,7 @@ const DepartmentFilter = ({
       >
         <SelectTrigger
           id="catalog-department-filter"
-          title={hideLabel ? "Select Department/Centre" : undefined}
+          title={triggerTitle}
           className={cn(
             "min-w-[12rem] max-w-full w-full h-11 text-base font-semibold text-foreground",
             triggerClassName,
@@ -156,7 +175,9 @@ const DepartmentFilter = ({
             <SelectValue
               placeholder="All departments"
               className="truncate whitespace-nowrap font-semibold text-foreground"
-            />
+            >
+              {compactLabel}
+            </SelectValue>
           </div>
         </SelectTrigger>
         <SelectContent className="max-w-[min(100vw-2rem,28rem)]">
@@ -168,7 +189,7 @@ const DepartmentFilter = ({
           {departments.map((dept) => (
             <SelectItem key={dept.id} value={String(dept.id)} className="text-base font-semibold py-2.5">
               <span className="whitespace-normal break-words leading-snug">
-                {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${equipmentCounts?.[dept.id] ?? dept.equipment_count}`}
+                {`${dept.name}${dept.code ? ` (${dept.code})` : ""} · ${countOf(dept)}`}
               </span>
             </SelectItem>
           ))}

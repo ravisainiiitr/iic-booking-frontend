@@ -20,9 +20,29 @@ import { StandaloneOnly } from "@/components/PageShell";
 import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialog";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
 import { StaffListFilterRow, useStaffListFilters } from "@/components/StaffListFilters";
+import { ClampedText, InlineDateTime, StackedDateTime, StatusChip, type StatusChipTone } from "@/components/StaffListCells";
+import { useElementWidth } from "@/hooks/use-element-width";
 import { formatDurationMinutes } from "@/lib/jobSheet";
+import { cn } from "@/lib/utils";
 
 type WaitlistEntry = EquipmentWaitlistEntry;
+type WaitlistStatus = "ACTIVE" | "CANNOT_FULFILL" | "OPT_OUT";
+
+/** Below this list width the entries are shown as stacked cards instead of a table. */
+const WAITLIST_TABLE_MIN_WIDTH = 700;
+
+const STATUS_META: Record<WaitlistStatus, { label: string; tone: StatusChipTone }> = {
+  ACTIVE: { label: "Waiting", tone: "amber" },
+  CANNOT_FULFILL: { label: "Cannot fulfill", tone: "red" },
+  OPT_OUT: { label: "Opted out", tone: "gray" },
+};
+
+const statusOf = (e: WaitlistEntry): WaitlistStatus => {
+  const st = (e.status || "ACTIVE").toUpperCase();
+  return st === "CANNOT_FULFILL" || st === "OPT_OUT" ? st : "ACTIVE";
+};
+
+const positionLabel = (e: WaitlistEntry) => e.waitlist_code || (e.position != null ? `WL${e.position}` : "—");
 type WaitlistData = {
   entries: WaitlistEntry[];
   count: number;
@@ -56,6 +76,9 @@ export default function EquipmentWaitlist() {
   const [clearing, setClearing] = useState(false);
   const [confirmEntry, setConfirmEntry] = useState<WaitlistEntry | null>(null);
   const [attemptRow, setAttemptRow] = useState<WaitlistEntry | null>(null);
+  const [listRef, listWidth] = useElementWidth();
+  const cardColumns = listWidth >= 560 ? 2 : 1;
+  const splitCardDetails = listWidth / cardColumns >= 420;
 
   const singleEquipment = waitlist?.equipment ?? null;
   const showEquipmentColumn = queryEquipmentId == null;
@@ -145,6 +168,101 @@ export default function EquipmentWaitlist() {
     return shown.join(" • ") + (items.length > 6 ? ` • +${items.length - 6} more` : "");
   };
 
+  const renderUser = (e: WaitlistEntry) => (
+    <div className="min-w-0 leading-tight">
+      <div className="truncate font-medium" title={e.user_name || undefined}>
+        {e.user_name || "—"}
+      </div>
+      <div className="truncate text-xs text-muted-foreground" title={e.user_email}>
+        {e.user_email}
+      </div>
+    </div>
+  );
+
+  const renderStatus = (e: WaitlistEntry) => {
+    const st = statusOf(e);
+    const reason =
+      st === "CANNOT_FULFILL" ? e.cannot_fulfill_remark || "" : st === "ACTIVE" ? "Awaiting confirmation" : "";
+    const markedAt = st === "CANNOT_FULFILL" ? e.marked_cannot_fulfill_at : st === "OPT_OUT" ? e.opted_out_at : null;
+    return (
+      <div className="min-w-0 space-y-1 text-xs">
+        <div className="flex flex-wrap items-center gap-1">
+          <StatusChip tone={STATUS_META[st].tone}>{STATUS_META[st].label}</StatusChip>
+          {e.sample_submitted ? (
+            <StatusChip
+              tone="green"
+              title={
+                e.sample_submitted_at
+                  ? `Sample submitted ${format(new Date(e.sample_submitted_at), "PPp")}, waiting for confirmation`
+                  : "Sample submitted, waiting for confirmation"
+              }
+            >
+              Sample in
+            </StatusChip>
+          ) : null}
+        </div>
+        {reason ? <ClampedText text={reason} className="text-muted-foreground" /> : null}
+        {markedAt ? (
+          <div className="text-[11px] text-muted-foreground">
+            {st === "OPT_OUT" ? "Opted out " : "Marked "}
+            <InlineDateTime value={markedAt} />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderLastAttempt = (e: WaitlistEntry) => {
+    const reason = e.booking_attempt_failure_summary || e.booking_attempt_failure_reason || "";
+    const request = attemptRequestText(e);
+    const inputs = attemptInputsText(e);
+    const detailsLink =
+      e.booking_attempt_log_id != null ? (
+        <button
+          type="button"
+          className="rounded-sm text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setAttemptRow(e)}
+        >
+          Details
+        </button>
+      ) : null;
+    return (
+      <div className="min-w-0 space-y-0.5 text-xs">
+        <InlineDateTime value={e.booking_attempt_requested_at} className="font-medium text-foreground" />
+        {reason ? (
+          <ClampedText
+            text={reason}
+            className="text-muted-foreground"
+            details={inputs ? <span className="text-muted-foreground">{inputs}</span> : undefined}
+            actions={detailsLink}
+          />
+        ) : (
+          <div className="text-muted-foreground">—</div>
+        )}
+        {request ? (
+          <div className="truncate text-muted-foreground" title={request}>
+            {request}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderConfirm = (e: WaitlistEntry, { compact = false, className }: { compact?: boolean; className?: string } = {}) =>
+    canConfirmManually && statusOf(e) !== "OPT_OUT" ? (
+      <Button
+        size="sm"
+        variant="outline"
+        className={cn("h-8 whitespace-nowrap px-2.5 text-xs", className)}
+        aria-label={compact ? `Confirm manually for ${e.user_name || e.user_email}` : undefined}
+        title={compact ? "Confirm manually: pick a slot and book it for this user" : undefined}
+        onClick={() => setConfirmEntry(e)}
+      >
+        <CalendarCheck className="mr-1.5 h-3.5 w-3.5" />
+        {compact ? "Confirm" : "Confirm manually"}
+      </Button>
+    ) : null;
+
   if (!canView) return null;
 
   const clearDisabledReason = !singleEquipment
@@ -174,8 +292,9 @@ export default function EquipmentWaitlist() {
             </p>
           </div>
         </StandaloneOnly>
-        <Card className="rounded-xl border-border/70 shadow-sm">
-          <CardHeader className="pb-3">
+        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        <Card className="mb-20 rounded-xl border-border/70 shadow-sm">
+          <CardHeader className="px-4 pb-3 sm:px-5">
             <CardTitle className="text-base">Queue</CardTitle>
             <CardDescription>
               {filters.showDepartment
@@ -183,7 +302,7 @@ export default function EquipmentWaitlist() {
                 : "Waitlists of the equipment you are responsible for. Select one equipment to see its queue depth or clear its queue."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-5 px-4 sm:px-5">
             <StaffListFilterRow filters={filters} equipmentOptions={equipmentOptions} />
 
             {loadingWaitlist && (
@@ -228,134 +347,92 @@ export default function EquipmentWaitlist() {
                 {waitlist.entries.length === 0 ? (
                   <p className="text-muted-foreground">No one on the waitlist.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Position</TableHead>
-                        {showEquipmentColumn && <TableHead>Equipment</TableHead>}
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Joined</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Sample</TableHead>
-                        <TableHead>Last Attempt</TableHead>
-                        {canConfirmManually && <TableHead className="text-right">Action</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {waitlist.entries.map((e) => {
-                        const st = (e.status || "ACTIVE").toUpperCase();
-                        const statusLabel =
-                          st === "OPT_OUT"
-                            ? "Opted out"
-                            : st === "CANNOT_FULFILL"
-                              ? "Cannot fulfill"
-                              : "Waiting (ACTIVE)";
-                        return (
-                        <TableRow key={e.id}>
-                          <TableCell className="font-medium">
-                            {e.waitlist_code || (e.position != null ? `WL${e.position}` : "—")}
-                          </TableCell>
-                          {showEquipmentColumn && (
-                            <TableCell className="text-sm">{e.equipment_name || e.equipment_code || "—"}</TableCell>
-                          )}
-                          <TableCell>{e.user_name || "—"}</TableCell>
-                          <TableCell>{e.user_email}</TableCell>
-                          <TableCell>
-                            {e.created_at ? format(new Date(e.created_at), "PPp") : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <div className="text-sm font-medium">{statusLabel}</div>
-                              {st === "CANNOT_FULFILL" && (
-                                <>
-                                  <div className="text-xs text-muted-foreground">
-                                    {e.cannot_fulfill_remark || "—"}
-                                  </div>
-                                  {e.marked_cannot_fulfill_at ? (
-                                    <div className="text-xs text-muted-foreground">
-                                      Marked: {format(new Date(e.marked_cannot_fulfill_at), "PPp")}
-                                    </div>
-                                  ) : null}
-                                </>
-                              )}
-                              {st === "OPT_OUT" && e.opted_out_at ? (
-                                <div className="text-xs text-muted-foreground">
-                                  Opted out: {format(new Date(e.opted_out_at), "PPp")}
-                                </div>
-                              ) : null}
-                              {st === "ACTIVE" ? (
-                                <div className="text-xs text-amber-700">Awaiting confirmation</div>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {e.sample_submitted ? (
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-sm font-medium text-emerald-700">
-                                  Sample Submitted
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  Waiting for Confirmation
-                                </span>
-                                {e.sample_submitted_at ? (
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(e.sample_submitted_at), "PPp")}
-                                  </span>
-                                ) : null}
-                              </div>
+                  <div ref={listRef}>
+                    {listWidth >= WAITLIST_TABLE_MIN_WIDTH ? (
+                      <Table className="table-fixed">
+                        <TableHeader>
+                          <TableRow>
+                            {showEquipmentColumn ? (
+                              <TableHead className="w-[17%] px-2">Equipment</TableHead>
                             ) : (
-                              <span className="text-sm text-muted-foreground">Not submitted</span>
+                              <TableHead className="w-16 px-2">Pos.</TableHead>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <div className="text-sm font-medium">
-                                {e.booking_attempt_requested_at
-                                  ? format(new Date(e.booking_attempt_requested_at), "PPp")
-                                  : "—"}
-                              </div>
-                              {(() => {
-                                const reason =
-                                  e.booking_attempt_failure_summary || e.booking_attempt_failure_reason || "";
-                                if (!reason) return <div className="text-xs text-muted-foreground">—</div>;
-                                if (e.booking_attempt_log_id == null) {
-                                  return <div className="text-xs text-muted-foreground">{reason}</div>;
-                                }
-                                return (
-                                  <button
-                                    type="button"
-                                    className="text-left text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                                    title="View attempt details"
-                                    onClick={() => setAttemptRow(e)}
-                                  >
-                                    {reason}
-                                  </button>
-                                );
-                              })()}
-                              <div className="text-xs text-muted-foreground">{attemptRequestText(e) || "—"}</div>
-                              {attemptInputsText(e) && (
-                                <div className="text-xs text-muted-foreground" title={attemptInputsText(e)}>
-                                  {attemptInputsText(e)}
-                                </div>
+                            <TableHead className="w-[21%] px-2">User</TableHead>
+                            <TableHead className="w-24 px-2">Joined</TableHead>
+                            <TableHead className="w-[20%] px-2">Status</TableHead>
+                            <TableHead className="px-2">Last attempt</TableHead>
+                            {canConfirmManually && (
+                              <TableHead className="sticky right-0 z-[1] w-[6.75rem] bg-card px-2 text-right">
+                                <span className="sr-only">Action</span>
+                              </TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {waitlist.entries.map((e) => (
+                            <TableRow key={e.id} className="group align-top">
+                              {showEquipmentColumn ? (
+                                <TableCell className="px-2 py-3">
+                                  <div className="line-clamp-2 text-sm leading-snug" title={e.equipment_name || e.equipment_code}>
+                                    {e.equipment_name || e.equipment_code || "—"}
+                                  </div>
+                                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                                    Position <span className="font-mono font-medium text-foreground">{positionLabel(e)}</span>
+                                  </div>
+                                </TableCell>
+                              ) : (
+                                <TableCell className="px-2 py-3 font-mono text-xs font-medium">{positionLabel(e)}</TableCell>
                               )}
+                              <TableCell className="px-2 py-3">{renderUser(e)}</TableCell>
+                              <TableCell className="px-2 py-3 text-sm">
+                                <StackedDateTime value={e.created_at} />
+                              </TableCell>
+                              <TableCell className="px-2 py-3">{renderStatus(e)}</TableCell>
+                              <TableCell className="px-2 py-3">{renderLastAttempt(e)}</TableCell>
+                              {canConfirmManually && (
+                                <TableCell className="sticky right-0 bg-card px-2 py-3 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))] group-hover:bg-muted">
+                                  {renderConfirm(e, { compact: true })}
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <ul className={cn("grid gap-3", cardColumns === 2 && "grid-cols-2")} aria-label="Waitlist entries">
+                        {waitlist.entries.map((e) => (
+                          <li key={e.id} className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                {showEquipmentColumn ? (
+                                  <div className="line-clamp-2 text-sm font-semibold leading-snug">
+                                    {e.equipment_name || e.equipment_code || "—"}
+                                  </div>
+                                ) : null}
+                                <div className="text-xs text-muted-foreground">
+                                  Position <span className="font-mono font-medium text-foreground">{positionLabel(e)}</span>
+                                  {" · Joined "}
+                                  <InlineDateTime value={e.created_at} />
+                                </div>
+                              </div>
                             </div>
-                          </TableCell>
-                          {canConfirmManually && (
-                            <TableCell className="text-right">
-                              {st !== "OPT_OUT" ? (
-                                <Button size="sm" variant="outline" onClick={() => setConfirmEntry(e)}>
-                                  <CalendarCheck className="mr-1.5 h-4 w-4" />
-                                  Confirm manually
-                                </Button>
-                              ) : null}
-                            </TableCell>
-                          )}
-                        </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                            {renderUser(e)}
+                            <div className={cn("grid gap-2.5 border-t border-border/50 pt-2.5", splitCardDetails && "grid-cols-2")}>
+                              <div className="min-w-0">
+                                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Status</div>
+                                {renderStatus(e)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Last attempt</div>
+                                {renderLastAttempt(e)}
+                              </div>
+                            </div>
+                            {renderConfirm(e, { className: "w-full justify-center" })}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </>
             )}

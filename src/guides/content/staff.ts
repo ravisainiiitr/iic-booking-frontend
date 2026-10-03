@@ -123,7 +123,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
       },
       {
         title: "Confirm manually",
-        body: "Click Confirm manually on an entry, choose any unbooked slot and click Confirm booking.",
+        body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking.",
       },
     ],
     rules: [

@@ -64,4 +64,15 @@ describe("DepartmentFilter", () => {
     await waitFor(() => expect(onResolved).toHaveBeenCalledWith(2));
     expect(onChange).toHaveBeenCalledWith(2);
   });
+
+  it("shows only the code and count on a compact trigger, with the full name as its tooltip", async () => {
+    const { getByRole } = render(
+      <DepartmentFilter value={1} onChange={onChange} onResolved={onResolved} hideLabel compactTrigger />,
+    );
+    await waitFor(() => expect(onResolved).toHaveBeenCalled());
+    const trigger = getByRole("combobox");
+    await waitFor(() => expect(trigger.textContent).toContain("IIC · 40"));
+    expect(trigger.textContent).not.toContain("Institute Instrumentation Centre");
+    expect(trigger.getAttribute("title")).toBe("Institute Instrumentation Centre (IIC): 40 equipment");
+  });
 });

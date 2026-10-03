@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, RotateCcw } from "lucide-react";
 
@@ -15,6 +14,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
+import { ClampedText, InlineDateTime, StackedDateTime } from "@/components/StaffListCells";
+import { useElementWidth } from "@/hooks/use-element-width";
+import { cn } from "@/lib/utils";
 
 type RepeatRow = {
   id: number;
@@ -42,14 +44,8 @@ type RepeatRow = {
 
 type StatusFilter = "APPROVED" | "REJECTED" | "ALL";
 
-function fmt(iso: string | null | undefined) {
-  if (!iso) return "—";
-  try {
-    return format(new Date(iso), "dd MMM yyyy, HH:mm");
-  } catch {
-    return iso;
-  }
-}
+/** Below this list width the records are shown as stacked cards instead of a table. */
+const REPEAT_TABLE_MIN_WIDTH = 680;
 
 function statusBadge(status: RepeatRow["status"]) {
   if (status === "APPROVED") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Arranged</Badge>;
@@ -71,6 +67,7 @@ export default function RepeatSampleRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const loadSeq = useRef(0);
+  const [listRef, listWidth] = useElementWidth();
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current;
@@ -106,6 +103,68 @@ export default function RepeatSampleRequests() {
     void load();
   }, [canView, departmentReady, load, navigate]);
 
+  const openBooking = (realBookingId: number | null) => navigate(`/booking-management?expand=${realBookingId}`);
+
+  const renderBooking = (r: RepeatRow) => (
+    <div className="min-w-0 space-y-0.5">
+      <button
+        type="button"
+        className="text-left font-mono text-xs text-primary [overflow-wrap:anywhere] hover:underline"
+        onClick={() => openBooking(r.real_booking_id)}
+      >
+        {r.booking_id || r.real_booking_id}
+      </button>
+      <div className="line-clamp-2 text-sm leading-snug" title={r.equipment_name}>
+        {r.equipment_name}
+      </div>
+      <div className="truncate text-xs text-muted-foreground">{r.equipment_code}</div>
+      {r.new_booking_id ? (
+        <div className="font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]">
+          Repeat:{" "}
+          <button type="button" className="text-left text-primary hover:underline" onClick={() => openBooking(r.new_real_booking_id)}>
+            {r.new_booking_id}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const renderUser = (r: RepeatRow) => (
+    <RequesterIdentityButton
+      userId={r.user_id}
+      name={r.user_name}
+      email={r.user_email}
+      userNotes={r.user_notes}
+      className="max-w-full [overflow-wrap:anywhere]"
+    />
+  );
+
+  const renderNotes = (r: RepeatRow) => {
+    const notes = r.admin_notes || r.user_notes;
+    return notes ? <ClampedText text={notes} /> : <span className="text-muted-foreground">—</span>;
+  };
+
+  const renderStatus = (r: RepeatRow, withBadge = true) => (
+    <div className="min-w-0 space-y-1">
+      {withBadge ? statusBadge(r.status) : null}
+      <div className="space-y-0.5 text-xs text-muted-foreground">
+        <InlineDateTime value={r.responded_at || r.requested_at} />
+        {r.responded_by_name ? <div className="[overflow-wrap:anywhere]">by {r.responded_by_name}</div> : null}
+        {r.status === "APPROVED" ? (
+          r.new_booking_id ? (
+            <div className="text-emerald-700 dark:text-emerald-400">
+              Repeat booked{r.booked_at ? <> <InlineDateTime value={r.booked_at} /></> : null}
+            </div>
+          ) : (
+            <div className="text-amber-700 dark:text-amber-400">
+              Not booked yet · use &ldquo;Mark as repeat &amp; book&rdquo; on the booking
+            </div>
+          )
+        ) : null}
+      </div>
+    </div>
+  );
+
   const scopeText =
     userType === "admin"
       ? "Repeat samples for the selected department and equipment."
@@ -136,8 +195,9 @@ export default function RepeatSampleRequests() {
           </div>
         </StandaloneOnly>
 
-        <Card>
-          <CardHeader className="space-y-3 pb-3">
+        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        <Card className="mb-20">
+          <CardHeader className="space-y-3 px-4 pb-3 sm:px-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Records</CardTitle>
@@ -153,7 +213,7 @@ export default function RepeatSampleRequests() {
             </div>
             <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-5">
             {loading ? (
               <div className="flex items-center gap-2 py-10 justify-center text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin" /> Loading…
@@ -163,81 +223,50 @@ export default function RepeatSampleRequests() {
             ) : rows.length === 0 ? (
               <p className="py-10 text-center text-muted-foreground">No repeat samples found.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Booking</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Equipment</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Details</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-mono text-xs">
-                          <button
-                            type="button"
-                            className="text-primary hover:underline"
-                            onClick={() => navigate(`/booking-management?expand=${r.real_booking_id}`)}
-                          >
-                            {r.booking_id || r.real_booking_id}
-                          </button>
-                          {r.new_booking_id ? (
-                            <div className="text-muted-foreground mt-1">
-                              Repeat:{" "}
-                              <button
-                                type="button"
-                                className="text-primary hover:underline"
-                                onClick={() => navigate(`/booking-management?expand=${r.new_real_booking_id}`)}
-                              >
-                                {r.new_booking_id}
-                              </button>
-                            </div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell>
-                          <RequesterIdentityButton
-                            userId={r.user_id}
-                            name={r.user_name}
-                            email={r.user_email}
-                            userNotes={r.user_notes}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <div>{r.equipment_name}</div>
-                          <div className="text-xs text-muted-foreground">{r.equipment_code}</div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">{fmt(r.completed_at)}</TableCell>
-                        <TableCell className="max-w-[16rem] text-sm">
-                          {r.admin_notes || r.user_notes || <span className="text-muted-foreground">—</span>}
-                        </TableCell>
-                        <TableCell>{statusBadge(r.status)}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <div className="text-xs text-muted-foreground space-y-0.5">
-                            <div>{fmt(r.responded_at || r.requested_at)}</div>
-                            {r.responded_by_name ? <div>by {r.responded_by_name}</div> : null}
-                            {r.status === "APPROVED" ? (
-                              r.new_booking_id ? (
-                                <div className="text-emerald-700 dark:text-emerald-400">
-                                  Repeat booked{r.booked_at ? ` ${fmt(r.booked_at)}` : ""}
-                                </div>
-                              ) : (
-                                <div className="text-amber-700 dark:text-amber-400">
-                                  Not booked yet · use &ldquo;Mark as repeat &amp; book&rdquo; on the booking
-                                </div>
-                              )
-                            ) : null}
-                          </div>
-                        </TableCell>
+              <div ref={listRef}>
+                {listWidth >= REPEAT_TABLE_MIN_WIDTH ? (
+                  <Table className="table-fixed">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="px-3">Booking</TableHead>
+                        <TableHead className="w-[22%] px-3">User</TableHead>
+                        <TableHead className="w-[6.75rem] px-3">Completed</TableHead>
+                        <TableHead className="w-[23%] px-3">Notes</TableHead>
+                        <TableHead className="w-[10.5rem] px-3">Status</TableHead>
                       </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="px-3 py-3">{renderBooking(r)}</TableCell>
+                          <TableCell className="px-3 py-3">{renderUser(r)}</TableCell>
+                          <TableCell className="px-3 py-3 text-sm">
+                            <StackedDateTime value={r.completed_at} />
+                          </TableCell>
+                          <TableCell className="px-3 py-3 text-sm">{renderNotes(r)}</TableCell>
+                          <TableCell className="px-3 py-3">{renderStatus(r)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <ul className={cn("grid gap-3", listWidth >= 560 && "grid-cols-2")} aria-label="Repeat samples">
+                    {rows.map((r) => (
+                      <li key={r.id} className="flex min-w-0 flex-col gap-2.5 rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                        <div className="flex items-start justify-between gap-2">
+                          {renderBooking(r)}
+                          <div className="shrink-0">{statusBadge(r.status)}</div>
+                        </div>
+                        {renderUser(r)}
+                        <div className="text-xs text-muted-foreground">
+                          Completed <InlineDateTime value={r.completed_at} className="text-foreground" />
+                        </div>
+                        <div className="text-sm">{renderNotes(r)}</div>
+                        <div className="border-t border-border/50 pt-2">{renderStatus(r, false)}</div>
+                      </li>
                     ))}
-                  </TableBody>
-                </Table>
+                  </ul>
+                )}
               </div>
             )}
           </CardContent>
