@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { BookOpen, Download, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
@@ -35,6 +36,15 @@ export default function UserGuidePage() {
     setActiveId(id);
     document.getElementById(anchor(id))?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const { hash } = useLocation();
+  useEffect(() => {
+    const id = hash.startsWith(`#${anchor("")}`) ? decodeURIComponent(hash.slice(anchor("").length + 1)) : "";
+    if (!guide || !id || !guide.sections.some((s) => s.id === id)) return;
+    const frame = window.requestAnimationFrame(() => jump(id));
+    return () => window.cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guide, hash]);
 
   const shell = (body: React.ReactNode) => (
     <div className="page-shell">

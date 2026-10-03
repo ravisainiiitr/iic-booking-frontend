@@ -33,6 +33,8 @@ import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
+import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
+import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
 import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -339,6 +341,11 @@ const Dashboard = () => {
   const [hasWallet, setHasWallet] = useState(false);
   const [showWalletOption, setShowWalletOption] = useState(false);
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
+  const [sampleDeadlines, setSampleDeadlines] = useState<SampleDeadlineItem[]>([]);
+  const nextSampleReminder = useMemo(
+    () => pickNextSampleReminder(upcomingBookings, sampleDeadlines),
+    [upcomingBookings, sampleDeadlines]
+  );
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [equipmentStats, setEquipmentStats] = useState<Array<{
     equipment_id: number;
@@ -619,6 +626,7 @@ const Dashboard = () => {
     (async () => {
       const res = await apiClient.getApproachingSampleSubmissionDeadlines();
       if (cancelled || res.error || !res.data?.items?.length) return;
+      setSampleDeadlines(res.data.items);
       for (const item of res.data.items) {
         const toastKey = `sample_submission_deadline_toast_${user.id}_${item.booking_id}`;
         if (sessionStorage.getItem(toastKey)) continue;
@@ -3704,6 +3712,9 @@ const Dashboard = () => {
         {/* The administration overview lists these under "Needs attention". */}
         {showAdminOverview ? null : <PendingActionsSummary className="mb-4" />}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
+        {showAdminOverview ? null : (
+          <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} className="mb-4" />
+        )}
         {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div

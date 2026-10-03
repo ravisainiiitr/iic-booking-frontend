@@ -3,6 +3,7 @@ import { apiClient } from "@/lib/api";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
+import { clearLoginTipsThisLogin } from "@/lib/loginTips";
 
 export interface User {
   id: number;
@@ -154,6 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // On 401 from API (session expired / invalidated), clear auth and redirect to login
   useEffect(() => {
     apiClient.onUnauthorized = () => {
+      clearLoginTipsThisLogin();
       apiClient.setToken(null);
       localStorage.removeItem("user");
       setUser(null);
@@ -241,6 +243,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (response.data?.token && response.data?.user) {
         // Set token in apiClient
         apiClient.setToken(response.data.token);
+        clearLoginTipsThisLogin();
         // Set user data
         setUser(response.data.user);
         localStorage.setItem("user", JSON.stringify(response.data.user));
@@ -273,6 +276,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         clearUserGuideAutoShownThisLogin(uid);
         clearPendingActionsShownThisLogin(uid);
       }
+      clearLoginTipsThisLogin();
       // Clear local state regardless of API response
       apiClient.setToken(null);
       localStorage.removeItem("user");
@@ -290,6 +294,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const setUserFromAuth = useCallback((userData: User) => {
+    clearLoginTipsThisLogin();
     setUser(userData);
     localStorage.setItem("user", JSON.stringify(userData));
   }, []);

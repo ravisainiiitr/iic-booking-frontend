@@ -116,6 +116,7 @@ export function samplesSection(): GuideSection {
       },
     ],
     rules: [
+      "When you hand in your sample, ask the Lab Operator to mark it as received in the portal. If it is not marked as received by the deadline, the booking is treated as Not Utilized and is not refunded.",
       "Uncollected samples may be discarded after the deadline; ask the lab before it if you need longer.",
       "Walk-in equipment has no sample deadlines: bring the sample to the slot and take it back yourself.",
     ],
