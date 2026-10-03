@@ -65,6 +65,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     name: "Users & access",
     icon: Users,
     items: [
+      "registration_requests",
       "external_user_management",
       "external_organization_verification",
       "department_administration",

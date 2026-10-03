@@ -69,6 +69,7 @@ export function assertModuleAccess(user: AdminPanelAwareUser | null | undefined,
 const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/user-management", key: "user_management" },
   { path: "/admin/section/users", key: "user_management.users" },
+  { path: "/admin/registration-requests", key: "user_management.registration_requests" },
   { path: "/admin/section/departments", key: "user_management.departments" },
   { path: "/admin/section/projects", key: "user_management.projects" },
   { path: "/admin/section/wallets", key: "user_management.wallets" },

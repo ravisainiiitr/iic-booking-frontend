@@ -31,4 +31,15 @@ describe("What's New", () => {
     expect(ids(buildGuide({ audience: "finance" }))).toContain("direct-recharge-finance");
     expect(ids(buildGuide({ audience: "faculty" }))).not.toContain("wallet-modes-departments");
   });
+
+  it("announces registration approvals to the Main Administrator, faculty and project staff only", () => {
+    expect(ids(buildGuide({ audience: "admin" }))[0]).toBe("registration-requests");
+    expect(ids(buildGuide({ audience: "faculty" }))).toContain("registration-approvals-faculty");
+    expect(ids(buildGuide({ audience: "project_staff" }))).toContain("programme-extension");
+    for (const audience of ["student", "oic", "dept_admin", "external"] as const) {
+      const got = ids(buildGuide({ audience }));
+      expect(got).not.toContain("registration-requests");
+      expect(got).not.toContain("registration-approvals-faculty");
+    }
+  });
 });

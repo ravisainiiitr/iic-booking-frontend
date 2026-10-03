@@ -207,6 +207,7 @@ const Auth = () => {
   const [showForgotNewPasswordConfirm, setShowForgotNewPasswordConfirm] = useState(false);
   const [loadingForgotPassword, setLoadingForgotPassword] = useState(false);
   const [emailLoginBlocked, setEmailLoginBlocked] = useState<string | null>(null);
+  const [programmeExpired, setProgrammeExpired] = useState<{ message: string; token: string; supervisor: string } | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -683,7 +684,8 @@ const Auth = () => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setProgrammeExpired(null);
+
     try {
       const validated = signInSchema.parse({ email, password });
       setLoading(true);
@@ -714,6 +716,16 @@ const Auth = () => {
         
         const isPendingApprovalError = String(adminApproved).toLowerCase() === 'false';
         const isEmailVerificationError = String(emailVerified).toLowerCase() === 'false';
+
+        const extensionToken = typeof errorData?.extension_token === "string" ? errorData.extension_token : "";
+        if (extensionToken) {
+          setProgrammeExpired({
+            message: errorMessage || "Your programme validity has passed, so access is disabled. Your supervisor can extend it by up to six months at a time.",
+            token: extensionToken,
+            supervisor: typeof errorData?.supervisor_name === "string" ? errorData.supervisor_name : "",
+          });
+          return;
+        }
 
         if (isEmailVerificationError) {
           const message = errorMessage || "Please verify your email address before logging in.";
@@ -945,6 +957,31 @@ const Auth = () => {
           <p className="leading-relaxed">{emailLoginBlocked}</p>
           <Button type="button" size="sm" className="rounded-lg" onClick={handleOmniportLogin} disabled={loading}>
             Sign in with {CHANNEL_I_DISPLAY_NAME}
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const programmeExpiredNotice = programmeExpired ? (
+    <div
+      role="alert"
+      className="rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      <div className="flex gap-3">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <div className="space-y-3">
+          <p className="leading-relaxed">{programmeExpired.message}</p>
+          {programmeExpired.supervisor ? (
+            <p className="text-xs leading-relaxed">The request goes to {programmeExpired.supervisor}.</p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-lg"
+            onClick={() => navigate(`/programme-extension?token=${encodeURIComponent(programmeExpired.token)}&from=login`)}
+          >
+            Request an extension
           </Button>
         </div>
       </div>
@@ -1285,6 +1322,7 @@ const Auth = () => {
                       </div>
 
                       {emailLoginBlockedNotice}
+                      {programmeExpiredNotice}
 
                       {loginViaOtpStep === null && (
                         <form onSubmit={handleSignIn} className="space-y-4">
