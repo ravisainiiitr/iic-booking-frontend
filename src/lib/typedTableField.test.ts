@@ -120,6 +120,8 @@ describe("typed table checks", () => {
     const problems = typedTableProblems(linkedField, [{ temp: 30 }], group);
     expect(problems.map((p) => p.kind)).toEqual(["required", "row_count"]);
     expect(problems[1].message).toBe("Sample details must have 2 rows (set by field A); it has 1.");
+    const named = typedTableProblems(linkedField, [{ temp: 30 }], group, { linkLabel: "No. of samples:" });
+    expect(named[1].message).toBe("Sample details must have 2 rows (set by “No. of samples”); it has 1.");
     expect(typedTableProblems(linkedField, [{ temp: 30 }], group, { checkRequired: false })).toEqual([]);
   });
 

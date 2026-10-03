@@ -17,6 +17,8 @@ function withAppClient<T extends Record<string, unknown>>(body: T): T & { client
   return isNativeApp() ? { ...body, client: "iic_app" } : body;
 }
 import type { MyBookingQuota } from "@/lib/bookingQuota";
+import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
+import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
   MyResearchBootstrap,
@@ -8100,6 +8102,9 @@ class ApiClient {
         requested_at: string | null;
         outcome: string;
         failure_reason: string;
+        failure_title?: string;
+        failure_summary?: string;
+        failure_code?: string;
         number_of_samples: number;
         slots_requested: number;
         duration_minutes: number | null;
@@ -8109,6 +8114,11 @@ class ApiClient {
       limit: number;
       offset: number;
     }>(path, { method: 'GET' });
+  }
+
+  /** Readable details of one booking attempt: booker, slots, inputs with field definitions, outcome (admin/OIC). */
+  async getBookingAttemptLogDetail(logId: number) {
+    return this.request<BookingAttemptDetail>(`/booking-attempt-logs/${logId}/`, { method: 'GET' });
   }
 
   /** Delete a booking attempt log entry (admin/OIC only). */
@@ -8325,6 +8335,8 @@ class ApiClient {
           total_time_minutes: number;
           slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
           input_values: Record<string, unknown>;
+          input_values_by_key?: BookingInputValues;
+          input_fields?: BookingInputFieldDef[];
           charge_breakdown?: Array<{ description: string; amount: number }> | null;
         } | null;
       }>;
@@ -8384,6 +8396,8 @@ class ApiClient {
         total_time_minutes: number;
         slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
         input_values: Record<string, unknown>;
+        input_values_by_key?: BookingInputValues;
+        input_fields?: BookingInputFieldDef[];
         charge_breakdown?: Array<{ description: string; amount: number }> | null;
       } | null;
     }>(`/urgent-booking-requests/${requestId}/detail/`);

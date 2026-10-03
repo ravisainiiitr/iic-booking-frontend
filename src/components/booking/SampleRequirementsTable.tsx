@@ -27,6 +27,10 @@ type SampleRequirementsTableProps = {
   /** Rendered at the right of the heading (e.g. the Edit inputs button). */
   toolbar?: ReactNode;
   className?: string;
+  /** Heading text; defaults to "Sample requirements". */
+  title?: string;
+  /** Shown when no input was filled in. */
+  emptyText?: string;
 };
 
 function fallbackFields(values: BookingInputValues): BookingInputFieldDef[] {
@@ -123,7 +127,14 @@ const DIFF_CELL = "jobsheet-diff bg-amber-50/70 dark:bg-amber-950/25";
  * The user's test requirements as one table: a row per sample set (a single set is one row) and a column per
  * input the user filled in, in the equipment's field order. Values that differ from Set 1 are tinted.
  */
-export function SampleRequirementsTable({ fields, inputValues, toolbar, className }: SampleRequirementsTableProps) {
+export function SampleRequirementsTable({
+  fields,
+  inputValues,
+  toolbar,
+  className,
+  title = "Sample requirements",
+  emptyText = "The user did not enter any sample details.",
+}: SampleRequirementsTableProps) {
   const values = inputValues ?? {};
   const defs = (fields && fields.length > 0 ? fields : fallbackFields(values)).filter(
     (f) => !isCommentsInputFieldKey(f.field_key),
@@ -163,7 +174,7 @@ export function SampleRequirementsTable({ fields, inputValues, toolbar, classNam
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border/70 px-4 py-3">
         <FlaskConical className="h-4 w-4 text-primary" aria-hidden />
         <h3 id="jobsheet-requirements-heading" className="text-base font-semibold">
-          Sample requirements
+          {title}
         </h3>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
@@ -180,7 +191,7 @@ export function SampleRequirementsTable({ fields, inputValues, toolbar, classNam
       </div>
 
       {columns.length === 0 ? (
-        <p className="px-4 py-4 text-sm text-muted-foreground">The user did not enter any sample details.</p>
+        <p className="px-4 py-4 text-sm text-muted-foreground">{emptyText}</p>
       ) : (
         <>
           {(anyDiffers || columns.length > 2) && (
@@ -197,7 +208,7 @@ export function SampleRequirementsTable({ fields, inputValues, toolbar, classNam
           <div className="jobsheet-table-scroll overflow-x-auto px-0 py-2">
             <table className="jobsheet-table w-full border-collapse" data-print-columns={columns.length + 1}>
               <caption className="sr-only">
-                {multi ? `Sample requirements, one row for each of the ${sets.length} sample sets` : "Sample requirements"}
+                {multi ? `${title}, one row for each of the ${sets.length} sample sets` : title}
               </caption>
               <thead>
                 <tr className="border-b border-border/70">

@@ -312,14 +312,19 @@ export function typedTableDraftErrors(
   return errors;
 }
 
-/** One-line description for the field list, e.g. "3 columns · rows follow field A (max 50)". */
-export function typedTableConfigSummary(raw: unknown): string {
+/**
+ * One-line description for the field list, e.g. "3 columns · rows follow field A – No. of samples (max 50)".
+ * ``fieldLabels`` maps field keys to labels so the linked field is named, not just lettered.
+ */
+export function typedTableConfigSummary(raw: unknown, fieldLabels?: Record<string, string>): string {
   const config = readTypedTableConfig(raw);
   if (!config) return "No columns yet";
   const n = config.columns.length;
+  const linkKey = config.rows.link_field_key || "?";
+  const linkLabel = fieldLabels?.[linkKey]?.replace(/:\s*$/, "").trim();
   const rows =
     config.rows.mode === "LINKED"
-      ? `rows follow field ${config.rows.link_field_key || "?"} (max ${config.rows.max_rows})`
+      ? `rows follow field ${linkLabel ? `${linkKey} – ${linkLabel}` : linkKey} (max ${config.rows.max_rows})`
       : `users add rows (max ${config.rows.max_rows})`;
   return `${n} column${n === 1 ? "" : "s"} · ${rows}`;
 }

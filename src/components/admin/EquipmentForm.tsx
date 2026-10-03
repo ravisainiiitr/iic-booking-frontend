@@ -1247,6 +1247,32 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     }));
   };
 
+  /** Fields a user type sees: its own rows, else the shared ones (same rule as the booking page). */
+  const fieldsForUserType = (userType: string | null | undefined): InputFieldRow[] => {
+    const all = formData.input_fields ?? [];
+    const own = userType ? all.filter((f) => String(f.user_type || "") === userType) : [];
+    return own.length > 0 ? own : all.filter((f) => !f.user_type);
+  };
+
+  const keyWithLabel = (key: string, fields: InputFieldRow[]) => {
+    const label = fields.find((f) => String(f.field_key || "").toUpperCase() === key)?.field_label?.replace(/:\s*$/, "").trim();
+    return label ? `${key} – ${label}` : key;
+  };
+
+  /** "A – No. of samples · B – Sample type" under formula boxes, so admins need not remember the letters. */
+  const renderFormulaKeyLegend = (fields: InputFieldRow[]) => {
+    const keyed = fields
+      .filter((f) => f.field_key && String(f.field_label || "").trim())
+      .sort((a, b) => String(a.field_key).localeCompare(String(b.field_key)));
+    if (keyed.length === 0) return null;
+    return (
+      <p className="text-[11px] text-muted-foreground" data-testid="formula-key-legend">
+        <span className="font-medium">Field keys: </span>
+        {keyed.map((f) => keyWithLabel(String(f.field_key).toUpperCase(), keyed)).join(" · ")}
+      </p>
+    );
+  };
+
   const renderNumericLimits = (f: InputFieldRow, idx: number, idPrefix: string) => {
     const limits = numericLimitsOf(f);
     const key = String(f.field_key || "").toUpperCase();
@@ -1308,6 +1334,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             e.g. B*4 — limit relative to another field, or a fixed number such as 1. Checked per sample set for every
             user type; used instead of Max.
           </p>
+          {renderFormulaKeyLegend(fieldsForUserType(f.user_type))}
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
@@ -1434,7 +1461,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     <SelectContent>
                       <SelectItem value="__none__">None</SelectItem>
                       {DYNAMIC_INPUT_FIELD_KEYS.map((k) => (
-                        <SelectItem key={k} value={k}>{k}</SelectItem>
+                        <SelectItem key={k} value={k}>{keyWithLabel(k, fieldsForUserType(userType))}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1473,7 +1500,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         >
                           Configure columns
                         </Button>
-                        <span className="text-xs text-muted-foreground">{typedTableConfigSummary(f.table_config)}</span>
+                        <span className="text-xs text-muted-foreground">{typedTableConfigSummary(
+                          f.table_config,
+                          Object.fromEntries(
+                            fieldsForUserType(f.user_type).map((x) => [String(x.field_key || "").toUpperCase(), x.field_label || ""]),
+                          ),
+                        )}</span>
                       </div>
                     </>
                   ) : (
@@ -2548,6 +2580,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       only (no toggle).
                     </p>
                   ) : null}
+                  {renderFormulaKeyLegend(fieldsForUserType(cp.user_type))}
                 </div>
                 {isGeneric ? (
                   <div className="space-y-1">
@@ -2592,6 +2625,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         </li>
                       </ul>
                     </div>
+                    {renderFormulaKeyLegend(fieldsForUserType(cp.user_type))}
                   </div>
                 ) : null}
                 <div className="space-y-1">

@@ -205,6 +205,7 @@ import {
   type BookingDraft,
 } from "@/lib/bookingDraft";
 import { classifyBookingFailure, droppedSlotsNotice, partitionSelectionAfterRefresh } from "@/lib/bookingFailure";
+import { inputLabelsAndValues, type BookingInputFieldDef } from "@/lib/bookingInputDisplay";
 import { bookingWalletStatus, insufficientFundsMessage, type EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import { saveReturnToBooking } from "@/lib/rechargeReturn";
 import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
@@ -3311,7 +3312,7 @@ const BookEquipment = () => {
     const prefill = takeBookingAssistantPrefill(Number(eqId));
     if (!prefill) return;
     const fields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
-    const { carried, dropped } = sanitizeRebookInputValues(prefill.input_values, fields);
+    const { carried, droppedLabels } = sanitizeRebookInputValues(prefill.input_values, fields);
     if (Object.keys(carried).length === 0) return;
     const inputFields = equipmentDetail?.input_fields;
     // Deferred: the input_fields reset effect below runs after this one and would wipe the values.
@@ -3325,8 +3326,8 @@ const BookEquipment = () => {
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
       toast.success("Details from Booking Assistant filled in. Complete the remaining fields and pick your slot.");
-      if (dropped.length > 0) {
-        toast.info(`Some details no longer match this equipment's options and were reset: ${dropped.join(", ")}.`);
+      if (droppedLabels.length > 0) {
+        toast.info(`Some details no longer match this equipment's options and were reset: ${droppedLabels.join(", ")}.`);
       }
     }, 0);
   }, [assistantDateParam, fromAssistant, altFromParam, equipmentDetail?.equipment_id, equipmentDetail?.input_fields]);
@@ -3393,7 +3394,7 @@ const BookEquipment = () => {
       }
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
       const rebookFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
-      const { carried, dropped } = sanitizeRebookInputValues(
+      const { carried, droppedLabels } = sanitizeRebookInputValues(
         withoutSampleSets(source.input_values),
         rebookFields,
         // 3D print weight/material/time come from a fresh STL analysis, never from the old booking.
@@ -3427,9 +3428,9 @@ const BookEquipment = () => {
           ? `Details copied from ${label}. Upload your STL file(s) again, then choose your slots.`
           : `Details copied from ${label}. Charges are recalculated automatically; review them and choose your slots.`
       );
-      if (dropped.length > 0) {
+      if (droppedLabels.length > 0) {
         toast.info(
-          `Some inputs from ${label} no longer match this equipment's current options and were reset: ${dropped.join(", ")}.`
+          `Some inputs from ${label} no longer match this equipment's current options and were reset: ${droppedLabels.join(", ")}.`
         );
       }
       if (!rebookSetsAllowed && rebookSets.length > 0) {
@@ -3523,7 +3524,7 @@ const BookEquipment = () => {
       const templateFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const health = isTemplateFlow ? null : template.health ?? null;
       const { values: templateValues, adjusted } = clampTemplateValues(template.input_values || {}, health?.issues);
-      const { carried, dropped } = sanitizeRebookInputValues(
+      const { carried, dropped, droppedLabels } = sanitizeRebookInputValues(
         withoutSampleSets(templateValues),
         templateFields,
         isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
@@ -3584,7 +3585,7 @@ const BookEquipment = () => {
       }
       const notice = templateApplyNotice(template.name, {
         adjusted: dropTemplateSets ? adjusted.filter((a) => a.set === 1) : adjusted,
-        dropped,
+        dropped: droppedLabels,
         setsDropped: dropTemplateSets,
         health,
       });
@@ -4164,20 +4165,10 @@ const BookEquipment = () => {
     }
     setExportingChargePdf(true);
     try {
-      const labelMap: Record<string, string> = {};
-      equipmentDetail.input_fields?.forEach((f: { field_key?: string; field_label?: string }) => {
-        if (f.field_key) labelMap[f.field_key] = f.field_label || f.field_key;
-      });
-      const input_labels_and_values: Record<string, string | number> = {};
-      Object.entries(inputFieldValues).forEach(([k, v]) => {
-        if (v === "" || v === undefined || v === null) return;
-        if (k.endsWith("_elements")) return;
-        if (Array.isArray(v)) {
-          input_labels_and_values[labelMap[k] ?? k] = v.join(", ");
-          return;
-        }
-        input_labels_and_values[labelMap[k] ?? k] = typeof v === "boolean" ? (v ? "Yes" : "No") : v;
-      });
+      const input_labels_and_values: Record<string, string | number> = inputLabelsAndValues(
+        equipmentDetail.input_fields as BookingInputFieldDef[] | undefined,
+        inputFieldValues,
+      );
       if (isCalculateChargesFlow && chargeEstimateUserType) {
         input_labels_and_values["User type"] = getChargeEstimateUserTypeLabel(chargeEstimateUserType);
       }

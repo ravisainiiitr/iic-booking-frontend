@@ -1,5 +1,6 @@
 import { buildInitialInputValues, type DynamicFieldDefaultDef } from "@/lib/dynamicFieldDefaults";
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
+import { resolveChoiceDisplay } from "@/lib/bookingInputDisplay";
 
 /** Extra sample parameter sets in one booking live under this key of `input_values`. */
 export const SAMPLE_SETS_KEY = "_sample_sets";
@@ -54,7 +55,7 @@ function displayValue(field: SummaryField, set: SampleSetValues): string {
   const label = (v: unknown) => options.find((o) => o.value === String(v))?.label ?? String(v);
   if (Array.isArray(raw)) return raw.map(label).join(", ");
   if (raw === undefined || raw === null || String(raw).trim() === "") return "";
-  return type === "RADIO" || type === "COMBO" ? label(raw) : String(raw);
+  return type === "RADIO" || type === "COMBO" ? resolveChoiceDisplay(raw, field.options, type) : String(raw);
 }
 
 /** Short "Label: value · …" line shown on a collapsed sample set. */
@@ -63,7 +64,7 @@ export function sampleSetSummary(fields: SummaryField[], set: SampleSetValues, l
   for (const field of fields) {
     const value = displayValue(field, set);
     if (!value) continue;
-    parts.push(`${field.field_label || field.field_key}: ${value}`);
+    parts.push(`${String(field.field_label || field.field_key).replace(/:\s*$/, "")}: ${value}`);
     if (parts.length >= limit) break;
   }
   return parts.join(" · ");

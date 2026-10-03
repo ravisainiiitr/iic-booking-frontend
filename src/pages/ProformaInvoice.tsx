@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { formatINR, formatRupees } from "@/lib/money";
+import { formatBookingInputValue, formattedValueText } from "@/lib/bookingInputDisplay";
+import { getUserTypeDisplayName } from "@/lib/userTypes";
 import {
   deleteSavedProforma,
   isChargeRelevantProformaInput,
@@ -49,7 +51,11 @@ function chargeRelevantInputs(
   const fields = fieldMapFor(entry);
   return Object.entries(inputValues)
     .filter(([k, v]) => isChargeRelevantProformaInput(k, v, fields[k]))
-    .map(([k, v]) => [fields[k]?.field_label || k, v]);
+    .map(([k, v]) => {
+      const field = fields[k];
+      const text = field ? formattedValueText(formatBookingInputValue(field, inputValues)) : "";
+      return [String(field?.field_label || k).replace(/:\s*$/, ""), text || v];
+    });
 }
 
 type LineItemResult = {
@@ -342,7 +348,7 @@ export default function ProformaInvoice() {
                 <h3 className="font-semibold text-lg">Proforma summary</h3>
                 <p className="text-sm text-muted-foreground">
                   Charges as per your user type:{" "}
-                  <span className="capitalize font-medium">{result.user_type?.replace(/_/g, " ")}</span>
+                  <span className="font-medium">{getUserTypeDisplayName(result.user_type)}</span>
                 </p>
                 <div className="overflow-x-auto rounded-md border">
                   <table className="w-full min-w-[640px] text-sm">

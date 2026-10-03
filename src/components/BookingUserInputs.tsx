@@ -129,6 +129,10 @@ interface BookingUserInputsProps {
 
 const formatVal = formatInputScalar;
 const resolveRadioComboDisplay = resolveChoiceDisplay;
+const multiSelectDisplay = (values: unknown[], options: unknown) => {
+  const opts = Array.isArray(options) ? options.map((o, i) => normalizeChoiceOption(o, i)) : [];
+  return values.map((v) => opts.find((o) => o.value === String(v))?.label ?? String(v)).join(", ");
+};
 
 export function BookingUserInputs({
   inputValues,
@@ -606,7 +610,9 @@ export function BookingUserInputs({
           const displayVal =
             ["RADIO", "COMBO"].includes(String(f.field_type || "").toUpperCase())
               ? resolveRadioComboDisplay(val, f.options, f.field_type)
-              : formatVal(val);
+              : String(f.field_type || "").toUpperCase() === "MULTI_SELECT" && Array.isArray(val)
+                ? multiSelectDisplay(val, f.options)
+                : formatVal(val);
           const elementsSuffix =
             isPeriodic && elementsVal != null && String(elementsVal).trim() !== ""
               ? ` (${formatVal(elementsVal)})`
@@ -832,7 +838,9 @@ export function BookingUserInputs({
                       <dd className="font-medium text-foreground text-right">
                         {["RADIO", "COMBO"].includes(fieldType)
                           ? resolveRadioComboDisplay(setVal, f.options, f.field_type)
-                          : formatVal(setVal)}
+                          : fieldType === "MULTI_SELECT" && Array.isArray(setVal)
+                            ? multiSelectDisplay(setVal, f.options)
+                            : formatVal(setVal)}
                         {elementsSuffix}
                       </dd>
                     </div>

@@ -29,6 +29,8 @@ import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
+import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 
 /** Format seconds as HH:MM:SS (e.g. 3665 -> "01:01:05"). */
 function formatTimeRemaining(totalSeconds: number): string {
@@ -95,6 +97,8 @@ type UrgentRequestRow = {
     total_time_minutes: number;
     slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
     input_values: Record<string, unknown>;
+    input_values_by_key?: BookingInputValues;
+    input_fields?: BookingInputFieldDef[];
     charge_breakdown?: Array<{ description: string; amount: number }> | null;
   } | null;
 };
@@ -637,26 +641,13 @@ const UrgentRequests = () => {
               const totalCharge = summary.total_charge != null ? Number(summary.total_charge) : null;
               return (
                 <div className="space-y-6 text-base">
-                  {/* User Inputs section - same style as Booking details card */}
                   {Object.keys(inputValues).length > 0 && (
-                    <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
-                      <div className="flex items-center gap-2.5 px-5 py-4 bg-primary/5 dark:bg-primary/10 border-b border-border/60">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 dark:bg-primary/20 text-primary">
-                          <FileText className="h-5 w-5" />
-                        </div>
-                        <p className="text-base font-semibold text-foreground tracking-tight">User Inputs</p>
-                      </div>
-                      <ul className="divide-y divide-border/50">
-                        {Object.entries(inputValues).map(([label, value]) => (
-                          <li key={label} className="flex items-center justify-between gap-4 px-5 py-4 bg-background/50 dark:bg-background/30">
-                            <span className="text-sm font-semibold text-muted-foreground shrink-0">{label}</span>
-                            <span className="text-base font-medium text-foreground text-right break-words">
-                              {value === undefined || value === null ? "—" : Array.isArray(value) ? (value as unknown[]).join(", ") : String(value)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    <SampleRequirementsTable
+                      title="User inputs"
+                      fields={summary.input_fields}
+                      inputValues={summary.input_fields?.length ? summary.input_values_by_key ?? inputValues : inputValues}
+                      emptyText="The user did not fill in any inputs."
+                    />
                   )}
                   {/* Charge Breakdown */}
                   <div>

@@ -49,6 +49,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         title: "Results overdue",
         body: "Bookings still open after the equipment's results deadline show a red Results overdue badge in the list and on the job sheet, and the Results overdue card on the dashboard lists them. Choose Results overdue in Status to see only those. Share the results and complete the booking; for a genuine delay, send the user the Results delayed reminder, and the Officer In Charge or Admin can use Extend results deadline in the booking details.",
       }),
+      g.only(["oic", "admin"], {
+        title: "See why a booking attempt failed",
+        body: "In Booking Attempt Log, click the reason in the Failure reason column (or the details icon under Actions). The details show the user's full details, the slots they picked, their inputs as a table with the field names, and at the bottom the outcome in plain words, such as Weekly booking limit reached with the minutes used. Technical details keeps the original message.",
+      }),
       g.only(["oic", "admin", "operator"], {
         title: "Follow up questions",
         body: "Open questions show Awaiting reply on the booking and in View Booking, and a card above the bookings list shows how many are awaiting the user's reply, with overdue ones marked. When the user replies you get an email and a notification, and the question is marked Answered. Use Mark resolved if it was settled another way.",

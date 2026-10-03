@@ -116,9 +116,34 @@ export function readStashedRebookPrefill(source: string, equipmentId: number): R
 
 type RebookFieldConfig = {
   field_key?: string;
+  field_label?: string;
   field_type?: string;
   options?: unknown;
 };
+
+/**
+ * Names of reset inputs for messages: field labels ("Sample type", "Select element (elements)"); inputs that are
+ * no longer on the form are counted instead of being shown as field letters.
+ */
+export function describeDroppedInputs(dropped: string[], fields: RebookFieldConfig[] | null | undefined): string[] {
+  const labels = new Map<string, string>();
+  (fields ?? []).forEach((f) => {
+    const label = String(f.field_label ?? "").replace(/:\s*$/, "").trim();
+    if (f.field_key && label) labels.set(f.field_key, label);
+  });
+  const named: string[] = [];
+  let removed = 0;
+  dropped.forEach((key) => {
+    const isElements = key.endsWith("_elements");
+    const base = isElements ? key.slice(0, -"_elements".length) : key;
+    const label = labels.get(base);
+    if (label) named.push(isElements ? `${label} (elements)` : label);
+    else if (/^[A-Z]$/.test(base)) removed += 1;
+    else named.push(base.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()));
+  });
+  if (removed > 0) named.push(removed === 1 ? "1 input no longer on the form" : `${removed} inputs no longer on the form`);
+  return Array.from(new Set(named));
+}
 
 /**
  * Keep only values the equipment still accepts: configured field keys (plus periodic `_elements`),
@@ -128,7 +153,7 @@ export function sanitizeRebookInputValues(
   source: Record<string, unknown>,
   fields: RebookFieldConfig[] | null | undefined,
   opts?: { skipKeys?: Set<string> }
-): { carried: Record<string, RebookInputValue>; dropped: string[] } {
+): { carried: Record<string, RebookInputValue>; dropped: string[]; droppedLabels: string[] } {
   const carried: Record<string, RebookInputValue> = {};
   const dropped: string[] = [];
   const byKey = new Map<string, RebookFieldConfig>();
@@ -197,5 +222,5 @@ export function sanitizeRebookInputValues(
     carried[key] = value as RebookInputValue;
   });
 
-  return { carried, dropped };
+  return { carried, dropped, droppedLabels: describeDroppedInputs(dropped, fields) };
 }

@@ -10,6 +10,7 @@ import {
   type TemplateSlotFallback,
 } from "@/lib/api";
 import { describePreferredSlot } from "@/lib/templatePreferredSlot";
+import { filledInputCount } from "@/lib/bookingTemplates";
 import { preferredSlotDraftProblem, type WeeklySlotRow } from "@/lib/weeklySlotTemplate";
 import { WeeklyPreferredSlotPicker, type WeeklySlotSelection } from "@/components/WeeklyPreferredSlotPicker";
 import { Button } from "@/components/ui/button";
@@ -51,12 +52,7 @@ const suggestedName = (s: BookingAttemptSnapshot) => {
   return base.slice(0, MAX_NAME);
 };
 
-const filledInputs = (values: Record<string, unknown>) =>
-  Object.entries(values || {}).filter(([key, v]) => {
-    if (key === "comments") return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return v !== null && v !== undefined && String(v).trim() !== "";
-  }).length;
+const filledInputs = filledInputCount;
 
 export function SaveAsTemplateDialog({
   open,

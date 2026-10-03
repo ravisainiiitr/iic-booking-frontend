@@ -357,7 +357,11 @@ export function typedTableProblems(
   field: TypedTableFieldLike,
   raw: unknown,
   group: Record<string, unknown>,
-  { checkRequired = true, set = 1 }: { checkRequired?: boolean; set?: number } = {},
+  {
+    checkRequired = true,
+    set = 1,
+    linkLabel,
+  }: { checkRequired?: boolean; set?: number; /** Label of the input that sets the row count. */ linkLabel?: string } = {},
 ): TypedTableProblem[] {
   const config = readTypedTableConfig(field.table_config);
   if (!config) return [];
@@ -387,7 +391,8 @@ export function typedTableProblems(
   if (linked) {
     const target = linkedTypedTableTarget(config, group);
     if (checkRequired && rows.length !== target) {
-      add("row_count", `${label} must have ${target} row${target === 1 ? "" : "s"} (set by field ${typedTableLinkKey(config)}); it has ${rows.length}.`, { limit: target });
+      const source = linkLabel ? `“${linkLabel.replace(/:\s*$/, "")}”` : `field ${typedTableLinkKey(config)}`;
+      add("row_count", `${label} must have ${target} row${target === 1 ? "" : "s"} (set by ${source}); it has ${rows.length}.`, { limit: target });
     }
   } else {
     if (rows.length > maxRows) add("max_rows", `${label}: at most ${maxRows} rows are allowed.`, { limit: maxRows });
@@ -436,7 +441,15 @@ export function firstTypedTableProblem(
           (!link || String(getFieldValueCI(groups[i], link) ?? "").trim() === String(getFieldValueCI(base, link) ?? "").trim());
         if (unchanged) continue;
       }
-      const problems = typedTableProblems(field, value, groups[i], { checkRequired: opts.checkRequired, set: i + 1 });
+      const linkKey = typedTableLinkKey(readTypedTableConfig(field.table_config));
+      const linkLabel = linkKey
+        ? (fields ?? []).find((f) => String(f.field_key || "").toUpperCase() === linkKey.toUpperCase())?.field_label
+        : undefined;
+      const problems = typedTableProblems(field, value, groups[i], {
+        checkRequired: opts.checkRequired,
+        set: i + 1,
+        linkLabel: linkLabel || undefined,
+      });
       if (problems.length) return problems[0];
     }
   }

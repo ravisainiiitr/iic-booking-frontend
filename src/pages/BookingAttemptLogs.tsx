@@ -32,9 +32,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Search, Trash2, X, Calculator } from "lucide-react";
+import { Loader2, Search, Trash2, X, Calculator, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
@@ -55,6 +56,21 @@ function formatDateSafe(
   }
 }
 
+const QUOTA_SCOPE_LABELS: Record<string, string> = {
+  individual: "the user's own usage",
+  faculty: "the supervisor's wallet group",
+  group: "the equipment group",
+  external: "external users",
+  user_type: "all users of this type",
+};
+
+/** "Weekly limit, counting the supervisor's wallet group" instead of "WEEKLY (faculty)". */
+function quotaScopeText(quotaType: string, quotaScope: string): string {
+  const period = /month/i.test(quotaType) ? "Monthly" : /week/i.test(quotaType) ? "Weekly" : quotaType;
+  const scope = QUOTA_SCOPE_LABELS[quotaScope.toLowerCase()] ?? quotaScope.replace(/_/g, " ");
+  return [period ? `${period} limit` : "", scope ? `counting ${scope}` : ""].filter(Boolean).join(", ");
+}
+
 type LogRow = {
   id: number;
   user_id: number;
@@ -66,6 +82,9 @@ type LogRow = {
   requested_at: string | null;
   outcome: string;
   failure_reason: string;
+  /** Plain-language title / sentence of the failure reason (server side). */
+  failure_title?: string;
+  failure_summary?: string;
   number_of_samples: number;
   slots_requested: number;
   duration_minutes: number | null;
@@ -102,12 +121,7 @@ const BookingAttemptLogs = () => {
   const [departmentType, setDepartmentType] = useState<"ALL" | "INTERNAL" | "EXTERNAL">("ALL");
   const [departmentSearchText, setDepartmentSearchText] = useState("");
   const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
-  const [additionalInfoOpen, setAdditionalInfoOpen] = useState(false);
-  const [additionalInfoRow, setAdditionalInfoRow] = useState<LogRow | null>(null);
-  const [additionalInfoData, setAdditionalInfoData] = useState<{
-    input_values?: Record<string, unknown>;
-    selected_parameters?: unknown;
-  } | null>(null);
+  const [detailsRow, setDetailsRow] = useState<LogRow | null>(null);
   const [deleteConfirmLogId, setDeleteConfirmLogId] = useState<number | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [quotaBreakdownLogId, setQuotaBreakdownLogId] = useState<number | null>(null);
@@ -268,12 +282,6 @@ const BookingAttemptLogs = () => {
   const handleApplyFilters = () => {
     setOffset(0);
     fetchList();
-  };
-
-  const openAdditionalInfo = (row: LogRow) => {
-    setAdditionalInfoRow(row);
-    setAdditionalInfoData(row.additional_info ?? null);
-    setAdditionalInfoOpen(true);
   };
 
   const handleDeleteLog = async (logId: number) => {
@@ -739,14 +747,8 @@ const BookingAttemptLogs = () => {
                           {formatDateSafe(row.requested_at, "dd MMM yyyy, HH:mm:ss")}
                         </TableCell>
                         <TableCell>
-                          <button
-                            type="button"
-                            className="text-left hover:underline focus:outline-none focus:underline cursor-pointer"
-                            onClick={() => openAdditionalInfo(row)}
-                          >
-                            <div className="font-medium">{row.user_name}</div>
-                            <div className="text-xs text-muted-foreground">{row.user_email}</div>
-                          </button>
+                          <div className="font-medium">{row.user_name}</div>
+                          <div className="text-xs text-muted-foreground">{row.user_email}</div>
                         </TableCell>
                         <TableCell>
                           <div>{row.equipment_name}</div>
@@ -760,11 +762,23 @@ const BookingAttemptLogs = () => {
                                 : "bg-red-600"
                             }
                           >
-                            {row.outcome}
+                            {row.outcome === "SUCCESS" ? "Success" : "Failed"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground" title={row.failure_reason || undefined}>
-                          {row.outcome === "FAILED" && row.failure_reason ? row.failure_reason : "—"}
+                        <TableCell className="max-w-[280px] text-sm">
+                          <button
+                            type="button"
+                            onClick={() => setDetailsRow(row)}
+                            title="View attempt details"
+                            aria-label={`View attempt details: ${
+                              row.outcome === "FAILED" ? row.failure_title || row.failure_reason || "failed" : "booking created"
+                            }`}
+                            className="block w-full max-w-full cursor-pointer truncate rounded text-left text-primary underline-offset-2 decoration-primary/40 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {row.outcome === "FAILED"
+                              ? row.failure_summary || row.failure_reason || "Failed (no reason recorded)"
+                              : "Booking created – view details"}
+                          </button>
                         </TableCell>
                         <TableCell>
                           {row.booking_id != null ? (
@@ -781,6 +795,16 @@ const BookingAttemptLogs = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            <Button
+                              aria-label="View attempt details"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => setDetailsRow(row)}
+                              title="View attempt details"
+                            >
+                              <FileText className="h-4 w-4" aria-hidden />
+                            </Button>
                             {isQuotaFailure(row) && (
                               <Button
                                 aria-label="View calculation details"
@@ -815,7 +839,6 @@ const BookingAttemptLogs = () => {
                                 )}
                               </Button>
                             ) : null}
-                            {!isQuotaFailure(row) && !canDeleteLog ? "—" : null}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -850,56 +873,15 @@ const BookingAttemptLogs = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={additionalInfoOpen} onOpenChange={(open) => { setAdditionalInfoOpen(open); if (!open) { setAdditionalInfoRow(null); setAdditionalInfoData(null); } }}>
-          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Additional information</DialogTitle>
-              <DialogDescription>
-                Information provided when raising the booking request.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              {additionalInfoData && (additionalInfoData.input_values && Object.keys(additionalInfoData.input_values).length > 0 || (additionalInfoData.selected_parameters != null && (Array.isArray(additionalInfoData.selected_parameters) ? (additionalInfoData.selected_parameters as unknown[]).length > 0 : Object.keys(additionalInfoData.selected_parameters as object).length > 0))) ? (
-                <div className="space-y-4 text-sm">
-                  {additionalInfoData.input_values && Object.keys(additionalInfoData.input_values).length > 0 && (
-                    <div>
-                      <div className="font-medium text-foreground mb-2">Form fields</div>
-                      <dl className="space-y-1.5">
-                        {Object.entries(additionalInfoData.input_values).map(([key, value]) => (
-                          <div key={key} className="flex gap-2">
-                            <dt className="text-muted-foreground shrink-0">{key}:</dt>
-                            <dd className="break-words">
-                              {value === null || value === undefined
-                                ? "—"
-                                : typeof value === "object"
-                                  ? JSON.stringify(value)
-                                  : String(value)}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  )}
-                  {additionalInfoData.selected_parameters != null &&
-                    (Array.isArray(additionalInfoData.selected_parameters)
-                      ? (additionalInfoData.selected_parameters as unknown[]).length > 0
-                      : Object.keys(additionalInfoData.selected_parameters as object).length > 0) && (
-                    <div>
-                      <div className="font-medium text-foreground mb-2">Selected parameters</div>
-                      <pre className="rounded bg-muted p-3 text-xs overflow-x-auto max-h-48 overflow-y-auto">
-                        {JSON.stringify(additionalInfoData.selected_parameters, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No additional information was recorded for this attempt.
-                </p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <BookingAttemptDetailsDialog
+          row={detailsRow}
+          onOpenChange={(open) => { if (!open) setDetailsRow(null); }}
+          onOpenBooking={
+            detailsRow?.real_booking_id != null
+              ? () => { const id = detailsRow.real_booking_id!; setDetailsRow(null); openBookingDetailPopup(id); }
+              : undefined
+          }
+        />
 
         <Dialog
           open={quotaBreakdownOpen}
@@ -934,7 +916,7 @@ const BookingAttemptLogs = () => {
                     </div>
                     <div>
                       <span className="text-muted-foreground">Scope: </span>
-                      <span className="font-medium">{quotaBreakdownData.quota_type} ({quotaBreakdownData.quota_scope})</span>
+                      <span className="font-medium">{quotaScopeText(quotaBreakdownData.quota_type, quotaBreakdownData.quota_scope)}</span>
                     </div>
                   </div>
                   <p className="text-sm font-medium">{quotaBreakdownData.summary_message}</p>

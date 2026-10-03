@@ -139,6 +139,35 @@ export function formatBookingInputValue(field: BookingInputFieldDef, values: Boo
   return { kind: "text", text: formatInputScalar(raw) };
 }
 
+/** One-line text of a formatted value ("Name: N, Count: 5; …" for tables), for PDFs, toasts and compact lists. */
+export function formattedValueText(value: FormattedInputValue, maxRows = 10): string {
+  if (value.kind === "empty") return "";
+  if (value.kind === "text") return value.text;
+  const shown = value.rows.slice(0, maxRows).map((row) => {
+    const named = value.columns.length >= row.length;
+    return row
+      .map((cell, i) => (cell.trim() === "" || (named && value.columns[i] === "S.No.") ? "" : named ? `${value.columns[i]}: ${cell}` : cell))
+      .filter(Boolean)
+      .join(", ");
+  });
+  const more = value.rows.length - shown.length;
+  return shown.filter(Boolean).join("; ") + (more > 0 ? `; … ${more} more row(s)` : "");
+}
+
+/** Label → one-line value for every filled-in field (field order, option labels, Yes/No, table rows). */
+export function inputLabelsAndValues(
+  fields: BookingInputFieldDef[] | null | undefined,
+  values: BookingInputValues,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  (fields ?? []).forEach((field) => {
+    if (!field.field_key || field.field_key === "comments") return;
+    const text = formattedValueText(formatBookingInputValue(field, values));
+    if (text) out[String(field.field_label || field.field_key).replace(/:\s*$/, "")] = text;
+  });
+  return out;
+}
+
 /** Comparable form of a formatted value, used to spot parameters that differ between sample sets. */
 export function formattedValueKey(value: FormattedInputValue): string {
   if (value.kind === "empty") return "";

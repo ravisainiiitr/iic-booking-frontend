@@ -25,6 +25,8 @@ import { format } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialog";
+import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
+import { formatDurationMinutes } from "@/lib/jobSheet";
 
 type EquipmentOption = { equipment_id: number; name: string; code: string };
 type WaitlistEntry = {
@@ -51,6 +53,10 @@ type WaitlistEntry = {
   booking_attempt_slots_requested?: number | null;
   booking_attempt_duration_minutes?: number | null;
   booking_attempt_additional_info?: any;
+  booking_attempt_log_id?: number | null;
+  booking_attempt_inputs?: Array<{ label: string; text: string }>;
+  booking_attempt_failure_title?: string;
+  booking_attempt_failure_summary?: string;
 };
 type WaitlistData = {
   equipment_id: number;
@@ -78,6 +84,7 @@ export default function EquipmentWaitlist() {
   const [loadingWaitlist, setLoadingWaitlist] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [confirmEntry, setConfirmEntry] = useState<WaitlistEntry | null>(null);
+  const [attemptRow, setAttemptRow] = useState<WaitlistEntry | null>(null);
 
   const handleManuallyConfirmed = (entryId: number) => {
     setWaitlist((prev) => {
@@ -157,18 +164,23 @@ export default function EquipmentWaitlist() {
     }
   };
 
-  const formatAttemptInputs = (additionalInfo: any) => {
-    if (!additionalInfo || typeof additionalInfo !== "object") return "";
-    const inputValues = additionalInfo.input_values ?? additionalInfo.inputValues ?? null;
-    const selectedParams = additionalInfo.selected_parameters ?? additionalInfo.selectedParameters ?? null;
+  const attemptRequestText = (e: WaitlistEntry) =>
+    [
+      e.booking_attempt_number_of_samples != null
+        ? `${e.booking_attempt_number_of_samples} sample${e.booking_attempt_number_of_samples === 1 ? "" : "s"}`
+        : null,
+      e.booking_attempt_slots_requested != null
+        ? `${e.booking_attempt_slots_requested} slot${e.booking_attempt_slots_requested === 1 ? "" : "s"}`
+        : null,
+      e.booking_attempt_duration_minutes != null ? formatDurationMinutes(e.booking_attempt_duration_minutes) : null,
+    ]
+      .filter(Boolean)
+      .join(" • ");
 
-    const parts: string[] = [];
-    if (inputValues && typeof inputValues === "object") {
-      const entries = Object.entries(inputValues);
-      if (entries.length) parts.push(`inputs: ${entries.map(([k, v]) => `${k}=${String(v)}`).slice(0, 6).join(", ")}${entries.length > 6 ? "…" : ""}`);
-    }
-    if (selectedParams != null) parts.push(`selected: ${typeof selectedParams === "string" ? selectedParams : JSON.stringify(selectedParams).slice(0, 80)}${JSON.stringify(selectedParams).length > 80 ? "…" : ""}`);
-    return parts.join(" | ");
+  const attemptInputsText = (e: WaitlistEntry) => {
+    const items = e.booking_attempt_inputs ?? [];
+    const shown = items.slice(0, 6).map((i) => `${i.label}: ${i.text}`);
+    return shown.join(" • ") + (items.length > 6 ? ` • +${items.length - 6} more` : "");
   };
 
   if (!canView) return null;
@@ -338,27 +350,30 @@ export default function EquipmentWaitlist() {
                                   ? format(new Date(e.booking_attempt_requested_at), "PPp")
                                   : "—"}
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {e.booking_attempt_failure_reason || "—"}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {[
-                                  e.booking_attempt_number_of_samples != null ? `samples=${e.booking_attempt_number_of_samples}` : null,
-                                  e.booking_attempt_slots_requested != null ? `slots=${e.booking_attempt_slots_requested}` : null,
-                                  e.booking_attempt_duration_minutes != null ? `duration=${e.booking_attempt_duration_minutes}m` : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" • ") || "—"}
-                              </div>
                               {(() => {
-                                const details = formatAttemptInputs(e.booking_attempt_additional_info);
-                                if (!details) return null;
+                                const reason =
+                                  e.booking_attempt_failure_summary || e.booking_attempt_failure_reason || "";
+                                if (!reason) return <div className="text-xs text-muted-foreground">—</div>;
+                                if (e.booking_attempt_log_id == null) {
+                                  return <div className="text-xs text-muted-foreground">{reason}</div>;
+                                }
                                 return (
-                                  <div className="text-xs text-muted-foreground" title={details}>
-                                    {details}
-                                  </div>
+                                  <button
+                                    type="button"
+                                    className="text-left text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                                    title="View attempt details"
+                                    onClick={() => setAttemptRow(e)}
+                                  >
+                                    {reason}
+                                  </button>
                                 );
                               })()}
+                              <div className="text-xs text-muted-foreground">{attemptRequestText(e) || "—"}</div>
+                              {attemptInputsText(e) && (
+                                <div className="text-xs text-muted-foreground" title={attemptInputsText(e)}>
+                                  {attemptInputsText(e)}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           {canConfirmManually && (
@@ -396,6 +411,27 @@ export default function EquipmentWaitlist() {
             onConfirmed={handleManuallyConfirmed}
           />
         )}
+        <BookingAttemptDetailsDialog
+          row={
+            attemptRow && attemptRow.booking_attempt_log_id != null
+              ? {
+                  id: attemptRow.booking_attempt_log_id,
+                  requested_at: attemptRow.booking_attempt_requested_at ?? null,
+                  outcome: "FAILED",
+                  equipment_name: waitlist?.equipment_name ?? "",
+                  equipment_code: waitlist?.equipment_code ?? "",
+                  user_name: attemptRow.user_name,
+                  user_email: attemptRow.user_email,
+                  failure_reason: attemptRow.booking_attempt_failure_reason ?? "",
+                  failure_title: attemptRow.booking_attempt_failure_title,
+                  failure_summary: attemptRow.booking_attempt_failure_summary,
+                }
+              : null
+          }
+          onOpenChange={(o) => {
+            if (!o) setAttemptRow(null);
+          }}
+        />
       </main>
     </div>
   );

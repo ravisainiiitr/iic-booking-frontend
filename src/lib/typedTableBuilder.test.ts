@@ -41,6 +41,9 @@ describe("typed table builder", () => {
       ["Dry", "dry", "", ""],
     ]);
     expect(typedTableConfigSummary(config)).toBe("3 columns · rows follow field A (max 20)");
+    expect(typedTableConfigSummary(config, { A: "No. of samples:" })).toBe(
+      "3 columns · rows follow field A – No. of samples (max 20)",
+    );
   });
 
   it("reports duplicate keys, limits, missing options and bad defaults", () => {

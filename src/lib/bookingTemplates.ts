@@ -33,7 +33,8 @@ export function templateSlotSummary(t: Pick<BookingTemplate, "options" | "prefer
 
 export const filledInputCount = (values: Record<string, unknown>) =>
   Object.entries(values || {}).filter(([key, v]) => {
-    if (key === "comments" || key.startsWith("_")) return false;
+    // A periodic-table field and its chosen elements are one input.
+    if (key === "comments" || key.startsWith("_") || key.endsWith("_elements")) return false;
     if (Array.isArray(v)) return v.length > 0;
     return v !== null && v !== undefined && String(v).trim() !== "";
   }).length;
