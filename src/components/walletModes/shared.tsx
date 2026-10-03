@@ -3,7 +3,7 @@ import { Banknote, CreditCard, Globe, HandCoins, Landmark, Loader2, Repeat, Sear
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import type { WalletModeOptionKey } from "@/lib/api";
+import type { WalletModeDepartmentRow, WalletModeOptionKey } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 export const OPTION_ORDER: WalletModeOptionKey[] = [
@@ -63,6 +63,9 @@ export function StatusChip({ tone, children, className }: { tone: ChipTone; chil
     </Badge>
   );
 }
+
+/** Departments offered by the public equipment catalog (rows kept only for saved settings have ``listed: false``). */
+export const isListedDepartment = (d: Pick<WalletModeDepartmentRow, "listed">) => d.listed !== false;
 
 export function formatInr(value: string | number | null | undefined): string {
   const n = Number(value ?? 0);

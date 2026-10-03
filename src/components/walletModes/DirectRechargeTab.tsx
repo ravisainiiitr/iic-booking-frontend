@@ -33,7 +33,15 @@ import { AWAITING_APPROVAL_TEXT } from "@/lib/walletModes";
 
 import DirectRechargeForm from "./DirectRechargeForm";
 import DirectRechargeHistory from "./DirectRechargeHistory";
-import { formatDateTime, formatInr, SearchPicker, SectionTitle, StatusChip, type ChipTone } from "./shared";
+import {
+  formatDateTime,
+  formatInr,
+  isListedDepartment,
+  SearchPicker,
+  SectionTitle,
+  StatusChip,
+  type ChipTone,
+} from "./shared";
 
 const ALL_DEPARTMENTS = "all";
 const GRANT_TONE: Record<WalletDirectRechargeGrant["status"], ChipTone> = {
@@ -187,7 +195,7 @@ export default function DirectRechargeTab({
   };
 
   const masterDirty = enabled !== savedEnabled;
-  const departmentOptions = overview.departments;
+  const departmentOptions = overview.departments.filter(isListedDepartment);
 
   return (
     <div className="space-y-4">

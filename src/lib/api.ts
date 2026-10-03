@@ -330,6 +330,8 @@ export interface WalletModeDepartmentRow {
   id: number;
   name: string;
   code: string;
+  /** False: no equipment in the public catalog, kept only because it has saved wallet-mode settings. */
+  listed?: boolean;
   states: Record<WalletModeOptionKey, WalletModeDepartmentState>;
   effective: Record<WalletModeOptionKey, boolean>;
 }
