@@ -30,6 +30,9 @@ type Props = {
   onSaved?: (equipmentId: number, slotColors: Record<string, string>) => void;
   /** Optional: sync legend when colours change locally before save. */
   onColorsChange?: (slotColors: Record<string, string>) => void;
+  /** Controlled expanded state; collapsed by default when omitted. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export function LabCalendarColorConfig({
@@ -37,10 +40,17 @@ export function LabCalendarColorConfig({
   equipmentLabel,
   onSaved,
   onColorsChange,
+  open: openProp,
+  onOpenChange,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpenState] = useState(false);
+  const open = openProp ?? openState;
+  const toggleOpen = () => {
+    setOpenState(!open);
+    onOpenChange?.(!open);
+  };
   const [colors, setColors] = useState<Record<string, string>>({ ...DEFAULT_LAB_BOOKING_COLORS });
 
   useEffect(() => {
@@ -117,7 +127,7 @@ export function LabCalendarColorConfig({
   const header = (
     <button
       type="button"
-      onClick={() => setOpen((v) => !v)}
+      onClick={toggleOpen}
       aria-expanded={open}
       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >

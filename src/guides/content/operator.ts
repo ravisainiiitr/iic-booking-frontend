@@ -18,7 +18,11 @@ export const operatorGuide: RoleGuide = {
       steps: [
         {
           title: "Your dashboard",
-          body: "View Booking, Intimate Unavailability and Support tickets are on the dashboard.",
+          body: "The menu lists View Booking, Intimate Unavailability and Support tickets, in that order.",
+        },
+        {
+          title: "Week calendar",
+          body: "Previous week, This week, Next week, Booked only and Refresh sit beside the equipment name and apply to every instrument shown. Calendar colours and Booking overview and follow-up range stay closed until you click them; the dashboard remembers whether you left them open.",
         },
       ],
       rules: ["Admin Settings appears only if Admin Panel Access is enabled for Lab Operators in your department."],

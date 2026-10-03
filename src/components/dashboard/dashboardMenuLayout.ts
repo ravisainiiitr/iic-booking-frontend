@@ -32,6 +32,9 @@ export function facultyDashboardMenuOrder(ids: string[]): string[] {
   ];
 }
 
+/** Lab Operator menu order below the Dashboard button; other visible items follow in their original order. */
+export const LAB_OPERATOR_DASHBOARD_MENU_ORDER = ["booking_management", "operator_availability", "support_tickets"];
+
 /** Visible ids in menu order: `defaultOrder` first, then the remaining ids in their original order. */
 export function orderMenuIds(ids: string[], defaultOrder: string[]): string[] {
   const available = new Set(ids);

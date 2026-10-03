@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  LAB_OPERATOR_DASHBOARD_MENU_ORDER,
   addMenuGroup,
   buildMenuTree,
   dedupeMenuEntriesByPath,
@@ -28,6 +29,34 @@ describe("orderMenuIds", () => {
 
   it("returns the original order when no default order is given", () => {
     expect(orderMenuIds(["x", "y"], [])).toEqual(["x", "y"]);
+  });
+});
+
+describe("LAB_OPERATOR_DASHBOARD_MENU_ORDER", () => {
+  const operatorMenu = ["operator_availability", "support_tickets", "booking_management"];
+
+  it("lists View Booking, Intimate Unavailability, then Support tickets", () => {
+    expect(orderMenuIds(operatorMenu, LAB_OPERATOR_DASHBOARD_MENU_ORDER)).toEqual([
+      "booking_management",
+      "operator_availability",
+      "support_tickets",
+    ]);
+  });
+
+  it("keeps other visible items after the three, in their original order", () => {
+    expect(
+      orderMenuIds(["user_guide", ...operatorMenu, "rate_your_experience"], LAB_OPERATOR_DASHBOARD_MENU_ORDER),
+    ).toEqual(["booking_management", "operator_availability", "support_tickets", "user_guide", "rate_your_experience"]);
+  });
+
+  it("still honours a saved custom order", () => {
+    const ordered = orderMenuIds(operatorMenu, LAB_OPERATOR_DASHBOARD_MENU_ORDER);
+    const saved = { groups: [], order: ["support_tickets", "operator_availability", "booking_management"] };
+    expect(buildMenuTree(ordered, saved).map(menuNodeKey)).toEqual([
+      "support_tickets",
+      "operator_availability",
+      "booking_management",
+    ]);
   });
 });
 

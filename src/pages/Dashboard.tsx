@@ -25,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2 } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
@@ -73,9 +73,15 @@ import {
 import { getBookingKey, type BookingRef } from "@/lib/bookingRef";
 import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboard/DashboardMenuTree";
 import { activateOnEnterOrSpace } from "@/components/dashboard/menuItemA11y";
-import { facultyDashboardMenuOrder, normalizeMenuLayout, sectionMenuOrder } from "@/components/dashboard/dashboardMenuLayout";
+import {
+  LAB_OPERATOR_DASHBOARD_MENU_ORDER,
+  facultyDashboardMenuOrder,
+  normalizeMenuLayout,
+  sectionMenuOrder,
+} from "@/components/dashboard/dashboardMenuLayout";
 import { ADMIN_MENU_SECTIONS } from "@/components/dashboard/adminMenuSections";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
+import { useRememberedOpen } from "@/lib/rememberedOpen";
 import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 
@@ -446,6 +452,13 @@ const Dashboard = () => {
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Operator. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
+  const [labColorsOpen, setLabColorsOpen] = useRememberedOpen("lab-dash-calendar-colours", user?.id, false);
+  /** Collapsed by default for Lab Operators; OICs keep it open until they collapse it. */
+  const [labOverviewOpen, setLabOverviewOpen] = useRememberedOpen(
+    "lab-dash-booking-overview",
+    user?.id,
+    !isLabInchargeUser,
+  );
 
   const prefetchBrowseCatalog = useCallback(() => {
     if (!isLabInchargeUser) prefetchEquipmentCatalog(user);
@@ -3460,9 +3473,85 @@ const Dashboard = () => {
       ]
     : isFacultyUser
       ? facultyDashboardMenuOrder(dashboardMenuEntries.map((entry) => entry.id))
-      : usesAdminMenuSections
-        ? ADMIN_MENU_SECTION_ORDER
-        : [];
+      : isLabInchargeUser
+        ? LAB_OPERATOR_DASHBOARD_MENU_ORDER
+        : usesAdminMenuSections
+          ? ADMIN_MENU_SECTION_ORDER
+          : [];
+
+  const labCalendarLegend = [
+    { label: "Internal booked", color: labBookingLegendColors.BOOKED_INTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_INTERNAL },
+    { label: "External booked", color: labBookingLegendColors.BOOKED_EXTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_EXTERNAL },
+    { label: "Completed", color: labBookingLegendColors.COMPLETED || DEFAULT_LAB_BOOKING_COLORS.COMPLETED },
+    { label: "Available", color: labBookingLegendColors.AVAILABLE || DEFAULT_LAB_BOOKING_COLORS.AVAILABLE },
+    { label: "Maintenance / Blocked", color: "#9ca3af" },
+  ];
+
+  /** One set of week controls for the whole calendar, shown beside the first equipment name. */
+  const labWeekCalendarControls = labOperatorDash ? (
+    <>
+      <div
+        role="group"
+        aria-label="Week"
+        className="inline-flex h-8 items-stretch overflow-hidden rounded-md border border-input bg-background shadow-sm"
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-full rounded-none px-2.5 text-xs"
+          onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
+        >
+          <ChevronLeft className="mr-0.5 h-4 w-4 opacity-80" />
+          Previous week
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-full rounded-none border-x border-input px-2.5 text-xs"
+          onClick={() => setLabOperatorWeekStart(null)}
+        >
+          This week
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-full rounded-none px-2.5 text-xs"
+          onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
+        >
+          Next week
+          <ChevronRight className="ml-0.5 h-4 w-4 opacity-80" />
+        </Button>
+      </div>
+      <div className="flex h-8 items-center gap-2 rounded-md border border-input bg-background px-2.5 shadow-sm">
+        <Switch
+          id="lab-calendar-booked-only"
+          checked={labCalendarBookedOnly}
+          onCheckedChange={(v) => setLabCalendarBookedOnly(Boolean(v))}
+        />
+        <Label htmlFor="lab-calendar-booked-only" className="cursor-pointer text-xs">
+          Booked only
+        </Label>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 px-2.5 text-xs"
+        onClick={() => setLabSlotsRefresh((x) => x + 1)}
+        disabled={labSlotsLoading}
+      >
+        {labSlotsLoading ? (
+          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <RefreshCw className="mr-1 h-3.5 w-3.5 opacity-80" />
+        )}
+        {labSlotsLoading ? "Refreshing…" : "Refresh"}
+      </Button>
+    </>
+  ) : null;
 
   const renderDashboardMenu = () => (
     <>
@@ -4026,133 +4115,11 @@ const Dashboard = () => {
                           </Button>
                         </div>
                         <div className="rounded-xl border border-border/60 bg-muted/10 p-3 space-y-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, -7))}
-                              >
-                                <ChevronLeft className="h-4 w-4 mr-1 opacity-80" />
-                                Previous week
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(addDaysIso(labOperatorDash.week_start, 7))}
-                              >
-                                Next week
-                                <ChevronRight className="h-4 w-4 ml-1 opacity-80" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabOperatorWeekStart(null)}
-                              >
-                                This week
-                              </Button>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={labCalendarBookedOnly}
-                                  onCheckedChange={(v) => setLabCalendarBookedOnly(Boolean(v))}
-                                  id="lab-calendar-booked-only"
-                                />
-                                <Label htmlFor="lab-calendar-booked-only" className="text-xs">
-                                  Booked only
-                                </Label>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                onClick={() => setLabSlotsRefresh((x) => x + 1)}
-                                disabled={labSlotsLoading}
-                              >
-                                {labSlotsLoading ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Refreshing…
-                                  </>
-                                ) : (
-                                  "Refresh"
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{
-                                  backgroundColor:
-                                    labBookingLegendColors.BOOKED_INTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_INTERNAL,
-                                }}
-                                aria-hidden
-                              />
-                              Internal booked
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{
-                                  backgroundColor:
-                                    labBookingLegendColors.BOOKED_EXTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_EXTERNAL,
-                                }}
-                                aria-hidden
-                              />
-                              External booked
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{
-                                  backgroundColor:
-                                    labBookingLegendColors.COMPLETED || DEFAULT_LAB_BOOKING_COLORS.COMPLETED,
-                                }}
-                                aria-hidden
-                              />
-                              Completed
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{
-                                  backgroundColor:
-                                    labBookingLegendColors.AVAILABLE || DEFAULT_LAB_BOOKING_COLORS.AVAILABLE,
-                                }}
-                                aria-hidden
-                              />
-                              Available
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <span
-                                className="inline-block h-3 w-3 rounded-sm border border-black/10"
-                                style={{ backgroundColor: "#9ca3af" }}
-                                aria-hidden
-                              />
-                              Maintenance / Blocked
-                            </span>
-                          </div>
-                          <LabCalendarColorConfig
-                            equipmentId={labColorConfigEquipmentId}
-                            equipmentLabel={labColorConfigEquipmentLabel}
-                            onColorsChange={(c) => setLabBookingLegendColors((prev) => ({ ...prev, ...c }))}
-                            onSaved={applyLabBookingColors}
-                          />
                           <div className="grid grid-cols-1 gap-4">
                             {labEquipmentSummariesForScope.length === 0 ? (
                               <p className="text-sm text-muted-foreground">No equipment in scope.</p>
                             ) : (
-                              labEquipmentSummariesForScope.map((eq) => (
+                              labEquipmentSummariesForScope.map((eq, index) => (
                                 <LabOperatorWeekCalendarGrid
                                   key={eq.equipment_id}
                                   weekStartIso={labOperatorDash.week_start}
@@ -4160,22 +4127,72 @@ const Dashboard = () => {
                                   slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
                                   onBookedSlotClick={selectLabBookingForDetail}
                                   bookedSlotsOnly={labCalendarBookedOnly}
+                                  headerActions={index === 0 ? labWeekCalendarControls : undefined}
                                 />
                               ))
                             )}
                           </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-tight text-muted-foreground">
+                            {labCalendarLegend.map(({ label, color }) => (
+                              <span key={label} className="inline-flex items-center gap-1">
+                                <span
+                                  className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10"
+                                  style={{ backgroundColor: color }}
+                                  aria-hidden
+                                />
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                          <LabCalendarColorConfig
+                            equipmentId={labColorConfigEquipmentId}
+                            equipmentLabel={labColorConfigEquipmentLabel}
+                            onColorsChange={(c) => setLabBookingLegendColors((prev) => ({ ...prev, ...c }))}
+                            onSaved={applyLabBookingColors}
+                            open={labColorsOpen}
+                            onOpenChange={setLabColorsOpen}
+                          />
                         </div>
                       </>
                     )}
                   </section>
 
+                  <section className="overflow-hidden rounded-xl border border-border/60 bg-muted/10">
+                    <button
+                      type="button"
+                      aria-expanded={labOverviewOpen}
+                      aria-controls="lab-dash-overview"
+                      onClick={() => setLabOverviewOpen(!labOverviewOpen)}
+                      className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <BarChart3 className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                        <span className="text-sm font-semibold tracking-tight text-foreground">
+                          Booking overview and follow-up range
+                        </span>
+                      </span>
+                      {!labOverviewOpen && (
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          Pending {labOperatorDash.overall_booking_booked_total} · External pending{" "}
+                          {labOperatorDash.external_booking_booked_total} · Not utilized{" "}
+                          {labOperatorDash.not_utilized_available_total} · To dispose{" "}
+                          {labOperatorDash.sample_available_to_dispose_total}
+                        </span>
+                      )}
+                      <ChevronDown
+                        className={`ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform ${labOverviewOpen ? "rotate-180" : ""}`}
+                        aria-hidden
+                      />
+                    </button>
+                  {labOverviewOpen && (
+                  <div id="lab-dash-overview" className="space-y-3 border-t border-border/50 p-3">
                   <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/15 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                       <Label
                         htmlFor="lab-dash-period"
                         className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                       >
-                        Booking overview and follow-up range
+                        Range
                       </Label>
                       <Select
                         value={labDashPeriod}
@@ -4597,8 +4614,9 @@ const Dashboard = () => {
                       </div>
                     </div>
                   )}
-
-
+                  </div>
+                  )}
+                  </section>
 
                   {(isOicUser || isAdmin || isDeptAdmin) && (
                     <div className="rounded-2xl border border-border/60 bg-muted/10 p-4 sm:p-5">

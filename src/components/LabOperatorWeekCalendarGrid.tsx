@@ -140,6 +140,8 @@ export interface LabOperatorWeekCalendarGridProps {
   onBookedSlotClick: (bookingId: number) => void;
   /** When true, only time rows and weekdays that have at least one BOOKED slot; other cells are muted placeholders. */
   bookedSlotsOnly?: boolean;
+  /** Controls shown on the right of the equipment name (stacked under it on narrow screens). */
+  headerActions?: ReactNode;
 }
 
 function buildRowKeysAndLabels(slotsPayload: LabWeekCalendarSlotsPayload): { key: string; label: string }[] {
@@ -197,6 +199,7 @@ export function LabOperatorWeekCalendarGrid({
   slotsPayload,
   onBookedSlotClick,
   bookedSlotsOnly = false,
+  headerActions,
 }: LabOperatorWeekCalendarGridProps) {
   const currentWeekStart = parseISO(weekStartIso.length >= 10 ? weekStartIso.slice(0, 10) : weekStartIso);
 
@@ -267,36 +270,35 @@ export function LabOperatorWeekCalendarGrid({
     gridTemplateColumns: `minmax(6.5rem, 8rem) repeat(${visibleDayOffsets.length}, minmax(0, 1fr))`,
   };
 
-  if (!slotsPayload) {
-    return (
-      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        No slot data for {equipmentTitle}.
-      </div>
-    );
-  }
+  const heading = (
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <h4 className="min-w-0 text-sm font-semibold tracking-tight text-foreground">{equipmentTitle}</h4>
+      {headerActions ? (
+        <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">{headerActions}</div>
+      ) : null}
+    </div>
+  );
 
-  if (allRows.length === 0) {
-    return (
-      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        No time rows for {equipmentTitle} this week.
-      </div>
-    );
-  }
+  const emptyMessage = !slotsPayload
+    ? `No slot data for ${equipmentTitle}.`
+    : allRows.length === 0
+      ? `No time rows for ${equipmentTitle} this week.`
+      : bookedSlotsOnly && rowsToRender.length === 0
+        ? "No booked slots this week for this equipment."
+        : null;
 
-  if (bookedSlotsOnly && rowsToRender.length === 0) {
+  if (emptyMessage) {
     return (
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-foreground">{equipmentTitle}</h4>
-        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-          No booked slots this week for this equipment.
-        </div>
+      <div className="space-y-2">
+        {heading}
+        <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">{emptyMessage}</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-semibold tracking-tight text-foreground">{equipmentTitle}</h4>
+    <div className="space-y-2">
+      {heading}
       <div className="overflow-x-auto relative rounded-xl border border-border/70 bg-card/40 p-2 shadow-sm sm:p-3">
         <div className={bookedSlotsOnly ? "min-w-[320px]" : "min-w-[720px] max-w-full"}>
           <div className="grid gap-1.5 sm:gap-2 mb-2" style={gridColsStyle}>
