@@ -62,6 +62,24 @@ export const deptAdminGuide: RoleGuide = {
     },
     staffViewBookingSection(g),
     {
+      id: "department-queues",
+      title: "Urgent requests, waitlist and repeat samples",
+      icon: "clock",
+      group: GROUP,
+      intro: [
+        "Urgent Requests, Equipment waitlist and Repeat samples in the Bookings menu list your department's equipment only, so there is no department to pick.",
+      ],
+      steps: [
+        {
+          title: "Pick the equipment",
+          body: "Each page opens on All equipment, with an Equipment column. Choose one instrument in Equipment to see only its entries; on Equipment waitlist this also shows its queue depth.",
+        },
+      ],
+      rules: [
+        "Approving urgent requests, confirming waitlist entries, clearing a queue and arranging repeat samples stay with the Officer In Charge.",
+      ],
+    },
+    {
       id: "recharge-requests",
       title: "Wallet recharge requests",
       icon: "receipt",

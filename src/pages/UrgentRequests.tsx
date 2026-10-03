@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
+import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
 import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
@@ -114,12 +115,25 @@ const URGENT_VIEWS: Array<{ value: UrgentView; label: string; status: string }> 
   { value: "all", label: "All", status: "" },
 ];
 
+const PAGE_SIZE = 100;
+
+const REQUEST_TYPE_LABELS: Record<string, string> = {
+  NO_SLOT: "Type A · rush relief",
+  REVIEWER_URGENT: "Type B · 50% surcharge",
+};
+
 const UrgentRequests = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [list, setList] = useState<UrgentRequestRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const listFilters = useStaffListFilters();
+  const { departmentReady, reconcileEquipment } = listFilters;
+  const { departmentId, equipmentId } = listFilters.query;
+  const [equipmentOptions, setEquipmentOptions] = useState<StaffEquipmentOption[]>([]);
+  const loadSeq = useRef(0);
   const [viewFilter, setViewFilter] = useState<UrgentView>("needs_action");
   const statusFilter = URGENT_VIEWS.find((v) => v.value === viewFilter)?.status ?? "";
   const [detailRow, setDetailRow] = useState<UrgentRequestRow | null>(null);
@@ -134,7 +148,12 @@ const UrgentRequests = () => {
   const [validityDaysInput, setValidityDaysInput] = useState("1");
 
   const userType = user?.user_type ? String(user.user_type).toLowerCase() : "";
-  const canAccess = userType === "admin" || userType === "manager" || userType === "operator";
+  const canAccess = ["admin", "dept_admin", "manager", "operator"].includes(userType);
+  /** Main / Department Administrator: every urgent request (Type A and Type B), not only Type B decisions. */
+  const isAdminView = userType === "admin" || userType === "dept_admin";
+  /** Department Administrators follow their department's requests; decisions stay with the OIC and Admin. */
+  const canDecide = userType !== "dept_admin";
+  const canChangeValidity = canDecide;
 
   const displayedList =
     viewFilter === "needs_action"
@@ -147,7 +166,46 @@ const UrgentRequests = () => {
       : viewFilter === "awaiting_supervisor"
         ? list.filter((r) => r.status === "PENDING" && r.pending_wallet_approval)
         : list;
-  const displayCount = statusFilter === "PENDING" ? displayedList.length : totalCount;
+  const displayCount = displayedList.length;
+
+  const fetchList = useCallback(
+    async (append = false, offset = 0) => {
+      const seq = ++loadSeq.current;
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        const res = await apiClient.listUrgentBookingRequests({
+          status: statusFilter || undefined,
+          requestType: isAdminView ? undefined : "REVIEWER_URGENT",
+          departmentId,
+          equipmentId,
+          limit: PAGE_SIZE,
+          offset,
+        });
+        if (seq !== loadSeq.current) return;
+        if (res.error || !res.data) {
+          toast.error(res.error || "Failed to load urgent requests");
+          return;
+        }
+        const rows = (res.data.urgent_requests || []) as UrgentRequestRow[];
+        setList((prev) => (append ? [...prev, ...rows] : rows));
+        setTotalCount(res.data.total_count ?? 0);
+        const meta = res.data.filters;
+        if (meta) {
+          setEquipmentOptions(meta.equipment_options);
+          reconcileEquipment(meta.equipment_options);
+        }
+      } catch (e) {
+        if (seq === loadSeq.current) toast.error("Failed to load urgent requests");
+      } finally {
+        if (seq === loadSeq.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
+      }
+    },
+    [statusFilter, isAdminView, departmentId, equipmentId, reconcileEquipment],
+  );
 
   useEffect(() => {
     if (authLoading) return;
@@ -156,13 +214,18 @@ const UrgentRequests = () => {
       return;
     }
     if (!canAccess) {
-      toast.error("Only Admin and Officer in charge can access Urgent Requests.");
+      toast.error("Only the Main Administrator, Department Administrators and Officers in charge can access urgent requests.");
       navigate("/dashboard");
       return;
     }
-    fetchList();
     fetchHoldExpiryConfig();
-  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading, statusFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !canAccess || !departmentReady) return;
+    void fetchList();
+  }, [authLoading, isAuthenticated, canAccess, departmentReady, fetchList]);
 
   const fetchHoldExpiryConfig = async () => {
     try {
@@ -176,29 +239,6 @@ const UrgentRequests = () => {
       }
     } catch {
       /* ignore */
-    }
-  };
-
-  const fetchList = async () => {
-    setLoading(true);
-    try {
-      const res = await apiClient.listUrgentBookingRequests({
-        status: statusFilter || undefined,
-        requestType: "REVIEWER_URGENT",
-        limit: 100,
-        offset: 0,
-      });
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      const data = res.data as { urgent_requests: UrgentRequestRow[]; total_count: number };
-      setList(data.urgent_requests || []);
-      setTotalCount(data.total_count ?? 0);
-    } catch (e) {
-      toast.error("Failed to load urgent requests");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -252,17 +292,22 @@ const UrgentRequests = () => {
           <div className="mb-5">
             <Button variant="ghost" size="sm" onClick={() => navigate("/booking-management")} className="-ml-2 mb-2">
               <ArrowLeft className="h-4 w-4 mr-1.5" />
-              View Booking
+              {userType === "dept_admin" ? "Manage bookings" : "View Booking"}
             </Button>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Urgent Booking</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              {isAdminView ? "Urgent Requests" : "Urgent Booking"}
+            </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Type B urgent requests (50% surcharge) from users of your equipment, waiting for your decision.
+              {isAdminView
+                ? "All urgent requests (Type A rush relief and Type B with the 50% surcharge) for the selected department and equipment."
+                : "Type B urgent requests (50% surcharge) from users of your equipment, waiting for your decision."}
             </p>
           </div>
         </StandaloneOnly>
 
         <Card className="overflow-hidden rounded-xl border border-border/60 shadow-sm">
           <CardHeader className="space-y-3 border-b border-border/40 bg-muted/20 px-4 py-3 dark:bg-muted/10">
+            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter urgent requests">
                 {URGENT_VIEWS.map(({ value, label }) => (
@@ -343,17 +388,19 @@ const UrgentRequests = () => {
                     <span title="Requests not decided within this period expire and their held slots are released.">
                       Requests expire after <span className="font-medium text-foreground">{validityDays} day(s)</span>
                     </span>
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 text-xs"
-                      onClick={() => {
-                        setValidityDaysEditing(true);
-                        setValidityDaysInput(String(validityDays));
-                      }}
-                    >
-                      Change
-                    </Button>
+                    {canChangeValidity ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs"
+                        onClick={() => {
+                          setValidityDaysEditing(true);
+                          setValidityDaysInput(String(validityDays));
+                        }}
+                      >
+                        Change
+                      </Button>
+                    ) : null}
                   </>
                 )}
               </div>
@@ -379,6 +426,7 @@ const UrgentRequests = () => {
                     <TableRow className="border-b border-border/60 hover:bg-transparent">
                       <TableHead className="font-medium text-muted-foreground">User</TableHead>
                       <TableHead className="font-medium text-muted-foreground">Equipment</TableHead>
+                      {isAdminView && <TableHead className="font-medium text-muted-foreground">Type</TableHead>}
                       <TableHead className="font-medium text-muted-foreground">Requested</TableHead>
                       <TableHead className="font-medium text-muted-foreground">Time left</TableHead>
                       <TableHead className="font-medium text-muted-foreground">Status</TableHead>
@@ -403,6 +451,11 @@ const UrgentRequests = () => {
                             <div className="text-sm">{row.equipment_name}</div>
                             <div className="text-xs text-muted-foreground">{row.equipment_code}</div>
                           </TableCell>
+                          {isAdminView && (
+                            <TableCell className="whitespace-nowrap py-2.5 text-sm">
+                              {REQUEST_TYPE_LABELS[row.request_type] ?? row.request_type}
+                            </TableCell>
+                          )}
                           <TableCell className="whitespace-nowrap py-2.5 text-sm text-muted-foreground">
                             {row.requested_at ? format(new Date(row.requested_at), "dd MMM yyyy, HH:mm") : "—"}
                           </TableCell>
@@ -427,12 +480,14 @@ const UrgentRequests = () => {
                                 Awaiting supervisor
                               </Badge>
                             ) : (
-                              <Badge className="bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
+                              <Badge className="bg-amber-500 hover:bg-amber-500">
+                                {canDecide ? "Needs your decision" : "Awaiting OIC decision"}
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell className="py-2.5 text-right">
                             <Button
-                              variant={actionable ? "default" : "outline"}
+                              variant={actionable && canDecide ? "default" : "outline"}
                               size="sm"
                               className="h-8"
                               onClick={() => {
@@ -440,7 +495,7 @@ const UrgentRequests = () => {
                                 setAdminNotes(row.admin_notes || "");
                               }}
                             >
-                              {actionable ? "Review" : "View"}
+                              {actionable && canDecide ? "Review" : "View"}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -448,9 +503,24 @@ const UrgentRequests = () => {
                     })}
                   </TableBody>
                 </Table>
-                <p className="border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
-                  Showing {displayCount}
-                </p>
+                <div className="flex items-center justify-between gap-2 border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
+                  <span>
+                    Showing {displayCount}
+                    {statusFilter !== "PENDING" && list.length < totalCount ? ` of ${totalCount}` : ""}
+                  </span>
+                  {list.length < totalCount ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={loadingMore}
+                      onClick={() => void fetchList(true, list.length)}
+                    >
+                      {loadingMore ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      Load more
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             )}
           </CardContent>
@@ -463,6 +533,8 @@ const UrgentRequests = () => {
               <DialogDescription>
                 {detailRow?.status === "EXPIRED"
                   ? "Expired without a decision. The held slots were released."
+                  : detailRow?.status === "PENDING" && !canDecide
+                    ? "Waiting for the Officer In Charge's decision."
                   : detailRow?.status === "PENDING" && detailRow?.pending_wallet_approval
                     ? "Waiting for the supervisor. You can reject now; Accept unlocks after supervisor approval."
                     : detailRow?.status === "PENDING"
@@ -568,38 +640,47 @@ const UrgentRequests = () => {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="admin-notes">Decision notes (optional)</Label>
-                  <Textarea
-                    id="admin-notes"
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="Optional notes for this decision"
-                    rows={2}
-                  />
-                </div>
+                {canDecide ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-notes">Decision notes (optional)</Label>
+                    <Textarea
+                      id="admin-notes"
+                      value={adminNotes}
+                      onChange={(e) => setAdminNotes(e.target.value)}
+                      placeholder="Optional notes for this decision"
+                      rows={2}
+                    />
+                  </div>
+                ) : detailRow.admin_notes ? (
+                  <div className="space-y-1">
+                    <Label className="text-xs font-normal text-muted-foreground">Decision notes</Label>
+                    <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-2 text-sm">{detailRow.admin_notes}</p>
+                  </div>
+                ) : null}
               </div>
             )}
             <DialogFooter className="gap-2 sm:items-center sm:justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-red-600 sm:mr-auto"
-                disabled={deleteLoading}
-                onClick={() => {
-                  if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
-                    handleDelete(detailRow.id);
-                  }
-                }}
-              >
-                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Delete
-              </Button>
+              {canDecide ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-red-600 sm:mr-auto"
+                  disabled={deleteLoading}
+                  onClick={() => {
+                    if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
+                      handleDelete(detailRow.id);
+                    }
+                  }}
+                >
+                  {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Delete
+                </Button>
+              ) : null}
               <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" onClick={() => setDetailRow(null)}>
                 Close
               </Button>
-              {detailRow?.status === "PENDING" && (
+              {canDecide && detailRow?.status === "PENDING" && (
                 <>
                   <Button
                     variant="outline"

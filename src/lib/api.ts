@@ -87,6 +87,51 @@ const getApiBaseUrl = (): string => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+/** Department / equipment filters echoed by staff lists (waitlist, repeat samples, urgent requests). */
+export interface StaffListFiltersMeta {
+  /** all: Main Admin; department: Department Administrator; equipment: OIC / Lab Operator. */
+  scope: 'all' | 'department' | 'equipment';
+  department_locked: boolean;
+  locked_department_id: number | null;
+  department_id: number | null;
+  equipment_id: number | null;
+  /** Equipment the user may see in the selected department (ignores the equipment filter). */
+  equipment_options: Array<{ equipment_id: number; code: string; name: string; department_id: number | null }>;
+}
+
+export interface EquipmentWaitlistEntry {
+  id: number;
+  position: number | null;
+  waitlist_code?: string | null;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  user_id: number;
+  user_email: string;
+  user_name: string;
+  created_at: string | null;
+  status?: string | null;
+  cannot_fulfill_remark?: string | null;
+  marked_cannot_fulfill_at?: string | null;
+  opted_out?: boolean;
+  opted_out_at?: string | null;
+  sample_submitted?: boolean;
+  sample_identifiers?: string;
+  sample_tracking_id?: string;
+  sample_submitted_at?: string | null;
+  awaiting_confirmation?: boolean;
+  booking_attempt_requested_at?: string | null;
+  booking_attempt_failure_reason?: string | null;
+  booking_attempt_number_of_samples?: number | null;
+  booking_attempt_slots_requested?: number | null;
+  booking_attempt_duration_minutes?: number | null;
+  booking_attempt_additional_info?: unknown;
+  booking_attempt_log_id?: number | null;
+  booking_attempt_inputs?: Array<{ label: string; text: string }>;
+  booking_attempt_failure_title?: string;
+  booking_attempt_failure_summary?: string;
+}
+
 export interface MobileDeviceSession {
   id: number;
   device_name: string;
@@ -8008,12 +8053,14 @@ class ApiClient {
     );
   }
 
-  /** List repeat sample requests (admin/OIC only). */
-  async listRepeatSampleRequests(params?: { status?: string }) {
+  /** List repeat sample records (admin, OIC; Department Administrator read-only). Server limits rows to the user's equipment. */
+  async listRepeatSampleRequests(params?: { status?: string; departmentId?: number; equipmentId?: number }) {
     const sp = new URLSearchParams();
     if (params?.status) sp.append('status', params.status);
+    if (params?.departmentId != null) sp.append('department_id', String(params.departmentId));
+    if (params?.equipmentId != null) sp.append('equipment_id', String(params.equipmentId));
     const q = sp.toString();
-    return this.request<{ repeat_sample_requests: any[] }>(
+    return this.request<{ repeat_sample_requests: any[]; filters?: StaffListFiltersMeta }>(
       q ? `/repeat-sample-requests/?${q}` : '/repeat-sample-requests/'
     );
   }
@@ -8273,11 +8320,20 @@ class ApiClient {
     });
   }
 
-  /** List urgent booking requests (admin/OIC only). */
-  async listUrgentBookingRequests(params?: { status?: string; requestType?: string; limit?: number; offset?: number }) {
+  /** List urgent booking requests (admin, Department Administrator, OIC). Server limits rows to the user's equipment. */
+  async listUrgentBookingRequests(params?: {
+    status?: string;
+    requestType?: string;
+    departmentId?: number;
+    equipmentId?: number;
+    limit?: number;
+    offset?: number;
+  }) {
     const sp = new URLSearchParams();
     if (params?.status) sp.append('status', params.status);
     if (params?.requestType) sp.append('request_type', params.requestType);
+    if (params?.departmentId != null) sp.append('department_id', String(params.departmentId));
+    if (params?.equipmentId != null) sp.append('equipment_id', String(params.equipmentId));
     if (params?.limit != null) sp.append('limit', String(params.limit));
     if (params?.offset != null) sp.append('offset', String(params.offset));
     const q = sp.toString();
@@ -8330,6 +8386,7 @@ class ApiClient {
       total_count: number;
       limit: number;
       offset: number;
+      filters?: StaffListFiltersMeta;
     }>(q ? `/urgent-booking-requests/?${q}` : '/urgent-booking-requests/');
   }
 
@@ -12237,6 +12294,32 @@ class ApiClient {
       `${endpoint}${equipmentId}/waitlist-clear/`,
       { method: 'POST' }
     );
+  }
+
+  /**
+   * Waitlist entries across the equipment the user may see (admin: all; Department Administrator: own
+   * department; OIC / Lab Operator: their equipment). `equipment` is set when one equipment is selected.
+   */
+  async getEquipmentWaitlistAll(params?: { departmentId?: number; equipmentId?: number }) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    const sp = new URLSearchParams();
+    if (params?.departmentId != null) sp.set('department_id', String(params.departmentId));
+    if (params?.equipmentId != null) sp.set('equipment_id', String(params.equipmentId));
+    const q = sp.toString();
+    return this.request<{
+      entries: EquipmentWaitlistEntry[];
+      count: number;
+      active_count: number;
+      cannot_fulfill_count: number;
+      opted_out_count: number;
+      equipment: {
+        equipment_id: number;
+        equipment_code: string;
+        equipment_name: string;
+        waitlist_queue_depth: number;
+      } | null;
+      filters?: StaffListFiltersMeta;
+    }>(q ? `${endpoint}waitlist-all/?${q}` : `${endpoint}waitlist-all/`, { method: 'GET' });
   }
 
   /** OIC: all slots of a date (any status, incl. weekends / holidays / maintenance) for manual waitlist confirmation. */

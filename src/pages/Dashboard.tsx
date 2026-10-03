@@ -163,6 +163,12 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/admin-settings/training": { title: "Training Policy" },
 };
 
+/** Main / Department Administrator title for /urgent-requests (OICs keep "Urgent Booking"). */
+const ADMIN_URGENT_REQUESTS_META = {
+  title: "Urgent Requests",
+  description: "All urgent requests (Type A and Type B) by department and equipment.",
+};
+
 function getWorkspacePageMeta(path: string): { title: string; description?: string } | null {
   const clean = (path || "").split(/[?#]/)[0].replace(/\/+$/, "") || "/";
   return WORKSPACE_PAGE_META[clean] ?? null;
@@ -745,7 +751,7 @@ const Dashboard = () => {
             fetchPendingRatingBookings().then(() => {})
           );
         }
-        if (isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") {
+        if ((isCurrentUserOperatorOrManager && currentUserTypeStr !== "operator") || currentUserTypeStr === "dept_admin") {
           tasks.push(fetchUrgentRequestsPendingCount().then(() => {}));
         }
         if (isCurrentUserOperatorOrManager) {
@@ -1466,8 +1472,14 @@ const Dashboard = () => {
       Back
     </Button>
   );
+  const workspaceMetaPath =
+    getWorkspacePageMeta(workspaceCurrentPath || workspacePath || "") != null
+      ? workspaceCurrentPath || workspacePath || ""
+      : workspacePath || "";
   const workspaceMeta =
-    getWorkspacePageMeta(workspaceCurrentPath || workspacePath || "") ?? getWorkspacePageMeta(workspacePath || "");
+    usesAdminMenuSections && normalizeMenuPath(workspaceMetaPath) === "/urgent-requests"
+      ? ADMIN_URGENT_REQUESTS_META
+      : getWorkspacePageMeta(workspaceMetaPath);
   const dashboardHomeButton = (
     <Button
       type="button"
@@ -1494,6 +1506,8 @@ const Dashboard = () => {
 
   // Department Administrators also have "View Booking" (/my-bookings); keep the two labels distinct.
   const bookingManagementLabel = isDeptAdmin ? "Manage bookings" : "View Booking";
+  /** Admins see every urgent request; OICs keep "Urgent booking" for their Type B decisions. */
+  const urgentRequestsLabel = usesAdminMenuSections ? "Urgent Requests" : "Urgent booking";
 
   const dashboardMenuEntries: DashboardMenuEntry[] = [
     {
@@ -2486,9 +2500,9 @@ const Dashboard = () => {
     },
     {
       id: "urgent_requests",
-      label: "Urgent booking",
+      label: urgentRequestsLabel,
       path: "/urgent-requests",
-      visible: Boolean(isOperatorOrManager && !isLabInchargeUser),
+      visible: Boolean((isOperatorOrManager && !isLabInchargeUser) || isDeptAdmin),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-rose-200 dark:hover:border-rose-800"
@@ -2500,9 +2514,11 @@ const Dashboard = () => {
                     <AlertCircle className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Urgent booking</CardTitle>
+                    <CardTitle className="text-lg">{urgentRequestsLabel}</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Review and approve or reject urgent booking requests
+                      {usesAdminMenuSections
+                        ? "All urgent requests by department and equipment"
+                        : "Review and approve or reject urgent booking requests"}
                     </CardDescription>
                   </div>
                 </div>
@@ -2525,7 +2541,7 @@ const Dashboard = () => {
       id: "repeat_sample_requests",
       label: "Repeat samples",
       path: "/repeat-sample-requests",
-      visible: Boolean(isOicUser || isAdmin),
+      visible: Boolean(isOicUser || isAdmin || isDeptAdmin),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"

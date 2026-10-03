@@ -78,16 +78,24 @@ export function staffViewBookingSection(g: Gate): GuideSection {
 export function urgentApprovalSection(g: Gate): GuideSection {
   return {
     id: "urgent-approvals",
-    title: "Urgent booking approvals",
+    title: g.is("admin") ? "Urgent Requests" : "Urgent booking approvals",
     icon: "alert",
     group: LAB,
     intro: [
       g.is("admin")
-        ? "Type B urgent requests (urgent with reason, 50% surcharge) wait for final approval; as Admin you can act on any equipment."
+        ? "Urgent Requests lists every urgent request, Type A (rush relief) and Type B (urgent with reason, 50% surcharge), with a Type column. Type B requests wait for final approval; as Admin you can act on any equipment."
         : "Type B urgent requests (urgent with reason, 50% surcharge) for your equipment wait for your final approval.",
     ],
     steps: [
-      { title: "Open the queue", body: "Click Urgent booking on the dashboard, then Manage urgent requests." },
+      g.is("admin")
+        ? {
+            title: "Open the list",
+            body: "Click Urgent Requests in the Bookings menu (or Manage urgent requests on its card). Department/Centre starts on Institute Instrumentation Centre and Equipment on All equipment; change either to narrow the list.",
+          }
+        : {
+            title: "Open the queue",
+            body: "Click Urgent booking on the dashboard, then Manage urgent requests. Pick one instrument in Equipment to see only its requests; the list covers only equipment you are responsible for, including equipment you cover as temporary OIC.",
+          },
       { title: "Decide", body: "Read the reason and any document, then approve or reject. You may reschedule, including to a weekend." },
     ],
     rules: [
@@ -105,10 +113,14 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
     group: LAB,
     intro: [
       g.is("admin")
-        ? "Equipment waitlist shows who is waiting on any equipment."
-        : "Equipment waitlist shows who is waiting on your equipment. It opens on your first equipment.",
+        ? "Equipment waitlist and Repeat samples show who is waiting and which repeats were arranged. Department/Centre starts on Institute Instrumentation Centre and Equipment on All equipment, where an Equipment column shows the instrument of each entry."
+        : "Equipment waitlist and Repeat samples cover only the equipment you are responsible for, including equipment you cover as temporary OIC. They open on All equipment, with an Equipment column; pick one instrument in Equipment to see only its entries.",
     ],
     steps: [
+      {
+        title: "Queue depth and Clear queue",
+        body: "Select one equipment to see its queue depth (0 means its waitlist is off) and to use Clear queue.",
+      },
       {
         title: "Confirm manually",
         body: "Click Confirm manually on an entry, choose any unbooked slot and click Confirm booking.",

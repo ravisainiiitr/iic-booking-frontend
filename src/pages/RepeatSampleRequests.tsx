@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
+import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
 
 type RepeatRow = {
   id: number;
@@ -60,33 +61,57 @@ export default function RepeatSampleRequests() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userType = String(user?.user_type ?? "").toLowerCase();
-  const canView = userType === "admin" || userType === "manager";
+  const canView = userType === "admin" || userType === "manager" || userType === "dept_admin";
   const [filter, setFilter] = useState<StatusFilter>("APPROVED");
+  const listFilters = useStaffListFilters();
+  const { departmentReady, reconcileEquipment } = listFilters;
+  const { departmentId, equipmentId } = listFilters.query;
+  const [equipmentOptions, setEquipmentOptions] = useState<StaffEquipmentOption[]>([]);
   const [rows, setRows] = useState<RepeatRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadSeq = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoading(true);
     setError(null);
-    const res = await apiClient.listRepeatSampleRequests(filter === "ALL" ? undefined : { status: filter });
+    const res = await apiClient.listRepeatSampleRequests({
+      status: filter === "ALL" ? undefined : filter,
+      departmentId,
+      equipmentId,
+    });
+    if (seq !== loadSeq.current) return;
     if (res.error) {
       setError(res.error);
       setRows([]);
     } else {
       setRows((res.data?.repeat_sample_requests ?? []) as RepeatRow[]);
+      const meta = res.data?.filters;
+      if (meta) {
+        setEquipmentOptions(meta.equipment_options);
+        reconcileEquipment(meta.equipment_options);
+      }
     }
     setLoading(false);
-  }, [filter]);
+  }, [filter, departmentId, equipmentId, reconcileEquipment]);
 
   useEffect(() => {
     if (!canView) {
-      toast.error("Only an Officer In Charge or the Main Administrator can view repeat samples.");
+      toast.error("Only an Officer In Charge, a Department Administrator or the Main Administrator can view repeat samples.");
       navigate("/dashboard");
       return;
     }
+    if (!departmentReady) return;
     void load();
-  }, [canView, load, navigate]);
+  }, [canView, departmentReady, load, navigate]);
+
+  const scopeText =
+    userType === "admin"
+      ? "Repeat samples for the selected department and equipment."
+      : userType === "dept_admin"
+        ? "Repeat samples for equipment in your department."
+        : "Only repeat samples for equipment you manage are listed.";
 
   return (
     <div className="page-shell">
@@ -112,11 +137,11 @@ export default function RepeatSampleRequests() {
         </StandaloneOnly>
 
         <Card>
-          <CardHeader className="pb-3">
+          <CardHeader className="space-y-3 pb-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-lg">Records</CardTitle>
-                <CardDescription>Only repeat samples for equipment you manage are listed.</CardDescription>
+                <CardDescription>{scopeText}</CardDescription>
               </div>
               <Tabs value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
                 <TabsList>
@@ -126,6 +151,7 @@ export default function RepeatSampleRequests() {
                 </TabsList>
               </Tabs>
             </div>
+            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
           </CardHeader>
           <CardContent>
             {loading ? (

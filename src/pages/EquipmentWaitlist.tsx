@@ -1,16 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type EquipmentWaitlistEntry, type StaffListFiltersMeta } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,65 +19,46 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialog";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
+import { StaffListFilterRow, useStaffListFilters } from "@/components/StaffListFilters";
 import { formatDurationMinutes } from "@/lib/jobSheet";
 
-type EquipmentOption = { equipment_id: number; name: string; code: string };
-type WaitlistEntry = {
-  id: number;
-  position: number | null;
-  waitlist_code?: string | null;
-  user_id: number;
-  user_email: string;
-  user_name: string;
-  created_at: string | null;
-  status?: string | null;
-  cannot_fulfill_remark?: string | null;
-  marked_cannot_fulfill_at?: string | null;
-  opted_out?: boolean;
-  opted_out_at?: string | null;
-  sample_submitted?: boolean;
-  sample_identifiers?: string;
-  sample_tracking_id?: string;
-  sample_submitted_at?: string | null;
-  awaiting_confirmation?: boolean;
-  booking_attempt_requested_at?: string | null;
-  booking_attempt_failure_reason?: string | null;
-  booking_attempt_number_of_samples?: number | null;
-  booking_attempt_slots_requested?: number | null;
-  booking_attempt_duration_minutes?: number | null;
-  booking_attempt_additional_info?: any;
-  booking_attempt_log_id?: number | null;
-  booking_attempt_inputs?: Array<{ label: string; text: string }>;
-  booking_attempt_failure_title?: string;
-  booking_attempt_failure_summary?: string;
-};
+type WaitlistEntry = EquipmentWaitlistEntry;
 type WaitlistData = {
-  equipment_id: number;
-  equipment_code: string;
-  equipment_name: string;
-  waitlist_queue_depth: number;
   entries: WaitlistEntry[];
   count: number;
-  active_count?: number;
-  cannot_fulfill_count?: number;
-  opted_out_count?: number;
+  active_count: number;
+  cannot_fulfill_count: number;
+  opted_out_count: number;
+  equipment: {
+    equipment_id: number;
+    equipment_code: string;
+    equipment_name: string;
+    waitlist_queue_depth: number;
+  } | null;
 };
 
 export default function EquipmentWaitlist() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  const canView = userType === "admin" || userType === "manager" || userType === "operator"; // admin, OIC, Lab Operator
+  // Admin, Department Administrator (view only), OIC, Lab Operator
+  const canView = ["admin", "dept_admin", "manager", "operator"].includes(userType);
+  const canClear = userType === "admin" || userType === "manager" || userType === "operator";
   const canConfirmManually = userType === "admin" || userType === "manager";
 
-  const [equipmentList, setEquipmentList] = useState<EquipmentOption[]>([]);
-  const [loadingList, setLoadingList] = useState(true);
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState<number | null>(null);
+  const filters = useStaffListFilters();
+  const { departmentReady, reconcileEquipment } = filters;
+  const { departmentId: queryDepartmentId, equipmentId: queryEquipmentId } = filters.query;
+  const [equipmentOptions, setEquipmentOptions] = useState<StaffListFiltersMeta["equipment_options"]>([]);
+  const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [waitlist, setWaitlist] = useState<WaitlistData | null>(null);
-  const [loadingWaitlist, setLoadingWaitlist] = useState(false);
+  const [loadingWaitlist, setLoadingWaitlist] = useState(true);
   const [clearing, setClearing] = useState(false);
   const [confirmEntry, setConfirmEntry] = useState<WaitlistEntry | null>(null);
   const [attemptRow, setAttemptRow] = useState<WaitlistEntry | null>(null);
+
+  const singleEquipment = waitlist?.equipment ?? null;
+  const showEquipmentColumn = queryEquipmentId == null;
 
   const handleManuallyConfirmed = (entryId: number) => {
     setWaitlist((prev) => {
@@ -95,68 +69,56 @@ export default function EquipmentWaitlist() {
   };
 
   useEffect(() => {
-    if (!canView) {
-      navigate("/dashboard");
-      return;
-    }
-    (async () => {
-      setLoadingList(true);
-      // Backend restricts equipment list to OIC's managed equipment for managers
-      const res = await apiClient.getEquipments();
-      setLoadingList(false);
-      const data = (res as { data?: { equipments?: Array<{ equipment_id?: number; id?: number; name?: string; code?: string }> } }).data
-        ?? (res as { equipments?: Array<{ equipment_id?: number; id?: number; name?: string; code?: string }> });
-      const arr = data?.equipments ?? [];
-      if (Array.isArray(arr)) {
-        const list = arr
-          .map((e) => ({
-            equipment_id: e.equipment_id ?? e.id ?? 0,
-            name: e.name ?? e.code ?? "",
-            code: e.code ?? "",
-          }))
-          .filter((e) => e.equipment_id > 0);
-        setEquipmentList(list);
-        // Functional update so a choice made while the list was loading is kept.
-        setSelectedEquipmentId((prev) => prev ?? list[0]?.equipment_id ?? null);
-      } else {
-        setEquipmentList([]);
-      }
-    })();
+    if (!canView) navigate("/dashboard");
   }, [canView, navigate]);
 
-  useEffect(() => {
-    if (selectedEquipmentId == null) {
-      setWaitlist(null);
-      return;
-    }
+  const loadSeq = useRef(0);
+  const loadWaitlist = useCallback(async () => {
+    const seq = ++loadSeq.current;
     setLoadingWaitlist(true);
-    apiClient
-      .getEquipmentWaitlist(selectedEquipmentId)
-      .then((res) => {
-        if (res.error) {
-          toast.error(res.error);
-          setWaitlist(null);
-        } else if (res.data) setWaitlist(res.data as WaitlistData);
-        else setWaitlist(null);
-      })
-      .catch(() => {
-        toast.error("Failed to load waitlist");
+    try {
+      const res = await apiClient.getEquipmentWaitlistAll({
+        departmentId: queryDepartmentId,
+        equipmentId: queryEquipmentId,
+      });
+      if (seq !== loadSeq.current) return;
+      if (res.error || !res.data) {
+        toast.error(res.error || "Failed to load waitlist");
         setWaitlist(null);
-      })
-      .finally(() => setLoadingWaitlist(false));
-  }, [selectedEquipmentId]);
+        return;
+      }
+      const { filters: meta, ...data } = res.data;
+      setWaitlist(data);
+      if (meta) {
+        setEquipmentOptions(meta.equipment_options);
+        setOptionsLoaded(true);
+        reconcileEquipment(meta.equipment_options);
+      }
+    } catch {
+      if (seq !== loadSeq.current) return;
+      toast.error("Failed to load waitlist");
+      setWaitlist(null);
+    } finally {
+      if (seq === loadSeq.current) setLoadingWaitlist(false);
+    }
+  }, [queryDepartmentId, queryEquipmentId, reconcileEquipment]);
+
+  useEffect(() => {
+    if (!canView || !departmentReady) return;
+    void loadWaitlist();
+  }, [canView, departmentReady, loadWaitlist]);
 
   const handleClearQueue = async () => {
-    if (selectedEquipmentId == null) return;
+    if (!singleEquipment) return;
     setClearing(true);
     try {
-      const res = await apiClient.clearEquipmentWaitlist(selectedEquipmentId);
+      const res = await apiClient.clearEquipmentWaitlist(singleEquipment.equipment_id);
       if (res.error) {
         toast.error(res.error);
       } else {
         toast.success(res.data?.message ?? "Waitlist cleared.");
         setWaitlist((prev) =>
-          prev ? { ...prev, entries: [], count: 0 } : null
+          prev ? { ...prev, entries: [], count: 0, active_count: 0, cannot_fulfill_count: 0, opted_out_count: 0 } : null
         );
       }
     } finally {
@@ -185,6 +147,12 @@ export default function EquipmentWaitlist() {
 
   if (!canView) return null;
 
+  const clearDisabledReason = !singleEquipment
+    ? "Select one equipment to clear its queue."
+    : waitlist?.count === 0
+      ? "The queue is already empty."
+      : undefined;
+
   return (
     <div className="page-shell">
       <DashboardHeader />
@@ -210,28 +178,13 @@ export default function EquipmentWaitlist() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Queue</CardTitle>
             <CardDescription>
-              Select an instrument to inspect waitlist entries and clear them when appropriate.
+              {filters.showDepartment
+                ? "Choose a department and equipment. Select one equipment to see its queue depth or clear its queue."
+                : "Waitlists of the equipment you are responsible for. Select one equipment to see its queue depth or clear its queue."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Select equipment</label>
-              <Select
-                value={selectedEquipmentId != null ? String(selectedEquipmentId) : ""}
-                onValueChange={(v) => setSelectedEquipmentId(v ? Number(v) : null)}
-              >
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder="Choose equipment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {equipmentList.map((e) => (
-                    <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                      {e.name || e.code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <CardContent className="space-y-5">
+            <StaffListFilterRow filters={filters} equipmentOptions={equipmentOptions} />
 
             {loadingWaitlist && (
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -243,26 +196,34 @@ export default function EquipmentWaitlist() {
             {!loadingWaitlist && waitlist && (
               <>
                 <div className="flex flex-wrap items-center gap-4">
+                  {singleEquipment ? (
+                    <p className="text-sm text-muted-foreground">
+                      Queue depth: <strong>{singleEquipment.waitlist_queue_depth}</strong>
+                      {singleEquipment.waitlist_queue_depth === 0 && " (waitlist disabled)"}
+                    </p>
+                  ) : null}
                   <p className="text-sm text-muted-foreground">
-                    Queue depth: <strong>{waitlist.waitlist_queue_depth}</strong>
-                    {waitlist.waitlist_queue_depth === 0 && " (waitlist disabled)"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Active: <strong>{waitlist.active_count ?? waitlist.entries.filter((e) => String(e.status || "ACTIVE").toUpperCase() === "ACTIVE").length}</strong>
+                    Active: <strong>{waitlist.active_count}</strong>
                     {" • "}
-                    Cannot fulfill: <strong>{waitlist.cannot_fulfill_count ?? waitlist.entries.filter((e) => String(e.status || "").toUpperCase() === "CANNOT_FULFILL").length}</strong>
+                    Cannot fulfill: <strong>{waitlist.cannot_fulfill_count}</strong>
                     {" • "}
-                    Opted out: <strong>{waitlist.opted_out_count ?? waitlist.entries.filter((e) => String(e.status || "").toUpperCase() === "OPT_OUT").length}</strong>
+                    Opted out: <strong>{waitlist.opted_out_count}</strong>
                   </p>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={handleClearQueue}
-                    disabled={waitlist.count === 0 || clearing}
-                  >
-                    {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-                    Clear queue
-                  </Button>
+                  {canClear && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleClearQueue}
+                      disabled={!singleEquipment || waitlist.count === 0 || clearing}
+                      title={clearDisabledReason}
+                    >
+                      {clearing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                      Clear queue
+                    </Button>
+                  )}
+                  {canClear && !singleEquipment && waitlist.count > 0 ? (
+                    <p className="text-xs text-muted-foreground">Select one equipment to clear its queue.</p>
+                  ) : null}
                 </div>
                 {waitlist.entries.length === 0 ? (
                   <p className="text-muted-foreground">No one on the waitlist.</p>
@@ -271,6 +232,7 @@ export default function EquipmentWaitlist() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Position</TableHead>
+                        {showEquipmentColumn && <TableHead>Equipment</TableHead>}
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Joined</TableHead>
@@ -294,6 +256,9 @@ export default function EquipmentWaitlist() {
                           <TableCell className="font-medium">
                             {e.waitlist_code || (e.position != null ? `WL${e.position}` : "—")}
                           </TableCell>
+                          {showEquipmentColumn && (
+                            <TableCell className="text-sm">{e.equipment_name || e.equipment_code || "—"}</TableCell>
+                          )}
                           <TableCell>{e.user_name || "—"}</TableCell>
                           <TableCell>{e.user_email}</TableCell>
                           <TableCell>
@@ -395,18 +360,18 @@ export default function EquipmentWaitlist() {
               </>
             )}
 
-            {!loadingList && equipmentList.length === 0 && (
+            {!loadingWaitlist && optionsLoaded && equipmentOptions.length === 0 && (
               <p className="text-muted-foreground">No equipment found.</p>
             )}
           </CardContent>
         </Card>
-        {selectedEquipmentId != null && (
+        {confirmEntry != null && (
           <WaitlistManualConfirmDialog
-            open={confirmEntry != null}
+            open
             onOpenChange={(o) => {
               if (!o) setConfirmEntry(null);
             }}
-            equipmentId={selectedEquipmentId}
+            equipmentId={confirmEntry.equipment_id}
             entry={confirmEntry}
             onConfirmed={handleManuallyConfirmed}
           />
@@ -418,8 +383,8 @@ export default function EquipmentWaitlist() {
                   id: attemptRow.booking_attempt_log_id,
                   requested_at: attemptRow.booking_attempt_requested_at ?? null,
                   outcome: "FAILED",
-                  equipment_name: waitlist?.equipment_name ?? "",
-                  equipment_code: waitlist?.equipment_code ?? "",
+                  equipment_name: attemptRow.equipment_name ?? "",
+                  equipment_code: attemptRow.equipment_code ?? "",
                   user_name: attemptRow.user_name,
                   user_email: attemptRow.user_email,
                   failure_reason: attemptRow.booking_attempt_failure_reason ?? "",
