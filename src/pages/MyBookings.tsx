@@ -39,7 +39,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
+import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus, History } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -1549,6 +1549,18 @@ const MyBookings = () => {
               <span className="hidden sm:inline">Sync to calendar</span>
             </Button>
           ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={() => navigate("/my-booking-attempts")}
+            aria-label="Unsuccessful attempts"
+            title="Your unsuccessful booking attempts, with the limit calculation"
+          >
+            <History className="h-4 w-4" aria-hidden />
+            <span className="hidden sm:inline">Unsuccessful attempts</span>
+          </Button>
         </WorkspaceHeaderActions>
         {canSyncCalendar && <CalendarSyncDialog open={calendarSyncOpen} onOpenChange={setCalendarSyncOpen} />}
 

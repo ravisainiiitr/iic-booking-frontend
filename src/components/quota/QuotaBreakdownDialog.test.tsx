@@ -105,6 +105,35 @@ describe("QuotaBreakdownPanel", () => {
     expect(screen.getByText("Not counted (1)")).toBeTruthy();
   });
 
+  it("shows when each booking was requested, in IST to the second, for group members too", async () => {
+    getQuotaBreakdown.mockResolvedValue({
+      data: breakdown({
+        counted: [
+          row({ requested_at: "2026-09-30T15:30:04Z" }),
+          row({
+            booking_id: null,
+            display_booking_id: "XPS202600102",
+            user_id: 12,
+            user_name: "Vikram Singh",
+            is_viewer: false,
+            can_open: false,
+            requested_at: "2026-10-01T03:15:30Z",
+            requested_note: "Joined the waitlist",
+          }),
+        ],
+        not_counted: [row({ booking_id: 103, display_booking_id: "XPS202600103", counted: false, status: "CANCELLED", status_label: "Cancelled", requested_at: null })],
+      }),
+    });
+    render(<QuotaBreakdownPanel request={{ equipment: 7, period: "WEEKLY", scope: "group", date: "2026-10-07" }} />);
+
+    await screen.findByText("Week of Mon 5 Oct – Sun 11 Oct 2026");
+    expect(screen.getAllByRole("columnheader", { name: "Requested on" }).length).toBeGreaterThan(0);
+    const cells = screen.getAllByTestId("requested-on").map((c) => c.textContent);
+    expect(cells[0]).toMatch(/^Wed, 30 Sept?, 21:00:04$/);
+    expect(cells[1]).toMatch(/^Thu, 1 Oct, 08:45:30.*Joined the waitlist$/);
+    expect(cells[2]).toBe("—");
+  });
+
   it("opens bookings in place for staff and explains attempt log figures", async () => {
     getQuotaBreakdown.mockResolvedValue({
       data: breakdown({

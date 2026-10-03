@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronRight, Info, Loader2, Users } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import {
+  formatRequestedAt,
   requestAloneExceedsLimit,
   requestAloneText,
   type QuotaBreakdown,
@@ -108,6 +109,7 @@ function RowsTable({
             <TableHead>Booking</TableHead>
             <TableHead>Equipment</TableHead>
             <TableHead>Slot (IST)</TableHead>
+            <TableHead className="hidden md:table-cell">Requested on</TableHead>
             <TableHead className="text-right">Minutes</TableHead>
             <TableHead>{reasonColumn ? "Why not counted" : "Status"}</TableHead>
             <TableHead>Booked by</TableHead>
@@ -126,6 +128,16 @@ function RowsTable({
               <TableCell className="min-w-[10rem] text-sm">
                 <div className="whitespace-nowrap">{formatSlotSpan(row.slot_start, row.slot_end)}</div>
                 {!reasonColumn && row.note && <div className="text-xs text-muted-foreground">{row.note}</div>}
+                {row.requested_at && (
+                  <div className="text-xs text-muted-foreground md:hidden">
+                    Requested {formatRequestedAt(row.requested_at)}
+                    {row.requested_note ? ` · ${row.requested_note}` : ""}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="hidden min-w-[9rem] text-sm md:table-cell" data-testid="requested-on">
+                <div className="whitespace-nowrap tabular-nums">{formatRequestedAt(row.requested_at)}</div>
+                {row.requested_note && <div className="text-xs text-muted-foreground">{row.requested_note}</div>}
               </TableCell>
               <TableCell className="text-right tabular-nums">{Math.round(row.minutes)}</TableCell>
               <TableCell className="min-w-[7rem] text-sm">
@@ -147,6 +159,7 @@ function RowsTable({
               <TableCell colSpan={3} className="text-sm font-medium">
                 Total counted
               </TableCell>
+              <TableCell className="hidden md:table-cell" />
               <TableCell className="text-right font-semibold tabular-nums">{Math.round(total)}</TableCell>
               <TableCell colSpan={2} />
             </TableRow>
@@ -423,7 +436,7 @@ type DialogProps = {
 export function QuotaBreakdownDialog({ request, onClose, onOpenBooking }: DialogProps) {
   return (
     <Dialog open={request != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-3xl lg:max-w-5xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bookings counted toward this limit</DialogTitle>
           <DialogDescription>{PERIOD_RULE}</DialogDescription>

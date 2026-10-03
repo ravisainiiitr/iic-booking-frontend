@@ -53,7 +53,7 @@ export function bookSection(g: Gate): GuideSection {
       }),
       {
         title: "If the booking fails",
-        body: "Your form stays filled in; only slots someone else took are dropped and marked. An unsaved booking is also kept on this device and restored next time (Discard clears it). If a weekly or monthly limit stopped it, View bookings counted shows what used up the limit.",
+        body: "Your form stays filled in; only slots someone else took are dropped and marked. An unsaved booking is also kept on this device and restored next time (Discard clears it). If a weekly or monthly limit stopped it, View bookings counted shows what used up the limit. See all your unsuccessful attempts opens your past failed attempts in a new tab.",
       },
     ]),
     rules: compact([
@@ -63,7 +63,7 @@ export function bookSection(g: Gate): GuideSection {
       g.when(g.flags.externalBooking, "To give IIT Roorkee users a fair start, external access is paused from 8:55 to 9:15 pm on Wednesdays; a notice appears beforehand."),
       "The booking page shows how much of your weekly booking quota is left. A booking that needs more time is stopped before you pick slots.",
       "Cancelled or refunded bookings give their quota back, and repeat samples never use quota. A booking moved because of a disruption or by the lab stays counted in its original week; when you reschedule it yourself, it counts in the new week. Editing your inputs uses or frees quota as the analysis time changes.",
-      "When a booking, reschedule or input edit is refused for a weekly or monthly limit, or once 80% of the limit is used, click View bookings counted. It shows the period (weeks run Monday to Sunday, months by calendar month, in Indian time), the limit, the minutes used, your supervisor or group head and every booking that counted; Not counted lists the others with the reason. If one request is longer than the whole limit, it says so.",
+      "When a booking, reschedule or input edit is refused for a weekly or monthly limit, or once 80% of the limit is used, click View bookings counted. It shows the period (weeks run Monday to Sunday, months by calendar month, in Indian time), the limit, the minutes used, your supervisor or group head and every booking that counted, with Requested on (the date and time, to the second, the booking was first requested; a rescheduled booking keeps its original time); Not counted lists the others with the reason. If one request is longer than the whole limit, it says so. Later, Unsuccessful attempts in My Bookings has View calculation for each limit failure.",
       g.only(WALLET_MEMBERS, "For your research group's limit you see everyone's bookings in the group with a total per person, but you can open only your own."),
       g.only(["faculty"], "For your research group's limit you see every member's bookings in full, with a total per person."),
       g.only(WALLET_MEMBERS, "Until your supervisor's wallet is linked, a banner offers Link supervisor's wallet or Invite your supervisor; you can still fill in the form."),
@@ -236,6 +236,10 @@ export function myBookingsSection(g: Gate): GuideSection {
       {
         title: "Sync to calendar",
         body: "Add your bookings to Google Calendar, Outlook or Apple Calendar. Subscribing keeps the calendar updated; a one-time add does not.",
+      },
+      {
+        title: "Unsuccessful attempts",
+        body: "Click Unsuccessful attempts in My Bookings to see your booking attempts that did not go through: when you tried, the equipment, the slots and the reason in plain words. Filter by date. For a weekly or monthly limit, View calculation opens the same Bookings counted toward this limit list the Officer in Charge sees.",
       },
     ],
     rules: compact([

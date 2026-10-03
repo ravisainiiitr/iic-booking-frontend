@@ -7,7 +7,7 @@ const ids = (guide: ReturnType<typeof buildGuide>) => guide.whatsNew.items.map((
 describe("What's New", () => {
   it("leads with the newest booking-page items for students", () => {
     const guide = buildGuide({ audience: "student", flags: { assistant: true } });
-    expect(ids(guide).slice(0, 3)).toEqual(["slot-options", "form-kept", "wallet-link-student"]);
+    expect(ids(guide).slice(0, 3)).toEqual(["quota-countdown", "slot-options", "form-kept"]);
     expect(ids(guide)).toContain("assistant-need-help");
     expect(guide.whatsNew.items.length).toBeLessThanOrEqual(10);
   });

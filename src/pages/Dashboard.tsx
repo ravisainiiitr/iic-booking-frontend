@@ -125,6 +125,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
   },
   "/booking-attempt-logs": { title: "Booking Attempt Log" },
+  "/my-booking-attempts": {
+    title: "My booking attempts",
+    description: "Your unsuccessful booking attempts and why they failed.",
+  },
   "/booking-templates": {
     title: "Booking Templates",
     description: "Saved sample details, booking options and preferred slots for quick booking.",

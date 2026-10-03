@@ -18,6 +18,7 @@ function withAppClient<T extends Record<string, unknown>>(body: T): T & { client
 }
 import type { MyBookingQuota } from "@/lib/bookingQuota";
 import { quotaBreakdownQuery, type QuotaBreakdown, type QuotaBreakdownRequest } from "@/lib/quotaBreakdown";
+import { myBookingAttemptsQuery, type MyBookingAttemptsPage, type MyBookingAttemptsQuery } from "@/lib/myBookingAttempts";
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
@@ -8435,6 +8436,14 @@ class ApiClient {
   /** Bookings counted toward a weekly / monthly limit, or toward the limit a failed attempt log entry hit (`logId`). */
   async getQuotaBreakdown(req: QuotaBreakdownRequest) {
     return this.request<QuotaBreakdown>(`/bookings/quota-breakdown/?${quotaBreakdownQuery(req)}`, {
+      method: 'GET',
+      cache: "no-store",
+    });
+  }
+
+  /** The signed-in user's own booking attempts (made by them or booked for them), newest first. */
+  async listMyBookingAttempts(params: MyBookingAttemptsQuery = {}) {
+    return this.request<MyBookingAttemptsPage>(`/booking-attempt-logs/mine/?${myBookingAttemptsQuery(params)}`, {
       method: 'GET',
       cache: "no-store",
     });

@@ -211,7 +211,14 @@ import { saveReturnToBooking } from "@/lib/rechargeReturn";
 import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
 import { friendlyChargeError } from "@/lib/chargeErrorText";
 import { quotaBlockReason, quotaReferenceDate, quotaSummaryText, visibleQuota, type MyBookingQuota } from "@/lib/bookingQuota";
-import { nearLimitPeriod, quotaBreakdownRequestFromPeriod, quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
+import {
+  nearLimitPeriod,
+  openQuotaBreakdown,
+  quotaBreakdownRequestFromFailure,
+  quotaBreakdownRequestFromPeriod,
+  quotaFailureFrom,
+  type QuotaFailure,
+} from "@/lib/quotaBreakdown";
 import {
   WAITLIST_FOLLOW_UP,
   WAITLIST_FULL_MESSAGE,
@@ -8778,7 +8785,18 @@ const BookEquipment = () => {
                       targetEquipmentId
                     );
                     if (response.error) {
-                      toast.error(response.error);
+                      const quota = quotaFailureFrom(response);
+                      toast.error(
+                        response.error,
+                        quota
+                          ? {
+                              action: {
+                                label: "View bookings counted",
+                                onClick: () => openQuotaBreakdown(quotaBreakdownRequestFromFailure(quota)),
+                              },
+                            }
+                          : undefined,
+                      );
                       return;
                     }
                     toast.success(
@@ -11937,6 +11955,17 @@ const BookEquipment = () => {
                     <p className="text-sm text-foreground rounded-lg border bg-muted/40 px-3 py-2" data-testid="booking-form-kept-note">
                       Your details are kept — fix the issue and confirm again.
                     </p>
+                  )}
+                  {bookingResultDialog.variant === "failure" && (
+                    <a
+                      href="/my-booking-attempts"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+                      data-testid="my-booking-attempts-link"
+                    >
+                      See all your unsuccessful attempts (opens in a new tab)
+                    </a>
                   )}
                   {bookingResultDialog.variant === "success" && (
                     <p className="text-sm text-muted-foreground rounded-lg border bg-primary/5 dark:bg-primary/10 border-primary/25 dark:border-primary/40 px-3 py-2">

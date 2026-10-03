@@ -41,6 +41,10 @@ export type QuotaBreakdownRow = {
   equipment_code: string;
   slot_start: string | null;
   slot_end: string | null;
+  /** When the user asked for the booking (kept through reschedules; waitlist join time for waitlist bookings). */
+  requested_at?: string | null;
+  /** "Joined the waitlist" / "Confirmed from the waitlist" for bookings confirmed from the waitlist. */
+  requested_note?: string | null;
   minutes: number;
   counted: boolean;
   status: string;
@@ -194,6 +198,27 @@ export function quotaFailureSummary(q: QuotaFailure): string {
   const need = q.requested_minutes > 0 ? ` and this needs ${minutes(q.requested_minutes)}` : "";
   const over = q.over_by_minutes > 0 ? ` (${minutes(q.over_by_minutes)} over)` : "";
   return `${owner} is ${minutes(q.limit_minutes)}. ${minutes(q.used_minutes)} are already booked${period}${need}${over}.`;
+}
+
+const requestedDayFmt = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+});
+const requestedTimeFmt = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+/** "Wed, 30 Sep, 21:00:04" (IST): seconds matter when slots open at 9 pm. */
+export function formatRequestedAt(value: string | null | undefined): string {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return "—";
+  return `${requestedDayFmt.format(d)}, ${requestedTimeFmt.format(d)}`;
 }
 
 export function requestAloneExceedsLimit(requested: number, limit: number): boolean {
