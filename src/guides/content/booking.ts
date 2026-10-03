@@ -227,6 +227,10 @@ export function myBookingsSection(g: Gate): GuideSection {
         body: "Download published files from the booking or from View results on the dashboard.",
       },
       {
+        title: "Reply to the lab",
+        body: "If the Officer In Charge or Lab Operator sends a reminder or asks a question, you get an email and a notification. Click Reply in portal (or open the booking): a Question from the lab - reply needed banner shows the question. Click Reply, type your answer and send. Bookings with an open question show Reply needed in My Bookings.",
+      },
+      {
         title: "Sync to calendar",
         body: "Add your bookings to Google Calendar, Outlook or Apple Calendar. Subscribing keeps the calendar updated; a one-time add does not.",
       },

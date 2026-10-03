@@ -41,11 +41,20 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         title: "Comment",
         body: "Use Add Comment and tick who should be notified: the user, the Officer In Charge and the Lab Operator.",
       }),
+      g.only(["oic", "admin", "operator"], {
+        title: "Send a reminder or ask the user",
+        body: "In the booking's actions, click Send reminder or Ask user. Pick a suggested message (for example Upcoming slot, Submit sample or Collect sample / results) or write your own, and for a question you can set a Reply by date. Check the email subject shown, then click Send. The user gets an email with a Reply in portal button and a notification; both appear in the booking's messages and history.",
+      }),
+      g.only(["oic", "admin", "operator"], {
+        title: "Follow up questions",
+        body: "Open questions show Awaiting reply on the booking and in View Booking, and a card above the bookings list shows how many are awaiting the user's reply, with overdue ones marked. When the user replies you get an email and a notification, and the question is marked Answered. Use Mark resolved if it was settled another way.",
+      }),
     ]),
     rules: compact([
       g.only(["operator"], "Refunds, disruptions and reschedules are done by the Officer In Charge or Admin."),
       g.only(["dept_admin"], "Completion and exception handling stay with the Officer In Charge and Lab Operator."),
       "Cancelled and refunded bookings keep their original dates.",
+      g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),
     ]),
     tips: compact([
       g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over but not completed; a reminder email goes out daily at 9:00 AM until they are."),

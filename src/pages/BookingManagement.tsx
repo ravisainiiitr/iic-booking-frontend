@@ -43,10 +43,13 @@ import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
+import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
+import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwaitingCard";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
   sample_summary?: SampleSummary | null;
+  lab_questions_open?: number;
   user: number;
   user_email: string;
   user_name: string;
@@ -471,6 +474,18 @@ const BookingManagement = () => {
           </div>
         </StandaloneOnly>
 
+        {!isDeptAdmin && (
+          <LabQuestionsAwaitingCard
+            refreshKey={selectedBookingId == null ? 1 : 0}
+            onOpenBooking={(id) =>
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set("expand", String(id));
+                return next;
+              })
+            }
+          />
+        )}
         <Card className="overflow-hidden border shadow-sm">
           <CardHeader className="space-y-0 border-b bg-muted/30 py-3">
             <BookingListFilterBar
@@ -564,6 +579,7 @@ const BookingManagement = () => {
                               {formatSampleSummary(booking.sample_summary)}
                             </span>
                           )}
+                          <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}

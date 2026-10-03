@@ -1274,21 +1274,58 @@ interface BookingEvent {
   created_at: string;
 }
 
+export type BookingLabMessageKind = "user" | "staff_reply" | "staff_reminder" | "staff_question";
+
 export interface BookingLabMessage {
   id: number;
-  kind: "user" | "staff_reply";
+  kind: BookingLabMessageKind;
   reason: string;
   message: string;
   sender_name: string;
   sender_role: string;
   is_mine: boolean;
   created_at: string | null;
+  preset?: string;
+  /** ISO date (YYYY-MM-DD) for questions with a reply-by date. */
+  reply_by?: string | null;
+  question_open?: boolean;
+  answered_at?: string | null;
+  resolved_at?: string | null;
+  in_reply_to?: number | null;
+}
+
+export type LabOutreachKind = "reminder" | "question";
+
+export interface LabOutreachPreset {
+  code: string;
+  label: string;
+  text: string;
+}
+
+export interface LabOutreachKindOptions {
+  presets: LabOutreachPreset[];
+  daily_limit: number;
+  remaining_today: number;
+  email_subject: string;
+}
+
+export interface LabOutreachOptions {
+  can_send: boolean;
+  closed_reason: string;
+  recipient_name: string;
+  recipient_has_email: boolean;
+  max_length: number;
+  max_reply_by_days: number;
+  reminder: LabOutreachKindOptions;
+  question: LabOutreachKindOptions;
 }
 
 export interface BookingLabMessageThread {
   booking_id: number;
   viewer: "booking_user" | "supervisor" | "staff" | "other";
   can_post: boolean;
+  /** Booking user / supervisor may reply to an open lab question (even after messaging closed). */
+  can_answer?: boolean;
   can_reply: boolean;
   closed_reason: string;
   reasons: Array<{ code: string; label: string }>;
@@ -1296,7 +1333,24 @@ export interface BookingLabMessageThread {
   daily_limit: number;
   remaining_today: number;
   has_lab_staff: boolean;
+  open_question_count?: number;
+  /** Present only for staff who may send reminders and questions. */
+  outreach?: LabOutreachOptions | null;
   messages: BookingLabMessage[];
+}
+
+export interface LabQuestionAwaiting {
+  event_id: number;
+  booking_id: number;
+  booking_ref: string;
+  equipment_name: string;
+  user_name: string;
+  question: string;
+  asked_by: string;
+  asked_by_me: boolean;
+  asked_at: string | null;
+  reply_by: string | null;
+  overdue: boolean;
 }
 
 export type SampleTraceStatus =
@@ -6717,11 +6771,38 @@ class ApiClient {
     return this.request<BookingLabMessageThread>(`/bookings/${bookingId}/lab-messages/`);
   }
 
-  async sendBookingLabMessage(bookingId: number, message: string, reason?: string) {
+  async sendBookingLabMessage(bookingId: number, message: string, reason?: string, inReplyTo?: number) {
     return this.request<{ message: BookingLabMessage; remaining_today: number; warnings?: string[] }>(
       `/bookings/${bookingId}/lab-messages/`,
-      { method: "POST", body: JSON.stringify({ message, reason: reason ?? "" }) }
+      {
+        method: "POST",
+        body: JSON.stringify({ message, reason: reason ?? "", ...(inReplyTo ? { in_reply_to: inReplyTo } : {}) }),
+      }
     );
+  }
+
+  async sendBookingLabOutreach(
+    bookingId: number,
+    kind: LabOutreachKind,
+    payload: { message: string; preset?: string; reply_by?: string; client_request_id?: string }
+  ) {
+    return this.request<{
+      message: BookingLabMessage;
+      duplicate: boolean;
+      remaining_today: number;
+      warnings?: string[];
+    }>(`/bookings/${bookingId}/lab-messages/${kind}/`, { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async resolveBookingLabQuestion(bookingId: number, eventId: number) {
+    return this.request<{ message: BookingLabMessage }>(
+      `/bookings/${bookingId}/lab-messages/${eventId}/resolve/`,
+      { method: "POST" }
+    );
+  }
+
+  async getLabQuestionsAwaiting() {
+    return this.request<{ count: number; overdue: number; items: LabQuestionAwaiting[] }>(`/lab-questions/awaiting/`);
   }
 
   async replyToBookingLabMessage(bookingId: number, message: string) {

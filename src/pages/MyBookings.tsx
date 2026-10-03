@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
+import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
@@ -144,6 +145,7 @@ interface Booking extends BookingRef {
     user_type?: string;
   }>;
   sample_summary?: SampleSummary | null;
+  lab_questions_open?: number;
   istem_fbr_number?: string | null;
   istem_fbr_status?: string | null;
   istem_fbr_status_display?: string | null;
@@ -1380,7 +1382,13 @@ const MyBookings = () => {
 
   const renderSampleSummary = (booking: Booking) => {
     const text = isLabOperatorUser ? formatSampleSummary(booking.sample_summary) : "";
-    return text ? <span className="block text-xs font-normal text-muted-foreground">{text}</span> : null;
+    const isMine = user?.id != null && Number(booking.user) === Number(user.id);
+    return (
+      <>
+        {text ? <span className="block text-xs font-normal text-muted-foreground">{text}</span> : null}
+        <LabQuestionBadge count={booking.lab_questions_open} variant={isMine ? "user" : "staff"} />
+      </>
+    );
   };
 
   const formatListStart = (booking: Booking) =>

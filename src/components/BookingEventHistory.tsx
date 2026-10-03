@@ -26,6 +26,21 @@ const commentRecipientsLabel = (metadata?: Record<string, unknown> | null): stri
     .join(", ");
 };
 
+const LAB_MESSAGE_TITLES: Record<string, string> = {
+  user: "Message to the lab",
+  staff_reply: "Lab reply to user",
+  staff_reminder: "Reminder sent to user",
+  staff_question: "Question sent to user",
+};
+
+const eventTitle = (event: BookingEvent): string => {
+  const kind = event.metadata?.lab_message;
+  if (typeof kind === "string" && LAB_MESSAGE_TITLES[kind]) {
+    return kind === "user" && event.metadata?.in_reply_to ? "User replied to lab question" : LAB_MESSAGE_TITLES[kind];
+  }
+  return event.event_type_display;
+};
+
 interface BookingEventHistoryProps {
   bookingId: number;
   onEventAdded?: () => void;
@@ -214,7 +229,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                   <div className="flex items-center gap-2">
                     {getEventIcon(event.event_type)}
                     <CardTitle className="text-base">
-                      {event.event_type_display}
+                      {eventTitle(event)}
                     </CardTitle>
                     <Badge className={getEventColor(event.event_type)}>
                       {event.event_type_display}

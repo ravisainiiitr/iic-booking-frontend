@@ -1,6 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { format } from "date-fns";
-import { apiClient, type PrintAnalysisResult } from "@/lib/api";
+import {
+  apiClient,
+  type BookingLabMessageThread,
+  type LabOutreachKind,
+  type PrintAnalysisResult,
+} from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
@@ -51,7 +56,7 @@ import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
@@ -67,6 +72,8 @@ import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
+
+const LabOutreachDialog = lazy(() => import("@/components/booking/LabOutreachDialog"));
 
 export interface BookingDetailCardBooking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -644,6 +651,9 @@ export function BookingDetailCard({
     observer.observe(section, { childList: true, subtree: true });
     actionsObserverRef.current = observer;
   }, []);
+  const [labThread, setLabThread] = useState<BookingLabMessageThread | null>(null);
+  const [labRefreshKey, setLabRefreshKey] = useState(0);
+  const [outreachKind, setOutreachKind] = useState<LabOutreachKind | null>(null);
   const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
   const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
   const [completeLoading, setCompleteLoading] = useState(false);
@@ -1644,6 +1654,34 @@ export function BookingDetailCard({
         </CardHeader>
         )}
         <CardContent className="text-base">
+          {labThread &&
+            (labThread.viewer === "booking_user" || labThread.viewer === "supervisor") &&
+            (labThread.open_question_count ?? 0) > 0 && (
+              <div
+                role="status"
+                className="no-print mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 dark:border-amber-700 dark:bg-amber-950/40"
+              >
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  <HelpCircle className="h-4 w-4 shrink-0" aria-hidden />
+                  {labThread.open_question_count === 1
+                    ? "Question from the lab — reply needed"
+                    : `${labThread.open_question_count} questions from the lab — reply needed`}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 border-amber-400 bg-background"
+                  onClick={() =>
+                    document
+                      .getElementById(`lab-messages-${bookingPk}`)
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                >
+                  View and reply
+                </Button>
+              </div>
+            )}
           {isJobSheetView ? null : !isWaitlistedEntry ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-3 mb-4">
               <div className="min-w-0">
@@ -2842,7 +2880,36 @@ export function BookingDetailCard({
                   Why can&apos;t I download {remoteAnalysisEnabled ? "raw data" : "results"}?
                 </Button>
               )}
+              {labThread?.outreach && bookingPk != null && (
+                <>
+                  <Button size="sm" variant="outline" type="button" onClick={() => setOutreachKind("reminder")}>
+                    <BellRing className="h-4 w-4 mr-2" />
+                    Send reminder
+                  </Button>
+                  <Button size="sm" variant="outline" type="button" onClick={() => setOutreachKind("question")}>
+                    <HelpCircle className="h-4 w-4 mr-2" />
+                    Ask user
+                    {(labThread.open_question_count ?? 0) > 0 && (
+                      <Badge className="ml-2 h-5 border-amber-300 bg-amber-100 px-1.5 text-[11px] text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/60 dark:text-amber-200">
+                        {labThread.open_question_count} awaiting reply
+                      </Badge>
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
+            {labThread?.outreach && bookingPk != null && outreachKind && (
+              <Suspense fallback={null}>
+                <LabOutreachDialog
+                  open
+                  onOpenChange={(open) => !open && setOutreachKind(null)}
+                  bookingId={bookingPk}
+                  kind={outreachKind}
+                  options={labThread.outreach}
+                  onSent={() => setLabRefreshKey((k) => k + 1)}
+                />
+              </Suspense>
+            )}
             <Dialog
               open={sampleRejectDialogOpen}
               onOpenChange={(open) => {
@@ -3217,7 +3284,9 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {!isWaitlistedEntry && bookingPk != null && <BookingLabMessages bookingId={bookingPk} />}
+          {!isWaitlistedEntry && bookingPk != null && (
+            <BookingLabMessages bookingId={bookingPk} onThreadChange={setLabThread} refreshKey={labRefreshKey} />
+          )}
 
           <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
             <DialogContent className="sm:max-w-md">
