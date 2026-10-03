@@ -100,7 +100,7 @@ export default function StaffMore() {
         )}
 
         <ul className="divide-y divide-border/70 overflow-hidden rounded-xl border bg-card">
-          <Row to="/leave-management" icon={<CalendarOff className="h-5 w-5" />} label="Intimate Unavailability" hint="Tell users and your OIC when you are away" />
+          <Row to="/leave-management" icon={<CalendarOff className="h-5 w-5" />} label="Intimate Unavailability" hint={isOic ? "Tell users when you are away" : "Tell users and your OIC when you are away"} />
           <Row to="/tickets" icon={<LifeBuoy className="h-5 w-5" />} label="Support tickets" />
           {isOic && <Row to="/urgent-requests" icon={<Zap className="h-5 w-5" />} label="Urgent requests" />}
           {isOic && <Row to="/equipment-waitlist" icon={<ListOrdered className="h-5 w-5" />} label="Waitlist" />}

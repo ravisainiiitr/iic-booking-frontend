@@ -15,10 +15,14 @@ import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useStaffAppShell } from "./lib/staffApp";
+import { isNativeApp } from "./lib/nativeApp";
 
 /** The floating Booking Assistant stays on the website; the staff app keeps the screen uncluttered. */
 function AssistantLauncher() {
-  return useStaffAppShell() ? null : <ResearchCopilotLauncher />;
+  const staffShell = useStaffAppShell();
+  const { pathname } = useLocation();
+  const appScreen = isNativeApp() && (pathname === "/app" || pathname.startsWith("/app/"));
+  return staffShell || appScreen ? null : <ResearchCopilotLauncher />;
 }
 
 function EmbedChrome() {
