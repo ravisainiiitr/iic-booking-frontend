@@ -66,6 +66,7 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                 <TableHead>User</TableHead>
                 <TableHead>Booking ended</TableHead>
                 <TableHead>Overdue by</TableHead>
+                <TableHead>Results due</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -77,6 +78,12 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.ended_display}</TableCell>
                   <TableCell className="whitespace-nowrap text-amber-700 dark:text-amber-300">{row.overdue}</TableCell>
+                  <TableCell
+                    className={`whitespace-nowrap ${row.results_overdue ? "font-medium text-red-700 dark:text-red-300" : ""}`}
+                  >
+                    {row.results_due_display || "—"}
+                    {row.results_overdue ? " (overdue)" : ""}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button size="sm" onClick={() => navigate(row.link)}>
                       Open <ArrowRight className="ml-1 h-4 w-4" />

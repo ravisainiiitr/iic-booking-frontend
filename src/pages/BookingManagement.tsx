@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type BookingResultsDeadline } from "@/lib/api";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
   sample_summary?: SampleSummary | null;
   lab_questions_open?: number;
+  results_deadline?: BookingResultsDeadline | null;
   user: number;
   user_email: string;
   user_name: string;
@@ -122,6 +123,8 @@ interface Booking extends BookingRef {
 }
 
 const PAGE_SIZE = 10;
+/** Pseudo status: open bookings past the equipment's results deadline (sent as results_overdue=1). */
+const RESULTS_OVERDUE_FILTER = "RESULTS_OVERDUE";
 
 const BookingManagement = () => {
   const navigate = useNavigate();
@@ -130,7 +133,9 @@ const BookingManagement = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
-  const [statusFilter, setStatusFilter] = useState<string>(() => (expandId ? "all" : "BOOKED"));
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULTS_OVERDUE_FILTER : "BOOKED",
+  );
   const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [page, setPage] = useState(1);
@@ -266,7 +271,9 @@ const BookingManagement = () => {
         list_view: true,
       };
       if (effectiveOrdering) params.ordering = effectiveOrdering;
-      if (effectiveStatus !== "all") {
+      if (effectiveStatus === RESULTS_OVERDUE_FILTER) {
+        params.results_overdue = true;
+      } else if (effectiveStatus !== "all") {
         params.status = effectiveStatus;
       }
       if (effectiveSearch) {
@@ -351,6 +358,7 @@ const BookingManagement = () => {
   const statusOptions = [
     { value: "all", label: "All status" },
     { value: "BOOKED", label: "Booked" },
+    { value: RESULTS_OVERDUE_FILTER, label: "Results overdue" },
     ...(!isLabInchargeUser ? [{ value: "DISRUPTION_PENDING", label: "Awaiting your choice (disruption)" }] : []),
     { value: "COMPLETED", label: "Completed" },
     { value: "CANCELLED", label: "Cancelled" },
@@ -580,6 +588,16 @@ const BookingManagement = () => {
                             </span>
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
+                          {booking.results_deadline?.overdue ? (
+                            <Badge
+                              variant="outline"
+                              className="mt-1 border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200"
+                              title={`Results were due ${booking.results_deadline.due_display}`}
+                              data-testid="results-overdue-badge"
+                            >
+                              Results overdue
+                            </Badge>
+                          ) : null}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}

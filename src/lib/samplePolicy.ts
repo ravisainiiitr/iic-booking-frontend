@@ -19,7 +19,47 @@ export type SamplePolicyEquipment = {
   parent_equipment?: number | null;
   sample_submission_lead_hours?: number | null;
   sample_collect_deadline_hours?: number | null;
+  /** Present only when the OIC shows the equipment's results deadline to users. */
+  results_deadline_public?: PublicResultsDeadline | null;
 };
+
+export type PublicResultsDeadline = { value: number; unit: "WORKING_DAYS" | "HOURS"; label: string };
+
+/** Top-level equipment whose OIC shows the results deadline to users, by name. */
+export function resultsDeadlineEquipment<T extends SamplePolicyEquipment>(rows: readonly T[]): T[] {
+  return rows
+    .filter((r) => r.parent_equipment == null && r.results_deadline_public && r.results_deadline_public.value > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Most common published deadline (for the illustrative example). */
+export function typicalResultsDeadline(rows: readonly SamplePolicyEquipment[]): PublicResultsDeadline | null {
+  const counts = new Map<string, { d: PublicResultsDeadline; n: number }>();
+  for (const r of resultsDeadlineEquipment(rows)) {
+    const d = r.results_deadline_public!;
+    const key = `${d.unit}:${d.value}`;
+    counts.set(key, { d, n: (counts.get(key)?.n ?? 0) + 1 });
+  }
+  let best: { d: PublicResultsDeadline; n: number } | null = null;
+  for (const c of counts.values()) if (!best || c.n > best.n) best = c;
+  return best?.d ?? null;
+}
+
+/**
+ * Results due: end of the N-th working day after the slot day (Saturdays and Sundays skipped; institute
+ * holidays are only known to the server), or N clock hours after the slot end.
+ */
+export function estimateResultsDue(slotEnd: Date, deadline: Pick<PublicResultsDeadline, "value" | "unit">): Date {
+  if (deadline.unit === "HOURS") return new Date(slotEnd.getTime() + deadline.value * 3_600_000);
+  const d = new Date(slotEnd);
+  let remaining = Math.max(0, Math.floor(deadline.value));
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() !== 0 && d.getDay() !== 6) remaining -= 1;
+  }
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
 
 const hours = (v: number | null | undefined): number | null =>
   typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : null;

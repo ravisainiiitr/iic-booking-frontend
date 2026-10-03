@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import {
   apiClient,
   type BookingLabMessageThread,
+  type BookingResultsDeadline,
   type LabOutreachKind,
   type PrintAnalysisResult,
 } from "@/lib/api";
@@ -69,6 +70,7 @@ import {
 } from "@/lib/bookingDeadlines";
 import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
+import { ResultsDeadlineNotice } from "@/components/booking/ResultsDeadlineNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -121,8 +123,10 @@ export interface BookingDetailCardBooking extends BookingRef {
   status: string;
   status_display: string;
   notes: string;
-  /** Admin/OIC grace deadline for auto Operator Absent jobs (does not change slots). */
+  /** Admin/OIC extension of the results deadline (does not change slots). */
   operator_absent_hold_until?: string | null;
+  /** Always for staff; for the booking user only when the equipment shows the results deadline to users. */
+  results_deadline?: BookingResultsDeadline | null;
   atmosphere_sensitive_sample?: boolean;
   /** When false, atmosphere-sensitive option is not offered for this equipment. */
   equipment_atmosphere_sensitive_sample_enabled?: boolean;
@@ -1794,6 +1798,14 @@ export function BookingDetailCard({
             />
           )}
 
+          {!isJobSheetView && (
+            <ResultsDeadlineNotice
+              deadline={booking.results_deadline}
+              status={booking.status}
+              staffView={isOperatorOrManager}
+            />
+          )}
+
           {isCompleted && booking.sample_collection_deadline_at && !isJobSheetView && (
             <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
               <div className="text-base font-semibold text-foreground">Sample Collection Deadline</div>
@@ -2631,20 +2643,22 @@ export function BookingDetailCard({
                 !isExternalSelfView && (
                 <div className="w-full mt-3 rounded-lg border border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
                   <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                    Extend operator-absent grace (no slot change)
+                    Extend results deadline (no slot change)
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Delays automatic Operator Absent / Operator Unavailable until the chosen time. Booking slots stay unchanged. The booking user is notified with the reason.
+                    For a genuine delay: moves this booking&apos;s results deadline to the chosen time, so it is not listed
+                    as Results overdue and the automatic Operator Absent / Operator Unavailable safeguard waits until then.
+                    Booking slots stay unchanged. The booking user is notified with the reason.
                   </p>
                   {booking.operator_absent_hold_until && (
                     <p className="text-xs text-amber-800 dark:text-amber-200">
-                      Current hold until:{" "}
+                      Extended until:{" "}
                       {new Date(booking.operator_absent_hold_until).toLocaleString()}
                     </p>
                   )}
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="space-y-1">
-                      <Label htmlFor="extend-hold-until" className="text-xs">Hold until</Label>
+                      <Label htmlFor="extend-hold-until" className="text-xs">Results due by</Label>
                       <Input
                         id="extend-hold-until"
                         type="datetime-local"
@@ -2749,7 +2763,7 @@ export function BookingDetailCard({
                           }
                         }}
                       >
-                        Clear hold
+                        Clear extension
                       </Button>
                     )}
                   </div>

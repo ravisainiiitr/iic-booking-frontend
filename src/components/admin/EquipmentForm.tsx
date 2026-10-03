@@ -197,8 +197,11 @@ export type EquipmentFormData = {
   max_surcharge_urgent_requests_per_week?: number | null;
   /** After booking end time, if sample lifecycle has no update or only Sample Sent for this many hours, auto-mark as Booking Not Utilized. 0 = disabled. */
   booking_not_utilize_window_hours?: number | null;
-  /** Hours after last slot end before auto Operator Unavailable (full refund) when staff engaged beyond Sample Sent. 0 = disabled. */
-  operator_unavailable_after_booking_end_hours?: number | null;
+  /** Results due this long after the last slot (0 = none). Main administrator and the equipment's OIC only. */
+  results_deadline_value?: number | null;
+  results_deadline_unit?: "WORKING_DAYS" | "HOURS";
+  /** Users see the results deadline in the sample policy and booking details. Off by default. */
+  show_results_deadline_to_users?: boolean;
   skip_quota_check?: boolean;
   enable_charge_recalculation?: boolean;
   /** Users may add samples with different parameters (extra sample sets). Main administrator only. */
@@ -206,7 +209,6 @@ export type EquipmentFormData = {
   user_rating_enabled?: boolean;
   sample_preparation_by_user?: boolean;
   urgent_peak_window_minutes?: number | null;
-  operator_absent_disruption_after_booking_end_hours?: number | null;
   /** Show sample lifecycle countdowns on booking details. */
   show_lifecycle_countdowns?: boolean;
   /** Hours before slot start by which the sample should be submitted (0 = slot start). */
@@ -452,6 +454,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
   const [typedTableBuilderIdx, setTypedTableBuilderIdx] = useState<number | null>(null);
   const [choicesError, setChoicesError] = useState<string | null>(null);
   const canEditSampleSetsFlag = canEditSampleSetsSwitch(choices?.can_edit_sample_sets_flag, isMainAdmin);
+  /** Results deadline: Main Admin and the equipment's OIC (the server checks the OIC mapping). */
+  const canEditResultsDeadline = isMainAdmin || userTypeStr === "manager";
   const [formData, setFormData] = useState<EquipmentFormData>({
     name: "",
     code: "",
@@ -501,8 +505,9 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     max_rush_relief_requests_per_week: null,
     max_surcharge_urgent_requests_per_week: null,
     booking_not_utilize_window_hours: 24,
-    operator_unavailable_after_booking_end_hours: 24,
-    operator_absent_disruption_after_booking_end_hours: 48,
+    results_deadline_value: 2,
+    results_deadline_unit: "WORKING_DAYS",
+    show_results_deadline_to_users: false,
     show_lifecycle_countdowns: true,
     sample_submission_lead_hours: 24,
     atmosphere_sensitive_sample_enabled: false,
@@ -783,15 +788,15 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         max_rush_relief_requests_per_week: (d.max_rush_relief_requests_per_week as number | null) ?? null,
         max_surcharge_urgent_requests_per_week: (d.max_surcharge_urgent_requests_per_week as number | null) ?? null,
         booking_not_utilize_window_hours: (d.booking_not_utilize_window_hours as number | null) ?? 24,
-        operator_unavailable_after_booking_end_hours: (d.operator_unavailable_after_booking_end_hours as number | null) ?? 24,
+        results_deadline_value: (d.results_deadline_value as number | null) ?? 2,
+        results_deadline_unit: d.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
+        show_results_deadline_to_users: d.show_results_deadline_to_users === true,
         skip_quota_check: d.skip_quota_check === true,
         enable_charge_recalculation: d.enable_charge_recalculation === true,
         allow_multiple_sample_sets: d.allow_multiple_sample_sets !== false,
         user_rating_enabled: d.user_rating_enabled !== false,
         sample_preparation_by_user: d.sample_preparation_by_user === true,
         urgent_peak_window_minutes: (d.urgent_peak_window_minutes as number | null) ?? null,
-        operator_absent_disruption_after_booking_end_hours:
-          (d.operator_absent_disruption_after_booking_end_hours as number | null) ?? 48,
         show_lifecycle_countdowns: d.show_lifecycle_countdowns !== false,
         sample_submission_lead_hours: (d.sample_submission_lead_hours as number | null) ?? 24,
         atmosphere_sensitive_sample_enabled: d.atmosphere_sensitive_sample_enabled === true,
@@ -1024,17 +1029,13 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         formData.urgent_peak_window_minutes != null && formData.urgent_peak_window_minutes !== ""
           ? Number(formData.urgent_peak_window_minutes)
           : null,
-      operator_absent_disruption_after_booking_end_hours:
-        formData.operator_absent_disruption_after_booking_end_hours != null &&
-        formData.operator_absent_disruption_after_booking_end_hours !== ""
-          ? Number(formData.operator_absent_disruption_after_booking_end_hours)
-          : 48,
-      operator_unavailable_after_booking_end_hours:
-        formData.operator_unavailable_after_booking_end_hours != null && formData.operator_unavailable_after_booking_end_hours !== ''
-          ? (typeof formData.operator_unavailable_after_booking_end_hours === 'number'
-              ? formData.operator_unavailable_after_booking_end_hours
-              : parseInt(String(formData.operator_unavailable_after_booking_end_hours), 10))
-          : 24,
+      ...(canEditResultsDeadline
+        ? {
+            results_deadline_value: Math.max(0, Number(formData.results_deadline_value ?? 0) || 0),
+            results_deadline_unit: formData.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
+            show_results_deadline_to_users: formData.show_results_deadline_to_users === true,
+          }
+        : {}),
       show_lifecycle_countdowns: formData.show_lifecycle_countdowns !== false,
       sample_submission_lead_hours:
         formData.sample_submission_lead_hours != null && formData.sample_submission_lead_hours !== ''
@@ -2300,22 +2301,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             placeholder="Optional"
           />
         </div>
-        <div className="space-y-2">
-          <Label>Operator-absent disruption after booking end (hours)</Label>
-          <Input
-            type="number"
-            min={0}
-            value={formData.operator_absent_disruption_after_booking_end_hours ?? ""}
-            onChange={(e) =>
-              setFormData((p) => ({
-                ...p,
-                operator_absent_disruption_after_booking_end_hours:
-                  e.target.value === "" ? null : Number(e.target.value),
-              }))
-            }
-            placeholder="Default 48, 0 = disabled"
-          />
-        </div>
       </div>
       </FormSection>
 
@@ -3009,24 +2994,52 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             Hours after the last slot ends before Lab/OIC/Admin may mark Booking Not Utilized (no refund), only when lifecycle has no update or only &quot;Sample Sent&quot;. Set to 0 to hide this action for this equipment.
           </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="operator-unavailable-after-booking-end-hours">Auto Operator Unavailable (hours after booking end)</Label>
-          <Input
-            id="operator-unavailable-after-booking-end-hours"
-            type="number"
-            min={0}
-            placeholder="Default 24, 0 = disabled"
-            value={formData.operator_unavailable_after_booking_end_hours ?? ""}
-            onChange={(e) => {
-              const v = e.target.value.trim();
-              setFormData((p) => ({
-                ...p,
-                operator_unavailable_after_booking_end_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
-              }));
-            }}
-          />
+        <div className="space-y-2" data-testid="equipment-results-deadline">
+          <Label htmlFor="results-deadline-value">Results deadline (after the slot)</Label>
+          <div className="flex gap-2">
+            <Input
+              id="results-deadline-value"
+              type="number"
+              min={0}
+              max={formData.results_deadline_unit === "HOURS" ? 720 : 60}
+              className="w-28"
+              disabled={!canEditResultsDeadline}
+              value={formData.results_deadline_value ?? ""}
+              onChange={(e) => {
+                const v = e.target.value.trim();
+                setFormData((p) => ({ ...p, results_deadline_value: v === "" ? 0 : Math.max(0, parseInt(v, 10) || 0) }));
+              }}
+            />
+            <Select
+              value={formData.results_deadline_unit ?? "WORKING_DAYS"}
+              disabled={!canEditResultsDeadline}
+              onValueChange={(v) =>
+                setFormData((p) => ({ ...p, results_deadline_unit: v === "HOURS" ? "HOURS" : "WORKING_DAYS" }))
+              }
+            >
+              <SelectTrigger className="w-40" aria-label="Results deadline unit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="WORKING_DAYS">Working days</SelectItem>
+                <SelectItem value="HOURS">Hours</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={formData.show_results_deadline_to_users === true}
+              disabled={!canEditResultsDeadline}
+              onCheckedChange={(c) => setFormData((p) => ({ ...p, show_results_deadline_to_users: c === true }))}
+            />
+            Show results deadline to users
+          </label>
           <p className="text-muted-foreground text-xs">
-            After the last slot ends, if the booking is still open and lifecycle shows staff work beyond &quot;Sample Sent&quot; but the run is not finished (not analyzed/returned/archived/disposed), the system auto-marks Operator Unavailable (full refund) after this many hours. Set to 0 to disable. User no-shows use manual Booking Not Utilized.
+            Results are due this long after the last slot ends (working days skip weekends and institute holidays; up to
+            60 working days or 720 hours; 0 = none). Lab Operators and the OIC see bookings past it as Results overdue;
+            it also replaces the old Auto Operator Unavailable / Absent Disruption timers. Users see it only when
+            &quot;Show results deadline to users&quot; is on.
+            {canEditResultsDeadline ? "" : " Only the Main Admin and the equipment's OIC can change it."}
           </p>
         </div>
         <div className="space-y-3 sm:col-span-2 rounded-lg border border-border/60 bg-muted/20 p-4">

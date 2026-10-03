@@ -42,6 +42,10 @@ export const adminGuide: RoleGuide = {
             body: "Pick a title (Mr., Mrs., Ms., Miss, Dr. or Prof.) for each Officer In Charge and Lab Operator; the preview shows how the name appears. Untick Allow samples with different parameters to stop users adding extra sample sets on that equipment.",
           },
           {
+            title: "Results deadline",
+            body: "In the equipment form (or the Django admin), set Results deadline in working days (default 2) or hours after the slot, and whether to Show results deadline to users (off by default). The Officer In Charge can set the same in their configuration page. It replaces the Auto Operator Unavailable and Auto Operator Absent Disruption hours, which are kept only as deprecated fields.",
+          },
+          {
             title: "Advanced tables",
             body: "In Dynamic input fields, choose the field type Advanced table (typed columns) and click Configure columns (the same button appears in the Django admin). Give each column a label and a kind: Numeric (with lower and upper limits, step and whole numbers only), Text (with a maximum length), Radio, Combobox, Multi-select, Toggle or Periodic table. Under Rows, either let users add, remove and duplicate rows (minimum, starting and maximum rows), or make the rows follow a Numeric field such as No. of samples. The preview shows the table as users will see it. In charge and time formulas the table's key stands for its number of filled rows.",
           },
@@ -54,6 +58,7 @@ export const adminGuide: RoleGuide = {
         ],
         rules: [
           "Only the Main Administrator or a superuser can change the sample sets switch; bookings made earlier keep their sets.",
+          "The results deadline can be changed only by the Main Administrator and the equipment's Officer In Charge (including a temporary OIC). The automatic outcome after the deadline is switched on under Results deadline policy in the Django admin and applies only to bookings whose slot ends after it was switched on.",
           "By default external users are paused from 8:55 to 9:15 pm on Wednesdays; admins, Officers In Charge and staff are never paused.",
         ],
       },

@@ -783,12 +783,31 @@ export interface OicEquipmentSettings {
   weekly_view_time_to: string | null;
   external_slot_quota_percent: number;
   booking_not_utilize_window_hours: number;
-  operator_unavailable_after_booking_end_hours: number;
-  operator_absent_disruption_after_booking_end_hours: number;
+  /** Deprecated, replaced by the results deadline; kept for older payloads. */
+  operator_unavailable_after_booking_end_hours?: number;
+  /** Deprecated, replaced by the results deadline; kept for older payloads. */
+  operator_absent_disruption_after_booking_end_hours?: number;
+  results_deadline_value: number;
+  results_deadline_unit: ResultsDeadlineUnit;
+  show_results_deadline_to_users: boolean;
   sample_submission_lead_hours: number;
   sample_collect_deadline_hours: number;
   important_instruction: string;
   important_instruction_by_user_type?: Record<string, string>;
+}
+
+export type ResultsDeadlineUnit = 'WORKING_DAYS' | 'HOURS';
+
+/** Booking `results_deadline`: always for staff; for users only when the equipment shows it to users. */
+export interface BookingResultsDeadline {
+  value: number;
+  unit: ResultsDeadlineUnit;
+  label: string;
+  due_at: string;
+  due_display: string;
+  extended: boolean;
+  overdue: boolean;
+  visible_to_user: boolean;
 }
 
 export interface BookingAwaitingCompletion {
@@ -802,6 +821,25 @@ export interface BookingAwaitingCompletion {
   ended_at: string;
   ended_display: string;
   overdue: string;
+  link: string;
+  results_due_display?: string;
+  results_overdue?: boolean;
+}
+
+export interface ResultsOverdueBooking {
+  booking_id: number;
+  booking_ref: string;
+  equipment_id: number;
+  equipment_name: string;
+  equipment_code: string;
+  user_name: string;
+  status: string;
+  slot_ended_at: string;
+  due_at: string;
+  due_display: string;
+  deadline_label: string;
+  extended: boolean;
+  overdue_by: string;
   link: string;
 }
 
@@ -892,8 +930,10 @@ export interface StaffAppToday {
     urgent_requests_pending: number | null;
     waitlist_active: number | null;
     tickets_assigned_open: number;
+    results_overdue?: number;
   };
   message_booking_ids: number[];
+  results_overdue_booking_ids?: number[];
 }
 
 export interface MobileAppRelease {
@@ -3145,6 +3185,8 @@ class ApiClient {
         /** Only with include_ratings: hours before the slot by which the sample is due (0 = brought at the slot). */
         sample_submission_lead_hours?: number | null;
         sample_collect_deadline_hours?: number | null;
+        /** Only with include_ratings, and only when the OIC shows the results deadline to users. */
+        results_deadline_public?: { value: number; unit: ResultsDeadlineUnit; label: string } | null;
         created_at: string;
         updated_at: string;
       }>;
@@ -4660,6 +4702,14 @@ class ApiClient {
       count: number;
       bookings: BookingAwaitingCompletion[];
     }>('/bookings/awaiting-completion/');
+  }
+
+  /** OIC / Lab in-charge (all equipment for Admin): open bookings past the equipment's results deadline. */
+  async getResultsOverdueBookings() {
+    return this.sharedGet<{
+      count: number;
+      bookings: ResultsOverdueBooking[];
+    }>('/bookings/results-overdue/');
   }
 
   /** List IMAP folders with message counts (staff only). */
@@ -7288,8 +7338,13 @@ class ApiClient {
     offset?: number;
     /** Request lightweight list response (table view); omit for full detail */
     list_view?: boolean;
+    /** Staff only: open bookings past the equipment's results deadline */
+    results_overdue?: boolean;
   }) {
     const queryParams = new URLSearchParams();
+    if (params?.results_overdue) {
+      queryParams.append('results_overdue', '1');
+    }
     
     if (params?.user_id) {
       queryParams.append('user_id', String(params.user_id));

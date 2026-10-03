@@ -143,6 +143,32 @@ describe("Today", () => {
     expect(screen.queryByText("Waitlist")).toBeNull();
   });
 
+  it("shows the results overdue count and opens the overdue list (or the only overdue job sheet)", async () => {
+    state.api.getStaffAppToday.mockResolvedValue({
+      data: { ...today, counts: { ...today.counts, results_overdue: 3 }, results_overdue_booking_ids: [40, 41, 42] },
+    });
+    renderAt("/app", <StaffToday />);
+    const tile = await screen.findByRole("link", { name: /Results overdue/ });
+    expect(tile.getAttribute("href")).toBe("/booking-management?results=overdue");
+    expect(tile.textContent).toContain("3");
+    cleanup();
+
+    state.api.getStaffAppToday.mockResolvedValue({
+      data: { ...today, counts: { ...today.counts, results_overdue: 1 }, results_overdue_booking_ids: [40] },
+    });
+    renderAt("/app", <StaffToday />);
+    expect((await screen.findByRole("link", { name: /Results overdue/ })).getAttribute("href")).toBe(
+      "/booking-management?expand=40",
+    );
+  });
+
+  it("hides the results overdue tile for an older server that does not report it", async () => {
+    state.api.getStaffAppToday.mockResolvedValue({ data: today });
+    renderAt("/app", <StaffToday />);
+    await screen.findByRole("link", { name: /Messages to answer/ });
+    expect(screen.queryByText("Results overdue")).toBeNull();
+  });
+
   it("refreshes on request", async () => {
     state.api.getStaffAppToday.mockResolvedValue({ data: today });
     renderAt("/app", <StaffToday />);

@@ -43,7 +43,11 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       }),
       g.only(["oic", "admin", "operator"], {
         title: "Send a reminder or ask the user",
-        body: "In the booking's actions, click Send reminder or Ask user. Pick a suggested message (for example Upcoming slot, Submit sample or Collect sample / results) or write your own, and for a question you can set a Reply by date. Check the email subject shown, then click Send. The user gets an email with a Reply in portal button and a notification; both appear in the booking's messages and history.",
+        body: "In the booking's actions, click Send reminder or Ask user. Pick a suggested message (for example Upcoming slot, Submit sample, Results delayed or Collect sample / results) or write your own, and for a question you can set a Reply by date. Check the email subject shown, then click Send. The user gets an email with a Reply in portal button and a notification; both appear in the booking's messages and history.",
+      }),
+      g.only(["oic", "admin", "operator"], {
+        title: "Results overdue",
+        body: "Bookings still open after the equipment's results deadline show a red Results overdue badge in the list and on the job sheet, and the Results overdue card on the dashboard lists them. Choose Results overdue in Status to see only those. Share the results and complete the booking; for a genuine delay, send the user the Results delayed reminder, and the Officer In Charge or Admin can use Extend results deadline in the booking details.",
       }),
       g.only(["oic", "admin", "operator"], {
         title: "Follow up questions",
@@ -57,7 +61,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),
     ]),
     tips: compact([
-      g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over but not completed; a reminder email goes out daily at 9:00 AM until they are."),
+      g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over but not completed, with the date results are due; a reminder email goes out daily at 9:00 AM until they are, marking results that are overdue."),
       g.only(["operator"], "Booking lists show the number of sample sets and samples under each booking ID, for example 3 sets · 12 samples."),
     ]),
   };
@@ -154,6 +158,10 @@ export function oicConfigSection(g: Gate): GuideSection {
         body: "In the same page set slot visibility, usage quotas, the sample submission lead time and the sample collect deadline.",
       },
       {
+        title: "Results deadline",
+        body: "Under Booking and operator timings, set Results deadline (after the slot): a number of working days (default 2) or hours, counted from the end of the slot. Working days skip Saturdays, Sundays and institute holidays; 0 means no deadline. Tick Show results deadline to users if users should see Results expected by on their bookings and the list in the sample submission policy; it is off by default, and the deadline still works for staff when it is off.",
+      },
+      {
         title: "Accessories and modes",
         body: "Use Accessories, 3D Print Materials (where applicable) and Multi-Mode Equipment to keep options and mode schedules current.",
       },
@@ -164,6 +172,7 @@ export function oicConfigSection(g: Gate): GuideSection {
     ]),
     rules: [
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",
+      "Only you (as primary or temporary Officer In Charge) and the Main Administrator can change the results deadline. It replaces the old Auto Operator Unavailable and Auto Operator Absent Disruption hours: when results are still not shared after the deadline, the booking is marked Operator Unavailable with a full refund if the sample was received but never taken up by the lab, or goes to Operator Absent (the user chooses refund or reschedule) if the sample is with the lab, as before. Use Extend results deadline in the booking details for a genuine delay.",
     ],
   };
 }

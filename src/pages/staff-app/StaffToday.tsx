@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNod
 import { Link, useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import {
+  AlarmClock,
   AlertTriangle,
   CalendarOff,
   ChevronRight,
@@ -253,6 +254,19 @@ export default function StaffToday() {
                   value={counts.user_messages_awaiting_reply}
                   to={firstMessage ? jobSheetPath(firstMessage) : "/booking-management"}
                 />
+                {counts.results_overdue != null && (
+                  <CountTile
+                    icon={<AlarmClock className="h-3.5 w-3.5" aria-hidden />}
+                    label="Results overdue"
+                    value={counts.results_overdue}
+                    to={
+                      counts.results_overdue === 1 && data.results_overdue_booking_ids?.[0]
+                        ? jobSheetPath(data.results_overdue_booking_ids[0])
+                        : "/booking-management?results=overdue"
+                    }
+                    urgent
+                  />
+                )}
                 {counts.urgent_requests_pending != null && (
                   <CountTile
                     icon={<Zap className="h-3.5 w-3.5" aria-hidden />}

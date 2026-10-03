@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   bookingSampleDeadline,
   bringsSampleToSlot,
+  estimateResultsDue,
   estimateSampleDeadline,
   isWalkInSampleEquipment,
+  resultsDeadlineEquipment,
   sampleAtSlotEquipment,
   sampleAtSlotShortList,
   shortEquipmentLabel,
+  typicalResultsDeadline,
   typicalSampleLeadHours,
   type SamplePolicyEquipment,
 } from "./samplePolicy";
@@ -75,5 +78,30 @@ describe("sample policy from equipment configuration", () => {
     });
     expect(bookingSampleDeadline({ equipmentId: 4, startTime: start }, ROWS)).toMatchObject({ kind: "estimate", leadHours: 48 });
     expect(bookingSampleDeadline({ equipmentId: 1234, startTime: start }, ROWS)).toEqual({ kind: "unknown" });
+  });
+});
+
+describe("published results deadlines", () => {
+  const wd = (value: number) => ({ value, unit: "WORKING_DAYS" as const, label: `within ${value} working days after the slot` });
+  const rows: SamplePolicyEquipment[] = [
+    { ...eq(1, "PXRD", 24), results_deadline_public: wd(2) },
+    { ...eq(7, "NMR", 24), results_deadline_public: wd(2) },
+    { ...eq(4, "XPS", 48), results_deadline_public: wd(8) },
+    { ...eq(37, "EBSD", 0, 72, 10), results_deadline_public: wd(1) },
+    { ...eq(38, "TEM", 0), results_deadline_public: null },
+  ];
+
+  it("lists only top-level equipment that shows its deadline, and finds the most common one", () => {
+    expect(resultsDeadlineEquipment(rows).map((r) => r.name)).toEqual(["NMR", "PXRD", "XPS"]);
+    expect(typicalResultsDeadline(rows)).toMatchObject({ value: 2, unit: "WORKING_DAYS" });
+    expect(resultsDeadlineEquipment(ROWS)).toEqual([]);
+    expect(typicalResultsDeadline(ROWS)).toBeNull();
+  });
+
+  it("counts working days from the slot day, skipping the weekend", () => {
+    const friday = new Date(2026, 9, 9, 17, 0);
+    expect(estimateResultsDue(friday, { value: 2, unit: "WORKING_DAYS" })).toEqual(new Date(2026, 9, 13, 23, 59));
+    expect(estimateResultsDue(friday, { value: 1, unit: "WORKING_DAYS" })).toEqual(new Date(2026, 9, 12, 23, 59));
+    expect(estimateResultsDue(friday, { value: 36, unit: "HOURS" })).toEqual(new Date(2026, 9, 11, 5, 0));
   });
 });

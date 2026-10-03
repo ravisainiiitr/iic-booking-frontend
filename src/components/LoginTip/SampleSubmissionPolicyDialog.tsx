@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { CalendarClock, FlaskConical, Microscope } from "lucide-react";
+import { CalendarClock, FlaskConical, Microscope, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,12 +12,15 @@ import {
 import type { NextSampleReminder } from "@/lib/loginTips";
 import {
   bookingSampleDeadline,
+  estimateResultsDue,
   estimateSampleDeadline,
   formatSlotTime,
   hoursLabel,
   isWalkInSampleEquipment,
   nextWeekdayAt10,
+  resultsDeadlineEquipment,
   sampleAtSlotEquipment,
+  typicalResultsDeadline,
   typicalSampleLeadHours,
   type SamplePolicyEquipment,
 } from "@/lib/samplePolicy";
@@ -25,7 +28,10 @@ import { useSamplePolicyEquipment } from "./useSamplePolicyEquipment";
 
 const FALLBACK_EXAMPLE_LEAD_HOURS = 24;
 
-function policyPoints(typicalLead: number | null): Array<{ title: string; text: string }> {
+function policyPoints(
+  typicalLead: number | null,
+  publishesResultsTimes = false,
+): Array<{ title: string; text: string }> {
   return [
     {
       title: "Submission deadline",
@@ -72,7 +78,10 @@ function policyPoints(typicalLead: number | null): Array<{ title: string; text: 
     {
       title: "Results",
       text:
-        "Each instrument has a target time within which the laboratory shares results after analysis, and in most cases you will receive your results within this time. You receive an email and a notification when your results are available in the portal.",
+        "Each instrument has a target time within which the laboratory shares results after analysis, and in most cases you will receive your results within this time. You receive an email and a notification when your results are available in the portal." +
+        (publishesResultsTimes
+          ? " Where the laboratory publishes this time, it is listed below and the booking details show the date by which results are expected."
+          : ""),
     },
     {
       title: "Delays in results",
@@ -183,6 +192,51 @@ function SampleAtSlotList({ rows, status }: { rows: SamplePolicyEquipment[]; sta
   );
 }
 
+function ResultsTimesSection({ rows }: { rows: SamplePolicyEquipment[] }) {
+  const list = resultsDeadlineEquipment(rows);
+  const typical = typicalResultsDeadline(rows);
+  const fridaySlotEnd = nextWeekdayAt10(new Date(), 5);
+  fridaySlotEnd.setHours(17, 0, 0, 0);
+  const due = typical ? estimateResultsDue(fridaySlotEnd, typical) : null;
+  return (
+    <section
+      aria-labelledby="results-times-heading"
+      className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-500/30 dark:bg-violet-500/10"
+      data-testid="results-times-section"
+    >
+      <h3 id="results-times-heading" className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Timer className="h-4 w-4 text-violet-700 dark:text-violet-300" aria-hidden />
+        When to expect results
+      </h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        For these instruments the laboratory shares results within the time shown, counted from the end of your slot.
+        Working days do not include Saturdays, Sundays or institute holidays.
+      </p>
+      <ul className="grid gap-1.5 sm:grid-cols-2" data-testid="results-times-list">
+        {list.map((eq) => (
+          <li
+            key={eq.equipment_id}
+            className="rounded-lg border border-violet-200/80 bg-white/70 px-3 py-2 text-sm dark:border-violet-500/25 dark:bg-white/5"
+          >
+            <span className="font-medium text-foreground">{eq.name}</span>
+            <span className="block text-xs text-muted-foreground">Results {eq.results_deadline_public!.label}</span>
+          </li>
+        ))}
+      </ul>
+      {typical && due ? (
+        <p className="text-sm text-muted-foreground" data-testid="results-times-example">
+          Example: a slot ending on <span className="font-medium text-foreground">{dayAndTime(fridaySlotEnd)}</span> on
+          an instrument with results {typical.label}: results expected by{" "}
+          <span className="font-medium text-foreground">
+            {typical.unit === "HOURS" ? dayAndTime(due) : `the end of ${format(due, "EEEE")}`}
+          </span>
+          {typical.unit === "HOURS" ? "" : " (the weekend is not counted)"}. Your booking details show the exact date.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export default function SampleSubmissionPolicyDialog({
   open,
   onOpenChange,
@@ -194,6 +248,7 @@ export default function SampleSubmissionPolicyDialog({
 }) {
   const equipment = useSamplePolicyEquipment("all", open);
   const typicalLead = typicalSampleLeadHours(equipment.rows);
+  const resultsRows = resultsDeadlineEquipment(equipment.rows);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -211,7 +266,7 @@ export default function SampleSubmissionPolicyDialog({
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 sm:px-6">
           <ol className="space-y-3" aria-label="Policy">
-            {policyPoints(typicalLead).map((p, i) => (
+            {policyPoints(typicalLead, resultsRows.length > 0).map((p, i) => (
               <li key={p.title} className="flex gap-3">
                 <span
                   className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-100 text-xs font-semibold text-sky-800 dark:bg-sky-500/20 dark:text-sky-200"
@@ -254,6 +309,8 @@ export default function SampleSubmissionPolicyDialog({
             </h3>
             <WorkedExample nextBooking={nextBooking} rows={equipment.rows} typicalLead={typicalLead} />
           </section>
+
+          {resultsRows.length > 0 && <ResultsTimesSection rows={equipment.rows} />}
         </div>
 
         <DialogFooter className="border-t px-5 py-3 sm:px-6">

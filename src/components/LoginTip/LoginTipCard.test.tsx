@@ -215,10 +215,34 @@ describe("LoginTipCard", () => {
     expect(example).toContain("Example with a lead time of 24 hours, the most common setting at present:");
     expect(example).toMatch(/Slot on Tuesday, 10:00 AM: submit by Monday, 10:00 AM\./);
     expect(example).toMatch(/Slot on Monday, 10:00 AM: submit by Friday, 10:00 AM \(moved back from the weekend/);
+    expect(within(dialog).queryByTestId("results-times-section")).toBeNull();
+    expect(text).not.toContain("Where the laboratory publishes this time");
 
     fireEvent.click(within(dialog).getAllByRole("button", { name: "Close" })[0]);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByTestId("login-tip")).not.toBeNull();
+  });
+
+  it("lists results deadlines only for equipment whose OIC shows them, with a worked example", async () => {
+    const wd = (value: number) => ({ value, unit: "WORKING_DAYS" as const, label: `within ${value} working days after the slot` });
+    catalog.rows = [
+      ...ROWS.filter((r) => r.equipment_id !== 1 && r.equipment_id !== 7),
+      { ...eq(1, "Powder X-Ray Diffractometer (PXRD) [A]", 24), results_deadline_public: wd(2) },
+      { ...eq(7, "Nuclear Magnetic Resonance (NMR)", 24), results_deadline_public: wd(2) },
+      { ...eq(4, "X-Ray Photoelectron Spectroscopy (XPS)", 48), results_deadline_public: wd(8) },
+    ];
+    renderCard(student);
+    const dialog = await openPolicy();
+    const section = await within(dialog).findByTestId("results-times-section");
+    expect(within(section).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "Nuclear Magnetic Resonance (NMR)Results within 2 working days after the slot",
+      "Powder X-Ray Diffractometer (PXRD) [A]Results within 2 working days after the slot",
+      "X-Ray Photoelectron Spectroscopy (XPS)Results within 8 working days after the slot",
+    ]);
+    expect(within(section).getByTestId("results-times-example").textContent).toBe(
+      "Example: a slot ending on Friday, 5:00 PM on an instrument with results within 2 working days after the slot: results expected by the end of Tuesday (the weekend is not counted). Your booking details show the exact date."
+    );
+    expect(dialog.textContent).toContain("Where the laboratory publishes this time, it is listed below");
   });
 
   it("uses the student's own next booking as the worked example", async () => {

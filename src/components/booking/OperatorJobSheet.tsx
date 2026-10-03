@@ -8,6 +8,8 @@ import { isCommentsInputFieldKey } from "@/lib/bookingInputValues";
 import type { BookingInputFieldDef } from "@/lib/bookingInputDisplay";
 import { formatDurationMinutes, groupSlotsByDay, latestSampleStage, telHref, type JobSheetSlot } from "@/lib/jobSheet";
 import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/SampleRequirementsTable";
+import { resultsDeadlineApplies } from "@/components/booking/ResultsDeadlineNotice";
+import type { BookingResultsDeadline } from "@/lib/api";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
 export type JobSheetBooking = {
@@ -37,6 +39,7 @@ export type JobSheetBooking = {
   sample_return_after_analysis?: boolean;
   source_booking_id?: number | null;
   sample_collection_deadline_at?: string | null;
+  results_deadline?: BookingResultsDeadline | null;
 };
 
 type OperatorJobSheetProps = {
@@ -80,6 +83,7 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const commentsKey = Object.keys(values).find((k) => isCommentsInputFieldKey(k));
   const comments = commentsKey ? String(values[commentsKey] ?? "").trim() : "";
   const notes = String(booking.notes || "").trim();
+  const results = booking.results_deadline;
   const flags: Array<{ key: string; icon: ReactNode; text: string }> = [];
   if (booking.atmosphere_sensitive_sample) {
     flags.push({
@@ -172,6 +176,17 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
         )}
         {booking.sample_collection_deadline_at && booking.status.toUpperCase() === "COMPLETED" ? (
           <Fact label="Sample collection by">{formatDate(booking.sample_collection_deadline_at)}</Fact>
+        ) : null}
+        {results && resultsDeadlineApplies(booking.status) ? (
+          <Fact label={results.overdue ? "Results overdue" : "Results due"}>
+            <span
+              className={results.overdue ? "text-red-700 dark:text-red-300" : undefined}
+              data-testid="job-sheet-results-due"
+            >
+              {results.overdue ? <AlertTriangle className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden /> : null}
+              {results.due_display}
+            </span>
+          </Fact>
         ) : null}
       </dl>
 

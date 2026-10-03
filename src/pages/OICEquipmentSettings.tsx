@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
-import { apiClient, type OicEquipmentSettings, type OicEquipmentSettingsRow } from "@/lib/api";
+import {
+  apiClient,
+  type OicEquipmentSettings,
+  type OicEquipmentSettingsRow,
+  type ResultsDeadlineUnit,
+} from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +25,6 @@ import { toast } from "sonner";
 type IntField =
   | "external_slot_quota_percent"
   | "booking_not_utilize_window_hours"
-  | "operator_unavailable_after_booking_end_hours"
-  | "operator_absent_disruption_after_booking_end_hours"
   | "sample_submission_lead_hours"
   | "sample_collect_deadline_hours";
 
@@ -29,9 +32,14 @@ type TimeField = "slot_window_reference_time" | "weekly_view_time_from" | "weekl
 
 type Draft = Record<IntField | TimeField, string> & {
   slot_window_reference_weekday: string;
+  results_deadline_value: string;
+  results_deadline_unit: ResultsDeadlineUnit;
+  show_results_deadline_to_users: boolean;
   important_instruction: string;
   important_instruction_by_user_type: Record<string, string>;
 };
+
+const RESULTS_DEADLINE_MAX: Record<ResultsDeadlineUnit, number> = { WORKING_DAYS: 60, HOURS: 720 };
 
 type QuotaMinutesField =
   | "internal_individual_quota_minutes"
@@ -74,20 +82,6 @@ const INT_FIELDS: Array<{ key: IntField; label: string; hint: string; max: numbe
     section: "booking",
   },
   {
-    key: "operator_unavailable_after_booking_end_hours",
-    label: "Auto Operator Unavailable (hours after booking end)",
-    hint: "If staff work started but the run is unfinished this long after the booking ends, it is auto-marked Operator Unavailable (full refund). 0 disables.",
-    max: 8760,
-    section: "booking",
-  },
-  {
-    key: "operator_absent_disruption_after_booking_end_hours",
-    label: "Auto Operator Absent Disruption (hours after booking end)",
-    hint: "If the sample is still stuck at Sample Accepted or Processing this long after the booking ends, the Operator Absent disruption flow starts (refund or reschedule choice). 0 disables.",
-    max: 8760,
-    section: "booking",
-  },
-  {
     key: "sample_submission_lead_hours",
     label: "Sample submission lead time (hours before slot start)",
     hint: "Users should submit samples this many hours before the slot starts. External users and atmosphere-sensitive samples may submit at slot start. 0 = no sample submission deadline (no countdown, reminder email or notification).",
@@ -112,10 +106,9 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     weekly_view_time_to: settings.weekly_view_time_to ?? "",
     external_slot_quota_percent: String(settings.external_slot_quota_percent ?? 0),
     booking_not_utilize_window_hours: String(settings.booking_not_utilize_window_hours ?? 0),
-    operator_unavailable_after_booking_end_hours: String(settings.operator_unavailable_after_booking_end_hours ?? 0),
-    operator_absent_disruption_after_booking_end_hours: String(
-      settings.operator_absent_disruption_after_booking_end_hours ?? 0,
-    ),
+    results_deadline_value: String(settings.results_deadline_value ?? 0),
+    results_deadline_unit: settings.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
+    show_results_deadline_to_users: Boolean(settings.show_results_deadline_to_users),
     sample_submission_lead_hours: String(settings.sample_submission_lead_hours ?? 0),
     sample_collect_deadline_hours: String(settings.sample_collect_deadline_hours ?? 0),
     important_instruction: settings.important_instruction ?? "",
@@ -143,6 +136,18 @@ function toPayload(draft: Draft): { payload: Partial<OicEquipmentSettings>; erro
       payload[field.key] = value;
     }
   }
+  const deadlineRaw = draft.results_deadline_value.trim();
+  const deadline = Number(deadlineRaw);
+  const deadlineMax = RESULTS_DEADLINE_MAX[draft.results_deadline_unit];
+  if (deadlineRaw === "" || !Number.isInteger(deadline)) {
+    errors.results_deadline_value = "Enter a whole number.";
+  } else if (deadline < 0 || deadline > deadlineMax) {
+    errors.results_deadline_value = `Enter a value between 0 and ${deadlineMax}.`;
+  } else {
+    payload.results_deadline_value = deadline;
+    payload.results_deadline_unit = draft.results_deadline_unit;
+  }
+  payload.show_results_deadline_to_users = draft.show_results_deadline_to_users;
   if (draft.weekly_view_time_from && draft.weekly_view_time_to && draft.weekly_view_time_from >= draft.weekly_view_time_to) {
     errors.weekly_view_time_to = "'Time to' must be later than 'Time from'.";
   }
@@ -260,7 +265,7 @@ export default function OICEquipmentSettings() {
     setQuotaDraft(savedQuotas);
   }, [savedQuotas]);
 
-  const setField = (key: keyof Draft, value: string) => {
+  const setField = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
     setErrors((e) => {
       if (!e[key]) return e;
@@ -604,7 +609,64 @@ export default function OICEquipmentSettings() {
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Booking and operator timings</CardTitle>
                       </CardHeader>
-                      <CardContent className="space-y-4">{renderIntFields("booking")}</CardContent>
+                      <CardContent className="space-y-4">
+                        {renderIntFields("booking")}
+                        <div className="space-y-1.5" data-testid="oic-results-deadline">
+                          <Label htmlFor="oic-setting-results-deadline">Results deadline (after the slot)</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="oic-setting-results-deadline"
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={RESULTS_DEADLINE_MAX[draft.results_deadline_unit]}
+                              step={1}
+                              className="w-28"
+                              value={draft.results_deadline_value}
+                              onChange={(e) => setField("results_deadline_value", e.target.value)}
+                              aria-invalid={Boolean(errors.results_deadline_value)}
+                            />
+                            <Select
+                              value={draft.results_deadline_unit}
+                              onValueChange={(v) => setField("results_deadline_unit", v as ResultsDeadlineUnit)}
+                            >
+                              <SelectTrigger className="w-44" aria-label="Results deadline unit">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="WORKING_DAYS">Working days</SelectItem>
+                                <SelectItem value="HOURS">Hours</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Time within which the laboratory shares results after the slot ends. Working days skip
+                            Saturdays, Sundays and institute holidays (results are due by the end of the last working
+                            day); use hours for fast instruments. Bookings still open after it appear as Results overdue
+                            for you and the Lab Operators. If the sample is still with the lab and no results are
+                            shared, the booking enters the Operator Absent flow (user chooses refund or reschedule); if
+                            the run was abandoned after work started, the user gets a full refund. Use Extend results
+                            deadline on a booking for a genuine delay. 0 = no deadline (no overdue list and no
+                            automatic safeguard).
+                          </p>
+                          {fieldError("results_deadline_value")}
+                          {fieldError("results_deadline_unit")}
+                          <label className="flex items-start gap-2 pt-1 text-sm">
+                            <Checkbox
+                              checked={draft.show_results_deadline_to_users}
+                              onCheckedChange={(c) => setField("show_results_deadline_to_users", c === true)}
+                              aria-label="Show results deadline to users"
+                            />
+                            <span>
+                              Show results deadline to users
+                              <span className="block text-xs text-muted-foreground">
+                                Off by default. When on, the sample submission policy lists this equipment with its
+                                results time and the booking details show &quot;Results expected by&quot; a date.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                      </CardContent>
                     </Card>
                     <Card className="rounded-2xl border-border/70">
                       <CardHeader className="pb-3">
