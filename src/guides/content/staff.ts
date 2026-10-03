@@ -55,7 +55,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       }),
       g.only(["oic", "admin"], {
         title: "Bookings behind a limit failure",
-        body: "For a weekly or monthly limit failure, click View bookings counted in the attempt details (or the calculator icon under Actions). It lists the bookings that used the limit in the week or month of the requested slot, with each person's total for a research group limit. The list is worked out from current bookings, so it notes when the limit or the usage has changed since the attempt.",
+        body: "For a weekly or monthly limit failure, the attempt details show Bookings counted toward this limit at the bottom, after the outcome (the calculator icon under Actions opens the same list). It gives the user's supervisor with email and employee ID, and lists the bookings that used the limit in the week or month of the requested slot, with each person's total for a research group limit; if the request alone is longer than the limit, it says so. The list is worked out from current bookings, so it notes when the limit or the usage has changed since the attempt.",
       }),
       g.only(["oic", "admin", "operator"], {
         title: "Follow up questions",

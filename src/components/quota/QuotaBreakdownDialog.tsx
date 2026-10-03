@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
-import { ChevronRight, Info, Loader2, Users } from "lucide-react";
+import { AlertTriangle, ChevronRight, Info, Loader2, Users } from "lucide-react";
 import { apiClient } from "@/lib/api";
-import type { QuotaBreakdown, QuotaBreakdownRequest, QuotaBreakdownRow } from "@/lib/quotaBreakdown";
+import {
+  requestAloneExceedsLimit,
+  requestAloneText,
+  type QuotaBreakdown,
+  type QuotaBreakdownRequest,
+  type QuotaBreakdownRow,
+} from "@/lib/quotaBreakdown";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const IST = "Asia/Kolkata";
+const PERIOD_RULE = "Weeks run Monday to Sunday and months by calendar month, in Indian time.";
 const dayFmt = new Intl.DateTimeFormat("en-IN", { timeZone: IST, weekday: "short", day: "numeric", month: "short" });
 const timeFmt = new Intl.DateTimeFormat("en-IN", { timeZone: IST, hour: "2-digit", minute: "2-digit", hour12: false });
 const whenFmt = new Intl.DateTimeFormat("en-IN", {
@@ -48,6 +55,8 @@ type PanelProps = {
   /** Opens a booking in place (staff pages); otherwise rows link to My Bookings. */
   onOpenBooking?: (bookingId: number) => void;
   className?: string;
+  /** inline: embedded in another view (e.g. attempt details), so it carries the period rule itself. */
+  variant?: "dialog" | "inline";
 };
 
 function BookingCell({ row, onOpenBooking }: { row: QuotaBreakdownRow; onOpenBooking?: (id: number) => void }) {
@@ -82,11 +91,14 @@ function RowsTable({
   reasonColumn,
   onOpenBooking,
   total,
+  headSupervisorId,
 }: {
   rows: QuotaBreakdownRow[];
   reasonColumn?: boolean;
   onOpenBooking?: (id: number) => void;
   total?: number;
+  /** The supervisor shown in the summary; rows only repeat a different one. */
+  headSupervisorId?: number | null;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -122,6 +134,9 @@ function RowsTable({
               <TableCell className="min-w-[7rem] text-sm">
                 {row.user_name || "—"}
                 {row.is_viewer && <span className="text-xs text-muted-foreground"> (you)</span>}
+                {row.supervisor_name && row.supervisor_id !== headSupervisorId && (
+                  <div className="text-xs text-muted-foreground">Supervisor: {row.supervisor_name}</div>
+                )}
               </TableCell>
             </TableRow>
           ))}
@@ -181,7 +196,39 @@ function attemptNoteLines(data: QuotaBreakdown): string[] {
   return lines;
 }
 
-export function QuotaBreakdownPanel({ request, onOpenBooking, className }: PanelProps) {
+function SupervisorLine({ data }: { data: QuotaBreakdown }) {
+  if (data.supervisor === undefined) return null;
+  const p = data.supervisor;
+  const head = data.scope === "group" && p != null && p.id === data.group_owner?.id;
+  const department = p?.department_name
+    ? `${p.department_name}${p.department_code ? ` (${p.department_code})` : ""}`
+    : null;
+  return (
+    <p className="text-sm" data-testid="quota-supervisor">
+      <span className="text-muted-foreground">{head ? "Group head" : "Supervisor"}: </span>
+      {p ? (
+        <>
+          <span className="font-medium">{p.name}</span>
+          {[department, p.id_number ? `Emp. ID ${p.id_number}` : null].filter(Boolean).map((bit) => (
+            <span key={bit} className="text-muted-foreground"> · {bit}</span>
+          ))}
+          {p.email && (
+            <>
+              <span className="text-muted-foreground"> · </span>
+              <a href={`mailto:${p.email}`} className="break-all text-primary underline-offset-2 hover:underline">
+                {p.email}
+              </a>
+            </>
+          )}
+        </>
+      ) : (
+        "—"
+      )}
+    </p>
+  );
+}
+
+export function QuotaBreakdownPanel({ request, onOpenBooking, className, variant = "dialog" }: PanelProps) {
   const [data, setData] = useState<QuotaBreakdown | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -196,8 +243,8 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
       .getQuotaBreakdown(request)
       .then((res) => {
         if (cancelled) return;
-        if (res.error || !res.data) setError(res.error || "Could not load the bookings for this limit.");
-        else setData(res.data);
+        if (res.error || !Array.isArray(res.data?.counted)) setError(res.error || "Could not load the bookings for this limit.");
+        else setData(res.data!);
       })
       .catch(() => {
         if (!cancelled) setError("Could not load the bookings for this limit.");
@@ -231,6 +278,9 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
   const over = data.over_by_minutes > 0;
   const share = data.limit_minutes > 0 ? Math.min(100, (data.used_minutes / data.limit_minutes) * 100) : 0;
   const notes = attemptNoteLines(data);
+  const aloneOver =
+    !data.effectively_unlimited &&
+    (data.request_exceeds_limit ?? requestAloneExceedsLimit(data.requested_minutes, data.limit_minutes));
   const studentGroupView = isGroup && !data.full_details;
   const people = data.group_members_count;
   const groupBits = [
@@ -254,6 +304,7 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
           </div>
           <Badge variant="outline">{data.scope_label}</Badge>
         </div>
+        <SupervisorLine data={data} />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Figure label="Limit" value={data.effectively_unlimited ? "No limit" : min(data.limit_minutes)} />
           <Figure label="Used" value={min(data.used_minutes)} />
@@ -274,6 +325,20 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
           </div>
         )}
       </div>
+
+      {aloneOver && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-900 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-100"
+          data-testid="quota-request-alone"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            {requestAloneText(data.requested_minutes, data.limit_minutes, data.period)} It can't fit even with no other
+            bookings in the period.
+          </span>
+        </p>
+      )}
 
       {(notes.length > 0 || data.excluded_booking_id != null || studentGroupView) && (
         <div className="flex gap-2 text-xs text-muted-foreground">
@@ -310,10 +375,17 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
         <p className="mb-1.5 text-sm font-medium">Bookings counted ({data.counted.length})</p>
         {data.counted.length === 0 ? (
           <p className="rounded-md border px-3 py-4 text-center text-sm text-muted-foreground">
-            No bookings count toward this limit in this period.
+            {aloneOver
+              ? "No other bookings count toward this limit in this period; the request alone is over the limit."
+              : "No bookings count toward this limit in this period."}
           </p>
         ) : (
-          <RowsTable rows={data.counted} onOpenBooking={onOpenBooking} total={data.used_minutes} />
+          <RowsTable
+            rows={data.counted}
+            onOpenBooking={onOpenBooking}
+            total={data.used_minutes}
+            headSupervisorId={data.supervisor?.id ?? null}
+          />
         )}
       </div>
 
@@ -325,9 +397,18 @@ export function QuotaBreakdownPanel({ request, onOpenBooking, className }: Panel
             {data.not_counted_truncated ? "+" : ""})
           </summary>
           <div className="mt-2">
-            <RowsTable rows={data.not_counted} reasonColumn onOpenBooking={onOpenBooking} />
+            <RowsTable
+              rows={data.not_counted}
+              reasonColumn
+              onOpenBooking={onOpenBooking}
+              headSupervisorId={data.supervisor?.id ?? null}
+            />
           </div>
         </details>
+      )}
+
+      {variant === "inline" && (
+        <p className="text-xs text-muted-foreground">{PERIOD_RULE}</p>
       )}
     </div>
   );
@@ -345,7 +426,7 @@ export function QuotaBreakdownDialog({ request, onClose, onOpenBooking }: Dialog
       <DialogContent className="max-h-[90vh] max-w-3xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bookings counted toward this limit</DialogTitle>
-          <DialogDescription>Weeks run Monday to Sunday and months by calendar month, in Indian time.</DialogDescription>
+          <DialogDescription>{PERIOD_RULE}</DialogDescription>
         </DialogHeader>
         {request && <QuotaBreakdownPanel request={request} onOpenBooking={onOpenBooking} />}
       </DialogContent>

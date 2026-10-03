@@ -140,6 +140,54 @@ describe("QuotaBreakdownPanel", () => {
     expect(getQuotaBreakdown).toHaveBeenCalledWith({ logId: 5 });
   });
 
+  it("shows the group head and each member's supervisor only where it differs, without private details for a student", async () => {
+    getQuotaBreakdown.mockResolvedValue({
+      data: breakdown({
+        supervisor: { id: 3, name: "Dr. Mehta", email: null, department_name: "Chemistry", department_code: "CY", id_number: null },
+        group_owner: { id: 3, name: "Dr. Mehta" },
+        counted: [
+          row({ supervisor_id: 3, supervisor_name: "Dr. Mehta" }),
+          row({ booking_id: null, display_booking_id: "XPS202600102", user_id: 12, user_name: "Vikram Singh", supervisor_id: 8, supervisor_name: "Dr. Iyer", is_viewer: false, can_open: false }),
+        ],
+      }),
+    });
+    render(<QuotaBreakdownPanel request={{ equipment: 7, period: "WEEKLY", scope: "group", date: "2026-10-07" }} />);
+    const head = await screen.findByTestId("quota-supervisor");
+    expect(head.textContent).toBe("Group head: Dr. Mehta · Chemistry (CY)");
+    expect(within(head).queryByRole("link")).toBeNull();
+    expect(screen.getByText("Supervisor: Dr. Iyer")).toBeTruthy();
+    expect(screen.queryByText("Supervisor: Dr. Mehta")).toBeNull();
+  });
+
+  it("shows a dash when there is no supervisor", async () => {
+    getQuotaBreakdown.mockResolvedValue({ data: breakdown({ scope: "individual", supervisor: null, members: [] }) });
+    render(<QuotaBreakdownPanel request={{ equipment: 7, period: "WEEKLY" }} />);
+    expect((await screen.findByTestId("quota-supervisor")).textContent).toBe("Supervisor: —");
+  });
+
+  it("says when the request alone is over the limit instead of an empty-looking table", async () => {
+    getQuotaBreakdown.mockResolvedValue({
+      data: breakdown({
+        scope: "individual",
+        limit_minutes: 200,
+        used_minutes: 0,
+        requested_minutes: 270,
+        remaining_minutes: 200,
+        over_by_minutes: 70,
+        request_exceeds_limit: true,
+        counted: [],
+        not_counted: [],
+        members: [],
+      }),
+    });
+    render(<QuotaBreakdownPanel request={{ logId: 9 }} variant="inline" />);
+    expect((await screen.findByTestId("quota-request-alone")).textContent).toContain(
+      "This request alone (270 min) exceeds the weekly limit (200 min).",
+    );
+    expect(screen.getByText(/No other bookings count toward this limit in this period; the request alone is over the limit\./)).toBeTruthy();
+    expect(screen.getByText(/Weeks run Monday to Sunday/)).toBeTruthy();
+  });
+
   it("says so when nothing counts and shows server errors", async () => {
     getQuotaBreakdown.mockResolvedValueOnce({
       data: breakdown({ counted: [], not_counted: [], members: [], used_minutes: 0, requested_minutes: 0, over_by_minutes: 0, remaining_minutes: 300 }),

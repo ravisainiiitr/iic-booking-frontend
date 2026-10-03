@@ -47,9 +47,22 @@ export type QuotaBreakdownRow = {
   status_label: string;
   user_id: number | null;
   user_name: string;
+  /** The row user's supervisor (faculty wallet owner, else their supervisor); null when none or hidden. */
+  supervisor_id?: number | null;
+  supervisor_name?: string | null;
   note: string | null;
   is_viewer: boolean;
   can_open: boolean;
+};
+
+/** Email and employee ID are only sent to staff and the group owner. */
+export type QuotaPerson = {
+  id: number;
+  name: string;
+  email: string | null;
+  department_name: string | null;
+  department_code: string | null;
+  id_number: string | null;
 };
 
 export type QuotaBreakdownMember = {
@@ -87,7 +100,11 @@ export type QuotaBreakdown = {
   over_by_minutes: number;
   effectively_unlimited: boolean;
   subject: { id: number; name: string };
-  group_owner: { id: number; name: string } | null;
+  /** Supervisor of the person whose limit this is; the group head for group limits. */
+  supervisor?: QuotaPerson | null;
+  group_owner: (Pick<QuotaPerson, "id" | "name"> & Partial<QuotaPerson>) | null;
+  /** The requested minutes alone are more than the limit. */
+  request_exceeds_limit?: boolean;
   group_members_count: number | null;
   excluded_booking_id: number | null;
   counted: QuotaBreakdownRow[];
@@ -166,6 +183,9 @@ function minutes(n: number): string {
 /** "Your research group's weekly limit (shared by 4 people) is 300 min: 240 min are already booked …". */
 export function quotaFailureSummary(q: QuotaFailure): string {
   const when = q.period === "MONTHLY" ? "monthly" : "weekly";
+  if (requestAloneExceedsLimit(q.requested_minutes, q.limit_minutes)) {
+    return requestAloneText(q.requested_minutes, q.limit_minutes, q.period);
+  }
   const owner =
     q.scope === "group"
       ? `Your research group's ${when} limit${q.members_count > 1 ? ` (shared by ${q.members_count} people)` : ""}`
@@ -174,6 +194,16 @@ export function quotaFailureSummary(q: QuotaFailure): string {
   const need = q.requested_minutes > 0 ? ` and this needs ${minutes(q.requested_minutes)}` : "";
   const over = q.over_by_minutes > 0 ? ` (${minutes(q.over_by_minutes)} over)` : "";
   return `${owner} is ${minutes(q.limit_minutes)}. ${minutes(q.used_minutes)} are already booked${period}${need}${over}.`;
+}
+
+export function requestAloneExceedsLimit(requested: number, limit: number): boolean {
+  return limit > 0 && requested > limit;
+}
+
+/** "This request alone (270 min) exceeds the weekly limit (200 min)." */
+export function requestAloneText(requested: number, limit: number, period: QuotaPeriod): string {
+  const when = period === "MONTHLY" ? "monthly" : "weekly";
+  return `This request alone (${minutes(requested)}) exceeds the ${when} limit (${minutes(limit)}).`;
 }
 
 export const NEAR_LIMIT_SHARE = 0.8;

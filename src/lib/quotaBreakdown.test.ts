@@ -110,6 +110,12 @@ describe("quotaFailureSummary", () => {
     expect(text).toMatch(/^Your research group's monthly limit \(shared by 4 people\) is 270 min\./);
     expect(text).toContain("for October 2026");
   });
+
+  it("says when the request alone is bigger than the limit", () => {
+    expect(quotaFailureSummary(failure({ limit_minutes: 200, used_minutes: 0, requested_minutes: 270, over_by_minutes: 70 }))).toBe(
+      "This request alone (270 min) exceeds the weekly limit (200 min).",
+    );
+  });
 });
 
 describe("nearLimitPeriod", () => {

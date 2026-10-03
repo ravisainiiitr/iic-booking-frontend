@@ -94,6 +94,74 @@ const detail = {
   outcome_details: { status: "FAILED", title: "Weekly booking limit reached", message: friendly, notes: [], technical, code: "quota_time" },
 };
 
+const breakdown = {
+  equipment: { id: 3, name: row.equipment_name, code: "XPS" },
+  equipment_group_name: null,
+  scope: "individual",
+  scope_label: "Individual Weekly",
+  period: "WEEKLY",
+  period_start: "2026-10-05T00:00:00+05:30",
+  period_end: "2026-10-11T23:59:59+05:30",
+  period_label: "Week of Mon 5 Oct – Sun 11 Oct 2026",
+  limit_minutes: 270,
+  used_minutes: 120,
+  requested_minutes: 90,
+  remaining_minutes: 150,
+  over_by_minutes: 0,
+  effectively_unlimited: false,
+  request_exceeds_limit: false,
+  subject: { id: 9, name: "Pragya Sharma" },
+  supervisor: {
+    id: 5,
+    name: "Prof. Anil Kumar",
+    email: "anil.kumar@ph.iitr.ac.in",
+    department_name: "Department of Physics",
+    department_code: "PH",
+    id_number: "100234",
+  },
+  group_owner: null,
+  group_members_count: null,
+  excluded_booking_id: null,
+  counted: [
+    {
+      booking_id: 77,
+      display_booking_id: "XPS202600077",
+      equipment_id: 3,
+      equipment_name: row.equipment_name,
+      equipment_code: "XPS",
+      slot_start: "2026-10-07T04:30:00Z",
+      slot_end: "2026-10-07T06:30:00Z",
+      minutes: 120,
+      counted: true,
+      status: "BOOKED",
+      status_label: "Booked",
+      user_id: 9,
+      user_name: "Pragya Sharma",
+      supervisor_id: 5,
+      supervisor_name: "Prof. Anil Kumar",
+      note: null,
+      is_viewer: false,
+      can_open: true,
+    },
+  ],
+  not_counted: [],
+  not_counted_truncated: false,
+  members: [],
+  viewer_access: "staff",
+  full_details: true,
+  computed_at: "2026-10-03T10:00:00Z",
+  historical: true,
+  attempt: {
+    attempted_at: row.requested_at,
+    period_source: "requested_slot",
+    logged_used_minutes: 120,
+    logged_limit_minutes: 270,
+    logged_requested_minutes: 90,
+    limit_changed: false,
+    usage_changed: false,
+  },
+};
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -102,6 +170,7 @@ afterEach(() => {
 async function openFromFailureReason() {
   api.list.mockResolvedValue({ data: { results: [row], total_count: 1 } });
   api.detail.mockResolvedValue({ data: detail });
+  api.quotaBreakdown.mockResolvedValue({ data: breakdown });
   render(
     <MemoryRouter>
       <BookingAttemptLogs />
@@ -115,15 +184,16 @@ async function openFromFailureReason() {
 }
 
 describe("Booking Attempt Log details", () => {
-  it("opens from the failure reason cell (not the user name) and shows the user, slots, inputs table and outcome last", async () => {
+  it("opens from the failure reason cell (not the user name) and shows the user, slots, inputs table, then the outcome and the bookings counted last", async () => {
     const dialog = await openFromFailureReason();
     expect(api.detail).toHaveBeenCalledWith(41);
     await within(dialog).findByText("User details");
 
-    expect(within(dialog).getByText("IITR Student")).toBeTruthy();
-    expect(within(dialog).getByText("Department of Physics (PH)")).toBeTruthy();
-    expect(within(dialog).getByText("Prof. Anil Kumar")).toBeTruthy();
-    expect(within(dialog).getByText("9876543210")).toBeTruthy();
+    const user = within(dialog).getByRole("region", { name: "User details" });
+    expect(within(user).getByText("IITR Student")).toBeTruthy();
+    expect(within(user).getByText("Department of Physics (PH)")).toBeTruthy();
+    expect(within(user).getByText("Prof. Anil Kumar")).toBeTruthy();
+    expect(within(user).getByText("9876543210")).toBeTruthy();
     expect(within(dialog).getByText(/2 slots/)).toBeTruthy();
 
     const inputs = within(dialog).getByTestId("sample-requirements");
@@ -141,78 +211,30 @@ describe("Booking Attempt Log details", () => {
 
     const outcome = within(dialog).getByTestId("attempt-outcome");
     expect(within(outcome).getByText(friendly)).toBeTruthy();
-    const sections = Array.from(dialog.querySelectorAll("section"));
-    expect(sections[sections.length - 1]).toBe(outcome);
     const technicalSummary = within(outcome).getByText("Technical details");
     expect(technicalSummary.closest("details")?.hasAttribute("open")).toBe(false);
+
+    const quota = await within(dialog).findByRole("region", { name: "Bookings counted toward this limit" });
+    const sections = Array.from(dialog.querySelectorAll("section"));
+    expect(sections[sections.length - 1]).toBe(quota);
+    expect(sections[sections.length - 2]).toBe(outcome);
   });
 
-  it("shows the bookings counted toward the limit for a quota failure, for the requested slot's week", async () => {
-    api.quotaBreakdown.mockResolvedValue({
-      data: {
-        equipment: { id: 3, name: row.equipment_name, code: "XPS" },
-        equipment_group_name: null,
-        scope: "individual",
-        scope_label: "Individual Weekly",
-        period: "WEEKLY",
-        period_start: "2026-10-05T00:00:00+05:30",
-        period_end: "2026-10-11T23:59:59+05:30",
-        period_label: "Week of Mon 5 Oct – Sun 11 Oct 2026",
-        limit_minutes: 270,
-        used_minutes: 120,
-        requested_minutes: 90,
-        remaining_minutes: 150,
-        over_by_minutes: 0,
-        effectively_unlimited: false,
-        subject: { id: 9, name: "Pragya Sharma" },
-        group_owner: null,
-        group_members_count: null,
-        excluded_booking_id: null,
-        counted: [
-          {
-            booking_id: 77,
-            display_booking_id: "XPS202600077",
-            equipment_id: 3,
-            equipment_name: row.equipment_name,
-            equipment_code: "XPS",
-            slot_start: "2026-10-07T04:30:00Z",
-            slot_end: "2026-10-07T06:30:00Z",
-            minutes: 120,
-            counted: true,
-            status: "BOOKED",
-            status_label: "Booked",
-            user_id: 9,
-            user_name: "Pragya Sharma",
-            note: null,
-            is_viewer: false,
-            can_open: true,
-          },
-        ],
-        not_counted: [],
-        not_counted_truncated: false,
-        members: [],
-        viewer_access: "staff",
-        full_details: true,
-        computed_at: "2026-10-03T10:00:00Z",
-        historical: true,
-        attempt: {
-          attempted_at: row.requested_at,
-          period_source: "requested_slot",
-          logged_used_minutes: 120,
-          logged_limit_minutes: 270,
-          logged_requested_minutes: 90,
-          limit_changed: false,
-          usage_changed: false,
-        },
-      },
-    });
+  it("shows the bookings counted and the supervisor inline after the outcome for a quota failure, without a click", async () => {
     const dialog = await openFromFailureReason();
-    await within(dialog).findByText("User details");
-    fireEvent.click(within(dialog).getByRole("button", { name: "View bookings counted" }));
-    expect(await within(dialog).findByText("Week of Mon 5 Oct – Sun 11 Oct 2026")).toBeTruthy();
+    const quota = await within(dialog).findByRole("region", { name: "Bookings counted toward this limit" });
+    expect(await within(quota).findByText("Week of Mon 5 Oct – Sun 11 Oct 2026")).toBeTruthy();
     expect(api.quotaBreakdown).toHaveBeenCalledWith({ logId: 41 });
-    expect(within(dialog).getByText("XPS202600077")).toBeTruthy();
-    expect(within(dialog).queryByText(/No events in this period/)).toBeNull();
+    expect(within(quota).queryByRole("button", { name: "View bookings counted" })).toBeNull();
+    expect(within(quota).getByText("XPS202600077")).toBeTruthy();
+
+    const supervisor = within(quota).getByTestId("quota-supervisor");
+    expect(supervisor.textContent).toContain("Prof. Anil Kumar");
+    expect(supervisor.textContent).toContain("Department of Physics (PH)");
+    expect(supervisor.textContent).toContain("Emp. ID 100234");
+    expect(within(supervisor).getByRole("link", { name: "anil.kumar@ph.iitr.ac.in" })).toBeTruthy();
+    expect(within(quota).queryByText("Supervisor: Prof. Anil Kumar")).toBeNull();
+    expect(within(quota).getByText(/Weeks run Monday to Sunday/)).toBeTruthy();
   });
 
   it("keeps a details button in Actions and leaves the user name as plain text", async () => {

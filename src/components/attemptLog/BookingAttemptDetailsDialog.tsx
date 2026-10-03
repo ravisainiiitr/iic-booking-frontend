@@ -34,41 +34,23 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** Opens the booking created by a successful attempt. */
   onOpenBooking?: () => void;
-  /** Quota failures: offer the bookings counted toward the limit for the requested period. */
+  /** Quota failures: list the bookings counted toward the limit for the requested period, after the outcome. */
   showQuotaBreakdown?: boolean;
   onOpenCountedBooking?: (bookingId: number) => void;
 };
 
 function QuotaBreakdownSection({ logId, onOpenBooking }: { logId: number; onOpenBooking?: (bookingId: number) => void }) {
-  const [shown, setShown] = useState(false);
-  useEffect(() => setShown(false), [logId]);
   return (
-    <Section icon={<Gauge className="h-4 w-4 text-primary" aria-hidden />} title="Bookings counted toward the limit">
-      {shown ? (
-        <Suspense
-          fallback={
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
-            </div>
-          }
-        >
-          <QuotaBreakdownPanel request={{ logId }} onOpenBooking={onOpenBooking} />
-        </Suspense>
-      ) : (
-        <div className="space-y-2 text-sm">
-          <p className="text-muted-foreground">
-            See which bookings used up the limit in the week or month of the requested slot.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShown(true)}
-            onPointerEnter={preloadQuotaBreakdown}
-            className="font-medium text-primary underline-offset-2 hover:underline"
-          >
-            View bookings counted
-          </button>
-        </div>
-      )}
+    <Section icon={<Gauge className="h-4 w-4 text-primary" aria-hidden />} title="Bookings counted toward this limit">
+      <Suspense
+        fallback={
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
+          </div>
+        }
+      >
+        <QuotaBreakdownPanel request={{ logId }} onOpenBooking={onOpenBooking} variant="inline" />
+      </Suspense>
     </Section>
   );
 }
@@ -191,7 +173,8 @@ function OutcomeSection({ detail, row }: { detail: BookingAttemptDetail | null; 
 
 /**
  * Booking Attempt Log details: when and on what, who booked (as on the booking details page), the requested slots,
- * the user's inputs as the job sheet's table, and the outcome in plain language at the bottom.
+ * the user's inputs as the job sheet's table, the outcome in plain language, and for a limit failure the bookings
+ * counted toward that limit last.
  */
 export function BookingAttemptDetailsDialog({
   row,
@@ -211,6 +194,7 @@ export function BookingAttemptDetailsDialog({
       return;
     }
     let cancelled = false;
+    if (showQuotaBreakdown) preloadQuotaBreakdown();
     setLoading(true);
     setError(null);
     setDetail(null);
@@ -343,9 +327,9 @@ export function BookingAttemptDetailsDialog({
               </Section>
             )}
 
-            {showQuotaBreakdown && !success && <QuotaBreakdownSection logId={row.id} onOpenBooking={onOpenCountedBooking} />}
-
             <OutcomeSection detail={detail} row={row} />
+
+            {showQuotaBreakdown && !success && <QuotaBreakdownSection logId={row.id} onOpenBooking={onOpenCountedBooking} />}
           </div>
         )}
       </DialogContent>
