@@ -158,8 +158,8 @@ const UrgentRequests = () => {
   const canAccess = ["admin", "dept_admin", "manager", "operator"].includes(userType);
   /** Main / Department Administrator: every urgent request (Type A and Type B), not only Type B decisions. */
   const isAdminView = userType === "admin" || userType === "dept_admin";
-  /** The expiry applies to the whole portal, so Department Administrators cannot change it (enforced by the server). */
-  const canChangeValidity = userType !== "dept_admin";
+  /** The expiry applies to the whole portal, so only the Main Administrator can change it (enforced by the server). */
+  const canChangeValidity = userType === "admin";
 
   const displayedList =
     viewFilter === "needs_action"

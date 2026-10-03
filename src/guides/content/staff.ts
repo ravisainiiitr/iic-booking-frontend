@@ -101,6 +101,9 @@ export function urgentApprovalSection(g: Gate): GuideSection {
     rules: [
       "Students' requests reach you only after their supervisor approves.",
       "The user's wallet is charged only after final approval.",
+      ...(g.is("admin")
+        ? ["Requests expire after the period shown above the list. Click Change next to it to set the period; it applies to every department."]
+        : ["Requests expire after the period shown above the list. It applies to every department, so only the Main Administrator can change it."]),
     ],
   };
 }

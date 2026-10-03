@@ -8962,7 +8962,7 @@ class ApiClient {
     return this.request<{ urgent_booking_validity_days: number }>('/urgent-booking-requests/hold-expiry-config/');
   }
 
-  /** Admin/OIC: update urgent booking validity (days). Min 1. */
+  /** Main Administrator only: update urgent booking validity (days), which applies to the whole portal. Min 1. */
   async updateUrgentHoldExpiryConfig(data: { urgent_booking_validity_days: number }) {
     return this.request<{ urgent_booking_validity_days: number }>('/urgent-booking-requests/hold-expiry-config/', {
       method: 'PATCH',
