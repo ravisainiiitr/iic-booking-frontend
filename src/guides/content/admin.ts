@@ -71,7 +71,7 @@ export const adminGuide: RoleGuide = {
         steps: [
           {
             title: "Wallet payment modes",
-            body: "In Payment options, the master switches turn Recharge via Project Grant, Direct Cash Deposit / Bank Transfer, Online payment gateway, Transfer within the same department and Credit Limit on or off for everyone. Below them, switch an option off for individual departments; search the list or use a column's menu to change every department shown. Click Save on each section.",
+            body: "In Payment options, the master switches turn Recharge via Project Grant, Direct Cash Deposit / Bank Transfer, Online payment gateway, Transfer within the same department and Credit Limit on or off for everyone. Below them, switch an option off for individual departments; only departments with equipment in the catalog are listed, and others that still have saved settings are under Other departments with saved settings. While a master switch is off its column is locked, and each department's saved choice returns when the master is turned on. Search the list or use a column's menu to change every department shown. Click Save on each section.",
           },
           {
             title: "Email recipients",

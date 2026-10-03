@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, ChevronDown, Loader2, Search, SlidersHorizontal, Undo2 } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Loader2, Search, SlidersHorizontal, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,9 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   apiClient,
   type AdminWalletModeSettings,
+  type WalletModeDepartmentRow,
   type WalletModeDepartmentState,
   type WalletModeOptionKey,
   type WalletPaymentModesOverview,
@@ -26,7 +28,17 @@ import {
 import { AWAITING_APPROVAL_TEXT } from "@/lib/walletModes";
 import { cn } from "@/lib/utils";
 
-import { MASTER_SETTING_KEY, OPTION_ICON, OPTION_ORDER, OPTION_SHORT_LABEL, SectionTitle, StatusChip } from "./shared";
+import {
+  isListedDepartment,
+  MASTER_SETTING_KEY,
+  OPTION_ICON,
+  OPTION_ORDER,
+  OPTION_SHORT_LABEL,
+  SectionTitle,
+  StatusChip,
+} from "./shared";
+
+const MASTER_OFF_HINT = "Turn on the master switch to manage departments";
 
 type MasterKey = Exclude<WalletModeOptionKey, "direct_recharge">;
 const MASTER_OPTIONS: MasterKey[] = ["project_grant", "direct_cash", "online_gateway", "peer_transfer", "credit"];
@@ -64,6 +76,7 @@ export default function PaymentOptionsTab({
   const [savingMatrix, setSavingMatrix] = useState(false);
   const [query, setQuery] = useState("");
   const [onlyRestricted, setOnlyRestricted] = useState(false);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
 
   useEffect(() => setMasters(savedMasters), [savedMasters]);
 
@@ -94,7 +107,7 @@ export default function PaymentOptionsTab({
     return overview.departments.find((d) => d.id === deptId)?.states[option] ?? allowedState(option);
   };
 
-  const visibleDepartments = useMemo(() => {
+  const filteredDepartments = useMemo(() => {
     const q = query.trim().toLowerCase();
     return overview.departments.filter((d) => {
       if (q && !`${d.name} ${d.code}`.toLowerCase().includes(q)) return false;
@@ -102,6 +115,10 @@ export default function PaymentOptionsTab({
       return true;
     });
   }, [overview.departments, query, onlyRestricted, matrixDraft]);
+  const listedRows = filteredDepartments.filter(isListedDepartment);
+  const savedOnlyRows = filteredDepartments.filter((d) => !isListedDepartment(d));
+  const savedOnlyTotal = overview.departments.filter((d) => !isListedDepartment(d)).length;
+  const visibleDepartments = showSavedOnly ? [...listedRows, ...savedOnlyRows] : listedRows;
 
   const setCell = (deptId: number, option: WalletModeOptionKey, allowed: boolean) => {
     setMatrixDraft((prev) => ({ ...prev, [`${deptId}:${option}`]: allowed ? allowedState(option) : "disabled" }));
@@ -115,7 +132,61 @@ export default function PaymentOptionsTab({
     });
   };
 
-  const columnEditable = (option: WalletModeOptionKey) => option === "credit" || schemaReady;
+  const columnEditable = (option: WalletModeOptionKey) => (option === "credit" || schemaReady) && masterOn(option);
+
+  const renderRow = (dept: WalletModeDepartmentRow) => (
+    <tr key={dept.id} className="hover:bg-muted/30">
+      <th scope="row" className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">
+        <span className="line-clamp-2 max-w-[240px] break-words leading-snug" title={dept.name}>
+          {dept.name}
+        </span>
+        {dept.code ? <span className="text-xs font-normal text-muted-foreground">{dept.code}</span> : null}
+      </th>
+      {OPTION_ORDER.map((option) => {
+        const state = stateOf(dept.id, option);
+        const allowed = isAllowed(state);
+        const changed = state !== dept.states[option];
+        const master = masterOn(option);
+        const editable = columnEditable(option) && !savingMatrix;
+        const label = !master ? "Off (master)" : allowed ? "Available" : "Disabled";
+        const toggle = (
+          <Switch
+            checked={master && allowed}
+            disabled={!editable}
+            className={cn(!master && "opacity-40")}
+            onCheckedChange={(v) => setCell(dept.id, option, v)}
+            aria-label={`${OPTION_SHORT_LABEL[option]} for ${dept.name}: ${label}`}
+          />
+        );
+        return (
+          <td key={option} className={cn("px-2 py-2 text-center", changed && "bg-amber-50/70 dark:bg-amber-950/30")}>
+            <div className="flex flex-col items-center gap-1">
+              {master ? (
+                toggle
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={0} className="inline-flex cursor-not-allowed rounded-full">
+                      {toggle}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{MASTER_OFF_HINT}</TooltipContent>
+                </Tooltip>
+              )}
+              <span
+                className={cn(
+                  "text-[11px]",
+                  master && allowed ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+                )}
+              >
+                {label}
+              </span>
+            </div>
+          </td>
+        );
+      })}
+    </tr>
+  );
 
   const saveMasters = async () => {
     setSavingMasters(true);
@@ -287,9 +358,7 @@ export default function PaymentOptionsTab({
                                 {OPTION_SHORT_LABEL[option]} · {visibleDepartments.length} shown
                               </DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onSelect={() => setColumn(option, true)}>
-                                {option === "credit" ? "Enable for all shown" : "Follow master for all shown"}
-                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => setColumn(option, true)}>Make available for all shown</DropdownMenuItem>
                               <DropdownMenuItem onSelect={() => setColumn(option, false)}>Disable for all shown</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -300,63 +369,38 @@ export default function PaymentOptionsTab({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {visibleDepartments.length === 0 ? (
+                {listedRows.length === 0 ? (
                   <tr>
                     <td colSpan={OPTION_ORDER.length + 1} className="px-3 py-8 text-center text-muted-foreground">
-                      No departments match.
+                      {query || onlyRestricted ? "No departments match." : "No department has equipment listed in the catalog."}
                     </td>
                   </tr>
                 ) : null}
-                {visibleDepartments.map((dept) => (
-                  <tr key={dept.id} className="hover:bg-muted/30">
-                    <th scope="row" className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">
-                      <span className="block max-w-[220px] truncate" title={dept.name}>
-                        {dept.name}
-                      </span>
-                      {dept.code ? <span className="text-xs font-normal text-muted-foreground">{dept.code}</span> : null}
-                    </th>
-                    {OPTION_ORDER.map((option) => {
-                      const state = stateOf(dept.id, option);
-                      const allowed = isAllowed(state);
-                      const changed = state !== dept.states[option];
-                      const effective = masterOn(option) && allowed;
-                      const label =
-                        option === "credit" ? (allowed ? "Enabled" : "Disabled") : allowed ? "Follows master" : "Disabled";
-                      return (
-                        <td
-                          key={option}
-                          className={cn(
-                            "px-2 py-2 text-center",
-                            changed && "bg-amber-50/70 dark:bg-amber-950/30"
-                          )}
-                        >
-                          <div className="flex flex-col items-center gap-1">
-                            <Switch
-                              checked={allowed}
-                              disabled={!columnEditable(option) || savingMatrix}
-                              onCheckedChange={(v) => setCell(dept.id, option, v)}
-                              aria-label={`${OPTION_SHORT_LABEL[option]} for ${dept.name}: ${label}`}
-                            />
-                            <span
-                              className={cn(
-                                "text-[11px]",
-                                effective ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
-                              )}
-                            >
-                              {effective ? "Available" : allowed ? "Off (master)" : "Disabled"}
-                            </span>
-                          </div>
-                        </td>
-                      );
-                    })}
+                {listedRows.map(renderRow)}
+                {savedOnlyTotal > 0 ? (
+                  <tr className="bg-muted/40">
+                    <td colSpan={OPTION_ORDER.length + 1} className="p-0">
+                      <button
+                        type="button"
+                        className="sticky left-0 flex items-center gap-2 px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:text-foreground"
+                        aria-expanded={showSavedOnly}
+                        onClick={() => setShowSavedOnly((v) => !v)}
+                      >
+                        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", showSavedOnly && "rotate-90")} />
+                        Other departments with saved settings ({savedOnlyRows.length})
+                        <span className="font-normal">· no equipment listed in the catalog</span>
+                      </button>
+                    </td>
                   </tr>
-                ))}
+                ) : null}
+                {showSavedOnly ? savedOnlyRows.map(renderRow) : null}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            “Available” means users of that department can use the option now. “Off (master)” means the department
-            follows the master switch, which is off.
+            Only departments with equipment listed in the catalog are shown. “Available” means users of that department
+            can use the option now. While a master switch is off its column is locked; each department’s saved choice
+            comes back when the master is turned on again.
           </p>
         </CardContent>
         <div className="flex flex-col-reverse gap-2 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:px-6">

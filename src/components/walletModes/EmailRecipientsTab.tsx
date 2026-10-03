@@ -7,11 +7,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient, type WalletModeOptionKey, type WalletModeUserHit, type WalletPaymentModesOverview } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-import { EMAIL_RE, OPTION_ORDER, OPTION_SHORT_LABEL, SearchPicker, SectionTitle, StatusChip } from "./shared";
+import {
+  EMAIL_RE,
+  isListedDepartment,
+  OPTION_ORDER,
+  OPTION_SHORT_LABEL,
+  SearchPicker,
+  SectionTitle,
+  StatusChip,
+} from "./shared";
 
 type Scope = "default" | `${number}`;
 
@@ -210,6 +227,10 @@ export default function EmailRecipientsTab({
   const toRequired = overview.to_required_options.includes(option);
   const masterOn = Boolean(overview.masters[option]);
   const overrides = overview.recipients.filter((r) => r.option === option && r.department_id != null);
+  const listedScopes = overview.departments.filter(isListedDepartment);
+  const savedOnlyScopes = overview.departments.filter(
+    (d) => !isListedDepartment(d) && (d.id === departmentId || overrides.some((r) => r.department_id === d.id))
+  );
 
   useEffect(() => {
     setTo(baseline.to);
@@ -331,12 +352,25 @@ export default function EmailRecipientsTab({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="default">Default (all departments)</SelectItem>
-                {overview.departments.map((d) => (
+                {listedScopes.map((d) => (
                   <SelectItem key={d.id} value={String(d.id)}>
                     {d.name}
                     {overrides.some((r) => r.department_id === d.id) ? " · override" : ""}
                   </SelectItem>
                 ))}
+                {savedOnlyScopes.length ? (
+                  <SelectGroup>
+                    <SelectSeparator />
+                    <SelectLabel className="text-xs font-medium text-muted-foreground">
+                      Other departments with saved settings
+                    </SelectLabel>
+                    {savedOnlyScopes.map((d) => (
+                      <SelectItem key={d.id} value={String(d.id)}>
+                        {d.name} · override
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ) : null}
               </SelectContent>
             </Select>
           </div>
