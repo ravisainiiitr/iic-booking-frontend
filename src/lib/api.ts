@@ -23,6 +23,21 @@ import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
+  FacultyApprovalsOverview,
+  FacultyDecisionInput,
+  FacultyRegistrationRequest,
+  FacultyReviewItem,
+  ProgrammeValidity,
+  RegistrationAutomationStatus,
+  RegistrationExtension,
+  RegistrationLogFilters,
+  RegistrationLogPage,
+  RegistrationRequestDetail,
+  RegistrationRequestFilters,
+  RegistrationRequestList,
+  RegistrationRequestRow,
+} from "@/lib/registrationApprovalTypes";
+import type {
   MyResearchBootstrap,
   MyResearchHome,
   ResearchActivity,
@@ -2862,6 +2877,138 @@ class ApiClient {
     }
 
     return response;
+  }
+
+  private registrationQuery(params: object): string {
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null || value === "" || value === false) continue;
+      q.set(key, value === true ? "1" : String(value));
+    }
+    const qs = q.toString();
+    return qs ? `?${qs}` : "";
+  }
+
+  async getRegistrationRequests(filters: RegistrationRequestFilters = {}) {
+    return this.request<RegistrationRequestList>(`/admin/registration-requests/${this.registrationQuery(filters)}`);
+  }
+
+  async getRegistrationRequest(userId: number) {
+    return this.request<RegistrationRequestDetail>(`/admin/registration-requests/${userId}/`);
+  }
+
+  async registrationRequestAction(
+    userId: number,
+    action: "approve" | "reject" | "forward" | "remind" | "change-faculty" | "extend",
+    body: Record<string, unknown> = {},
+  ) {
+    return this.request<{ message: string; request: RegistrationRequestDetail }>(
+      `/admin/registration-requests/${userId}/${action}/`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  }
+
+  async decideRegistrationExtensionAsAdmin(extId: number, body: { decision: "approve" | "disapprove"; until?: string; reason?: string }) {
+    return this.request<{ message: string; request: RegistrationRequestDetail }>(
+      `/admin/registration-requests/extensions/${extId}/decide/`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  }
+
+  async remindRegistrationExtension(extId: number) {
+    return this.request<{ message: string }>(`/admin/registration-requests/extensions/${extId}/remind/`, { method: "POST" });
+  }
+
+  async getRegistrationBulkForwardPreview() {
+    return this.request<{ count: number; results: RegistrationRequestRow[] }>("/admin/registration-requests/bulk-forward/");
+  }
+
+  async bulkForwardRegistrationRequests(confirmCount: number) {
+    return this.request<{ message: string; forwarded: number; failed: Array<{ user_id: number; error: string }>; count?: number }>(
+      "/admin/registration-requests/bulk-forward/",
+      { method: "POST", body: JSON.stringify({ confirm_count: confirmCount }) },
+    );
+  }
+
+  async getRegistrationLog(filters: RegistrationLogFilters = {}) {
+    return this.request<RegistrationLogPage>(`/admin/registration-requests/log/${this.registrationQuery(filters)}`);
+  }
+
+  async downloadRegistrationLogCsv(filters: RegistrationLogFilters = {}): Promise<{ error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: "Not authenticated" };
+    const { page: _page, page_size: _size, ...rest } = filters;
+    const qs = this.registrationQuery({ ...rest, export: "csv" });
+    const res = await fetch(`${this.baseURL}/admin/registration-requests/log/${qs}`, {
+      headers: { Authorization: `Token ${token}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    const name = res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] || "registration-approval-log.csv";
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
+  async getRegistrationAutomation() {
+    return this.request<RegistrationAutomationStatus>("/admin/registration-requests/automation/");
+  }
+
+  async setRegistrationAutomation(enabled: boolean, confirm = "") {
+    return this.request<RegistrationAutomationStatus>("/admin/registration-requests/automation/", {
+      method: "POST",
+      body: JSON.stringify({ enabled, confirm }),
+    });
+  }
+
+  async getFacultyRegistrationApprovals() {
+    return this.request<FacultyApprovalsOverview>("/registration-approvals/");
+  }
+
+  async reviewRegistrationApprovalToken(token: string) {
+    return this.request<FacultyReviewItem>(`/registration-approvals/review/?token=${encodeURIComponent(token)}`);
+  }
+
+  async decideFacultyRegistration(approvalId: number, body: FacultyDecisionInput) {
+    return this.request<{ message: string; item: FacultyRegistrationRequest }>(`/registration-approvals/${approvalId}/decide/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async decideFacultyExtension(extId: number, body: FacultyDecisionInput) {
+    return this.request<{ message: string; item: RegistrationExtension }>(`/registration-approvals/extensions/${extId}/decide/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getProgrammeValidityByLink(token: string) {
+    return this.request<ProgrammeValidity>(`/registration-approvals/extension-request/?token=${encodeURIComponent(token)}`);
+  }
+
+  async requestProgrammeExtensionByLink(token: string, reason: string, channel: "email_link" | "login") {
+    return this.request<{ message: string; validity: ProgrammeValidity }>("/registration-approvals/extension-request/", {
+      method: "POST",
+      body: JSON.stringify({ token, reason, channel }),
+    });
+  }
+
+  async getMyProgrammeValidity() {
+    return this.request<ProgrammeValidity>("/registration-approvals/my-validity/");
+  }
+
+  async requestMyProgrammeExtension(reason: string) {
+    return this.request<{ message: string; validity: ProgrammeValidity }>("/registration-approvals/my-validity/", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
   }
 
   async resendVerificationEmail(email: string) {

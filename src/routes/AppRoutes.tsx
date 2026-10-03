@@ -83,6 +83,9 @@ const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBuff
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
 const AdminWalletSricSettings = lazyPage(() => import("@/pages/AdminWalletSricSettings"));
 const AdminWalletPaymentModes = lazyPage(() => import("@/pages/AdminWalletPaymentModes"));
+const AdminRegistrationRequests = lazyPage(() => import("@/pages/AdminRegistrationRequests"));
+const RegistrationApprovals = lazyPage(() => import("@/pages/RegistrationApprovals"));
+const ProgrammeExtension = lazyPage(() => import("@/pages/ProgrammeExtension"));
 const AdminWalletWithdrawalRequests = lazyPage(() => import("@/pages/AdminWalletWithdrawalRequests"));
 const AdminWalletCreditFacilitySettings = lazyPage(() => import("@/pages/AdminWalletCreditFacilitySettings"));
 const AdminWalletStudentRechargeSettings = lazyPage(() => import("@/pages/AdminWalletStudentRechargeSettings"));
@@ -212,6 +215,8 @@ export default function AppRoutes() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/verify-email" element={<EmailVerificationCallback />} />
           <Route path="/auth/self-verify" element={<SelfVerify />} />
+          <Route path="/programme-extension" element={<ProgrammeExtension />} />
+          <Route path="/registration-approvals" element={<RegistrationApprovals />} />
           <Route path="/dashboard" element={<DashboardEntry />} />
           <Route path="/equipments" element={<EquipmentList />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
@@ -260,6 +265,7 @@ export default function AppRoutes() {
           <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />
           <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
           <Route path="/admin/identity" element={<IdentityAdministration />} />
+          <Route path="/admin/registration-requests" element={<AdminRegistrationRequests />} />
           <Route path="/admin/portal-migration" element={<AdminPortalMigration />} />
           <Route path="/admin/portal-migration/equipment-mapping" element={<LegacyEquipmentMapping />} />
           <Route path="/admin/portal-migration/legacy-bookings" element={<LegacyBookingMapping />} />

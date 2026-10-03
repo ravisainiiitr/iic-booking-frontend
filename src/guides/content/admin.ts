@@ -63,6 +63,43 @@ export const adminGuide: RoleGuide = {
         ],
       },
       {
+        id: "registration-requests",
+        title: "Registration requests",
+        icon: "users",
+        group: ADMIN,
+        intro: [
+          "Accounts created with email and password (not Channel i) are listed under Users & access → Registration requests. Requests from people claiming to be at IIT Roorkee (post-doctoral fellows, research associates in projects and startups incubated at IIT Roorkee) are approved by the IIT Roorkee faculty member chosen at registration.",
+        ],
+        steps: [
+          {
+            title: "Review a request",
+            body: "Filter by status, Claims IITR, faculty, date or search, then click a row to see the user's details, programme validity, documents, the faculty's decision and the full timeline.",
+          },
+          {
+            title: "Forward to faculty",
+            body: "New registrations are sent to the faculty automatically once the email is verified. For older requests, click Forward to faculty on one request, or Forward all pending to faculty; the confirmation shows how many requests will be sent. Resend reminder emails the faculty again.",
+          },
+          {
+            title: "Approve or reject yourself",
+            body: "Approve overrides the faculty step. Reject needs a reason, which is emailed to the user. Change faculty (with a reason) sends the request to another faculty member and cancels the old link.",
+          },
+          {
+            title: "Registration log",
+            body: "The Registration log tab lists every event with who acted, their role, the time, IP address and channel (email link, dashboard or admin). Filter it and click Export CSV.",
+          },
+          {
+            title: "Programme expiry",
+            body: "The Programme expiry tab shows whether automatic expiry is on and a dry run of who would be warned or disabled today. To switch it on, click Enable and type ENABLE.",
+          },
+        ],
+        rules: [
+          "Only the Main Administrator can open Registration requests. A faculty member can act only on requests that name them, and each email link works once.",
+          "Once the faculty approves, the account is fully active and no further approval is needed. Requests from other external users follow the existing verification path.",
+          "With automatic expiry on, users are warned 30, 7 and 1 days before their programme validity ends and disabled when it passes unless their faculty grants an extension. An extension runs for at most six months from the current end date (or from today if it has already passed), and can be repeated.",
+          "Future bookings of a disabled account are never cancelled automatically; they are listed in the request and on the Programme expiry tab for you or the Officer In Charge to handle.",
+        ],
+      },
+      {
         id: "recharge-requests",
         title: "Wallets",
         icon: "wallet",

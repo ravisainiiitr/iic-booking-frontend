@@ -46,6 +46,16 @@ function gettingStartedSection(g: Gate): GuideSection {
         title: "Link a wallet",
         body: "Send a request to join your supervisor's wallet before your first booking. If they are not listed, invite them by email (see Wallet and spending limit).",
       }),
+      g.when(g.is("project_staff", "startup"), {
+        title: "Registered with email?",
+        body: g.is("startup")
+          ? "If you registered as Startup Incubated at IIT Roorkee, the Main Administrator may ask an IIT Roorkee faculty member to confirm your registration. You are emailed when it is approved."
+          : "If you registered with email instead of Channel i, the faculty member you chose at registration must approve your account. You are emailed when they approve; the Sign in page names them while it is pending.",
+      }),
+      g.when(g.is("project_staff", "startup"), {
+        title: "Programme validity and extensions",
+        body: "You are reminded 30, 7 and 1 days before your programme validity ends. Click Request an extension in the email, or on the Sign in page once it has ended, and your faculty is asked to approve. An extension lasts at most six months and can be requested again.",
+      }),
       g.when(campus, {
         title: "Optional: email sign-in",
         body: "To also sign in with email and a portal password, turn on Sign in with email under Sign-in options in My Profile.",
@@ -91,10 +101,19 @@ function studentsSection(g: Gate): GuideSection {
         title: "Nominate for TA operating",
         body: "When a call is open under TA operating nominations, click Nominate student before the deadline.",
       },
+      {
+        title: "Registration approvals",
+        body: "When someone registers with email (a post-doctoral fellow, research associate or incubated startup) and names you as their faculty, you get an email and an item under Pending actions. Open Registration approvals, check their details and programme validity, tick the confirmation that they work under you and the details are correct to the best of your knowledge, then click Approve, or Disapprove with a reason.",
+      },
+      {
+        title: "Programme extensions",
+        body: "Before a researcher's programme validity ends they can ask you for an extension. It appears in Registration approvals with its own confirmation. Approve for up to six months (you may choose an earlier date) or decline with a reason.",
+      },
     ]),
     rules: [
       "Limits count bookings the student makes in that week (Monday–Sunday) or calendar month (IST). Unpaid or fully refunded bookings do not count.",
       "Bookings the lab makes on a student's behalf are not blocked by the limit.",
+      "Your approval makes the account fully active; no further approval is needed. Each email link works once, and only for requests that name you.",
     ],
     tips: [
       "You get one email per student booking, matching the student's, with a Booked by row.",

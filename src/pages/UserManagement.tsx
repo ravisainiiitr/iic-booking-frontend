@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
   Building2,
+  UserCheck,
   UserCog,
   UserPlus,
   Landmark,
@@ -51,6 +52,15 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
     path: "/admin/section/users",
     requiresPermission: "users.manage",
     moduleKey: "user_management.users",
+  },
+  {
+    key: "registrationRequests",
+    label: "Registration Requests",
+    description: "Approve, reject or send self-registrations to the IITR faculty named; full log and programme expiry",
+    icon: <UserCheck className="h-6 w-6" />,
+    path: "/admin/registration-requests",
+    mainAdminOnly: true,
+    moduleKey: "user_management.registration_requests",
   },
   {
     key: "departments",

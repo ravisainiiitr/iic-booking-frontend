@@ -152,6 +152,14 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Wallet Payment Modes",
     description: "Wallet options overall and per department, email recipients, direct wallet recharge and credit caps.",
   },
+  "/admin/registration-requests": {
+    title: "Registration Requests",
+    description: "Self-registrations awaiting approval; IITR requests are approved by the faculty member named.",
+  },
+  "/registration-approvals": {
+    title: "Registration Approvals",
+    description: "Confirm users who named you as their IITR supervisor and extend their access.",
+  },
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
@@ -2855,6 +2863,38 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "registration_requests",
+      label: "Registration requests",
+      path: "/admin/registration-requests",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/admin/registration-requests")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-primary text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Registration requests</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Approve self-registrations, send IITR requests to the faculty named, and see the full log
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">
+                  Review requests
+                </Button>
               </CardContent>
             </Card>
       ),
