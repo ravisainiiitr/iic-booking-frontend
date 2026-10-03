@@ -151,9 +151,8 @@ const UrgentRequests = () => {
   const canAccess = ["admin", "dept_admin", "manager", "operator"].includes(userType);
   /** Main / Department Administrator: every urgent request (Type A and Type B), not only Type B decisions. */
   const isAdminView = userType === "admin" || userType === "dept_admin";
-  /** Department Administrators follow their department's requests; decisions stay with the OIC and Admin. */
-  const canDecide = userType !== "dept_admin";
-  const canChangeValidity = canDecide;
+  /** The expiry applies to the whole portal, so Department Administrators cannot change it (enforced by the server). */
+  const canChangeValidity = userType !== "dept_admin";
 
   const displayedList =
     viewFilter === "needs_action"
@@ -400,7 +399,9 @@ const UrgentRequests = () => {
                       >
                         Change
                       </Button>
-                    ) : null}
+                    ) : (
+                      <span className="text-muted-foreground/80">(set by the Main Administrator for all departments)</span>
+                    )}
                   </>
                 )}
               </div>
@@ -480,14 +481,12 @@ const UrgentRequests = () => {
                                 Awaiting supervisor
                               </Badge>
                             ) : (
-                              <Badge className="bg-amber-500 hover:bg-amber-500">
-                                {canDecide ? "Needs your decision" : "Awaiting OIC decision"}
-                              </Badge>
+                              <Badge className="bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
                             )}
                           </TableCell>
                           <TableCell className="py-2.5 text-right">
                             <Button
-                              variant={actionable && canDecide ? "default" : "outline"}
+                              variant={actionable ? "default" : "outline"}
                               size="sm"
                               className="h-8"
                               onClick={() => {
@@ -495,7 +494,7 @@ const UrgentRequests = () => {
                                 setAdminNotes(row.admin_notes || "");
                               }}
                             >
-                              {actionable && canDecide ? "Review" : "View"}
+                              {actionable ? "Review" : "View"}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -533,8 +532,6 @@ const UrgentRequests = () => {
               <DialogDescription>
                 {detailRow?.status === "EXPIRED"
                   ? "Expired without a decision. The held slots were released."
-                  : detailRow?.status === "PENDING" && !canDecide
-                    ? "Waiting for the Officer In Charge's decision."
                   : detailRow?.status === "PENDING" && detailRow?.pending_wallet_approval
                     ? "Waiting for the supervisor. You can reject now; Accept unlocks after supervisor approval."
                     : detailRow?.status === "PENDING"
@@ -640,47 +637,38 @@ const UrgentRequests = () => {
                   )}
                 </div>
 
-                {canDecide ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="admin-notes">Decision notes (optional)</Label>
-                    <Textarea
-                      id="admin-notes"
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Optional notes for this decision"
-                      rows={2}
-                    />
-                  </div>
-                ) : detailRow.admin_notes ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs font-normal text-muted-foreground">Decision notes</Label>
-                    <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-2 text-sm">{detailRow.admin_notes}</p>
-                  </div>
-                ) : null}
+                <div className="space-y-2">
+                  <Label htmlFor="admin-notes">Decision notes (optional)</Label>
+                  <Textarea
+                    id="admin-notes"
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    placeholder="Optional notes for this decision"
+                    rows={2}
+                  />
+                </div>
               </div>
             )}
             <DialogFooter className="gap-2 sm:items-center sm:justify-between">
-              {canDecide ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground hover:text-red-600 sm:mr-auto"
-                  disabled={deleteLoading}
-                  onClick={() => {
-                    if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
-                      handleDelete(detailRow.id);
-                    }
-                  }}
-                >
-                  {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Delete
-                </Button>
-              ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-red-600 sm:mr-auto"
+                disabled={deleteLoading}
+                onClick={() => {
+                  if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
+                    handleDelete(detailRow.id);
+                  }
+                }}
+              >
+                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Delete
+              </Button>
               <div className="flex flex-wrap justify-end gap-2">
               <Button variant="outline" onClick={() => setDetailRow(null)}>
                 Close
               </Button>
-              {canDecide && detailRow?.status === "PENDING" && (
+              {detailRow?.status === "PENDING" && (
                 <>
                   <Button
                     variant="outline"

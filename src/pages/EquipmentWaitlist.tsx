@@ -41,10 +41,10 @@ export default function EquipmentWaitlist() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
-  // Admin, Department Administrator (view only), OIC, Lab Operator
+  // Admin, Department Administrator (own department), OIC, Lab Operator
   const canView = ["admin", "dept_admin", "manager", "operator"].includes(userType);
-  const canClear = userType === "admin" || userType === "manager" || userType === "operator";
-  const canConfirmManually = userType === "admin" || userType === "manager";
+  const canClear = canView;
+  const canConfirmManually = userType === "admin" || userType === "manager" || userType === "dept_admin";
 
   const filters = useStaffListFilters();
   const { departmentReady, reconcileEquipment } = filters;

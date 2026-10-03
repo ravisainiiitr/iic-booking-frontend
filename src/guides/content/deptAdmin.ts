@@ -67,16 +67,31 @@ export const deptAdminGuide: RoleGuide = {
       icon: "clock",
       group: GROUP,
       intro: [
-        "Urgent Requests, Equipment waitlist and Repeat samples in the Bookings menu list your department's equipment only, so there is no department to pick.",
+        "Urgent Requests, Equipment waitlist and Repeat samples in the Bookings menu list your department's equipment only, so there is no department to pick. You can act on them just as the Officer In Charge can.",
       ],
       steps: [
         {
           title: "Pick the equipment",
           body: "Each page opens on All equipment, with an Equipment column. Choose one instrument in Equipment to see only its entries; on Equipment waitlist this also shows its queue depth.",
         },
+        {
+          title: "Decide urgent requests",
+          body: "In Urgent Requests click Review, add optional notes, then Accept & allocate or Reject. Type A (rush relief) and Type B (urgent with reason) both appear; a Type B request can be accepted only after the supervisor approves. Delete removes a request.",
+        },
+        {
+          title: "Manage the waitlist",
+          body: "Click Confirm manually on an entry, pick any unbooked slot and click Confirm booking. Select one equipment to use Clear queue.",
+        },
+        {
+          title: "Arrange a repeat sample",
+          body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Repeat samples keeps the record.",
+        },
       ],
       rules: [
-        "Approving urgent requests, confirming waitlist entries, clearing a queue and arranging repeat samples stay with the Officer In Charge.",
+        "Equipment in other departments is refused.",
+        "These actions need the Manage bookings permission from the Main Administrator.",
+        "The urgent request expiry period applies to every department, so only the Main Administrator can change it.",
+        "Users and the Officer In Charge are told that the Department Administrator took the action, and it is recorded under your name.",
       ],
     },
     {
