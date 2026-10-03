@@ -141,11 +141,13 @@ export function prefetchEquipmentCatalog(user: PrefetchUser): void {
     }
     return;
   }
-  void loadCatalogDepartments().then((list) => {
-    const preferred = list ? findPreferredDepartment(list, DEFAULT_CATALOG_DEPARTMENT_NAME) : undefined;
-    const dept: CatalogDepartmentValue = preferred?.id ?? "all";
-    if (!peekCatalogEquipment(dept, scope)) {
-      void loadCatalogEquipment(dept, scope).catch(() => undefined);
-    }
-  });
+  void loadDefaultCatalogEquipment(scope).catch(() => undefined);
+}
+
+/** The list Browse and Book opens with (preferred department, else all), reusing a cached or in-flight request. */
+export async function loadDefaultCatalogEquipment(scope: CatalogScope = null): Promise<CatalogEquipmentRow[]> {
+  const list = await loadCatalogDepartments();
+  const preferred = list ? findPreferredDepartment(list, DEFAULT_CATALOG_DEPARTMENT_NAME) : undefined;
+  const dept: CatalogDepartmentValue = preferred?.id ?? "all";
+  return peekCatalogEquipment(dept, scope)?.data ?? loadCatalogEquipment(dept, scope);
 }

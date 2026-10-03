@@ -142,7 +142,7 @@ export function bookerSections(g: Gate): GuideSection[] {
     urgentSection(g),
     waitlistSection(),
     disruptionsSection(),
-    samplesSection(),
+    samplesSection(g),
     statusesSection(),
     helpSection(g, {
       faqs: bookerFaqs(g),

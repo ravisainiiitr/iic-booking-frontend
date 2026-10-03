@@ -56,12 +56,12 @@ describe("pickNextSampleReminder", () => {
         booking({ booking_id: "B-3", real_booking_id: 13, equipment_name: "FE-SEM", start_time: "2026-10-08T04:30:00Z" }),
         booking({ booking_id: "B-2", real_booking_id: 12, status: "PROCESSING", start_time: "2026-10-05T10:00:00Z" }),
         booking({ booking_id: "B-0", real_booking_id: 10, start_time: "2026-10-04T10:00:00Z" }),
-        booking({}),
+        booking({ equipment: 1 }),
       ],
       [],
       now
     );
-    expect(r).toEqual({ equipmentName: "XRD", startTime: "2026-10-06T04:30:00Z", deadlineAt: null, leadHours: null });
+    expect(r).toEqual({ equipmentId: 1, equipmentName: "XRD", startTime: "2026-10-06T04:30:00Z", deadlineAt: null, leadHours: null });
   });
 
   it("adds the sample deadline when the portal already reported it", () => {

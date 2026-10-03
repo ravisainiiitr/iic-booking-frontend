@@ -13,11 +13,8 @@ export interface LoginTip {
   eyebrow: string;
   title: string;
   body: string;
-  /** User guide chapter opened by the "Read more" link. */
-  guideSectionId?: string;
-  guideLinkLabel?: string;
-  /** Shows the user's next booking that still needs a sample. */
-  showsNextSampleBooking?: boolean;
+  /** Sample tip: the brought-to-the-slot note, the user's next booking and the policy dialog behind "More information". */
+  samplePolicy?: boolean;
   appliesTo: (user: LoginTipUser) => boolean;
 }
 
@@ -34,13 +31,11 @@ export const LOGIN_TIPS: readonly LoginTip[] = [
   {
     id: "sample-on-time",
     eyebrow: "Tip of the day",
-    title: "Hand in your sample on time",
+    title: "Submit your sample before the deadline",
     body:
-      "Please hand your sample to the lab before your slot starts, as per the lab's policy, and ask the Lab Operator to mark it as received in the portal. " +
-      "If it isn't marked as received in time, the booking is treated as Not Utilized and no refund can be given.",
-    guideSectionId: "samples",
-    guideLinkLabel: "Read about samples",
-    showsNextSampleBooking: true,
+      "Please submit your sample to the laboratory before the sample deadline of your booking, which is set for each equipment ahead of the slot start time, " +
+      "and request the Lab Operator to record its receipt in the portal. If receipt is not recorded, the booking is treated as Not Utilized and the charges are not refunded.",
+    samplePolicy: true,
     appliesTo: isIitrStudentUser,
   },
 ];
@@ -92,6 +87,7 @@ export function clearLoginTipsThisLogin() {
 const AWAITING_SAMPLE_STATUSES = new Set(["BOOKED", "CONFIRMED", "APPROVED"]);
 
 export type SampleReminderBooking = BookingRef & {
+  equipment?: number | null;
   equipment_name: string;
   status: string;
   start_time: string;
@@ -105,6 +101,7 @@ export type SampleDeadlineItem = {
 };
 
 export interface NextSampleReminder {
+  equipmentId?: number | null;
   equipmentName: string;
   startTime: string;
   /** Present only when the portal already reported this booking's sample deadline. */
@@ -129,6 +126,7 @@ export function pickNextSampleReminder(
   );
   const deadlineAt = match?.deadline_at && new Date(match.deadline_at).getTime() > now.getTime() ? match.deadline_at : null;
   return {
+    equipmentId: typeof next.equipment === "number" ? next.equipment : null,
     equipmentName: next.equipment_name,
     startTime: next.start_time,
     deadlineAt,

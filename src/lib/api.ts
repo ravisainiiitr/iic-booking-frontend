@@ -3142,6 +3142,9 @@ class ApiClient {
         internal_department_code?: string | null;
         parent_equipment?: number | null;
         enable_multi_mode?: boolean;
+        /** Only with include_ratings: hours before the slot by which the sample is due (0 = brought at the slot). */
+        sample_submission_lead_hours?: number | null;
+        sample_collect_deadline_hours?: number | null;
         created_at: string;
         updated_at: string;
       }>;

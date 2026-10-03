@@ -98,17 +98,31 @@ export function disruptionsSection(): GuideSection {
   };
 }
 
-export function samplesSection(): GuideSection {
+export function samplesSection(g: Gate): GuideSection {
+  const deadline = g.pick(
+    {
+      external: "Your sample deadline is the slot start time.",
+      startup:
+        "Your sample deadline is the slot start time minus the sample lead time configured for the equipment (for External Startups/MSMEs, the slot start time).",
+    },
+    "Your sample deadline is the slot start time minus the sample lead time configured for the equipment (for example, 24 hours)."
+  );
   return {
     id: "samples",
     title: "Samples",
     icon: "flask",
     group: GROUP,
-    intro: ["Most instruments need your sample before the slot. The deadline is on the booking and in reminder emails."],
+    intro: [
+      "Most instruments need your sample before the slot. Each booking shows its sample deadline in the booking details, and a reminder email and notification are sent 12 hours before it.",
+    ],
     steps: [
       {
-        title: "Submit on time",
-        body: "Pack and label the sample as the equipment page says, declare hazards, and submit before the deadline; late samples may be refused.",
+        title: "Submit before the deadline",
+        body: `${deadline} A deadline on a Saturday, Sunday or institute holiday moves to the same time on the previous working day. Pack and label the sample as the equipment page says and declare hazards.`,
+      },
+      {
+        title: "Have the receipt recorded",
+        body: "When you hand over the sample, request the Lab Operator to record its receipt in the portal. Follow it under Sample Lifecycle in the booking details.",
       },
       {
         title: "Collect after analysis",
@@ -116,7 +130,11 @@ export function samplesSection(): GuideSection {
       },
     ],
     rules: [
-      "When you hand in your sample, ask the Lab Operator to mark it as received in the portal. If it is not marked as received by the deadline, the booking is treated as Not Utilized and is not refunded.",
+      "A sample whose receipt has not been recorded is considered not submitted: the booking is treated as Booking Not Utilized and the charges are not refunded. The portal applies this automatically 24 hours after the slot ends.",
+      "If you will be late, inform the lab before the deadline through Message the lab in the booking details (Sample submission delayed). Late samples may be refused.",
+      "Equipment without a sample lead time (for example, electron microscopes) takes the sample at the slot: bring it at the start of your slot, and the Lab Operator records its receipt then.",
+      "Where the equipment permits, choose Atmosphere-sensitive sample (submit at slot start) while booking to submit at the start of the slot.",
+      "Once the lab has accepted your sample, the booking can no longer be rescheduled or cancelled.",
       "Uncollected samples may be discarded after the deadline; ask the lab before it if you need longer.",
       "Walk-in equipment has no sample deadlines: bring the sample to the slot and take it back yourself.",
     ],
