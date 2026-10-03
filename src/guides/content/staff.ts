@@ -53,6 +53,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         title: "See why a booking attempt failed",
         body: "In Booking Attempt Log, click the reason in the Failure reason column (or the details icon under Actions). The details show the user's full details, the slots they picked, their inputs as a table with the field names, and at the bottom the outcome in plain words, such as Weekly booking limit reached with the minutes used. Technical details keeps the original message.",
       }),
+      g.only(["oic", "admin"], {
+        title: "Bookings behind a limit failure",
+        body: "For a weekly or monthly limit failure, click View bookings counted in the attempt details (or the calculator icon under Actions). It lists the bookings that used the limit in the week or month of the requested slot, with each person's total for a research group limit. The list is worked out from current bookings, so it notes when the limit or the usage has changed since the attempt.",
+      }),
       g.only(["oic", "admin", "operator"], {
         title: "Follow up questions",
         body: "Open questions show Awaiting reply on the booking and in View Booking, and a card above the bookings list shows how many are awaiting the user's reply, with overdue ones marked. When the user replies you get an email and a notification, and the question is marked Answered. Use Mark resolved if it was settled another way.",

@@ -15,13 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -36,6 +30,8 @@ import { Loader2, Search, Trash2, X, Calculator, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
+import { preloadQuotaBreakdown } from "@/components/quota/QuotaBreakdownHost";
+import { openQuotaBreakdown } from "@/lib/quotaBreakdown";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
@@ -54,21 +50,6 @@ function formatDateSafe(
   } catch {
     return fallback;
   }
-}
-
-const QUOTA_SCOPE_LABELS: Record<string, string> = {
-  individual: "the user's own usage",
-  faculty: "the supervisor's wallet group",
-  group: "the equipment group",
-  external: "external users",
-  user_type: "all users of this type",
-};
-
-/** "Weekly limit, counting the supervisor's wallet group" instead of "WEEKLY (faculty)". */
-function quotaScopeText(quotaType: string, quotaScope: string): string {
-  const period = /month/i.test(quotaType) ? "Monthly" : /week/i.test(quotaType) ? "Weekly" : quotaType;
-  const scope = QUOTA_SCOPE_LABELS[quotaScope.toLowerCase()] ?? quotaScope.replace(/_/g, " ");
-  return [period ? `${period} limit` : "", scope ? `counting ${scope}` : ""].filter(Boolean).join(", ");
 }
 
 type LogRow = {
@@ -124,27 +105,6 @@ const BookingAttemptLogs = () => {
   const [detailsRow, setDetailsRow] = useState<LogRow | null>(null);
   const [deleteConfirmLogId, setDeleteConfirmLogId] = useState<number | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
-  const [quotaBreakdownLogId, setQuotaBreakdownLogId] = useState<number | null>(null);
-  const [quotaBreakdownOpen, setQuotaBreakdownOpen] = useState(false);
-  const [quotaBreakdownLoading, setQuotaBreakdownLoading] = useState(false);
-  const [quotaBreakdownData, setQuotaBreakdownData] = useState<{
-    period_start: string;
-    period_end: string;
-    quota_type: string;
-    quota_scope: string;
-    limit_minutes: number;
-    total_minutes: number;
-    summary_message: string;
-    events: Array<{
-      date: string;
-      booking_id: string | number;
-      real_booking_id?: number;
-      equipment_name: string;
-      equipment_code: string;
-      total_time_minutes: number;
-      user_name: string;
-    }>;
-  } | null>(null);
   const [bookingDetailPopup, setBookingDetailPopup] = useState<BookingDetailCardBooking | null>(null);
   const [loadingBookingDetail, setLoadingBookingDetail] = useState(false);
   const [filters, setFilters] = useState({
@@ -302,37 +262,8 @@ const BookingAttemptLogs = () => {
   const isQuotaFailure = (row: LogRow) =>
     row.outcome === "FAILED" && /quota check failed/i.test(row.failure_reason || "");
 
-  const openQuotaBreakdown = async (logId: number) => {
-    setQuotaBreakdownLogId(logId);
-    setQuotaBreakdownData(null);
-    setQuotaBreakdownOpen(true);
-    setQuotaBreakdownLoading(true);
-    try {
-      const res = await apiClient.getBookingAttemptLogQuotaBreakdown(logId);
-      if ((res as { error?: string }).error) {
-        toast.error((res as { error: string }).error);
-        setQuotaBreakdownOpen(false);
-        return;
-      }
-      // API returns { data: breakdown }; use payload from res.data when present
-      const payload = (res as { data?: Record<string, unknown> }).data ?? (res as Record<string, unknown>);
-      setQuotaBreakdownData({
-        period_start: (payload.period_start as string) ?? "",
-        period_end: (payload.period_end as string) ?? "",
-        quota_type: (payload.quota_type as string) ?? "",
-        quota_scope: (payload.quota_scope as string) ?? "",
-        limit_minutes: typeof payload.limit_minutes === "number" ? payload.limit_minutes : 0,
-        total_minutes: typeof payload.total_minutes === "number" ? payload.total_minutes : 0,
-        summary_message: (payload.summary_message as string) ?? "",
-        events: Array.isArray(payload.events) ? payload.events : [],
-      });
-    } catch {
-      toast.error("Failed to load quota calculation details.");
-      setQuotaBreakdownOpen(false);
-    } finally {
-      setQuotaBreakdownLoading(false);
-    }
-  };
+  const showQuotaBreakdown = (logId: number) =>
+    openQuotaBreakdown({ logId }, { onOpenBooking: (id) => void openBookingDetailPopup(id) });
 
   const openBookingDetailPopup = async (bookingId: number) => {
     setLoadingBookingDetail(true);
@@ -807,19 +738,15 @@ const BookingAttemptLogs = () => {
                             </Button>
                             {isQuotaFailure(row) && (
                               <Button
-                                aria-label="View calculation details"
+                                aria-label="View bookings counted"
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8"
-                                onClick={() => openQuotaBreakdown(row.id)}
-                                disabled={quotaBreakdownLoading}
-                                title="View calculation details"
+                                onClick={() => showQuotaBreakdown(row.id)}
+                                onPointerEnter={preloadQuotaBreakdown}
+                                title="View bookings counted toward the limit"
                               >
-                                {quotaBreakdownLoading && quotaBreakdownLogId === row.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                                ) : (
-                                  <Calculator className="h-4 w-4" aria-hidden />
-                                )}
+                                <Calculator className="h-4 w-4" aria-hidden />
                               </Button>
                             )}
                             {canDeleteLog ? (
@@ -881,95 +808,9 @@ const BookingAttemptLogs = () => {
               ? () => { const id = detailsRow.real_booking_id!; setDetailsRow(null); openBookingDetailPopup(id); }
               : undefined
           }
+          showQuotaBreakdown={detailsRow != null && isQuotaFailure(detailsRow)}
+          onOpenCountedBooking={(id) => { setDetailsRow(null); void openBookingDetailPopup(id); }}
         />
-
-        <Dialog
-          open={quotaBreakdownOpen}
-          onOpenChange={(open) => {
-            setQuotaBreakdownOpen(open);
-            if (!open) {
-              setQuotaBreakdownLogId(null);
-              setQuotaBreakdownData(null);
-            }
-          }}
-        >
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Quota calculation details</DialogTitle>
-              <DialogDescription>
-                Date-wise events that contributed to the quota limit for this failed attempt.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              {quotaBreakdownLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : quotaBreakdownData ? (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Period: </span>
-                      <span className="font-medium">
-                        {formatDateSafe(quotaBreakdownData.period_start, "dd MMM yyyy")} – {formatDateSafe(quotaBreakdownData.period_end, "dd MMM yyyy")}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Scope: </span>
-                      <span className="font-medium">{quotaScopeText(quotaBreakdownData.quota_type, quotaBreakdownData.quota_scope)}</span>
-                    </div>
-                  </div>
-                  <p className="text-sm font-medium">{quotaBreakdownData.summary_message}</p>
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Booking ID</TableHead>
-                          <TableHead>Equipment</TableHead>
-                          <TableHead className="text-right">Time (min)</TableHead>
-                          <TableHead>User</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(quotaBreakdownData.events ?? []).length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground py-4">
-                              No events in this period.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          (quotaBreakdownData.events ?? []).map((ev, idx) => (
-                            <TableRow key={`${ev.date}-${ev.booking_id}-${idx}`}>
-                              <TableCell className="whitespace-nowrap">{ev.date || "—"}</TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="link"
-                                  className="p-0 h-auto font-mono text-sm"
-                                  onClick={() => openBookingDetailPopup(ev.booking_id)}
-                                >
-                                  {(ev as { display_booking_id?: string }).display_booking_id ?? `${ev.equipment_code}-#${ev.booking_id}`}
-                                </Button>
-                              </TableCell>
-                              <TableCell>
-                                <div>{ev.equipment_name}</div>
-                                <div className="text-xs text-muted-foreground">{ev.equipment_code}</div>
-                              </TableCell>
-                              <TableCell className="text-right">{ev.total_time_minutes}</TableCell>
-                              <TableCell>{ev.user_name || "—"}</TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-sm">No data to display.</p>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
 
         <Dialog open={bookingDetailPopup !== null || loadingBookingDetail} onOpenChange={(open) => { if (!open) { setBookingDetailPopup(null); } }}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0" aria-describedby={undefined}>

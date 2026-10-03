@@ -57,6 +57,8 @@ import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
+import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
+import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
@@ -639,6 +641,10 @@ export function BookingDetailCard({
   const [actionNotes, setActionNotes] = useState("");
   const [sendEmailToSupervisor, setSendEmailToSupervisor] = useState(true);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleQuota, setRescheduleQuota] = useState<QuotaFailure | null>(null);
+  useEffect(() => {
+    if (!actionDialog.open || actionDialog.type !== "reschedule") setRescheduleQuota(null);
+  }, [actionDialog.open, actionDialog.type]);
   /** The Actions buttons depend on many role/status rules, so emptiness is read from the rendered row. */
   const [actionsEmpty, setActionsEmpty] = useState(false);
   const actionsObserverRef = useRef<MutationObserver | null>(null);
@@ -1141,6 +1147,7 @@ export function BookingDetailCard({
   const handleRescheduleConfirm = async (startTimeISO: string, endTimeISO: string, targetEquipmentId?: number) => {
     if (!actionDialog.booking) return;
     setRescheduleLoading(true);
+    setRescheduleQuota(null);
     try {
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
@@ -1149,6 +1156,7 @@ export function BookingDetailCard({
         ? await apiClient.rescheduleBooking(bookingPk, startTimeISO, endTimeISO, targetEquipmentId)
         : await apiClient.userRescheduleBooking(bookingPk, startTimeISO, endTimeISO, targetEquipmentId);
       if (response.error) {
+        setRescheduleQuota(quotaFailureFrom(response));
         toast.error(response.error);
         return;
       }
@@ -1568,7 +1576,7 @@ export function BookingDetailCard({
         return;
       }
       const res = await apiClient.updateBookingInputValues(bookingPk, newInputValues as Record<string, string | number | boolean | string[]>);
-      if (res.error) throw Object.assign(new Error(res.error), { code: res.errorCode });
+      if (res.error) throw Object.assign(new Error(res.error), { code: res.errorCode, quota: quotaFailureFrom(res) });
       // Reflect edits immediately in booking details without requiring page refresh.
       const updatedBooking = (res.data as { booking?: BookingDetailCardBooking } | undefined)?.booking;
       if (updatedBooking) {
@@ -3717,6 +3725,7 @@ export function BookingDetailCard({
             )}
           </DialogHeader>
 
+          {actionDialog.type === "reschedule" && rescheduleQuota && <QuotaRefusalNotice failure={rescheduleQuota} />}
           {actionDialog.type === "reschedule" && actionDialog.booking && (
             <RescheduleSlotPicker
               equipmentId={actionDialog.booking.equipment}

@@ -17,6 +17,7 @@ function withAppClient<T extends Record<string, unknown>>(body: T): T & { client
   return isNativeApp() ? { ...body, client: "iic_app" } : body;
 }
 import type { MyBookingQuota } from "@/lib/bookingQuota";
+import { quotaBreakdownQuery, type QuotaBreakdown, type QuotaBreakdownRequest } from "@/lib/quotaBreakdown";
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
@@ -2034,6 +2035,7 @@ class ApiClient {
               field === 'waitlist_code' ||
               field === 'waitlist_full' ||
               field === 'virtual_booking_id' ||
+              field === 'quota' ||
               (field === 'message' && !data.email_verified)
             ) {
               continue;
@@ -8126,27 +8128,12 @@ class ApiClient {
     return this.request<void>(`/booking-attempt-logs/${logId}/`, { method: 'DELETE' });
   }
 
-  /** Get quota calculation breakdown for a failed log (quota check failed). Admin/OIC only. */
-  async getBookingAttemptLogQuotaBreakdown(logId: number) {
-    return this.request<{
-      period_start: string;
-      period_end: string;
-      quota_type: string;
-      quota_scope: string;
-      limit_minutes: number;
-      total_minutes: number;
-      summary_message: string;
-      events: Array<{
-        date: string;
-        booking_id: BookingRef["booking_id"];
-        real_booking_id?: BookingRef["real_booking_id"];
-        equipment_name: string;
-        equipment_code: string;
-        display_booking_id?: string;
-        total_time_minutes: number;
-        user_name: string;
-      }>;
-    }>(`/booking-attempt-logs/${logId}/quota-breakdown/`, { method: 'GET' });
+  /** Bookings counted toward a weekly / monthly limit, or toward the limit a failed attempt log entry hit (`logId`). */
+  async getQuotaBreakdown(req: QuotaBreakdownRequest) {
+    return this.request<QuotaBreakdown>(`/bookings/quota-breakdown/?${quotaBreakdownQuery(req)}`, {
+      method: 'GET',
+      cache: "no-store",
+    });
   }
 
   /** Current user's unsuccessful (FAILED) booking attempts for an equipment in the past 2 weeks (for Request urgent booking popup). */

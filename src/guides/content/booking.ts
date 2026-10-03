@@ -53,7 +53,7 @@ export function bookSection(g: Gate): GuideSection {
       }),
       {
         title: "If the booking fails",
-        body: "Your form stays filled in; only slots someone else took are dropped and marked. An unsaved booking is also kept on this device and restored next time (Discard clears it).",
+        body: "Your form stays filled in; only slots someone else took are dropped and marked. An unsaved booking is also kept on this device and restored next time (Discard clears it). If a weekly or monthly limit stopped it, View bookings counted shows what used up the limit.",
       },
     ]),
     rules: compact([
@@ -63,6 +63,9 @@ export function bookSection(g: Gate): GuideSection {
       g.when(g.flags.externalBooking, "To give IIT Roorkee users a fair start, external access is paused from 8:55 to 9:15 pm on Wednesdays; a notice appears beforehand."),
       "The booking page shows how much of your weekly booking quota is left. A booking that needs more time is stopped before you pick slots.",
       "Cancelled or refunded bookings give their quota back, and repeat samples never use quota. A booking moved because of a disruption or by the lab stays counted in its original week; when you reschedule it yourself, it counts in the new week. Editing your inputs uses or frees quota as the analysis time changes.",
+      "When a booking, reschedule or input edit is refused for a weekly or monthly limit, or once 80% of the limit is used, click View bookings counted. It shows the period (weeks run Monday to Sunday, months by calendar month, in Indian time), the limit, the minutes used and every booking that counted; Not counted lists the others with the reason.",
+      g.only(WALLET_MEMBERS, "For your research group's limit you see everyone's bookings in the group with a total per person, but you can open only your own."),
+      g.only(["faculty"], "For your research group's limit you see every member's bookings in full, with a total per person."),
       g.only(WALLET_MEMBERS, "Until your supervisor's wallet is linked, a banner offers Link supervisor's wallet or Invite your supervisor; you can still fill in the form."),
       g.only([...WALLET_MEMBERS, "faculty"], "If the wallet cannot cover the charge, the page says how much to add before you confirm."),
       g.only(WALLET_MEMBERS, "Your supervisor's spending limit, if set, is checked before the booking is made."),

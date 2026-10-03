@@ -37,6 +37,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
+import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
+import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
@@ -306,6 +308,10 @@ const MyBookings = () => {
   const [autoOpenEditInputs, setAutoOpenEditInputs] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [rescheduleQuota, setRescheduleQuota] = useState<QuotaFailure | null>(null);
+  useEffect(() => {
+    if (!rescheduleDialogOpen) setRescheduleQuota(null);
+  }, [rescheduleDialogOpen]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [cancelNotes, setCancelNotes] = useState("");
   const [cancelSlotIds, setCancelSlotIds] = useState<number[]>([]);
@@ -1257,6 +1263,7 @@ const MyBookings = () => {
     if (!selectedBooking) return;
 
     setActionLoading(true);
+    setRescheduleQuota(null);
     try {
       const backendId = getRealBookingId(selectedBooking);
       if (backendId == null) {
@@ -1272,6 +1279,7 @@ const MyBookings = () => {
       );
 
       if (response.error) {
+        setRescheduleQuota(quotaFailureFrom(response));
         toast.error(response.error || "Failed to reschedule booking");
       } else {
         toast.success(response.data?.message || "Booking rescheduled successfully");
@@ -2340,6 +2348,7 @@ const MyBookings = () => {
                 )}
               </DialogDescription>
             </DialogHeader>
+            {rescheduleQuota && <QuotaRefusalNotice failure={rescheduleQuota} />}
             {selectedBooking && (
               <RescheduleSlotPicker
                 equipmentId={selectedBooking.equipment}

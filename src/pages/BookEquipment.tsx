@@ -210,7 +210,8 @@ import { bookingWalletStatus, insufficientFundsMessage, type EquipmentWalletBala
 import { saveReturnToBooking } from "@/lib/rechargeReturn";
 import { focusBookingField, missingRequiredFields } from "@/lib/missingFieldsHint";
 import { friendlyChargeError } from "@/lib/chargeErrorText";
-import { quotaBlockReason, quotaReferenceDate, quotaSummaryText, type MyBookingQuota } from "@/lib/bookingQuota";
+import { quotaBlockReason, quotaReferenceDate, quotaSummaryText, visibleQuota, type MyBookingQuota } from "@/lib/bookingQuota";
+import { nearLimitPeriod, quotaBreakdownRequestFromPeriod, quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import {
   WAITLIST_FOLLOW_UP,
   WAITLIST_FULL_MESSAGE,
@@ -223,6 +224,8 @@ import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator"
 import { SlotOpeningCountdown } from "@/components/booking/SlotOpeningCountdown";
 import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
 import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
+import { ViewBookingsCountedButton } from "@/components/quota/ViewBookingsCountedButton";
+import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { MissingFieldsHint } from "@/components/booking/MissingFieldsHint";
 import { SlotReasonPopover, type SlotReasonTarget } from "@/components/booking/SlotReasonPopover";
 import { RestoredDraftNotice } from "@/components/booking/RestoredDraftNotice";
@@ -1505,6 +1508,8 @@ const BookEquipment = () => {
     promptCompleteOptionalParams?: boolean;
     /** Failure only: the form was kept so the user can fix and retry. */
     formKept?: boolean;
+    /** Failure only: the minutes limit that refused the booking. */
+    quota?: QuotaFailure | null;
   }>({ open: false, success: false, variant: "failure", message: "" });
 
   /** Equipment Group: alternatives offered after a slot-unavailable failure (409 GROUP_ALTERNATIVES_AVAILABLE). */
@@ -1677,6 +1682,9 @@ const BookEquipment = () => {
   const quotaBlock = repeatSourceBooking
     ? null
     : quotaBlockReason(bookingQuota, calculatedCharge?.total_time_minutes ?? null, todayIso);
+  const quotaNearLimit = nearLimitPeriod(bookingQuota);
+  const quotaBlockPeriod = quotaBlock ? visibleQuota(bookingQuota)?.binding ?? null : null;
+  const quotaForUserId = adminManageMode === "book" && adminBookForUserId ? Number(adminBookForUserId) : null;
   const missingStep1Fields = useMemo(
     () =>
       missingRequiredFields(
@@ -6512,7 +6520,14 @@ const BookEquipment = () => {
    * Failed: the form stays as it was, minus slots that are no longer free.
    */
   const reportUnsuccessfulBooking = async (
-    errRes: { error?: string | null; waitlist_position?: number | null; waitlist_code?: string | null; waitlist_full?: boolean },
+    errRes: {
+      error?: string | null;
+      waitlist_position?: number | null;
+      waitlist_code?: string | null;
+      waitlist_full?: boolean;
+      data?: unknown;
+      quota?: unknown;
+    },
     opts: { attempt: BookingAttemptSnapshot | null; slotAlternatives?: TemplateSlotAlternative[] | null } = { attempt: null },
   ) => {
     setAttemptSnapshot(opts.attempt);
@@ -6531,6 +6546,7 @@ const BookEquipment = () => {
     }
     const raw = String(errRes.error || "Booking unsuccessful.");
     const message = errRes.waitlist_full ? `${raw} ${WAITLIST_FULL_MESSAGE}` : raw;
+    const quotaFailure = quotaFailureFrom(errRes);
     const firstSlotDate = selectedSlots[0]?.date ? format(selectedSlots[0].date, "yyyy-MM-dd") : null;
     let dropped = 0;
     try {
@@ -6539,7 +6555,7 @@ const BookEquipment = () => {
       dropped = 0;
     }
     if (selectedEquipment) {
-      let code: string = classifyBookingFailure(raw, { waitlist_full: errRes.waitlist_full });
+      let code: string = quotaFailure ? "quota" : classifyBookingFailure(raw, { waitlist_full: errRes.waitlist_full });
       if (code === "other") {
         if (dropped > 0) code = "slot_taken";
         else if (walletLinkRequired) code = "no_wallet";
@@ -6560,6 +6576,7 @@ const BookEquipment = () => {
       variant: "failure",
       message: dropped > 0 ? `${message}\n\n${droppedSlotsNotice(dropped)}` : message,
       formKept: true,
+      quota: quotaFailure,
     });
   };
 
@@ -7116,7 +7133,7 @@ const BookEquipment = () => {
 
       if (errors.length > 0) {
         const message = errors[0].error || "Failed to create some bookings";
-        throw new Error(message);
+        throw Object.assign(new Error(message), { quota: quotaFailureFrom(errors[0]) });
       }
 
       type MultiRangeData = {
@@ -7158,7 +7175,7 @@ const BookEquipment = () => {
       });
     } catch (error: any) {
       const errMsg = error.message || "Failed to create booking";
-      await reportUnsuccessfulBooking({ error: errMsg }, { attempt: null });
+      await reportUnsuccessfulBooking({ error: errMsg, quota: error?.quota }, { attempt: null });
       // Failure is already logged server-side in submit_booking / book_equipment; do not call logBookingAttempt here to avoid duplicate entries.
       // No-slot log for internal users (urgent request eligibility)
       if (selectedEquipment && isInternalUser() && !isAdminUser()) {
@@ -9336,7 +9353,17 @@ const BookEquipment = () => {
                   <RestoredDraftNotice savedAt={restoredDraft.savedAt} onDiscard={discardRestoredDraft} />
                 )}
                 {isRegularBookingFlow && quotaSummary && (
-                  <QuotaRemainingNotice summary={quotaSummary} className="mb-3" />
+                  <QuotaRemainingNotice
+                    summary={quotaSummary}
+                    className="mb-3"
+                    action={
+                      quotaNearLimit && bookingQuota ? (
+                        <ViewBookingsCountedButton
+                          request={quotaBreakdownRequestFromPeriod(bookingQuota.equipment_id, quotaNearLimit, quotaForUserId)}
+                        />
+                      ) : null
+                    }
+                  />
                 )}
 
                 {/* Step 1: Input Fields Section */}
@@ -10340,7 +10367,20 @@ const BookEquipment = () => {
                     </div>
 
                 {quotaBlock && (
-                  <QuotaRemainingNotice blockReason={quotaBlock} className="mb-2" />
+                  <QuotaRemainingNotice
+                    blockReason={quotaBlock}
+                    className="mb-2"
+                    action={
+                      quotaBlockPeriod && bookingQuota ? (
+                        <ViewBookingsCountedButton
+                          request={{
+                            ...quotaBreakdownRequestFromPeriod(bookingQuota.equipment_id, quotaBlockPeriod, quotaForUserId),
+                            requested: calculatedCharge?.total_time_minutes ?? null,
+                          }}
+                        />
+                      ) : null
+                    }
+                  />
                 )}
                 {takenSlotIds.size > 0 && (
                   <p className="mb-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100" role="status">
@@ -11889,6 +11929,9 @@ const BookEquipment = () => {
                   <p className="text-base text-foreground whitespace-pre-line">{bookingResultDialog.message}</p>
                   {bookingResultDialog.variant === "waitlist" && (
                     <p className="text-sm text-muted-foreground rounded-lg border bg-muted/40 px-3 py-2">{WAITLIST_FOLLOW_UP}</p>
+                  )}
+                  {bookingResultDialog.variant === "failure" && bookingResultDialog.quota && (
+                    <QuotaRefusalNotice failure={bookingResultDialog.quota} />
                   )}
                   {bookingResultDialog.variant === "failure" && bookingResultDialog.formKept && (
                     <p className="text-sm text-foreground rounded-lg border bg-muted/40 px-3 py-2" data-testid="booking-form-kept-note">

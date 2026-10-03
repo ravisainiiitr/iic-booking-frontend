@@ -13,6 +13,7 @@ import PendingActionsPrompt from "./components/PendingActions/PendingActionsProm
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
+import QuotaBreakdownHost from "./components/quota/QuotaBreakdownHost";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useStaffAppShell } from "./lib/staffApp";
 import { isNativeApp } from "./lib/nativeApp";
@@ -54,6 +55,7 @@ const App = () => (
               <PendingActionsPrompt />
               <AppRoutes />
               <StaffAppChrome />
+              <QuotaBreakdownHost />
             </PeakWindowGate>
           </NotificationProvider>
           </UserGuideProvider>

@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { format } from "date-fns";
-import { AlertCircle, CalendarClock, CheckCircle2, ChevronRight, Loader2, MessageSquareText, UserRound } from "lucide-react";
+import { AlertCircle, CalendarClock, CheckCircle2, ChevronRight, Gauge, Loader2, MessageSquareText, UserRound } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import type { BookingAttemptDetail, BookingAttemptPerson, BookingAttemptSlot } from "@/lib/bookingAttemptDetail";
 import { formatDurationMinutes, groupSlotsByDay } from "@/lib/jobSheet";
@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
+import { preloadQuotaBreakdown } from "@/components/quota/QuotaBreakdownHost";
+
+const QuotaBreakdownPanel = lazy(() =>
+  import("@/components/quota/QuotaBreakdownDialog").then((m) => ({ default: m.QuotaBreakdownPanel })),
+);
 
 /** What the log list already knows about the row, shown while (or if) the details cannot be loaded. */
 export type BookingAttemptRowSummary = {
@@ -29,7 +34,44 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** Opens the booking created by a successful attempt. */
   onOpenBooking?: () => void;
+  /** Quota failures: offer the bookings counted toward the limit for the requested period. */
+  showQuotaBreakdown?: boolean;
+  onOpenCountedBooking?: (bookingId: number) => void;
 };
+
+function QuotaBreakdownSection({ logId, onOpenBooking }: { logId: number; onOpenBooking?: (bookingId: number) => void }) {
+  const [shown, setShown] = useState(false);
+  useEffect(() => setShown(false), [logId]);
+  return (
+    <Section icon={<Gauge className="h-4 w-4 text-primary" aria-hidden />} title="Bookings counted toward the limit">
+      {shown ? (
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-6">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden />
+            </div>
+          }
+        >
+          <QuotaBreakdownPanel request={{ logId }} onOpenBooking={onOpenBooking} />
+        </Suspense>
+      ) : (
+        <div className="space-y-2 text-sm">
+          <p className="text-muted-foreground">
+            See which bookings used up the limit in the week or month of the requested slot.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShown(true)}
+            onPointerEnter={preloadQuotaBreakdown}
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            View bookings counted
+          </button>
+        </div>
+      )}
+    </Section>
+  );
+}
 
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "";
@@ -151,7 +193,13 @@ function OutcomeSection({ detail, row }: { detail: BookingAttemptDetail | null; 
  * Booking Attempt Log details: when and on what, who booked (as on the booking details page), the requested slots,
  * the user's inputs as the job sheet's table, and the outcome in plain language at the bottom.
  */
-export function BookingAttemptDetailsDialog({ row, onOpenChange, onOpenBooking }: Props) {
+export function BookingAttemptDetailsDialog({
+  row,
+  onOpenChange,
+  onOpenBooking,
+  showQuotaBreakdown = false,
+  onOpenCountedBooking,
+}: Props) {
   const [detail, setDetail] = useState<BookingAttemptDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -294,6 +342,8 @@ export function BookingAttemptDetailsDialog({ row, onOpenChange, onOpenBooking }
                 <p className="whitespace-pre-wrap break-words text-sm">{detail.comments}</p>
               </Section>
             )}
+
+            {showQuotaBreakdown && !success && <QuotaBreakdownSection logId={row.id} onOpenBooking={onOpenCountedBooking} />}
 
             <OutcomeSection detail={detail} row={row} />
           </div>

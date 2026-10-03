@@ -7,6 +7,7 @@ import BookingAttemptLogs from "./BookingAttemptLogs";
 const api = vi.hoisted(() => ({
   list: vi.fn(),
   detail: vi.fn(),
+  quotaBreakdown: vi.fn(),
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/lib/api", () => ({
       get: (_t, prop) => {
         if (prop === "listBookingAttemptLogs") return api.list;
         if (prop === "getBookingAttemptLogDetail") return api.detail;
+        if (prop === "getQuotaBreakdown") return api.quotaBreakdown;
         if (prop === "isAdminPanelUser") return () => true;
         return vi.fn(async () => ({ data: [] }));
       },
@@ -143,6 +145,74 @@ describe("Booking Attempt Log details", () => {
     expect(sections[sections.length - 1]).toBe(outcome);
     const technicalSummary = within(outcome).getByText("Technical details");
     expect(technicalSummary.closest("details")?.hasAttribute("open")).toBe(false);
+  });
+
+  it("shows the bookings counted toward the limit for a quota failure, for the requested slot's week", async () => {
+    api.quotaBreakdown.mockResolvedValue({
+      data: {
+        equipment: { id: 3, name: row.equipment_name, code: "XPS" },
+        equipment_group_name: null,
+        scope: "individual",
+        scope_label: "Individual Weekly",
+        period: "WEEKLY",
+        period_start: "2026-10-05T00:00:00+05:30",
+        period_end: "2026-10-11T23:59:59+05:30",
+        period_label: "Week of Mon 5 Oct – Sun 11 Oct 2026",
+        limit_minutes: 270,
+        used_minutes: 120,
+        requested_minutes: 90,
+        remaining_minutes: 150,
+        over_by_minutes: 0,
+        effectively_unlimited: false,
+        subject: { id: 9, name: "Pragya Sharma" },
+        group_owner: null,
+        group_members_count: null,
+        excluded_booking_id: null,
+        counted: [
+          {
+            booking_id: 77,
+            display_booking_id: "XPS202600077",
+            equipment_id: 3,
+            equipment_name: row.equipment_name,
+            equipment_code: "XPS",
+            slot_start: "2026-10-07T04:30:00Z",
+            slot_end: "2026-10-07T06:30:00Z",
+            minutes: 120,
+            counted: true,
+            status: "BOOKED",
+            status_label: "Booked",
+            user_id: 9,
+            user_name: "Pragya Sharma",
+            note: null,
+            is_viewer: false,
+            can_open: true,
+          },
+        ],
+        not_counted: [],
+        not_counted_truncated: false,
+        members: [],
+        viewer_access: "staff",
+        full_details: true,
+        computed_at: "2026-10-03T10:00:00Z",
+        historical: true,
+        attempt: {
+          attempted_at: row.requested_at,
+          period_source: "requested_slot",
+          logged_used_minutes: 120,
+          logged_limit_minutes: 270,
+          logged_requested_minutes: 90,
+          limit_changed: false,
+          usage_changed: false,
+        },
+      },
+    });
+    const dialog = await openFromFailureReason();
+    await within(dialog).findByText("User details");
+    fireEvent.click(within(dialog).getByRole("button", { name: "View bookings counted" }));
+    expect(await within(dialog).findByText("Week of Mon 5 Oct – Sun 11 Oct 2026")).toBeTruthy();
+    expect(api.quotaBreakdown).toHaveBeenCalledWith({ logId: 41 });
+    expect(within(dialog).getByText("XPS202600077")).toBeTruthy();
+    expect(within(dialog).queryByText(/No events in this period/)).toBeNull();
   });
 
   it("keeps a details button in Actions and leaves the user name as plain text", async () => {

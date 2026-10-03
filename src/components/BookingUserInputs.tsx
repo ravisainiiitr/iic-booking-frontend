@@ -64,6 +64,8 @@ import {
   type InputEditRefundWindow,
 } from "@/lib/inputEditRefund";
 import { inputEditQuotaNotice } from "@/lib/bookingQuota";
+import { quotaBreakdownRequestFromFailure, quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
+import { ViewBookingsCountedButton } from "@/components/quota/ViewBookingsCountedButton";
 import { formatInputScalar, resolveChoiceDisplay } from "@/lib/bookingInputDisplay";
 import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
 import { TypedTableView } from "@/components/TypedTableView";
@@ -159,6 +161,7 @@ export function BookingUserInputs({
   const [saving, setSaving] = useState(false);
   const [quotaNotice, setQuotaNotice] = useState<string | null>(null);
   const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [quotaFailure, setQuotaFailure] = useState<QuotaFailure | null>(null);
   const quotaEquipmentId = refundViewer === "owner" ? quotaBooking?.equipmentId : undefined;
   const quotaBookingId = quotaBooking?.bookingId;
   const loadQuotaNotice = (isCancelled: () => boolean = () => false) => {
@@ -175,6 +178,7 @@ export function BookingUserInputs({
 
   useEffect(() => {
     setQuotaError(null);
+    setQuotaFailure(null);
     if (!editDialogOpen) return;
     let cancelled = false;
     loadQuotaNotice(() => cancelled);
@@ -521,6 +525,7 @@ export function BookingUserInputs({
       const message = e instanceof Error && e.message ? e.message : "Failed to update";
       if ((e as { code?: string } | null)?.code === "QUOTA_EXCEEDED") {
         setQuotaError(message);
+        setQuotaFailure(quotaFailureFrom(e));
         loadQuotaNotice();
         window.setTimeout(() => {
           document.getElementById("input-edit-quota-error")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -897,6 +902,9 @@ export function BookingUserInputs({
               <div className="space-y-1 text-sm leading-relaxed" data-testid="input-edit-quota-notice">
                 {quotaError ? <p className="font-medium">{quotaError}</p> : null}
                 {quotaNotice ? <p>{quotaNotice}</p> : null}
+                {quotaError && quotaFailure ? (
+                  <ViewBookingsCountedButton request={quotaBreakdownRequestFromFailure(quotaFailure)} />
+                ) : null}
               </div>
             </div>
           ) : null}
