@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import { appEntryPath, isNativeApp } from "@/lib/nativeApp";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
@@ -159,8 +160,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       apiClient.setToken(null);
       localStorage.removeItem("user");
       setUser(null);
-      if (window.location.pathname !== "/auth") {
-        window.location.replace("/auth");
+      const signInPath = isNativeApp() ? appEntryPath(false) : "/auth";
+      if (window.location.pathname !== signInPath) {
+        window.location.replace(signInPath);
       }
     };
     return () => {

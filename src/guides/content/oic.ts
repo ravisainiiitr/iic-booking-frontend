@@ -31,6 +31,10 @@ export const oicGuide: RoleGuide = {
             body: "View Booking, Urgent booking, Equipment waitlist, Support tickets and the OIC tools for your equipment are on the dashboard.",
           },
           {
+            title: "Android app",
+            body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, pending samples, messages, urgent requests and waitlist.",
+          },
+          {
             title: "Book for a user",
             body: "Click Book on your equipment and choose Book slots for a user, then select the user. The charge goes to that user.",
           },

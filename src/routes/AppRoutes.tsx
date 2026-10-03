@@ -1,11 +1,18 @@
-import { Suspense } from "react";
+import { Suspense, type ReactElement } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AdminModuleGuard from "@/components/AdminModuleGuard";
+import { useAuth } from "@/contexts/AuthContext";
+import { apiClient } from "@/lib/api";
 import { lazyPage } from "@/lib/lazyPage";
+import { appEntryPath, APP_SIGN_IN_PATH, isNativeApp } from "@/lib/nativeApp";
+import { isStaffAppUserType } from "@/lib/staffApp";
 import Index from "@/pages/Index";
 import NotFound from "@/pages/NotFound";
+
+const StaffAppRoutes = lazyPage(() => import("@/pages/staff-app/StaffAppRoutes"));
+const AppDownload = lazyPage(() => import("@/pages/AppDownload"));
 
 const AnalysisCharges = lazyPage(() => import("@/pages/AnalysisCharges"));
 const Publications = lazyPage(() => import("@/pages/Publications"));
@@ -152,6 +159,36 @@ function RouteFallback() {
   );
 }
 
+/** The Android app never shows the public home page: staff home when signed in, app sign-in otherwise. */
+function PublicHome() {
+  if (!isNativeApp()) return <Index />;
+  return <Navigate to={appEntryPath(!!apiClient.getToken())} replace />;
+}
+
+function WebSignIn({ page }: { page: ReactElement }) {
+  const { search } = useLocation();
+  if (!isNativeApp()) return page;
+  return <Navigate to={`${APP_SIGN_IN_PATH}${search}`} replace />;
+}
+
+function storedUserType(): unknown {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null")?.user_type;
+  } catch {
+    return null;
+  }
+}
+
+/** In the app, Officers In Charge and Lab Operators get the simplified home; `?full=1` opens the full dashboard. */
+function DashboardEntry() {
+  const { search } = useLocation();
+  const { user } = useAuth();
+  if (isNativeApp() && !search && isStaffAppUserType(user?.user_type ?? storedUserType())) {
+    return <Navigate to="/app" replace />;
+  }
+  return <Dashboard />;
+}
+
 /**
  * Shared route table for the main BrowserRouter and the dashboard in-panel MemoryRouter.
  * When embedding, omit the Dashboard route tree by not mounting this under /dashboard
@@ -163,15 +200,17 @@ export default function AppRoutes() {
     <ErrorBoundary fallbackTitle="This page could not be loaded" backPath="/" resetKey={pathname}>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<PublicHome />} />
+          <Route path="/app/*" element={<StaffAppRoutes />} />
+          <Route path="/app-download" element={<AppDownload />} />
           <Route path="/analysis-charges" element={<AnalysisCharges />} />
           <Route path="/publications" element={<Publications />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/login" element={<LoginRedirect />} />
+          <Route path="/auth" element={<WebSignIn page={<Auth />} />} />
+          <Route path="/login" element={<WebSignIn page={<LoginRedirect />} />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/auth/verify-email" element={<EmailVerificationCallback />} />
           <Route path="/auth/self-verify" element={<SelfVerify />} />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<DashboardEntry />} />
           <Route path="/equipments" element={<EquipmentList />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />

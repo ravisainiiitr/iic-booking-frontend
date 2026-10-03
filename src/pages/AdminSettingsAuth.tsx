@@ -16,6 +16,7 @@ import {
 import { ArrowLeft, Loader2, Shield } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import PeakWindowSettingsCard from "@/components/admin/PeakWindowSettingsCard";
+import MobileAppAudienceCard from "@/components/admin/MobileAppAudienceCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { StandaloneOnly } from "@/components/PageShell";
@@ -217,6 +218,7 @@ const AdminSettingsAuth = () => {
           </CardContent>
         </Card>
         {isAdmin ? <PeakWindowSettingsCard /> : null}
+        {isAdmin ? <MobileAppAudienceCard /> : null}
       </main>
     </div>
   );

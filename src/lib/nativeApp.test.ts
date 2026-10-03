@@ -152,23 +152,50 @@ describe("inside the app", () => {
     await expect(mod.enrollNativeDevice("webtoken")).resolves.toBe("iicm_saved");
   });
 
-  it("opens the dashboard instead of the home page when launched signed in", async () => {
+  it("opens the staff home instead of the public home page when launched signed in", async () => {
     nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_saved", accessExpiresAt: Date.now() + 1e6 });
     const mod = await loadModule();
     await mod.bootstrapNativeApp(tokenStore(null));
-    expect(window.location.pathname).toBe("/dashboard");
+    expect(window.location.pathname).toBe("/app");
   });
 
-  it("keeps the home page when signed out, and after the first load of the app session", async () => {
+  it("opens the app sign-in screen, never the public home page, when signed out", async () => {
     nativePromise.mockResolvedValue({ status: "none" });
-    let mod = await loadModule();
+    const mod = await loadModule();
     await mod.bootstrapNativeApp(tokenStore(null));
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/app/sign-in");
+  });
 
-    nativePromise.mockResolvedValue({ status: "ok", accessToken: "iicm_saved", accessExpiresAt: Date.now() + 1e6 });
-    mod = await loadModule();
+  it("sends the website sign-in page to the app sign-in screen", async () => {
+    window.history.replaceState(null, "", "/auth");
+    nativePromise.mockResolvedValue({ status: "none" });
+    const mod = await loadModule();
     await mod.bootstrapNativeApp(tokenStore(null));
-    expect(window.location.pathname).toBe("/");
+    expect(window.location.pathname).toBe("/app/sign-in");
+  });
+
+  it("shows the not-available screen when the device session was ended for the app audience", async () => {
+    nativePromise.mockResolvedValue({ status: "signed_out", code: "APP_AUDIENCE" });
+    const mod = await loadModule();
+    const tokens = tokenStore("iicm_old");
+    await mod.bootstrapNativeApp(tokens);
+    expect(tokens.setToken).toHaveBeenCalledWith(null);
+    expect(window.location.pathname).toBe("/app/not-available");
+  });
+
+  it("remembers an audience refusal from enrolment and does not retry it", async () => {
+    nativePromise.mockResolvedValue({ status: "error", code: "APP_AUDIENCE", httpStatus: 403 });
+    const mod = await loadModule();
+    const seen = vi.fn();
+    window.addEventListener(mod.APP_AUDIENCE_EVENT, seen);
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBeNull();
+    await expect(mod.enrollNativeDevice("webtoken")).resolves.toBeNull();
+    expect(nativeCalls("enroll")).toHaveLength(1);
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(mod.appAudienceRefused()).toBe(true);
+    expect(mod.consumeAppAudienceRefusal()).toBeTruthy();
+    expect(mod.appAudienceRefused()).toBe(false);
+    window.removeEventListener(mod.APP_AUDIENCE_EVENT, seen);
   });
 
   it("leaves deep links alone", async () => {

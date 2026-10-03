@@ -36,6 +36,7 @@ import { TemplateAttentionNotice } from "@/components/booking-templates/Template
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
 import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
 import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
+import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
 import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
@@ -3716,6 +3717,7 @@ const Dashboard = () => {
           <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} className="mb-4" />
         )}
         {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
+        {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(

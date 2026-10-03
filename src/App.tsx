@@ -13,6 +13,13 @@ import PendingActionsPrompt from "./components/PendingActions/PendingActionsProm
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
+import StaffAppChrome from "./components/staff-app/StaffAppChrome";
+import { useStaffAppShell } from "./lib/staffApp";
+
+/** The floating Booking Assistant stays on the website; the staff app keeps the screen uncluttered. */
+function AssistantLauncher() {
+  return useStaffAppShell() ? null : <ResearchCopilotLauncher />;
+}
 
 function EmbedChrome() {
   const { search } = useLocation();
@@ -39,9 +46,10 @@ const App = () => (
             <PeakWindowGate>
               <EmbedChrome />
               <GlobalBackButton />
-              <ResearchCopilotLauncher />
+              <AssistantLauncher />
               <PendingActionsPrompt />
               <AppRoutes />
+              <StaffAppChrome />
             </PeakWindowGate>
           </NotificationProvider>
           </UserGuideProvider>

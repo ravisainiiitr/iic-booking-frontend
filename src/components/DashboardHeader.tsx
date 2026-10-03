@@ -24,6 +24,8 @@ import { useMyResearchAvailability } from "@/components/my-research/useMyResearc
 import { ServerClock } from "@/components/ServerClock";
 import { cn } from "@/lib/utils";
 import { SkipToContent } from "@/components/SkipToContent";
+import { useStaffAppShell } from "@/lib/staffApp";
+import iitrLogo128 from "@/assets/iitr-logo-128.webp";
 
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
@@ -34,6 +36,7 @@ const DashboardHeader = () => {
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
   const { openGuide } = useUserGuide();
   const embedded = useEmbeddedMode();
+  const staffShell = useStaffAppShell();
   const isEmbed =
     embedded ||
     (typeof window !== "undefined" &&
@@ -301,6 +304,19 @@ const DashboardHeader = () => {
 
   if (isEmbed) {
     return null;
+  }
+
+  if (staffShell) {
+    return (
+      <header className="sticky top-0 z-20 border-b border-border/70 bg-card/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="flex h-14 items-center gap-3 px-4">
+          <BackButton />
+          <img src={iitrLogo128} width={32} height={32} alt="IIT Roorkee" className="h-8 w-8 shrink-0 object-contain" />
+          <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IIC Booking</span>
+          <NotificationPanel />
+        </div>
+      </header>
+    );
   }
 
   return (

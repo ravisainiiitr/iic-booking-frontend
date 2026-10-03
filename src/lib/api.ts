@@ -1,13 +1,21 @@
 import { type BookingRef } from "@/lib/bookingRef";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
+  APP_AUDIENCE_CODE,
+  appAudienceRefused,
   clearNativeSession,
   enrollNativeDevice,
   isMobileSessionToken,
   isNativeApp,
+  markAppAudienceRefused,
   recoverNativeSession,
 } from "@/lib/nativeApp";
 import { isTypedTableRowsValue, typedTableFilledRowCount } from "@/lib/typedTableField";
+
+/** Sign-in requests from the Android app carry this so the server can apply the app audience. */
+function withAppClient<T extends Record<string, unknown>>(body: T): T & { client?: string } {
+  return isNativeApp() ? { ...body, client: "iic_app" } : body;
+}
 import type { MyBookingQuota } from "@/lib/bookingQuota";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
@@ -852,6 +860,65 @@ export interface PeakWindowSettings {
     ends_at: string | null;
     next_window: { opening_at: string; starts_at: string; ends_at: string } | null;
   };
+}
+
+export interface StaffAppBookingRow {
+  booking_id: number;
+  booking_ref: string;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  user_name: string;
+  is_test: boolean;
+  status: string;
+  status_display: string;
+  start_time: string | null;
+  end_time: string | null;
+  sample_stage: string;
+  sample_stage_display: string;
+  sample_summary?: unknown;
+}
+
+export interface StaffAppToday {
+  role: string;
+  today: string;
+  tomorrow: string;
+  generated_at: string;
+  equipment: Array<{ equipment_id: number; code: string; name: string; status: string; status_display: string }>;
+  days: Array<{ date: string; label: string; bookings: StaffAppBookingRow[] }>;
+  counts: {
+    samples_awaiting_receipt: number;
+    user_messages_awaiting_reply: number;
+    urgent_requests_pending: number | null;
+    waitlist_active: number | null;
+    tickets_assigned_open: number;
+  };
+  message_booking_ids: number[];
+}
+
+export interface MobileAppRelease {
+  id: string;
+  platform: string;
+  version_name: string;
+  version_code: number;
+  release_date: string | null;
+  release_notes: string;
+  min_android: string;
+  file_name: string;
+  size_bytes: number;
+  sha256: string;
+  signing_cert_sha256: string;
+  has_file: boolean;
+  is_latest: boolean;
+}
+
+export interface MobileAppSettingsPayload {
+  audience_user_types: string[];
+  choices: Array<{ code: string; name: string }>;
+  default_audience_user_types: string[];
+  refusal_message: string;
+  updated_at: string | null;
+  latest_release: MobileAppRelease | null;
 }
 
 interface ApiResponse<T> {
@@ -1876,6 +1943,14 @@ class ApiClient {
             this.onUnauthorized();
           }
         }
+        if (response.status === 403 && (data as { code?: unknown })?.code === APP_AUDIENCE_CODE) {
+          const message =
+            typeof (data as { error?: unknown }).error === "string"
+              ? (data as { error: string }).error
+              : "The IIC Booking app is not available for this account.";
+          if (isNativeApp()) markAppAudienceRefused(message);
+          return { error: message, status: 403, errorCode: APP_AUDIENCE_CODE };
+        }
         if (response.status === 403 && isPeakPausedBody(data)) {
           notifyPeakExternalPaused(data);
           const message = data.message || data.detail || "External access is paused while new slots open.";
@@ -2260,7 +2335,15 @@ class ApiClient {
    */
   private async rememberThisDevice(webToken: string) {
     const deviceToken = await enrollNativeDevice(webToken);
-    if (!deviceToken) return;
+    if (!deviceToken) {
+      // Channel i sign-ins only meet the app audience check here: end that web sign-in too.
+      if (appAudienceRefused() && this.getToken() === webToken) {
+        await this.revokeWebToken(webToken);
+        this.setToken(null);
+        localStorage.removeItem('user');
+      }
+      return;
+    }
     const current = this.getToken();
     if (current === webToken) {
       this.setToken(deviceToken);
@@ -2272,6 +2355,18 @@ class ApiClient {
     // session. The app's stored session is left alone (a newer enrolment may have replaced it).
     await this.revokeDeviceToken(deviceToken);
     if (!current) await clearNativeSession(false);
+  }
+
+  private async revokeWebToken(webToken: string) {
+    try {
+      await fetch(`${this.baseURL}/auth/logout/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Token ${webToken}` },
+        credentials: 'omit',
+      });
+    } catch {
+      /* web tokens are replaced at the next sign-in anyway */
+    }
   }
 
   private async revokeDeviceToken(deviceToken: string) {
@@ -2517,7 +2612,7 @@ class ApiClient {
   async signIn(email: string, password: string) {
     const response = await this.request<AuthResponse>('/auth/login/', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(withAppClient({ email, password })),
     });
 
     if (response.data?.token) {
@@ -2560,7 +2655,7 @@ class ApiClient {
   async requestLoginOtp(email: string) {
     return this.request<{ message: string }>('/auth/login/request-otp/', {
       method: 'POST',
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      body: JSON.stringify(withAppClient({ email: email.trim().toLowerCase() })),
     });
   }
 
@@ -2568,7 +2663,7 @@ class ApiClient {
   async verifyLoginOtp(email: string, otp: string) {
     const response = await this.request<AuthResponse>('/auth/login/verify-otp/', {
       method: 'POST',
-      body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.replace(/\s/g, '') }),
+      body: JSON.stringify(withAppClient({ email: email.trim().toLowerCase(), otp: otp.replace(/\s/g, '') })),
     });
     if (response.data?.token) {
       this.setToken(response.data.token);
@@ -2642,6 +2737,41 @@ class ApiClient {
   async revokeOtherMobileDevices() {
     return this.request<{ revoked?: number; message?: string }>('/auth/mobile/devices/revoke-all/', {
       method: 'POST',
+    });
+  }
+
+  /** OIC / Lab Operator: today and tomorrow on my equipment plus pending counts (app home). */
+  async getStaffAppToday(opts?: { refresh?: boolean }) {
+    return this.request<StaffAppToday>(`/staff-app/today/${opts?.refresh ? '?refresh=1' : ''}`);
+  }
+
+  /** Latest Android app build (signed-in app audience only). */
+  async getMobileAppLatest() {
+    return this.request<{ release: MobileAppRelease | null }>('/v1/deployment/mobile-app/latest/');
+  }
+
+  async createMobileAppDownloadTicket() {
+    return this.request<{
+      url: string;
+      direct: boolean;
+      expires_in: number;
+      filename: string;
+      size_bytes: number;
+      sha256: string;
+      version_name: string;
+      version_code: number;
+    }>('/v1/deployment/mobile-app/latest/download-ticket/', { method: 'POST', body: JSON.stringify({}) });
+  }
+
+  /** Main admin: who may use the Android app. */
+  async getMobileAppSettings() {
+    return this.request<MobileAppSettingsPayload>('/v1/deployment/mobile-app/settings/');
+  }
+
+  async updateMobileAppSettings(audience_user_types: string[]) {
+    return this.request<MobileAppSettingsPayload>('/v1/deployment/mobile-app/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify({ audience_user_types }),
     });
   }
 

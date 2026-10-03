@@ -143,6 +143,11 @@
   html.dark {
     color-scheme: dark;
   }
+
+  /* Android app: keep page content clear of the staff bottom navigation. */
+  html.iic-staff-nav body {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
 }
 
 @layer utilities {

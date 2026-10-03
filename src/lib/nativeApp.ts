@@ -8,6 +8,42 @@
 
 export const MOBILE_SESSION_TOKEN_PREFIX = "iicm_";
 
+/** Backend code when the signed-in role is outside the app audience (Admin Settings → Mobile app). */
+export const APP_AUDIENCE_CODE = "APP_AUDIENCE";
+export const APP_AUDIENCE_EVENT = "iic-app-audience-refused";
+export const APP_SIGN_IN_PATH = "/app/sign-in";
+export const APP_HOME_PATH = "/app";
+export const APP_NOT_AVAILABLE_PATH = "/app/not-available";
+const APP_AUDIENCE_KEY = "iic_app_audience_refused";
+
+/** Remember (for this app session) that the account may not use the app, and tell the page. */
+export function markAppAudienceRefused(message?: string) {
+  try {
+    sessionStorage.setItem(APP_AUDIENCE_KEY, message || "1");
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(APP_AUDIENCE_EVENT));
+}
+
+export function consumeAppAudienceRefusal(): string | null {
+  try {
+    const value = sessionStorage.getItem(APP_AUDIENCE_KEY);
+    sessionStorage.removeItem(APP_AUDIENCE_KEY);
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function appAudienceRefused(): boolean {
+  try {
+    return !!sessionStorage.getItem(APP_AUDIENCE_KEY);
+  } catch {
+    return false;
+  }
+}
+
 type CapacitorBridge = {
   isNativePlatform?: () => boolean;
   getPlatform?: () => string;
@@ -112,6 +148,7 @@ export async function recoverNativeSession(rejectedToken: string, tokens: TokenA
     tokens.setToken(result.accessToken);
     return result.accessToken;
   }
+  if (result.status === "signed_out" && result.code === APP_AUDIENCE_CODE) markAppAudienceRefused();
   return null;
 }
 
@@ -145,6 +182,10 @@ export async function enrollNativeDevice(webToken: string): Promise<string | nul
         "To stay signed in on this phone, administrator accounts need a fingerprint, face unlock or screen lock. You will need to sign in again next time.",
       );
     }
+    if (result.code === APP_AUDIENCE_CODE) {
+      retryable = false;
+      markAppAudienceRefused();
+    }
   } catch {
     /* the web session keeps working; the user just isn't remembered on this device */
   }
@@ -177,6 +218,19 @@ export async function setNativeAppLock(enabled: boolean): Promise<boolean> {
   return !!result?.enabled;
 }
 
+/** Opens a link in the phone's browser (portal links would otherwise stay inside the app). */
+export async function openInBrowser(url: string): Promise<void> {
+  if (!isNativeApp()) {
+    window.open(url, "_blank", "noopener");
+    return;
+  }
+  try {
+    await callNative("IicFiles", "openExternal", { url });
+  } catch {
+    window.location.href = url;
+  }
+}
+
 function notifyNative(message: string) {
   window.setTimeout(() => window.alert(message), 0);
 }
@@ -187,28 +241,29 @@ function applySession(result: NativeSessionResult, tokens: TokenAccess) {
     if (result.accessToken !== current) tokens.setToken(result.accessToken);
     return;
   }
+  if (result.status === "signed_out" && result.code === APP_AUDIENCE_CODE) markAppAudienceRefused();
   if ((result.status === "signed_out" || result.status === "none") && isMobileSessionToken(current)) {
     tokens.setToken(null);
     localStorage.removeItem("user");
   }
 }
 
-const LAUNCHED_KEY = "iic_app_launched";
+/** Public pages that the app never shows: signed in → staff home, signed out → app sign-in. */
+const PUBLIC_ENTRY_PATHS = new Set(["/", "/index.html", "/auth", "/login"]);
 
-/**
- * The app always starts on "/": a signed-in user lands on the dashboard instead of the public
- * home page. Runs before the router mounts and only on the first load of an app session, so
- * Home and pull-to-refresh on the home page still work.
- */
-function openDashboardOnLaunch(tokens: TokenAccess) {
-  try {
-    if (sessionStorage.getItem(LAUNCHED_KEY)) return;
-    sessionStorage.setItem(LAUNCHED_KEY, "1");
-  } catch {
-    return;
-  }
-  if (window.location.pathname !== "/" || !tokens.getToken()) return;
-  window.history.replaceState(window.history.state, "", "/dashboard");
+export function isPublicEntryPath(pathname: string): boolean {
+  return PUBLIC_ENTRY_PATHS.has(pathname.replace(/\/+$/, "") || "/");
+}
+
+export function appEntryPath(signedIn: boolean): string {
+  if (appAudienceRefused()) return APP_NOT_AVAILABLE_PATH;
+  return signedIn ? APP_HOME_PATH : APP_SIGN_IN_PATH;
+}
+
+/** Runs before the router mounts: the app never opens on the public landing page. */
+function routeOnLaunch(tokens: TokenAccess) {
+  if (!isPublicEntryPath(window.location.pathname)) return;
+  window.history.replaceState(window.history.state, "", appEntryPath(!!tokens.getToken()));
 }
 
 let installed = false;
@@ -237,7 +292,7 @@ export async function bootstrapNativeApp(tokens: TokenAccess): Promise<void> {
       });
     }
   }
-  openDashboardOnLaunch(tokens);
+  routeOnLaunch(tokens);
 
   const refreshIfNeeded = () => {
     if (document.visibilityState !== "visible") return;
