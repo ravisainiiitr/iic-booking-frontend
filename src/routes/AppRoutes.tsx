@@ -50,6 +50,7 @@ const TAAssignments = lazyPage(() => import("@/pages/TAAssignments"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
 const WalletPeerTransfer = lazyPage(() => import("@/pages/WalletPeerTransfer"));
 const WalletCreditFacilityRequest = lazyPage(() => import("@/pages/WalletCreditFacilityRequest"));
+const WalletDirectRecharge = lazyPage(() => import("@/pages/WalletDirectRecharge"));
 const AdminWalletCreditManagement = lazyPage(() => import("@/pages/AdminWalletCreditManagement"));
 const IdentityAdministration = lazyPage(() => import("@/pages/IdentityAdministration"));
 const AdminPortalMigration = lazyPage(() => import("@/pages/AdminPortalMigration"));
@@ -253,6 +254,7 @@ export default function AppRoutes() {
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/wallet/transfer" element={<WalletPeerTransfer />} />
           <Route path="/wallet/credit-facility" element={<WalletCreditFacilityRequest />} />
+          <Route path="/wallet/direct-recharge" element={<WalletDirectRecharge />} />
           <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />
           <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
           <Route path="/admin/identity" element={<IdentityAdministration />} />

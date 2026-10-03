@@ -71,7 +71,15 @@ export const adminGuide: RoleGuide = {
         steps: [
           {
             title: "Wallet payment modes",
-            body: "Switch Recharge via Project Grant, Direct Cash Deposit / Bank Transfer, Online payment gateway, Transfer within the same department and Credit Limit on or off.",
+            body: "In Payment options, the master switches turn Recharge via Project Grant, Direct Cash Deposit / Bank Transfer, Online payment gateway, Transfer within the same department and Credit Limit on or off for everyone. Below them, switch an option off for individual departments; search the list or use a column's menu to change every department shown. Click Save on each section.",
+          },
+          {
+            title: "Email recipients",
+            body: "Choose an option and Default (all departments) or one department, then add To and CC recipients as email addresses, portal users or roles such as SRIC Office or Department Administrator. The requesting user is always copied. Reset to built-in goes back to today's recipients.",
+          },
+          {
+            title: "Direct wallet recharge",
+            body: "Turn Allow direct wallet recharge on, then Add person to give someone temporary permission: valid from and until, optional department and per-transaction limit, and a reason. Revoke ends it at once. Recharge a wallet credits funds after you review the owner, the new balance and who is emailed; every recharge is listed in the history.",
           },
           {
             title: "Wallet recharge requests",
@@ -83,7 +91,9 @@ export const adminGuide: RoleGuide = {
           },
         ],
         rules: [
-          "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval.",
+          "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval. The department is that of the sub-wallet being funded, debited or transferred from.",
+          "A department can only switch an option off; while a master switch is off, the option is off in every department. Credit limit caps apply to every department.",
+          "Direct wallet recharge is off by default. Only the Main Administrator and people with a current permission can use it, and each recharge is recorded with who made it, when, the permission used and the IP address.",
           "A Project Grant request declined by SRIC becomes an auto-approved credit, recovered from the user's next approved recharge.",
         ],
         glossary: [

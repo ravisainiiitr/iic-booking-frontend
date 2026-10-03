@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { AWAITING_APPROVAL_TEXT, useWalletModeFlags } from "@/lib/walletModes";
+import { AWAITING_APPROVAL_TEXT, useWalletModeFlags, walletModeFlagsForDepartment } from "@/lib/walletModes";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -96,8 +96,14 @@ export default function WalletPeerTransfer() {
     [departments, departmentId]
   );
   const { flags: modeFlags, loaded: modeFlagsLoaded } = useWalletModeFlags();
-  const [serverDisabled, setServerDisabled] = useState(false);
-  const transferDisabled = serverDisabled || (modeFlagsLoaded && !modeFlags.peerTransfer);
+  const [serverDisabledDepts, setServerDisabledDepts] = useState<string[]>([]);
+  const transferDisabled = modeFlagsLoaded && !modeFlags.peerTransfer;
+  const departmentTransferOff =
+    Boolean(departmentId) &&
+    (serverDisabledDepts.includes(departmentId) ||
+      (modeFlagsLoaded && !walletModeFlagsForDepartment(modeFlags, departmentId).peerTransfer));
+  const markDepartmentDisabled = () =>
+    setServerDisabledDepts((prev) => (departmentId && !prev.includes(departmentId) ? [...prev, departmentId] : prev));
 
   useEffect(() => {
     if (authLoading) return;
@@ -196,7 +202,7 @@ export default function WalletPeerTransfer() {
     });
     setSubmitting(false);
     if (res.error) {
-      if (res.errorCode === "peer_transfer_disabled") setServerDisabled(true);
+      if (res.errorCode === "peer_transfer_disabled") markDepartmentDisabled();
       toast.error(res.error);
       return;
     }
@@ -224,7 +230,7 @@ export default function WalletPeerTransfer() {
     setSubmitting(false);
     if (res.error) {
       if (res.errorCode === "peer_transfer_disabled") {
-        setServerDisabled(true);
+        markDepartmentDisabled();
         resetForm();
       }
       toast.error(res.error);
@@ -313,6 +319,15 @@ export default function WalletPeerTransfer() {
                       {selectedDept.balance}
                     </p>
                   ) : null}
+                  {departmentTransferOff ? (
+                    <p
+                      role="status"
+                      className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                    >
+                      <span className="font-semibold">{AWAITING_APPROVAL_TEXT}</span> — transfers are not open for this
+                      department yet.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="space-y-2">
@@ -397,7 +412,7 @@ export default function WalletPeerTransfer() {
                   />
                 </div>
 
-                <Button disabled={submitting || !departmentId} onClick={handleSendOtp}>
+                <Button disabled={submitting || !departmentId || departmentTransferOff} onClick={handleSendOtp}>
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Request OTP
                 </Button>

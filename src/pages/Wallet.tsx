@@ -21,6 +21,7 @@ import {
 } from "@/lib/walletModes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import ReturnToBookingBanner from "@/components/wallet/ReturnToBookingBanner";
+import DirectRechargeEntry from "@/components/walletModes/DirectRechargeEntry";
 import { clearReturnToBooking, readReturnToBooking } from "@/lib/rechargeReturn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1904,6 +1905,7 @@ const Wallet = () => {
         </div>
 
         <ReturnToBookingBanner />
+        <DirectRechargeEntry />
 
         <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
           <div className="min-w-0 space-y-5">

@@ -311,6 +311,152 @@ export interface AdminWalletModeSettings {
   credit_facility_available_in_environment: boolean;
   credit_max_amount: string;
   credit_max_days: number;
+  direct_recharge_enabled?: boolean;
+  department_settings_available?: boolean;
+}
+
+export type WalletModeOptionKey =
+  | "project_grant"
+  | "direct_cash"
+  | "online_gateway"
+  | "peer_transfer"
+  | "credit"
+  | "direct_recharge";
+
+export type WalletModeDepartmentState = "inherit" | "disabled" | "enabled";
+
+export interface WalletModeDepartmentRow {
+  id: number;
+  name: string;
+  code: string;
+  states: Record<WalletModeOptionKey, WalletModeDepartmentState>;
+  effective: Record<WalletModeOptionKey, boolean>;
+}
+
+export interface WalletModeRecipientRow {
+  option: WalletModeOptionKey;
+  department_id: number | null;
+  department_name: string | null;
+  to: string[];
+  cc: string[];
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
+export interface WalletPaymentModesOverview {
+  schema_ready: boolean;
+  masters: Record<WalletModeOptionKey, boolean>;
+  options: Array<{ key: WalletModeOptionKey; label: string; description: string }>;
+  departments: WalletModeDepartmentRow[];
+  roles: Array<{ key: string; label: string; description: string }>;
+  builtin_recipients: Record<WalletModeOptionKey, { to: string[]; cc: string[] }>;
+  recipient_notes: Partial<Record<WalletModeOptionKey, string>>;
+  to_required_options: WalletModeOptionKey[];
+  recipients: WalletModeRecipientRow[];
+  disabled_message: string;
+}
+
+export interface WalletModeUserHit {
+  id: number;
+  name: string;
+  email: string;
+  user_type: string;
+  department_name: string;
+}
+
+export interface WalletDirectRechargeGrant {
+  id: number;
+  user: { id: number; name: string; email: string; user_type: string };
+  valid_from: string;
+  valid_until: string;
+  department_id: number | null;
+  department_name: string | null;
+  max_amount_per_transaction: string | null;
+  reason: string;
+  granted_by: string | null;
+  created_at: string | null;
+  revoked_at: string | null;
+  revoked_by: string | null;
+  revoke_reason: string;
+  status: "active" | "scheduled" | "expired" | "revoked";
+  recharge_count: number | null;
+}
+
+export interface WalletDirectRechargeAccess {
+  enabled_globally: boolean;
+  is_main_admin: boolean;
+  allowed: boolean;
+  has_grant: boolean;
+  grants: WalletDirectRechargeGrant[];
+  disabled_message: string;
+  modes: Array<{ value: string; label: string }>;
+  reference_required_modes: string[];
+  departments?: Array<{ id: number; name: string; code: string }>;
+}
+
+export interface WalletOwnerSummary {
+  id: number;
+  name: string;
+  email: string;
+  user_type: string;
+  employee_id: string;
+  department_name: string;
+}
+
+export interface WalletOwnerSearchHit extends WalletOwnerSummary {
+  has_wallet: boolean;
+  sub_wallets: Array<{ department_id: number; department_name: string; balance: string }>;
+}
+
+export interface WalletDirectRechargePreview {
+  owner: WalletOwnerSummary;
+  department: { id: number; name: string; code: string };
+  sub_wallet_exists: boolean;
+  balance_before: string;
+  amount: string;
+  balance_after: string;
+  grant_id: number | null;
+  performed_as: "main_admin" | "designated_person";
+  email_to: string[];
+  email_cc: string[];
+}
+
+export interface WalletDirectRechargeRecord {
+  id: number;
+  reference: string;
+  client_request_id: string;
+  owner: WalletOwnerSummary;
+  department_id: number;
+  department_name: string;
+  amount: string;
+  mode: string;
+  mode_label: string;
+  reference_number: string;
+  transaction_date: string;
+  remarks: string;
+  attachment_url: string | null;
+  balance_before: string;
+  balance_after: string;
+  sub_wallet_transaction_id: number;
+  performed_by: { id: number; email: string };
+  performed_as: string;
+  grant_id: number | null;
+  ip_address: string | null;
+  email_to: string[];
+  email_cc: string[];
+  created_at: string | null;
+  idempotent_replay?: boolean;
+}
+
+export interface WalletDirectRechargeInput {
+  client_request_id: string;
+  owner_id: number;
+  department_id: number;
+  amount: string;
+  mode: string;
+  reference_number: string;
+  transaction_date: string;
+  remarks: string;
 }
 
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
@@ -4313,6 +4459,117 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  async getWalletPaymentModesOverview() {
+    return this.request<WalletPaymentModesOverview>('/admin/wallet-payment-modes/', { method: 'GET' });
+  }
+
+  async updateWalletModeDepartmentStates(changes: Array<{ department_id: number; option: WalletModeOptionKey; state: WalletModeDepartmentState }>) {
+    return this.request<{ applied: number }>('/admin/wallet-payment-modes/departments/', {
+      method: 'PATCH',
+      body: JSON.stringify({ changes }),
+    });
+  }
+
+  async saveWalletModeRecipients(payload: { option: WalletModeOptionKey; department_id: number | null; to: string[]; cc: string[] }) {
+    return this.request<WalletModeRecipientRow>('/admin/wallet-payment-modes/recipients/', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resetWalletModeRecipients(option: WalletModeOptionKey, departmentId: number | null) {
+    const qs = new URLSearchParams({ option });
+    if (departmentId != null) qs.set('department_id', String(departmentId));
+    return this.request<{ removed: number }>(`/admin/wallet-payment-modes/recipients/?${qs.toString()}`, { method: 'DELETE' });
+  }
+
+  async previewWalletModeRecipients(option: WalletModeOptionKey, departmentId: number | null) {
+    const qs = new URLSearchParams({ option });
+    if (departmentId != null) qs.set('department_id', String(departmentId));
+    return this.request<{ option: string; source: string; to: string[]; cc: string[] }>(
+      `/admin/wallet-payment-modes/recipients/preview/?${qs.toString()}`,
+      { method: 'GET' },
+    );
+  }
+
+  async searchWalletModeUsers(q: string) {
+    return this.request<{ results: WalletModeUserHit[] }>(
+      `/admin/wallet-payment-modes/user-search/?q=${encodeURIComponent(q)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getWalletDirectRechargeGrants() {
+    return this.request<{ grants: WalletDirectRechargeGrant[]; schema_ready: boolean }>('/admin/wallet-direct-recharge/grants/', { method: 'GET' });
+  }
+
+  async createWalletDirectRechargeGrant(payload: {
+    user_id: number;
+    valid_from?: string;
+    valid_until: string;
+    department_id?: number | null;
+    max_amount_per_transaction?: string;
+    reason: string;
+  }) {
+    return this.request<WalletDirectRechargeGrant>('/admin/wallet-direct-recharge/grants/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async revokeWalletDirectRechargeGrant(grantId: number, reason: string) {
+    return this.request<WalletDirectRechargeGrant>(`/admin/wallet-direct-recharge/grants/${grantId}/revoke/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getWalletDirectRechargeAccess() {
+    return this.request<WalletDirectRechargeAccess>('/wallet/direct-recharge/access/', { method: 'GET' });
+  }
+
+  async searchDirectRechargeWallets(q: string) {
+    return this.request<{ results: WalletOwnerSearchHit[] }>(
+      `/wallet/direct-recharge/wallets/?q=${encodeURIComponent(q)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async previewWalletDirectRecharge(payload: { owner_id: number; department_id: number; amount: string }) {
+    return this.request<WalletDirectRechargePreview>('/wallet/direct-recharge/preview/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createWalletDirectRecharge(payload: WalletDirectRechargeInput, attachment?: File | null) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(payload)) form.append(key, String(value));
+    if (attachment) form.append('attachment', attachment);
+    return this.request<WalletDirectRechargeRecord>('/wallet/direct-recharge/', { method: 'POST', body: form });
+  }
+
+  async getWalletDirectRechargeHistory(params: {
+    q?: string;
+    department_id?: number | null;
+    mode?: string;
+    performed_by?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== '') qs.set(key, String(value));
+    }
+    const q = qs.toString();
+    return this.request<{ results: WalletDirectRechargeRecord[]; count: number; schema_ready: boolean }>(
+      `/wallet/direct-recharge/history/${q ? `?${q}` : ''}`,
+      { method: 'GET' },
+    );
   }
 
   async getFinancePaymentReceipts(params?: { status?: string; department_id?: number }) {

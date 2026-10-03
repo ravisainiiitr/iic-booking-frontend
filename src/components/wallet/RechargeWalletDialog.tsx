@@ -4,7 +4,12 @@ import { toast } from "sonner";
 
 import { apiClient } from "@/lib/api";
 import { loadRazorpayScript } from "@/lib/razorpay";
-import { AWAITING_APPROVAL_TEXT, DEFAULT_WALLET_MODE_FLAGS, type WalletModeFlags } from "@/lib/walletModes";
+import {
+  AWAITING_APPROVAL_TEXT,
+  DEFAULT_WALLET_MODE_FLAGS,
+  walletModeFlagsForDepartment,
+  type WalletModeFlags,
+} from "@/lib/walletModes";
 import {
   EMPTY_PROJECT_FORM,
   PROJECT_GRANT_UNDERTAKING,
@@ -204,13 +209,19 @@ export default function RechargeWalletDialog({
   projectGrantEnabled = false,
   modeFlags,
 }: RechargeWalletDialogProps) {
-  const [serverDisabled, setServerDisabled] = useState<Partial<WalletModeFlags>>({});
+  const [serverDisabled, setServerDisabled] = useState<Record<string, Partial<WalletModeFlags>>>({});
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
+  const [departmentId, setDepartmentId] = useState<number | null>(initialDepartmentId);
   const flags = useMemo<WalletModeFlags>(
     () => ({
-      ...(modeFlags ?? { ...DEFAULT_WALLET_MODE_FLAGS, projectGrant: projectGrantEnabled }),
-      ...serverDisabled,
+      ...walletModeFlagsForDepartment(
+        modeFlags ?? { ...DEFAULT_WALLET_MODE_FLAGS, projectGrant: projectGrantEnabled },
+        departmentId,
+      ),
+      ...serverDisabled[String(departmentId ?? "")],
     }),
-    [modeFlags, projectGrantEnabled, serverDisabled],
+    [modeFlags, projectGrantEnabled, serverDisabled, departmentId],
   );
   const [mode, setMode] = useState<RechargeMethod>(() => initialMethod(isFaculty, flags));
   const [studentPath, setStudentPath] = useState<StudentPath>(() =>
@@ -218,10 +229,6 @@ export default function RechargeWalletDialog({
   );
   const [paying, setPaying] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [loadingDepartments, setLoadingDepartments] = useState(true);
-  const [departmentId, setDepartmentId] = useState<number | null>(initialDepartmentId);
 
   const [amount, setAmount] = useState(initialAmount ?? "");
   const [amountTouched, setAmountTouched] = useState(Boolean(initialAmount));
@@ -394,9 +401,12 @@ export default function RechargeWalletDialog({
   }, [flags, mode, otpStep, isFaculty, isStudentRecharge, studentPath]);
 
   const handleModeDisabled = (code: string | undefined, message?: string | null) => {
-    if (code === "project_grant_recharge_disabled") setServerDisabled((p) => ({ ...p, projectGrant: false }));
-    if (code === "direct_cash_recharge_disabled") setServerDisabled((p) => ({ ...p, directCash: false }));
-    if (code === "online_gateway_recharge_disabled") setServerDisabled((p) => ({ ...p, onlineGateway: false }));
+    const key = String(departmentId ?? "");
+    const disable = (flag: keyof WalletModeFlags) =>
+      setServerDisabled((p) => ({ ...p, [key]: { ...p[key], [flag]: false } }));
+    if (code === "project_grant_recharge_disabled") disable("projectGrant");
+    if (code === "direct_cash_recharge_disabled") disable("directCash");
+    if (code === "online_gateway_recharge_disabled") disable("onlineGateway");
     setOtpStep("form");
     setRequestId(null);
     setOtp("");

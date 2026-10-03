@@ -33,6 +33,27 @@ export const financeGuide: RoleGuide = {
       ],
       tips: ["The dashboard alert lists recharges whose funds are not yet matched."],
     },
+    {
+      id: "direct-recharge",
+      title: "Direct wallet recharge",
+      icon: "wallet",
+      group: "Wallet",
+      intro: [
+        "If the Main Administrator gives you temporary permission, you can add funds received outside the portal straight to a user's wallet. You get a notification; open it, or the Direct wallet recharge button on your Wallet page.",
+      ],
+      steps: [
+        { title: "Choose the wallet", body: "Search for the user by name, email or employee ID and pick the department sub-wallet." },
+        {
+          title: "Fill in the details",
+          body: "Enter the amount, the mode (cash, bank transfer, cheque, DD, internal adjustment or other), the reference number, the transaction date and remarks. Attach the receipt if you have one.",
+        },
+        { title: "Review and confirm", body: "Click Review recharge, check the owner and the new balance, then Confirm and credit. The owner is emailed and you are copied." },
+      ],
+      rules: [
+        "Your permission ends at its valid-until time and may be limited to one department or an amount per transaction.",
+        "Recharge only after the funds are confirmed received. Every recharge is recorded with your name.",
+      ],
+    },
     helpSection(g, {
       faqs: [
         {

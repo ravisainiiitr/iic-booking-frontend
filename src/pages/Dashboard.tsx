@@ -146,7 +146,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   },
   "/admin-settings/wallet-payment-modes": {
     title: "Wallet Payment Modes",
-    description: "Turn wallet recharge, transfer and credit options on or off for all users.",
+    description: "Wallet options overall and per department, email recipients, direct wallet recharge and credit caps.",
   },
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
@@ -1679,7 +1679,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Wallet payment modes</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Enable or disable Project Grant, cash, online payment, department transfer and Credit Limit
+                      Wallet options per department, email recipients and direct wallet recharge
                     </CardDescription>
                   </div>
                 </div>
