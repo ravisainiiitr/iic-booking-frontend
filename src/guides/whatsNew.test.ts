@@ -27,6 +27,8 @@ describe("What's New", () => {
   it("shows the peak pause to external users and the settings to admins only", () => {
     expect(ids(buildGuide({ audience: "external", flags: { externalBooking: true } }))).toContain("peak-external");
     expect(ids(buildGuide({ audience: "student" }))).not.toContain("peak-external");
-    expect(ids(buildGuide({ audience: "admin" }))).toEqual(expect.arrayContaining(["equipment-form", "peak-admin"]));
+    expect(ids(buildGuide({ audience: "admin" }))).toEqual(expect.arrayContaining(["equipment-form", "wallet-modes-departments"]));
+    expect(ids(buildGuide({ audience: "finance" }))).toContain("direct-recharge-finance");
+    expect(ids(buildGuide({ audience: "faculty" }))).not.toContain("wallet-modes-departments");
   });
 });
