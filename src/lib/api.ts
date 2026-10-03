@@ -7,6 +7,7 @@ import {
   isNativeApp,
   recoverNativeSession,
 } from "@/lib/nativeApp";
+import { isTypedTableRowsValue, typedTableFilledRowCount } from "@/lib/typedTableField";
 import type { MyBookingQuota } from "@/lib/bookingQuota";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
@@ -3274,13 +3275,20 @@ class ApiClient {
   ) {
     // Convert field values to query parameters
     const params = new URLSearchParams();
+    // Advanced tables stand for their filled-row count in formulas; the cells are not needed for the estimate.
+    const tableAsCount = (value: unknown) => (isTypedTableRowsValue(value) ? typedTableFilledRowCount(value) : value);
     if (options?.sample_sets && options.sample_sets.length > 0) {
-      params.append('sample_sets', JSON.stringify(options.sample_sets));
+      const sets = options.sample_sets.map((set) =>
+        Object.fromEntries(Object.entries(set).map(([key, value]) => [key, tableAsCount(value)]))
+      );
+      params.append('sample_sets', JSON.stringify(sets));
     }
     Object.entries(fieldValues).forEach(([key, value]) => {
       if (key.startsWith('_')) return;
-      // Handle arrays (for MULTI_SELECT fields) - convert to comma-separated string
-      if (Array.isArray(value)) {
+      if (isTypedTableRowsValue(value)) {
+        params.append(key, String(typedTableFilledRowCount(value)));
+      } else if (Array.isArray(value)) {
+        // MULTI_SELECT fields: comma-separated string
         params.append(key, value.join(","));
       } else {
         params.append(key, String(value));

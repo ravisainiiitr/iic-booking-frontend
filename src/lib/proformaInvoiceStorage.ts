@@ -1,6 +1,7 @@
 /** Persisted line items when building a proforma via Book Equipment (?proforma=1). */
 import { mergePeriodicDisplaySymbols } from "@/data/periodicTableData";
 import { initialNumericFieldValue, resolveNumericFieldBounds, formatNumericBound } from "@/lib/numericFieldLimits";
+import { isTypedTableRowsValue, typedTableFilledRowCount } from "@/lib/typedTableField";
 
 export const PROFORMA_LINE_ITEMS_STORAGE_KEY = "proforma_invoice_line_items_v1";
 
@@ -82,7 +83,7 @@ export function deleteSavedProforma(id: string): ProformaSavedDraft[] {
   return next;
 }
 
-const NON_CHARGE_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "TABLE", "DATE", "DATETIME", "FILE", "EMAIL", "URL"]);
+const NON_CHARGE_FIELD_TYPES = new Set(["TEXT", "TEXTAREA", "TABLE", "TYPED_TABLE", "DATE", "DATETIME", "FILE", "EMAIL", "URL"]);
 const NEGATIVE_VALUES = new Set(["no", "false", "none", "n/a", "na", "nil", "0", "-"]);
 
 /**
@@ -116,6 +117,7 @@ export function inputValuesForProformaStorage(
     if (v === undefined || v === null || v === "") continue;
     if (Array.isArray(v)) {
       if (v.length > 0 && Array.isArray(v[0])) out[k] = JSON.stringify(v);
+      else if (isTypedTableRowsValue(v)) out[k] = typedTableFilledRowCount(v);
       else out[k] = (v as string[]).join(",");
     } else if (typeof v === "boolean") out[k] = v;
     else if (typeof v === "number") out[k] = v;

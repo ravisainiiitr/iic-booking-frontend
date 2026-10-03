@@ -101,6 +101,37 @@ describe("SampleRequirementsTable", () => {
     expect(screen.getByText("S2")).toBeTruthy();
   });
 
+  it("shows advanced (typed) tables with S.No., column labels and readable cells per sample set", () => {
+    const typed = {
+      field_key: "C",
+      field_label: "Sample details",
+      field_type: "TYPED_TABLE",
+      table_config: {
+        columns: [
+          { key: "code", label: "Sample code", type: "TEXT" },
+          { key: "temp", label: "Max temperature", type: "NUMERIC", max: 100 },
+          { key: "dry", label: "Dry", type: "TOGGLE" },
+        ],
+        rows: { mode: "LINKED", link_field_key: "A" },
+      },
+    };
+    render(
+      <SampleRequirementsTable
+        fields={[{ field_key: "A", field_label: "No. of Samples", field_type: "NUMERIC" }, typed]}
+        inputValues={{
+          A: "2",
+          C: [{ code: "S1", temp: 40, dry: true }, { code: "S2", temp: 80 }],
+          _sample_sets: [{ A: "1", C: [{ code: "T1", temp: 20 }] }],
+        }}
+      />,
+    );
+    const nested = screen.getAllByRole("columnheader", { name: "Max temperature" });
+    expect(nested).toHaveLength(2);
+    expect(screen.getAllByRole("columnheader", { name: "S.No." })).toHaveLength(2);
+    expect(screen.getByText("Yes")).toBeTruthy();
+    expect(screen.getByText("T1")).toBeTruthy();
+  });
+
   it("says so when the user entered nothing", () => {
     render(<SampleRequirementsTable fields={fields} inputValues={{ comments: "only a note" }} />);
     expect(screen.queryByRole("table")).toBeNull();

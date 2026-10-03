@@ -65,6 +65,16 @@ import {
 } from "@/lib/inputEditRefund";
 import { inputEditQuotaNotice } from "@/lib/bookingQuota";
 import { formatInputScalar, resolveChoiceDisplay } from "@/lib/bookingInputDisplay";
+import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
+import { TypedTableView } from "@/components/TypedTableView";
+import {
+  clearTypedTableRowStash,
+  firstTypedTableProblem,
+  readTypedTableConfig,
+  typedTableLinkKey,
+} from "@/lib/typedTableField";
+
+type EditFormValue = string | number | boolean | string[] | string[][] | Record<string, unknown>[];
 
 export interface InputFieldDef {
   field_key: string;
@@ -77,6 +87,8 @@ export interface InputFieldDef {
   help_text?: string;
   default_value?: string | null;
   source_element_field_key?: string | null;
+  /** Columns and row rules of an advanced table (TYPED_TABLE). */
+  table_config?: unknown;
 }
 
 interface BookingUserInputsProps {
@@ -167,7 +179,7 @@ export function BookingUserInputs({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch per open
   }, [editDialogOpen, quotaEquipmentId, quotaBookingId]);
-  const [editFormValues, setEditFormValues] = useState<Record<string, string | number | boolean | string[] | string[][]>>({});
+  const [editFormValues, setEditFormValues] = useState<Record<string, EditFormValue>>({});
   const [icpmsStandardsByFieldKey, setIcpmsStandardsByFieldKey] = useState<
     Record<
       string,
@@ -278,9 +290,16 @@ export function BookingUserInputs({
   const hasPeriodicTableField = editableFields.some(
     (f) => String(f.field_type || "").toUpperCase() === "PERIODIC_TABLE"
   );
-  const hasTableField = editableFields.some(
-    (f) => String(f.field_type || "").toUpperCase() === "TABLE"
+  const hasTableField = [...editableFields, ...sampleSetFields].some((f) =>
+    ["TABLE", "TYPED_TABLE"].includes(String(f.field_type || "").toUpperCase())
   );
+  const typedTableEditProblem = editDialogOpen
+    ? firstTypedTableProblem(
+        [...editableFields, ...sampleSetFields],
+        { ...editFormValues, [SAMPLE_SETS_KEY]: editSampleSets },
+        { baseline: iv as Record<string, unknown> }
+      )
+    : null;
 
   const incompleteOptionalEditableKeys = useMemo(() => {
     const sourceValues = editDialogOpen ? editFormValues : iv;
@@ -377,7 +396,8 @@ export function BookingUserInputs({
   }, [icpmsCoverageDeps, inputValues, periodicFields]);
 
   const openEditDialog = () => {
-    const initial: Record<string, string | number | boolean | string[] | string[][]> = { ...iv };
+    clearTypedTableRowStash("edit");
+    const initial: Record<string, EditFormValue> = { ...iv };
     fields.forEach((f) => {
       if (String(f.field_type || "").toUpperCase() !== "TABLE") return;
       const raw = iv[f.field_key];
@@ -453,7 +473,7 @@ export function BookingUserInputs({
     setSaving(true);
     try {
       // ICPMS standard coverage is recalculated when elements are applied (same as the extra sample sets).
-      const nextValues: Record<string, string | boolean | string[] | number | string[][]> = { ...editFormValues };
+      const nextValues: Record<string, EditFormValue> = { ...editFormValues };
 
       const limitError = valuesChangedFrom(nextValues) ? numericLimitError(nextValues) : null;
       if (limitError) {
@@ -463,6 +483,17 @@ export function BookingUserInputs({
       }
       if (sampleSetLimitError) {
         toast.error(sampleSetLimitError);
+        return;
+      }
+      if (typedTableEditProblem) {
+        toast.error(typedTableEditProblem.message);
+        document
+          .getElementById(
+            typedTableEditProblem.set > 1
+              ? `sample-set-${typedTableEditProblem.set - 2}-${typedTableEditProblem.key}`
+              : `edit-field-wrap-${typedTableEditProblem.key}`
+          )
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
 
@@ -503,16 +534,12 @@ export function BookingUserInputs({
     setEditFormValues((prev) => ({ ...prev, ...(updates as typeof prev) }));
   };
 
-  const updateFormValue = (
-    fieldKey: string,
-    value: string | number | boolean | string[] | string[][],
-    elementsValue?: string
-  ) => {
+  const updateFormValue = (fieldKey: string, value: EditFormValue, elementsValue?: string) => {
     setEditFormValues((prev) => {
       const next: Record<string, unknown> = { ...prev, [fieldKey]: value };
       if (elementsValue !== undefined) next[`${fieldKey}_elements`] = elementsValue;
       const defs = editableFields.length > 0 ? editableFields : fields;
-      applyTableRowSyncToValues(next, defs, fieldKey);
+      applyTableRowSyncToValues(next, defs, fieldKey, "edit");
       return next as typeof prev;
     });
   };
@@ -523,7 +550,7 @@ export function BookingUserInputs({
     const defs = editableFields.length > 0 ? editableFields : fields;
     setEditFormValues((prev) => {
       const next: Record<string, unknown> = { ...prev };
-      const changed = applyTableRowSyncToValues(next, defs);
+      const changed = applyTableRowSyncToValues(next, defs, null, "edit");
       return changed ? (next as typeof prev) : prev;
     });
   }, [editDialogOpen, editFormValues, editableFields, fields]);
@@ -637,6 +664,15 @@ export function BookingUserInputs({
                 ) : (
                   <span className="text-base text-muted-foreground">{rows.length === 0 ? "—" : displayVal}</span>
                 )}
+              </li>
+            );
+          }
+
+          if (String(f.field_type || "").toUpperCase() === "TYPED_TABLE") {
+            return (
+              <li key={f.field_key} className="px-5 py-4 bg-background/40 dark:bg-background/20">
+                <span className="block text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{f.field_label}</span>
+                <TypedTableView tableConfig={f.table_config} value={val} label={f.field_label} className="text-base" />
               </li>
             );
           }
@@ -771,6 +807,16 @@ export function BookingUserInputs({
                               </tbody>
                             </table>
                           )}
+                        </dd>
+                      </div>
+                    );
+                  }
+                  if (fieldType === "TYPED_TABLE") {
+                    return (
+                      <div key={f.field_key} className="space-y-1 text-sm sm:text-base sm:col-span-2">
+                        <dt className="text-muted-foreground">{f.field_label}</dt>
+                        <dd>
+                          <TypedTableView tableConfig={f.table_config} value={setVal} label={`Sample set ${setIndex + 2}: ${f.field_label}`} />
                         </dd>
                       </div>
                     );
@@ -1152,6 +1198,27 @@ export function BookingUserInputs({
                       </div>
                     );
                   })()}
+                  {type === "TYPED_TABLE" && (() => {
+                    const defs = editableFields.length > 0 ? editableFields : fields;
+                    const config = readTypedTableConfig(f.table_config);
+                    const linkKey = typedTableLinkKey(config);
+                    const linkField = linkKey
+                      ? [...defs, ...fields].find((d) => d.field_key.toUpperCase() === linkKey)
+                      : undefined;
+                    return (
+                      <TypedTableInputLazy
+                        fieldKey={f.field_key}
+                        label={f.field_label || f.field_key}
+                        config={config}
+                        value={val}
+                        onChange={(rows) => updateFormValue(f.field_key, rows)}
+                        disabled={saving}
+                        scope="edit"
+                        linkLabel={linkField ? linkField.field_label || linkKey : undefined}
+                        idPrefix={`edit-${f.field_key}`}
+                      />
+                    );
+                  })()}
                   </DynamicFieldRow>
                 </div>
               );
@@ -1173,9 +1240,15 @@ export function BookingUserInputs({
                 addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
                 slotDurationMinutes={slotDurationMinutes}
                 storedSets={storedSampleSets}
+                tableScopePrefix="edit-set"
               />
             </div>
           )}
+          {typedTableEditProblem ? (
+            <p className="text-sm font-medium text-destructive" role="alert">
+              {typedTableEditProblem.message}
+            </p>
+          ) : null}
           <PeriodicElementsDialog
             open={periodicField != null}
             onOpenChange={(open) => !open && setPeriodicField(null)}
@@ -1196,7 +1269,10 @@ export function BookingUserInputs({
             <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={handleSaveEdit} disabled={saving || Boolean(editLimitError) || Boolean(sampleSetLimitError)}>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={saving || Boolean(editLimitError) || Boolean(sampleSetLimitError) || Boolean(typedTableEditProblem)}
+            >
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

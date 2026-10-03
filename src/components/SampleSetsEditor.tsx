@@ -35,6 +35,8 @@ import {
   sampleSetFieldLimitError,
 } from "@/lib/sampleSetLimits";
 import { NumericFieldInput } from "@/components/NumericFieldInput";
+import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
+import { clearTypedTableRowStash, readTypedTableConfig, typedTableLinkKey } from "@/lib/typedTableField";
 import { InfoTip } from "@/components/booking/InfoTip";
 import {
   defaultSampleSetValues,
@@ -53,6 +55,7 @@ export type SampleSetField = {
   default_value?: string | null;
   is_required?: boolean;
   source_element_field_key?: string | null;
+  table_config?: unknown;
 };
 
 type Props = {
@@ -77,6 +80,8 @@ type Props = {
   storedSets?: SampleSetValues[];
   /** With no extra sets yet, show only a compact "Add sample with different parameters" link (peak window). */
   compact?: boolean;
+  /** Prefix of the scope that keeps rows hidden by linked advanced tables apart per set (one per form). */
+  tableScopePrefix?: string;
 };
 
 export const SAMPLE_SET_HELPER_TEXT =
@@ -145,6 +150,7 @@ export default function SampleSetsEditor({
   slotDurationMinutes,
   storedSets,
   compact = false,
+  tableScopePrefix = "set",
 }: Props) {
   const formulaContext = { slotDurationMinutes, fallbacks: formulaFallbackValues(fields) };
   const setsRef = useRef(sets);
@@ -192,7 +198,10 @@ export default function SampleSetsEditor({
     onChange([...sets.slice(0, index), values, ...sets.slice(index)]);
   };
 
+  const tableScope = (index: number) => `${tableScopePrefix}-${idsRef.current[index] ?? index}`;
+
   const removeSet = (index: number) => {
+    clearTypedTableRowStash(`${tableScope(index)}::`);
     idsRef.current = ids.filter((_, i) => i !== index);
     onChange(sets.filter((_, i) => i !== index));
   };
@@ -210,7 +219,7 @@ export default function SampleSetsEditor({
       setsRef.current.map((s, i) => {
         if (i !== index) return s;
         const next: Record<string, unknown> = { ...s, ...updates };
-        applyTableRowSyncToValues(next, fields, sourceKey ?? null);
+        applyTableRowSyncToValues(next, fields, sourceKey ?? null, tableScope(index));
         return next as SampleSetValues;
       }),
     );
@@ -470,6 +479,25 @@ export default function SampleSetsEditor({
         );
       case "TABLE":
         return renderTable(set, index, field);
+      case "TYPED_TABLE": {
+        const config = readTypedTableConfig(field.table_config);
+        const linkKey = typedTableLinkKey(config);
+        const linkField = linkKey ? fields.find((f) => f.field_key.toUpperCase() === linkKey) : undefined;
+        return (
+          <TypedTableInputLazy
+            fieldKey={key}
+            label={`Sample set ${index + 2}: ${field.field_label || key}`}
+            config={config}
+            value={raw}
+            onChange={(rows) => update(index, key, rows)}
+            disabled={disabled}
+            scope={tableScope(index)}
+            linkLabel={linkField ? linkField.field_label || linkKey : undefined}
+            idPrefix={id}
+            density="compact"
+          />
+        );
+      }
       default:
         return <p className="text-xs text-muted-foreground">Same as sample set 1</p>;
     }

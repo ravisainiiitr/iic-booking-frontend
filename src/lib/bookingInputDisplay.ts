@@ -1,4 +1,5 @@
 import { normalizeChoiceOption } from "@/lib/dynamicFieldOptions";
+import { readTypedTableConfig, typedTableDisplay } from "@/lib/typedTableField";
 
 /** Field definition as returned with a booking (`input_fields`). */
 export type BookingInputFieldDef = {
@@ -7,6 +8,8 @@ export type BookingInputFieldDef = {
   field_type?: string;
   options?: unknown;
   help_text?: string | null;
+  /** Columns and row rules of an advanced table (TYPED_TABLE). */
+  table_config?: unknown;
 };
 
 export type BookingInputValues = Record<string, unknown>;
@@ -16,6 +19,7 @@ export function formatInputScalar(v: unknown): string {
   if (typeof v === "boolean") return v ? "Yes" : "No";
   if (Array.isArray(v)) {
     if (v.length > 0 && Array.isArray(v[0])) return `${(v as unknown[][]).length} row(s)`;
+    if (v.length > 0 && v.every((r) => !!r && typeof r === "object")) return `${v.length} row(s)`;
     return v.join(", ");
   }
   return String(v);
@@ -104,6 +108,12 @@ export function formatBookingInputValue(field: BookingInputFieldDef, values: Boo
     const rows = readTableRows(raw).filter((row) => row.some((cell) => cell.trim() !== ""));
     if (rows.length === 0) return { kind: "empty" };
     return { kind: "table", columns: tableColumnLabels(field.options), rows };
+  }
+  if (type === "TYPED_TABLE") {
+    const config = readTypedTableConfig(field.table_config);
+    if (!config) return isBlank(raw) ? { kind: "empty" } : { kind: "text", text: formatInputScalar(raw) };
+    const display = typedTableDisplay(config, raw);
+    return display.rows.length ? { kind: "table", ...display } : { kind: "empty" };
   }
   if (type === "PERIODIC_TABLE") {
     const elements = String(values[`${field.field_key}_elements`] ?? "")

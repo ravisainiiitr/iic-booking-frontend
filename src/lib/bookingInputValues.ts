@@ -1,4 +1,5 @@
 /** Shared helpers for booking custom input field emptiness / optional-param prompts. */
+import { typedTableFilledRowCount } from "@/lib/typedTableField";
 
 export type BookingInputFieldLike = {
   field_key?: string;
@@ -25,6 +26,8 @@ export function isBookingInputValueEmpty(
       (typeof value === "number" && value === 0);
     return elsEmpty && countEmpty;
   }
+
+  if (type === "TYPED_TABLE") return typedTableFilledRowCount(value) === 0;
 
   if (typeof value === "boolean") return false;
   if (value === undefined || value === null || value === "") return true;

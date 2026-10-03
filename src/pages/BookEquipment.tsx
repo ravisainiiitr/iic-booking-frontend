@@ -174,7 +174,16 @@ import {
   withoutSampleSets,
   type SampleSetValues,
 } from "@/lib/sampleSets";
-import { buildInitialInputValues, getInitialDynamicInputValue } from "@/lib/dynamicFieldDefaults";
+import { buildInitialInputValues, getInitialDynamicInputValue, type DynamicInputValue } from "@/lib/dynamicFieldDefaults";
+import {
+  clearTypedTableRowStash,
+  firstTypedTableProblem,
+  focusTypedTableProblem,
+  readTypedTableConfig,
+  typedTableDomId,
+  typedTableLinkKey,
+} from "@/lib/typedTableField";
+import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
 import {
   boundsWithCombinedMax,
   combinedLimitError,
@@ -3774,7 +3783,23 @@ const BookEquipment = () => {
     };
   }, [templateParam, equipmentDetail?.equipment_id, userId, isTemplateFlow, applyBookingTemplate]);
 
-  const templateSaveBlockedBy = isTemplateFlow ? templateSaveBlocker(templateHealth) : null;
+  const typedTableTemplateProblem = isTemplateFlow
+    ? firstTypedTableProblem(equipmentDetail?.input_fields, withSampleSets({ ...inputFieldValues }, sampleSets), {
+        checkRequired: false,
+      })
+    : null;
+  const templateSaveBlockedBy = isTemplateFlow
+    ? templateSaveBlocker(templateHealth) ??
+      (typedTableTemplateProblem
+        ? {
+            code: "table_invalid",
+            severity: "error" as const,
+            message: typedTableTemplateProblem.message,
+            field: typedTableTemplateProblem.key,
+            set: typedTableTemplateProblem.set,
+          }
+        : null)
+    : null;
 
   const handleSaveTemplate = async () => {
     const eqId = equipmentDetail?.equipment_id;
@@ -6384,8 +6409,9 @@ const BookEquipment = () => {
     setAutoAllocateAlternative(equipmentDetail?.auto_allocate_alternative_default === true);
     appliedTemplateOptionsRef.current = null;
     setAppliedTemplate(null);
+    clearTypedTableRowStash();
     if (equipmentDetail?.input_fields && equipmentDetail.input_fields.length > 0) {
-      const initialValues: Record<string, string | boolean | string[] | number | string[][]> = {};
+      const initialValues: Record<string, DynamicInputValue> = {};
       equipmentDetail.input_fields.forEach((field: any) => {
         const fieldType = String(field.field_type || '').toUpperCase().trim();
         if (fieldType === 'PERIODIC_TABLE') {
@@ -6654,6 +6680,15 @@ const BookEquipment = () => {
           toast.error(`Please fill in the required field: ${field.field_label}`);
           return;
         }
+      }
+      const tableProblem = firstTypedTableProblem(
+        equipmentDetail.input_fields,
+        withSampleSets({ ...inputFieldValues }, sampleSets)
+      );
+      if (tableProblem) {
+        toast.error(tableProblem.message);
+        focusTypedTableProblem(tableProblem);
+        return;
       }
     }
 
@@ -9877,17 +9912,40 @@ const BookEquipment = () => {
                                   </div>
                                 );
                               }
-                              
+
+                              case 'TYPED_TABLE': {
+                                const typedConfig = readTypedTableConfig(field.table_config);
+                                const typedLinkKey = typedTableLinkKey(typedConfig);
+                                const typedLinkField = typedLinkKey
+                                  ? (equipmentDetail?.input_fields ?? []).find(
+                                      (f: any) => String(f?.field_key || '').toUpperCase() === typedLinkKey
+                                    )
+                                  : null;
+                                return (
+                                  <TypedTableInputLazy
+                                    fieldKey={field.field_key}
+                                    label={field.field_label || field.field_key}
+                                    config={typedConfig}
+                                    value={inputFieldValues[field.field_key]}
+                                    onChange={(rows) => handleInputFieldChange(field.field_key, rows as any)}
+                                    disabled={!!repeatSourceBooking}
+                                    scope="primary"
+                                    linkLabel={typedLinkField ? String(typedLinkField.field_label || typedLinkKey) : undefined}
+                                    idPrefix={typedTableDomId(field.field_key)}
+                                  />
+                                );
+                              }
+
                               default:
                                 // Fallback for unknown field types - show error message
-                                console.error(`Unsupported field type "${field.field_type}" (normalized: "${fieldType}") for field "${field.field_key}". Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE`);
+                                console.error(`Unsupported field type "${field.field_type}" (normalized: "${fieldType}") for field "${field.field_key}". Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE, TYPED_TABLE`);
                                 return (
                                   <div className="p-3 border border-destructive rounded-md bg-destructive/10">
                                     <p className="text-sm text-destructive font-medium">
                                       Unsupported field type: {field.field_type}
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-1">
-                                      Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE
+                                      Supported types: NUMERIC, TEXT, RADIO, COMBO, MULTI_SELECT, TOGGLE, PERIODIC_TABLE, ICPMS_STANDARD_COVERAGE, TABLE, TYPED_TABLE
                                     </p>
                                   </div>
                                 );

@@ -42,6 +42,10 @@ export const adminGuide: RoleGuide = {
             body: "Pick a title (Mr., Mrs., Ms., Miss, Dr. or Prof.) for each Officer In Charge and Lab Operator; the preview shows how the name appears. Untick Allow samples with different parameters to stop users adding extra sample sets on that equipment.",
           },
           {
+            title: "Advanced tables",
+            body: "In Dynamic input fields, choose the field type Advanced table (typed columns) and click Configure columns (the same button appears in the Django admin). Give each column a label and a kind: Numeric (with lower and upper limits, step and whole numbers only), Text (with a maximum length), Radio, Combobox, Multi-select, Toggle or Periodic table. Under Rows, either let users add, remove and duplicate rows (minimum, starting and maximum rows), or make the rows follow a Numeric field such as No. of samples. The preview shows the table as users will see it. In charge and time formulas the table's key stands for its number of filled rows.",
+          },
+          {
             title: "Peak booking window",
             body: "In Admin Settings → Session / Auto-logout, set the minutes before and after the weekly slot opening and choose Pause external users. Internal users then go straight to booking from the catalog.",
           },

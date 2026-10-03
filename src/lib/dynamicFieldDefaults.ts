@@ -9,8 +9,9 @@ import {
   resolveTableRowCountSourceKey,
 } from "@/lib/dynamicTableField";
 import { initialNumericFieldValue } from "@/lib/numericFieldLimits";
+import { initialTypedTableRows, readTypedTableConfig, type TypedTableRow } from "@/lib/typedTableField";
 
-export type DynamicInputValue = string | boolean | string[] | number | string[][];
+export type DynamicInputValue = string | boolean | string[] | number | string[][] | TypedTableRow[];
 
 export type DynamicFieldDefaultDef = {
   field_key?: string;
@@ -20,6 +21,7 @@ export type DynamicFieldDefaultDef = {
   default_value?: unknown;
   is_required?: boolean;
   source_element_field_key?: string | null;
+  table_config?: unknown;
 };
 
 /** Default value for one dynamic input field when equipment is loaded or the booking form resets. */
@@ -56,6 +58,9 @@ export function getInitialDynamicInputValue(
     }
     // Row count driven by another field — start empty; sync fills from source value
     return [];
+  }
+  if (fieldType === "TYPED_TABLE") {
+    return initialTypedTableRows(readTypedTableConfig(field.table_config));
   }
   if (fieldType === "NUMERIC") {
     return initialNumericFieldValue(field);
@@ -97,6 +102,7 @@ export function buildInitialInputValues(
       values[key] = getInitialDynamicInputValue(field, list);
     }
   }
-  applyTableRowSyncToValues(values as Record<string, unknown>, list);
+  // Own scope: starting values never take rows a linked advanced table hid in the live form.
+  applyTableRowSyncToValues(values as Record<string, unknown>, list, null, "init");
   return values;
 }

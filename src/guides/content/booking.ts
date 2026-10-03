@@ -101,6 +101,7 @@ export function inputsSection(): GuideSection {
       "Each sample set is charged and timed separately within the same booking.",
       "Sample sets are offered only where the equipment allows them; bookings made earlier keep their sets.",
       "Number boxes start at 1 and show Max N allowed when you reach the limit. Limits that depend on another input (for example, samples up to 4 × slots) apply to every user type and to each sample set.",
+      "Some equipment ask for details in a table. Either click Add row for each entry, or the table has one row per sample and follows your number of samples; lowering the number hides the extra rows until you raise it again. Each column checks its own limits, and on a phone every row is shown as a card.",
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",

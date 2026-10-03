@@ -11,6 +11,8 @@ const UNFIXABLE = new Set(["equipment_not_operational", "not_allowed", "no_charg
  */
 const APPLY_NOTICE_CODES = new Set([
   "required_missing",
+  "table_invalid",
+  "table_incomplete",
   "too_many_sample_sets",
   "combined_max",
   "quota_over_limit",
@@ -19,8 +21,8 @@ const APPLY_NOTICE_CODES = new Set([
   "no_wallet",
 ]);
 const MAX_NOTICE_ITEMS = 3;
-/** Numbers outside their limits: the server refuses to save a template with one. */
-const SAVE_BLOCKING_CODES = new Set(["numeric_min", "numeric_max", "numeric_formula_max"]);
+/** Numbers outside their limits (also inside advanced tables): the server refuses to save a template with one. */
+const SAVE_BLOCKING_CODES = new Set(["numeric_min", "numeric_max", "numeric_formula_max", "table_invalid"]);
 
 export type TemplateHealthBadge = { tone: "attention" | "advice"; label: string; issue: TemplateHealthIssue; count: number };
 

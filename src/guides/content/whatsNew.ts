@@ -38,6 +38,7 @@ const CATALOG: CatalogItem[] = [
 
   // Newest: lab and administration
   { id: "operator-job-sheet", roles: ["operator"], theme: "lab", icon: "flask", title: "Job sheet for every booking", benefit: "Booking details show the user's sample requirements as a table, one row per sample set, with their instructions and Print job sheet.", sectionId: "view-booking" },
+  { id: "typed-table", roles: ["admin"], theme: "admin", icon: "settings", title: "Advanced tables", benefit: "A table input whose columns each have their own type and limits; rows are added by users or follow a field such as No. of samples.", sectionId: "administration" },
   { id: "admin-overview", roles: ["admin", "dept_admin"], theme: "admin", icon: "list", title: "Administration overview", benefit: "Your dashboard opens with today's sessions, bookings, charges, equipment, waitlist and what needs your attention.", sectionId: "getting-started" },
   { id: "admin-menu-sections", roles: ["admin", "dept_admin"], theme: "admin", icon: "search", title: "Grouped dashboard menu", benefit: "Menu items sit in sections such as Bookings and Finance, with a Search menu box. Deployment Center opens as its own page.", sectionId: "getting-started" },
   { id: "instruction-per-type", roles: ["oic"], theme: "lab", icon: "settings", title: "Richer important instruction", benefit: "Write it per user type, with fonts, point sizes and subscript/superscript.", sectionId: "equipment-config" },

@@ -27,7 +27,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       },
       g.only(["operator"], {
         title: "Read the job sheet",
-        body: "Click a booking ID to open its job sheet: user, date and time, sample stage, the user's instructions and the Sample requirements table. Each sample set is one row (Set 1, Set 2 and so on) and each input the user filled in is a column; values that vary from Set 1 are lightly tinted and a Total row adds up the samples. On a phone, swipe the table sideways. Use Print job sheet for an A4 copy; wide tables print in landscape.",
+        body: "Click a booking ID to open its job sheet: user, date and time, sample stage, the user's instructions and the Sample requirements table. Each sample set is one row (Set 1, Set 2 and so on) and each input the user filled in is a column; values that vary from Set 1 are lightly tinted and a Total row adds up the samples. Advanced tables appear inside it as a small table for each set, with S.No. and the column names. On a phone, swipe the table sideways. Use Print job sheet for an A4 copy; wide tables print in landscape.",
       }),
       g.only(["operator"], {
         title: "Close the run",

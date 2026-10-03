@@ -4,6 +4,8 @@
  * - first column treated as read-only serial number (S.No.) when configured
  */
 
+import { applyTypedTableRowSync } from "@/lib/typedTableField";
+
 export type TableColumnHeader = string;
 
 /** True when a column header is the serial-number column (S.No. / Sr. No. / Serial No.). */
@@ -72,6 +74,7 @@ type FieldLike = {
   field_type?: string | null;
   source_element_field_key?: string | null;
   options?: unknown;
+  table_config?: unknown;
 };
 
 /**
@@ -115,16 +118,19 @@ export function getFieldValueCI(
 /**
  * Apply TABLE row-count sync onto a values map. Returns whether anything changed.
  * When `onlySourceKey` is set, only tables driven by that key are updated.
+ * Linked advanced tables (TYPED_TABLE) are resized too; `scope` keeps the rows they hide apart per
+ * sample set ("primary", "set-0", …) so raising the count restores them.
  */
 export function applyTableRowSyncToValues(
   values: Record<string, unknown>,
   allFields: FieldLike[] | null | undefined,
-  onlySourceKey?: string | null
+  onlySourceKey?: string | null,
+  scope = "primary"
 ): boolean {
   const fields = Array.isArray(allFields) ? allFields : [];
   if (fields.length === 0) return false;
   const only = onlySourceKey ? String(onlySourceKey).trim().toUpperCase() : "";
-  let changed = false;
+  let changed = applyTypedTableRowSync(values, fields, onlySourceKey, scope);
 
   for (const field of fields) {
     if (String(field?.field_type || "").toUpperCase().trim() !== "TABLE") continue;

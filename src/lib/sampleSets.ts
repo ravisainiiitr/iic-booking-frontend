@@ -6,7 +6,10 @@ export const SAMPLE_SETS_KEY = "_sample_sets";
 /** Additional sets on top of sample set 1 (matches the backend limit). */
 export const MAX_SAMPLE_SETS = 20;
 
-export type SampleSetValues = Record<string, string | boolean | string[] | string[][] | number>;
+export type SampleSetValues = Record<
+  string,
+  string | boolean | string[] | string[][] | number | Record<string, unknown>[]
+>;
 
 /**
  * Whether new sample sets may be added for this equipment: the main admin's "Allow samples with different
@@ -41,7 +44,7 @@ type SummaryField = { field_key: string; field_label?: string; field_type?: stri
 function displayValue(field: SummaryField, set: SampleSetValues): string {
   const type = String(field.field_type || "").toUpperCase().trim();
   const raw = set[field.field_key];
-  if (type === "TABLE" || type === "ICPMS_STANDARD_COVERAGE") return "";
+  if (type === "TABLE" || type === "TYPED_TABLE" || type === "ICPMS_STANDARD_COVERAGE") return "";
   if (type === "PERIODIC_TABLE") {
     const elements = String(set[`${field.field_key}_elements`] ?? "").trim();
     return elements ? elements.split(",").map((s) => s.trim()).filter(Boolean).join(", ") : "";

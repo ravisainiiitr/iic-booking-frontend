@@ -49,6 +49,12 @@ describe("templateSaveBlocker", () => {
     expect(templateSaveBlocker(health([issue({ code: "wallet_low", severity: "warning" })]))).toBeNull();
     expect(templateSaveBlocker(null)).toBeNull();
   });
+
+  it("blocks saving on an advanced-table cell outside its limits, not on an unfinished table", () => {
+    const cell = issue({ code: "table_invalid", field: "C", message: "Samples, row 1: Max temperature cannot be greater than 100." });
+    expect(templateSaveBlocker(health([issue({ code: "table_incomplete", field: "C" }), cell]))).toBe(cell);
+    expect(templateSaveBlocker(health([issue({ code: "table_incomplete", field: "C" })]))).toBeNull();
+  });
 });
 
 describe("clampTemplateValues", () => {

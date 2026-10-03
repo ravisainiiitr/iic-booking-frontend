@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { lazy, Suspense, useState, useEffect, useMemo } from "react";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import EquipmentImage from "@/components/EquipmentImage";
@@ -44,6 +44,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { typedTableConfigSummary } from "@/lib/typedTableBuilder";
+import { readTypedTableConfig, typedTableLinkKey } from "@/lib/typedTableField";
+
+const TypedTableBuilderDialog = lazy(() => import("@/components/admin/TypedTableBuilderDialog"));
 
 /** Collapsible card matching Django Admin's fieldset grouping, in the app's own visual language. */
 function FormSection({
@@ -285,6 +289,8 @@ export type EquipmentFormData = {
     numeric_limits?: NumericLimitDraft;
     help_text?: string;
     source_element_field_key?: string | null;
+    /** Advanced table (TYPED_TABLE) columns and row rules. */
+    table_config?: unknown;
   }>;
   print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
   /** MULTI_PARAM slot options (Django MultiParamDefinition / slot_options). */
@@ -442,6 +448,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
 
   const [choices, setChoices] = useState<EquipmentFormChoices | null>(null);
   const [choicesLoading, setChoicesLoading] = useState(true);
+  /** Index in `input_fields` of the advanced table whose columns are being configured. */
+  const [typedTableBuilderIdx, setTypedTableBuilderIdx] = useState<number | null>(null);
   const [choicesError, setChoicesError] = useState<string | null>(null);
   const canEditSampleSetsFlag = canEditSampleSetsSwitch(choices?.can_edit_sample_sets_flag, isMainAdmin);
   const [formData, setFormData] = useState<EquipmentFormData>({
@@ -862,6 +870,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 : undefined,
             help_text: String(i.help_text ?? ""),
             source_element_field_key: (i.source_element_field_key as string | null) ?? null,
+            table_config: i.table_config ?? {},
           };
         }) : prev.input_fields ?? [],
         print_materials: Array.isArray(d.print_materials)
@@ -1105,6 +1114,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             source_element_field_key,
             options: saved.options,
             help_text: saved.help_text,
+            table_config: {},
+          };
+        }
+        if (fieldType === "TYPED_TABLE") {
+          return {
+            ...f,
+            user_type,
+            field_key,
+            field_label,
+            source_element_field_key: typedTableLinkKey(readTypedTableConfig(f.table_config)) || null,
+            options: [],
+            table_config: f.table_config ?? {},
           };
         }
         return {
@@ -1114,6 +1135,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           field_label,
           source_element_field_key,
           options: normalizeOptionsList(f.options),
+          table_config: {},
         };
       }),
       print_materials: formData.print_materials ?? [],
@@ -1346,7 +1368,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                           f.options && typeof f.options === "object" && !Array.isArray(f.options)
                             ? f.options
                             : {};
-                      } else if (prevType === "NUMERIC" || !Array.isArray(f.options)) {
+                      } else if (nextType === "TYPED_TABLE" || prevType === "NUMERIC" || !Array.isArray(f.options)) {
                         nextOptions = [];
                       } else {
                         nextOptions = normalizeOptionsList(f.options);
@@ -1372,6 +1394,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                         { value: "TOGGLE", label: "Toggle" },
                         { value: "PERIODIC_TABLE", label: "Periodic table / Element selector" },
                         { value: "TABLE", label: "Table" },
+                        { value: "TYPED_TABLE", label: "Advanced table (typed columns)" },
                         { value: "ICPMS_STANDARD_COVERAGE", label: "ICPMS Standard Coverage" },
                       ]).map((c) => (
                         <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -1388,6 +1411,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     onChange={(e) => updateInputField(idx, { default_value: e.target.value })}
                   />
                 </div>
+                {String(f.field_type || "").toUpperCase() === "TYPED_TABLE" ? (
+                <div className="space-y-1">
+                  <Label className="text-xs">Rows</Label>
+                  <p className="text-xs text-muted-foreground pb-2">Set in “Configure columns”.</p>
+                </div>
+                ) : (
                 <div className="space-y-1">
                   <Label className="text-xs">
                     {String(f.field_type || "").toUpperCase() === "TABLE"
@@ -1409,6 +1438,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                     </SelectContent>
                   </Select>
                 </div>
+                )}
                 <div className="flex items-center gap-4 pb-1">
                   <div className="flex items-center gap-1.5">
                     <Checkbox
@@ -1430,6 +1460,21 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 <div className="space-y-1">
                   {String(f.field_type || "").toUpperCase() === "NUMERIC" ? (
                     renderNumericLimits(f, idx, idPrefix)
+                  ) : String(f.field_type || "").toUpperCase() === "TYPED_TABLE" ? (
+                    <>
+                      <Label className="text-xs">Columns</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTypedTableBuilderIdx(idx)}
+                        >
+                          Configure columns
+                        </Button>
+                        <span className="text-xs text-muted-foreground">{typedTableConfigSummary(f.table_config)}</span>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <Label className="text-xs">Options (one per line)</Label>
@@ -3918,6 +3963,31 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {typedTableBuilderIdx !== null && formData.input_fields?.[typedTableBuilderIdx] ? (() => {
+        const tableField = formData.input_fields[typedTableBuilderIdx];
+        const userType = String(tableField.user_type || "");
+        const numericFields = (formData.input_fields ?? [])
+          .filter(
+            (f) =>
+              String(f.user_type || "") === userType &&
+              String(f.field_type || "").toUpperCase() === "NUMERIC" &&
+              f.field_key !== tableField.field_key,
+          )
+          .map((f) => ({ key: String(f.field_key || "").toUpperCase(), label: f.field_label }));
+        return (
+          <Suspense fallback={null}>
+            <TypedTableBuilderDialog
+              open
+              onOpenChange={(open) => !open && setTypedTableBuilderIdx(null)}
+              fieldLabel={tableField.field_label}
+              fieldKey={String(tableField.field_key || "").toUpperCase()}
+              value={tableField.table_config}
+              numericFields={numericFields}
+              onSave={(config) => updateInputField(typedTableBuilderIdx, { table_config: config })}
+            />
+          </Suspense>
+        );
+      })() : null}
     </form>
   );
 }
