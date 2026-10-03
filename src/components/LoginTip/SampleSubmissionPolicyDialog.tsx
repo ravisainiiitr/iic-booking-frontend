@@ -35,6 +35,16 @@ function policyPoints(typicalLead: number | null): Array<{ title: string; text: 
         ". If it falls on a Saturday, Sunday or institute holiday, it moves to the same time on the previous working day.",
     },
     {
+      title: "Early submission",
+      text:
+        "You are welcome to submit your sample before the deadline, provided it is not atmosphere-sensitive. Please note that early submission does not lead to earlier analysis or earlier results; the sample is analysed in your booked slot.",
+    },
+    {
+      title: "Atmosphere-sensitive samples",
+      text:
+        "Where the equipment permits, select Atmosphere-sensitive sample (submit at slot start) while booking; such a sample may be submitted at the start of the slot.",
+    },
+    {
       title: "Recording of receipt",
       text:
         "When you hand over the sample, request the Lab Operator to record its receipt in the portal. You can follow its progress under Sample Lifecycle in the booking details.",
@@ -60,9 +70,14 @@ function policyPoints(typicalLead: number | null): Array<{ title: string; text: 
         "Once the laboratory has accepted your sample, the booking can no longer be rescheduled or cancelled. Use Message the lab for any change.",
     },
     {
-      title: "Atmosphere-sensitive samples",
+      title: "Results",
       text:
-        "Where the equipment permits, select Atmosphere-sensitive sample (submit at slot start) while booking; such a sample may be submitted at the start of the slot.",
+        "Each instrument has a target time within which the laboratory shares results after analysis, and in most cases you will receive your results within this time. You receive an email and a notification when your results are available in the portal.",
+    },
+    {
+      title: "Delays in results",
+      text:
+        "In rare circumstances, such as a medical emergency or other unforeseen events, results may be delayed. The laboratory will inform you if this happens, and we appreciate your patience and understanding.",
     },
     {
       title: "Collection after analysis",

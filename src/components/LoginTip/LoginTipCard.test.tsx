@@ -175,18 +175,27 @@ describe("LoginTipCard", () => {
     renderCard(student);
     const dialog = await openPolicy();
     const text = dialog.textContent ?? "";
-    for (const title of [
+    const points = within(within(dialog).getByRole("list", { name: "Policy" }))
+      .getAllByRole("listitem")
+      .map((li) => li.querySelector("p")?.textContent);
+    expect(points).toEqual([
       "Submission deadline",
+      "Early submission",
+      "Atmosphere-sensitive samples",
       "Recording of receipt",
       "Checking your deadline",
       "Bookings not utilized",
       "If you are delayed",
       "After the sample is accepted",
-      "Atmosphere-sensitive samples",
+      "Results",
+      "Delays in results",
       "Collection after analysis",
-    ]) {
-      expect(text).toContain(title);
-    }
+    ]);
+    expect(text).toContain("provided it is not atmosphere-sensitive");
+    expect(text).toContain("early submission does not lead to earlier analysis or earlier results");
+    expect(text).toContain("in most cases you will receive your results within this time");
+    expect(text).toContain("such as a medical emergency or other unforeseen events, results may be delayed");
+    expect(text).toContain("The laboratory will inform you if this happens");
     expect(text).toContain("(24 hours for most instruments)");
     expect(text).toContain("moves to the same time on the previous working day");
     expect(text).toContain("Message the lab");
