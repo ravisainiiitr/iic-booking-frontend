@@ -92,6 +92,31 @@ export function departmentLabel(kind: SignupKind | null): string {
   return "Department";
 }
 
+export interface IitrDepartmentRow {
+  id: number;
+  name: string;
+  code?: string | null;
+  department_type?: string;
+  internal_subcategory?: string | null;
+}
+
+/**
+ * IIT Roorkee departments and centres for the IITR types, sorted by name: every internal department
+ * (most have no subcategory set) except Startups entries and the ADMIN department.
+ */
+export function iitrDepartmentOptions<T extends IitrDepartmentRow>(rows: T[]): T[] {
+  const isAdmin = (v?: string | null) => (v ?? "").trim().toUpperCase() === "ADMIN";
+  return rows
+    .filter(
+      (d) =>
+        (d.department_type ?? "internal") === "internal" &&
+        d.internal_subcategory !== "startups" &&
+        !isAdmin(d.name) &&
+        !isAdmin(d.code),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+}
+
 export function supervisorLabel(kind: SignupKind | null): string {
   return kind === "iitr_startup" ? "IITR Faculty mentor" : "IITR Faculty supervisor";
 }
