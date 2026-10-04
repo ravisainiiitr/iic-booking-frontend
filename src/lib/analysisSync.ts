@@ -44,6 +44,9 @@ export interface SyncDescription {
   percent: number | null;
 }
 
+/** Storage/SDK exception text that should never be shown to users verbatim. */
+const RAW_ERROR_RE = /An error occurred \(|Traceback|botocore|Exception|GetObject|PutObject/i;
+
 /**
  * User-facing wording for a sync-status payload. `targetLabel` names the folder results land in
  * ("Processed Data" for My Research, "Analyzed Data" for Booking Details).
@@ -59,14 +62,17 @@ export function describeSync(status: AnalysisSyncStatus | null, targetLabel = "P
 
   if (status.phase === "failed") {
     const kept = status.kept_files?.length || 0;
+    const message = status.message && !RAW_ERROR_RE.test(status.message) ? status.message : null;
     return {
       tone: "failed",
       headline: kept
         ? `${plural(kept, "file")} couldn't be verified`
-        : status.message || "Copying results didn't finish",
+        : message || `Copying results to ${targetLabel} didn't finish`,
       detail: kept
         ? `${kept === 1 ? "It's" : "They're"} still on the Analysis PC and will be retried automatically.`
-        : "Anything already copied is safe. Nothing was removed from the Analysis PC.",
+        : status.pc_cleanup === "done"
+          ? "Your files reached the portal safely and will be copied again automatically. You can also click Retry now."
+          : "Anything already copied is safe. Nothing was removed from the Analysis PC.",
       percent,
     };
   }

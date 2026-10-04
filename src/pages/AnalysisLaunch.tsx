@@ -121,8 +121,6 @@ export default function AnalysisLaunchPage() {
   const [sessionId, setSessionId] = useState<string | null>(search.get("session"));
   const [desktopUrl, setDesktopUrl] = useState<string | null>(null);
   const [desktopReady, setDesktopReady] = useState(false);
-  /** After overlay clears, offer recovery if the remote canvas never paints (Welcome hang / dead RDP). */
-  const [blankDesktopHint, setBlankDesktopHint] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
   const [busy, setBusy] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -258,16 +256,43 @@ export default function AnalysisLaunchPage() {
     return () => window.clearTimeout(t);
   }, [phase, desktopReady]);
 
-  // If the canvas stays black after the overlay (console session steals RDP, agent < 1.0.22), offer recovery.
-  useEffect(() => {
-    if (phase !== "desktop" || !desktopReady || !desktopUrl) {
-      setBlankDesktopHint(false);
-      return;
+  const focusDesktop = useCallback(() => {
+    try {
+      iframeRef.current?.contentWindow?.focus();
+    } catch {
+      iframeRef.current?.focus();
     }
-    setBlankDesktopHint(false);
-    const t = window.setTimeout(() => setBlankDesktopHint(true), 8000);
-    return () => window.clearTimeout(t);
-  }, [phase, desktopReady, desktopUrl]);
+  }, []);
+
+  /** Guacamole cancels mousedown, so a click inside the iframe never moves keyboard focus into it on its own. */
+  const bindDesktopFocus = useCallback(() => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc || (doc as Document & { __iicFocusBound?: boolean }).__iicFocusBound) return;
+      (doc as Document & { __iicFocusBound?: boolean }).__iicFocusBound = true;
+      doc.addEventListener("pointerdown", focusDesktop, true);
+      doc.addEventListener("mousedown", focusDesktop, true);
+    } catch {
+      /* cross-origin remote desktop — rely on the host-page handlers */
+    }
+  }, [focusDesktop]);
+
+  // Guacamole only receives keystrokes while its iframe has focus; clicks on page controls
+  // (Sync now, Fullscreen) leave focus on the host page, so hand it back on the next key press.
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady) return;
+    bindDesktopFocus();
+    focusDesktop();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el === iframeRef.current) return;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      e.preventDefault();
+      focusDesktop();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [phase, desktopReady, focusDesktop, bindDesktopFocus]);
 
   useEffect(() => {
     if (phase !== "desktop" || !desktopReady) return;
@@ -281,7 +306,6 @@ export default function AnalysisLaunchPage() {
     lastLaunchAt.current = 0;
     setDesktopUrl(null);
     setDesktopReady(false);
-    setBlankDesktopHint(false);
     setPhase("prepare");
     setError("Reconnecting to the Analysis PC…");
     pollLaunchNow();
@@ -309,12 +333,13 @@ export default function AnalysisLaunchPage() {
         } catch {
           /* cross-origin remote desktop */
         }
+        focusDesktop();
       }, 250);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fullscreen request was blocked.";
       toast.error(`${msg} Try the browser’s fullscreen (F11), or click Reconnect if the desktop is blank.`);
     }
-  }, []);
+  }, [focusDesktop]);
 
   const serverRemaining =
     typeof sessionExp.remaining_seconds === "number"
@@ -576,29 +601,6 @@ export default function AnalysisLaunchPage() {
               </div>
             </div>
           )}
-          {desktopReady && blankDesktopHint ? (
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-[10050] flex justify-center px-3">
-              <div className="pointer-events-auto max-w-xl rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-xl dark:border-amber-500/30 dark:bg-amber-950 dark:text-amber-50">
-                <p className="font-semibold">Desktop looks blank?</p>
-                <p className="mt-1 text-xs opacity-90">
-                  The remote desktop waits while the Analysis PC's own screen is unlocked for the same Windows user. Do{" "}
-                  <strong>not</strong> use the Analysis PC keyboard/screen during the session. If someone unlocked it, lock it
-                  again (Win+L), then click <strong>Reconnect</strong>.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button type="button" size="sm" className="h-8" onClick={() => void reconnectDesktop()}>
-                    Reconnect
-                  </Button>
-                  <Button type="button" size="sm" variant="secondary" className="h-8" onClick={() => void requestDesktopFullscreen()}>
-                    Fullscreen
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setBlankDesktopHint(false)}>
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
           {desktopUrl ? (
             <>
               <iframe
@@ -609,7 +611,13 @@ export default function AnalysisLaunchPage() {
                 style={{ touchAction: "none" }}
                 allow="clipboard-read; clipboard-write; fullscreen"
                 allowFullScreen
+                onMouseEnter={() => {
+                  const el = document.activeElement as HTMLElement | null;
+                  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+                  focusDesktop();
+                }}
                 onLoad={() => {
+                  bindDesktopFocus();
                   window.setTimeout(() => {
                     setDesktopReady(true);
                     try {
@@ -618,6 +626,7 @@ export default function AnalysisLaunchPage() {
                     } catch {
                       /* cross-origin remote desktop — ignore */
                     }
+                    focusDesktop();
                   }, 800);
                 }}
               />

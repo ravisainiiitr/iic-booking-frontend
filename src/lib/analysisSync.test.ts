@@ -69,6 +69,18 @@ describe("describeSync", () => {
     expect(d.detail).toMatch(/still on the Analysis PC/);
   });
 
+  it("hides raw storage errors and reassures when the PC copy was already verified", () => {
+    const d = describeSync(
+      status({
+        phase: "failed",
+        pc_cleanup: "done",
+        message: "An error occurred (InvalidRange) when calling the GetObject operation: The requested range is not satisfiable",
+      }),
+    );
+    expect(d.headline).toBe("Copying results to Processed Data didn't finish");
+    expect(d.detail).toMatch(/reached the portal safely/);
+  });
+
   it("uses the Booking Details label for legacy results", () => {
     expect(describeSync(status({ phase: "done", files_done: 1 }), "Analyzed Data").headline).toBe("1 file saved to Analyzed Data");
   });
