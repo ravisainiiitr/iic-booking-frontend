@@ -811,6 +811,17 @@ body:has([data-embed-chrome]),
     display: block;
   }
 }
+/* Public header: the clock sits in an auto-width centre column, so the whole row is the container.
+   Below 70rem the banner leaves no room for equal side columns around the full pill, so the date
+   drops and the shorter pill stays as close to the centre as the banner allows. */
+.server-clock-row {
+  container: server-clock-row / inline-size;
+}
+@container server-clock-row (max-width: 70rem) {
+  .server-clock-extra {
+    display: none;
+  }
+}
 
 /* OIC-formatted text (important instruction). Stored colours are these palette tokens, so each
    theme picks a readable shade. Keep in sync with TEXT_COLORS / HIGHLIGHT_COLORS in lib/richText.ts. */
