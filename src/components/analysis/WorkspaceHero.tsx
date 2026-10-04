@@ -104,10 +104,10 @@ export function WorkspaceStatusStrip({
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Analysis Environment
+              Analysis PC
             </p>
             <p className="truncate text-sm font-semibold leading-snug xl:text-base">
-              {environmentLabel || "Analysis Environment"}
+              {environmentLabel || "Analysis PC"}
             </p>
             <Badge
               className={cn(
@@ -139,25 +139,25 @@ export function WorkspaceReadyBanner({
 }) {
   const copy = {
     ready: {
-      title: "Analysis Environment is Ready!",
-      subtitle: "Review your booking details and input data, then start the Analysis Environment.",
+      title: "Your Analysis PC is ready",
+      subtitle: "Check your analysis setup, then open the Analysis PC.",
     },
     queued: {
-      title: "Analysis Environment Currently Unavailable",
+      title: "Analysis PC currently unavailable",
       subtitle:
-        "You are in the execution queue and will start automatically when an environment is available.",
+        "You are in the queue and will start automatically when an Analysis PC is free.",
     },
     running: {
-      title: "Analysis Session in Progress",
-      subtitle: "Your Analysis Environment is active. Save your work and click End Analysis when finished.",
+      title: "Analysis session in progress",
+      subtitle: "Save your results in the Output folder on the Analysis PC and click End Analysis when finished.",
     },
     results: {
-      title: "Results Ready",
-      subtitle: "Processed results are available for download from your Booking Details page.",
+      title: "Results received",
+      subtitle: "Your results have been copied from the Analysis PC.",
     },
     default: {
-      title: "Remote Analysis Workspace",
-      subtitle: "Choose input data and launch when an Analysis Environment is available.",
+      title: "Analysis Workspace",
+      subtitle: "Set up your analysis and open the Analysis PC when one is available.",
     },
   }[mode];
 

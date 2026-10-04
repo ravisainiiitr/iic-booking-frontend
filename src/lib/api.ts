@@ -83,6 +83,13 @@ import type {
   ResearchGroupsHome,
   UpdatesState,
 } from "@/lib/researchGroupTypes";
+import type {
+  AnalysisInputSourcePage,
+  AnalysisSetup,
+  AnalysisSetupRequest,
+  AnalysisSyncStatus,
+  AnalysisViewport,
+} from "@/lib/analysisSetupTypes";
 
 // API client for Django REST API
 // Support runtime configuration via window.__RUNTIME_CONFIG__ (for Docker/production)
@@ -7709,10 +7716,91 @@ class ApiClient {
     });
   }
 
-  async launchBookingAnalysisDesktop(bookingId: number) {
+  async launchBookingAnalysisDesktop(bookingId: number, options: { viewport?: AnalysisViewport | null } = {}) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/launch/`, {
       method: 'POST',
+      body: JSON.stringify(options.viewport ? { viewport: options.viewport } : {}),
+    });
+  }
+
+  /** Setup dialog state: My Research link, default input and where results are saved. 404 until the backend ships it. */
+  async getBookingAnalysisSetup(bookingId: number) {
+    return this.request<AnalysisSetup>(`/v1/bookings/${bookingId}/analysis/setup/`, { method: 'GET' });
+  }
+
+  async saveBookingAnalysisSetup(bookingId: number, body: AnalysisSetupRequest) {
+    return this.request<AnalysisSetup>(`/v1/bookings/${bookingId}/analysis/setup/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async listBookingAnalysisInputSources(
+    bookingId: number,
+    params: { q?: string; page?: number; page_size?: number } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.page) qs.set('page', String(params.page));
+    if (params.page_size) qs.set('page_size', String(params.page_size));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<AnalysisInputSourcePage>(
+      `/v1/bookings/${bookingId}/analysis/input-sources/${suffix}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getBookingAnalysisSyncStatus(bookingId: number) {
+    return this.request<AnalysisSyncStatus>(`/v1/bookings/${bookingId}/analysis/sync-status/`, { method: 'GET' });
+  }
+
+  async syncBookingAnalysisNow(bookingId: number) {
+    return this.request<{ queued: boolean }>(`/v1/bookings/${bookingId}/analysis/sync-now/`, {
+      method: 'POST',
       body: JSON.stringify({}),
+    });
+  }
+
+  /** Same endpoint as uploadBookingAnalysisFile, via XHR so the caller gets upload progress. */
+  uploadBookingAnalysisFileWithProgress(
+    bookingId: number,
+    file: File,
+    onProgress: (loaded: number, total: number) => void,
+    signal?: AbortSignal,
+    folder = 'RawData',
+  ): Promise<ApiResponse<Record<string, unknown>>> {
+    return new Promise((resolve) => {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('folder', folder);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseURL}/v1/bookings/${bookingId}/analysis/files/upload/`);
+      const token = this.getToken();
+      if (token) xhr.setRequestHeader('Authorization', `Token ${token}`);
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(event.loaded, event.total);
+      };
+      xhr.onload = () => {
+        let data: Record<string, unknown> = {};
+        try {
+          data = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          data = {};
+        }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress(file.size, file.size);
+          resolve({ data });
+          return;
+        }
+        resolve({
+          error: flattenApiErrorMessage(data.detail) || flattenApiErrorMessage(data.error) || `Upload failed (HTTP ${xhr.status}).`,
+          status: xhr.status,
+        });
+      };
+      xhr.onerror = () => resolve({ error: 'Network error while uploading. Check your connection and try again.' });
+      xhr.onabort = () => resolve({ error: 'Upload cancelled.', errorCode: 'cancelled' });
+      signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+      xhr.send(form);
     });
   }
 

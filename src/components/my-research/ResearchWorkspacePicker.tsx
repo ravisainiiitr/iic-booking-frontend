@@ -27,6 +27,16 @@ interface Props {
    * The user's expand/collapse choice is remembered for the browser session.
    */
   collapsible?: boolean;
+  /** Projects already loaded by the caller; skips the availability check and the options request. */
+  options?: ResearchWorkspaceOption[];
+  /** Overrides the user's create permission from the My Research bootstrap. */
+  canCreate?: boolean;
+  /** A project must be chosen: hides "None" and the "(optional)" hint. */
+  required?: boolean;
+  label?: string;
+  helperText?: string;
+  /** Called after "+ New project" created a project (it is also selected). */
+  onCreated?: (option: ResearchWorkspaceOption) => void;
 }
 
 function readLast(key: string): string | null {
@@ -54,21 +64,28 @@ export function ResearchWorkspacePicker({
   folderLabel,
   rememberLast = false,
   collapsible = false,
+  options: providedOptions,
+  canCreate: canCreateOverride,
+  required = false,
+  label = "Project",
+  helperText,
+  onCreated,
 }: Props) {
-  const { available, bootstrap } = useMyResearchAvailability();
+  const preloaded = providedOptions !== undefined;
+  const { available, bootstrap } = useMyResearchAvailability(!preloaded);
   const { user } = useAuth();
-  const [options, setOptions] = useState<ResearchWorkspaceOption[] | null>(null);
+  const [options, setOptions] = useState<ResearchWorkspaceOption[] | null>(providedOptions ?? null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [optionsLoaded, setOptionsLoaded] = useState(preloaded);
   const [expanded, setExpanded] = useSessionExpanded("projectPicker", false);
   const defaultApplied = useRef(false);
   const triggerId = useId();
   const storageKey = rememberLast && user ? `iic.myResearch.lastProject.${user.id}` : null;
 
   useEffect(() => {
-    if (!available) return;
+    if (preloaded || !available) return;
     let alive = true;
     void apiClient.myResearchWorkspaceOptions().then((res) => {
       if (!alive) return;
@@ -79,7 +96,7 @@ export function ResearchWorkspacePicker({
     return () => {
       alive = false;
     };
-  }, [available]);
+  }, [available, preloaded]);
 
   // e.g. a booking template pointing at a project that was deleted or is no longer shared with the user.
   useEffect(() => {
@@ -94,8 +111,8 @@ export function ResearchWorkspacePicker({
     if (last && options.some((o) => o.id === last)) onChange(last);
   }, [storageKey, optionsLoaded, options, value, onChange]);
 
-  if (!available || options == null) return null;
-  const canCreate = Boolean(bootstrap?.can_create);
+  if ((!preloaded && !available) || options == null) return null;
+  const canCreate = canCreateOverride ?? Boolean(bootstrap?.can_create);
   if (options.length === 0 && !canCreate) return null;
 
   const select = (id: string | null) => {
@@ -112,15 +129,19 @@ export function ResearchWorkspacePicker({
       toast.error(res.error || "Could not create the project.");
       return;
     }
-    setOptions((prev) => [...(prev ?? []), { id: res.data!.id, name: res.data!.name, booking_linked: false }]);
-    select(res.data.id);
+    const created = { id: res.data.id, name: res.data.name, booking_linked: false };
+    setOptions((prev) => [...(prev ?? []), created]);
+    select(created.id);
+    onCreated?.(created);
     setCreating(false);
     setNewName("");
   };
 
-  const helper = `The booking is added to this private project${
-    value && folderLabel ? " and folder" : ""
-  } after it is confirmed. It does not change the booking itself.`;
+  const helper =
+    helperText ??
+    `The booking is added to this private project${
+      value && folderLabel ? " and folder" : ""
+    } after it is confirmed. It does not change the booking itself.`;
   const selectedName = value ? options.find((o) => o.id === value)?.name ?? "Selected project" : "None";
 
   if (collapsible && !expanded && !creating) {
@@ -167,10 +188,11 @@ export function ResearchWorkspacePicker({
         ) : null}
         <label htmlFor={triggerId} className="flex items-center gap-2 text-sm font-medium">
           <FlaskConical className="h-4 w-4 text-primary" aria-hidden />
-          Project <span className="font-normal text-muted-foreground">(optional)</span>
+          {label}
+          {required ? null : <span className="font-normal text-muted-foreground">(optional)</span>}
         </label>
         <Select
-          value={creating ? NEW : value ?? NONE}
+          value={creating ? NEW : value ?? (required ? "" : NONE)}
           onValueChange={(v) => {
             if (v === NEW) {
               setCreating(true);
@@ -181,10 +203,10 @@ export function ResearchWorkspacePicker({
           }}
         >
           <SelectTrigger id={triggerId} className="h-9 min-w-0 flex-1 bg-background sm:max-w-xs">
-            <SelectValue />
+            <SelectValue placeholder="Choose a project" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={NONE}>None</SelectItem>
+            {required ? null : <SelectItem value={NONE}>None</SelectItem>}
             {options.map((o) => (
               <SelectItem key={o.id} value={o.id}>
                 {o.name}
