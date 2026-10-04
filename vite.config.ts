@@ -2,26 +2,32 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { HERO_IMAGE_SIZES } from "./src/lib/heroImage";
 
 // The homepage hero image is the LCP element but is only discovered after the JS bundle runs.
 // index.html is served for every route, so the preload is added only when the path is "/".
+// Only the AVIF set is preloaded: `type` makes browsers without AVIF skip it and fall back to the
+// <picture> WebP source, and imagesrcset/imagesizes match the <img> so the same file is reused.
+// The script must follow the viewport meta (or phones resolve `sizes` against a 980px layout
+// viewport and fetch the largest file) and precede the font stylesheet (which would block it).
 function preloadHomeHeroImage(): Plugin {
   return {
     name: "preload-home-hero-image",
     apply: "build",
     transformIndexHtml: {
       order: "post",
-      handler(_html, ctx) {
-        const asset = Object.keys(ctx.bundle ?? {}).find((f) => /^assets\/iitr-main-building-[^/]+\.(webp|jpg)$/.test(f));
-        if (!asset) return [];
-        const href = JSON.stringify(`/${asset}`);
-        return [
-          {
-            tag: "script",
-            injectTo: "head-prepend",
-            children: `if(location.pathname==="/"){var l=document.createElement("link");l.rel="preload";l.as="image";l.href=${href};l.setAttribute("fetchpriority","high");document.head.appendChild(l)}`,
-          },
-        ];
+      handler(html, ctx) {
+        const candidates = Object.keys(ctx.bundle ?? {})
+          .map((f) => ({ f, w: /^assets\/iitr-main-building-(\d+)w-[^/]+\.avif$/.exec(f)?.[1] }))
+          .filter((c): c is { f: string; w: string } => c.w != null)
+          .sort((a, b) => Number(a.w) - Number(b.w));
+        if (!candidates.length) return html;
+        const srcset = JSON.stringify(candidates.map((c) => `/${c.f} ${c.w}w`).join(", "));
+        const sizes = JSON.stringify(HERO_IMAGE_SIZES);
+        const script = `<script>if(location.pathname==="/"){var l=document.createElement("link");l.rel="preload";l.as="image";l.type="image/avif";l.setAttribute("imagesrcset",${srcset});l.setAttribute("imagesizes",${sizes});l.setAttribute("fetchpriority","high");document.head.appendChild(l)}</script>`;
+        const viewportMeta = /<meta\s+name="viewport"[^>]*>/;
+        if (!viewportMeta.test(html)) throw new Error("preload-home-hero-image: viewport meta not found in index.html");
+        return html.replace(viewportMeta, (m) => `${m}\n    ${script}`);
       },
     },
   };

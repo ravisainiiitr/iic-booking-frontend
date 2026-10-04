@@ -1,13 +1,20 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Calendar, CalendarClock, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { CHANNEL_I_DISPLAY_NAME } from "@/lib/constants";
 import { storeOmniportState } from "@/lib/omniportAuth";
 import { toast } from "sonner";
-import iitrMainBuilding from "@/assets/iitr-main-building.webp";
+import heroAvif1024 from "@/assets/hero/iitr-main-building-1024w.avif";
+import heroAvif1536 from "@/assets/hero/iitr-main-building-1536w.avif";
+import heroAvif2048 from "@/assets/hero/iitr-main-building-2048w.avif";
+import heroWebp1024 from "@/assets/hero/iitr-main-building-1024w.webp";
+import heroWebp1536 from "@/assets/hero/iitr-main-building-1536w.webp";
+import heroWebp2048 from "@/assets/hero/iitr-main-building-2048w.webp";
+import { HERO_IMAGE_SIZES } from "@/lib/heroImage";
+import { useHeroParallax } from "@/hooks/use-hero-parallax";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_HOME = {
@@ -31,11 +38,27 @@ const DEFAULT_HOME = {
   stat4_label: "Bookings",
 };
 
-const primaryCtaClass =
-  "h-10 shrink-0 gap-1.5 whitespace-nowrap bg-primary px-3.5 text-sm text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-11 sm:gap-2 sm:px-4 sm:text-base";
+const heroAvifSrcSet = `${heroAvif1024} 1024w, ${heroAvif1536} 1536w, ${heroAvif2048} 2048w`;
+const heroWebpSrcSet = `${heroWebp1024} 1024w, ${heroWebp1536} 1536w, ${heroWebp2048} 2048w`;
+
+const primaryCtaClass = cn(
+  "h-10 shrink-0 gap-1.5 whitespace-nowrap px-3.5 text-sm text-white sm:h-11 sm:gap-2 sm:px-4 sm:text-base",
+  "border border-white/15 bg-gradient-to-b from-[hsl(214_70%_40%)] to-[hsl(218_78%_24%)]",
+  "shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),inset_0_-1px_0_hsl(220_80%_8%/0.35),0_1px_2px_hsl(220_60%_4%/0.4),0_8px_18px_-6px_hsl(218_80%_8%/0.65)]",
+  "transition-[transform,box-shadow,filter] duration-200 ease-out hover:-translate-y-0.5 hover:brightness-110",
+  "hover:shadow-[inset_0_1px_0_hsl(0_0%_100%/0.3),inset_0_-1px_0_hsl(220_80%_8%/0.35),0_2px_4px_hsl(220_60%_4%/0.35),0_14px_28px_-8px_hsl(218_80%_8%/0.7)]",
+  "active:translate-y-0 active:brightness-95 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+  "focus-visible:ring-white/80 focus-visible:ring-offset-0"
+);
+
+const textShadowClass = "[text-shadow:0_1px_2px_hsl(220_60%_4%/0.55)]";
 
 const Hero = () => {
   const navigate = useNavigate();
+  const sectionRef = useRef<HTMLElement>(null);
+  const scrollLayerRef = useRef<HTMLDivElement>(null);
+  const pointerLayerRef = useRef<HTMLImageElement>(null);
+  useHeroParallax(sectionRef, scrollLayerRef, pointerLayerRef);
   const { isAuthenticated, user } = useAuth();
   const isLabIncharge =
     user?.user_type != null && String(user.user_type).toLowerCase() === "operator";
@@ -136,44 +159,57 @@ const Hero = () => {
   };
 
   return (
-    <section className="relative flex min-h-[58svh] max-h-[78svh] flex-col overflow-hidden sm:min-h-[62svh]">
+    <section ref={sectionRef} className="relative isolate flex min-h-[58svh] flex-col overflow-hidden sm:min-h-[62svh]">
       <div className="absolute inset-0 z-0">
-        <img
-          src={iitrMainBuilding}
-          alt="IIT Roorkee Main Building"
-          className="h-full w-full object-cover object-center"
-          loading="eager"
-          decoding="async"
-          {...{ fetchpriority: "high" }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_55%_8%/0.88)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.25)]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.75)] via-transparent to-[hsl(210_45%_12%/0.2)]" />
+        <div ref={scrollLayerRef} className="absolute inset-0">
+          <picture>
+            <source type="image/avif" srcSet={heroAvifSrcSet} sizes={HERO_IMAGE_SIZES} />
+            <source type="image/webp" srcSet={heroWebpSrcSet} sizes={HERO_IMAGE_SIZES} />
+            <img
+              ref={pointerLayerRef}
+              src={heroWebp1024}
+              alt="IIT Roorkee Main Building"
+              className="h-full w-full object-cover object-center transition-transform duration-700 ease-out"
+              loading="eager"
+              decoding="async"
+              {...{ fetchpriority: "high" }}
+            />
+          </picture>
+        </div>
+        {/* Mobile text spans the full width, so the scrim stays even; from md the text column is on the left and the right half opens up. */}
+        <div className="absolute inset-0 bg-[hsl(218_60%_8%/0.62)] md:bg-transparent md:bg-[linear-gradient(90deg,hsl(218_60%_7%/0.86)_0%,hsl(218_58%_8%/0.78)_30%,hsl(217_55%_10%/0.7)_42%,hsl(215_50%_12%/0.5)_56%,hsl(214_48%_13%/0.16)_72%,transparent_88%)]" />
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[hsl(218_60%_7%/0.4)] to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[hsl(218_60%_6%/0.6)] to-transparent" />
+        <div className="absolute inset-0 hidden bg-[radial-gradient(120%_90%_at_70%_35%,transparent_55%,hsl(218_60%_5%/0.35)_100%)] md:block" />
       </div>
 
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
         {/* pt clears fixed header (lg IITR banner); keep badge fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-28 sm:pb-5 sm:pt-32 md:pt-36">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/30 bg-[hsl(218_50%_14%/0.45)] px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-[inset_0_1px_0_hsl(0_0%_100%/0.2),0_4px_12px_-4px_hsl(220_60%_4%/0.5)] backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">IIT Roorkee · Online Equipment Booking</span>
             </div>
 
-            <div className="max-w-3xl space-y-2 sm:space-y-2.5">
+            <div className="max-w-3xl space-y-2 antialiased sm:space-y-2.5">
               <h1
-                className="text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
+                className="text-3xl font-semibold leading-tight tracking-tight text-white [filter:drop-shadow(0_1px_1px_hsl(220_60%_4%/0.5))_drop-shadow(0_6px_16px_hsl(220_60%_4%/0.35))] sm:text-4xl md:text-5xl"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
               >
-                {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
+                {/* Inline + clone so each wrapped line gets the full top-to-bottom highlight. */}
+                <span className="bg-gradient-to-b from-white from-40% to-[hsl(208_55%_93%)] bg-clip-text text-transparent [-webkit-box-decoration-break:clone] [box-decoration-break:clone]">
+                  {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
+                </span>
               </h1>
               <p
-                className="text-lg font-medium text-white/95 sm:text-xl md:text-2xl"
+                className={cn("text-lg font-medium text-white sm:text-xl md:text-2xl", textShadowClass)}
                 style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
               >
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-2xl whitespace-pre-line text-base leading-snug text-white/80 sm:text-lg"
+                className={cn("max-w-2xl whitespace-pre-line text-base leading-snug text-white/90 sm:text-lg", textShadowClass)}
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
                 {(() => {
@@ -259,7 +295,15 @@ const Hero = () => {
         </div>
 
         <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/25 bg-white/20 p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_10%/0.35)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-5">
+          <div
+            className={cn(
+              "relative grid grid-cols-2 gap-2 rounded-2xl border border-white/20 p-3 backdrop-blur-md backdrop-saturate-150 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:gap-0 lg:divide-x lg:divide-white/15",
+              "[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1",
+              "bg-gradient-to-b from-[hsl(215_45%_24%/0.55)] to-[hsl(218_55%_9%/0.66)]",
+              "shadow-[inset_0_1px_0_hsl(0_0%_100%/0.22),0_1px_2px_hsl(220_60%_4%/0.25),0_8px_16px_-4px_hsl(220_60%_4%/0.3),0_24px_48px_-12px_hsl(220_60%_4%/0.5)]",
+              "before:pointer-events-none before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/70 before:to-transparent"
+            )}
+          >
             {(
               [
                 {
@@ -310,14 +354,14 @@ const Hero = () => {
               const inner = (
                 <>
                   <div
-                    className="text-xl font-semibold tabular-nums text-white sm:text-2xl md:text-3xl"
+                    className={cn("text-xl font-semibold tabular-nums text-white antialiased sm:text-2xl md:text-3xl", textShadowClass)}
                     style={s.fsV ? { fontSize: s.fsV } : undefined}
                   >
                     {s.value}
                   </div>
                   <div
                     className={cn(
-                      "mt-0.5 text-xs font-medium uppercase tracking-wide text-white/75 sm:text-sm",
+                      "mt-0.5 text-xs font-medium uppercase tracking-wide text-white/80 sm:text-sm",
                       s.href && "underline decoration-white/50 underline-offset-4 group-hover:decoration-white"
                     )}
                     style={s.fsL ? { fontSize: s.fsL } : undefined}
