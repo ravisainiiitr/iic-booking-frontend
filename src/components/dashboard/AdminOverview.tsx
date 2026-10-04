@@ -34,6 +34,8 @@ interface AdminOverviewProps {
   onOpen: (path: string) => void;
   /** True when the signed-in user has a menu entry for this page (links are only shown for those). */
   canOpen: (path: string) => boolean;
+  /** Dashboard notices shown between the overview header and the figures. */
+  notices?: ReactNode;
 }
 
 const REFRESH_MS = 60_000;
@@ -140,7 +142,7 @@ function SectionCard({ title, description, action, children, className }: {
   );
 }
 
-export default function AdminOverview({ onOpen, canOpen }: AdminOverviewProps) {
+export default function AdminOverview({ onOpen, canOpen, notices }: AdminOverviewProps) {
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [pending, setPending] = useState<AttentionItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,14 +199,17 @@ export default function AdminOverview({ onOpen, canOpen }: AdminOverviewProps) {
 
   if (!summary) {
     return (
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
-          <p>{error || "Could not load the administration overview."}</p>
-          <Button variant="outline" size="sm" onClick={() => void load(true)}>
-            Try again
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
+            <p>{error || "Could not load the administration overview."}</p>
+            <Button variant="outline" size="sm" onClick={() => void load(true)}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+        {notices}
+      </div>
     );
   }
 
@@ -252,6 +257,8 @@ export default function AdminOverview({ onOpen, canOpen }: AdminOverviewProps) {
           </div>
         </CardHeader>
       </Card>
+
+      {notices}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
