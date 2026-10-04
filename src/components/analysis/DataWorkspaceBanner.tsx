@@ -19,6 +19,8 @@ type Props = {
   compact?: boolean;
   /** When true, show Data Root row (default true). */
   showDataRoot?: boolean;
+  /** Hide the Output row when results are chosen from anywhere on the PC at the end of the session. */
+  showOutput?: boolean;
 };
 
 function PathRow({
@@ -86,7 +88,7 @@ function PathRow({
 }
 
 /** Compact DATA WORKSPACE panel for Analysis Workspace / Launch (R9). */
-export function DataWorkspaceBanner({ data, className, compact, showDataRoot = true }: Props) {
+export function DataWorkspaceBanner({ data, className, compact, showDataRoot = true, showOutput = true }: Props) {
   const inputPath = String(data?.input_path || "").trim();
   const outputPath = String(data?.output_path || "").trim();
   const dataRoot = String(data?.data_root || "").trim();
@@ -127,13 +129,15 @@ export function DataWorkspaceBanner({ data, className, compact, showDataRoot = t
           icon={<FolderInput className="h-3.5 w-3.5" />}
           compact={compact}
         />
-        <PathRow
-          label="Output"
-          path={outputPath}
-          hint={compact ? undefined : outputHint}
-          icon={<FolderOutput className="h-3.5 w-3.5" />}
-          compact={compact}
-        />
+        {showOutput ? (
+          <PathRow
+            label="Output"
+            path={outputPath}
+            hint={compact ? undefined : outputHint}
+            icon={<FolderOutput className="h-3.5 w-3.5" />}
+            compact={compact}
+          />
+        ) : null}
         {showDataRoot ? (
           <PathRow
             label="Data Root"

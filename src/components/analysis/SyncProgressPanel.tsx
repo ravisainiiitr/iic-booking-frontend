@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Folder, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
-import { describeSync } from "@/lib/analysisSync";
+import { describeSync, formatBytes, plural } from "@/lib/analysisSync";
+import { folderName, folderState } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -85,6 +86,45 @@ export function SyncProgressPanel({ status, targetLabel = "Processed Data", myRe
           <div className="mt-2.5 h-1.5 animate-pulse rounded-full bg-sky-200 dark:bg-sky-900" aria-hidden />
         )
       ) : null}
+      <ExtraFolders status={status} />
     </section>
+  );
+}
+
+function ExtraFolders({ status }: { status: AnalysisSyncStatus }) {
+  const folders = status.extra_folders ?? [];
+  if (!folders.length) return null;
+  return (
+    <ul className="mt-3 space-y-1.5 border-t border-current/10 pt-2.5" aria-label="Result folders" data-testid="extra-folders">
+      {folders.map((f) => {
+        const s = folderState(f, status);
+        const name = f.alias || folderName(f.path);
+        return (
+          <li key={f.path} className="flex items-start gap-2 text-xs">
+            {s.tone === "done" ? (
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+            ) : s.tone === "warn" ? (
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
+            ) : (
+              <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate">
+                <span className="font-medium">{name}</span>
+                {f.files != null && f.alias ? (
+                  <span className="opacity-75">
+                    {" "}
+                    · {plural(f.files, "file")} · {formatBytes(f.bytes ?? 0)}
+                  </span>
+                ) : null}
+              </p>
+              <p className="truncate opacity-75" title={f.path}>
+                {s.label}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

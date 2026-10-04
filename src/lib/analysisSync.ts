@@ -166,7 +166,7 @@ export function legacySyncFromSummary(summary: Record<string, unknown> | null): 
   };
 }
 
-/** Usable remote-desktop area in CSS pixels; the backend multiplies by dpr and clamps. */
+/** Usable remote-desktop area in CSS pixels; the backend sizes the RDP desktop to it (dpr is informational). */
 export function measureViewport(surface?: HTMLElement | null, reservedTopPx = 64): AnalysisViewport {
   const rect = surface?.getBoundingClientRect();
   const width = rect && rect.width > 0 ? rect.width : window.innerWidth;

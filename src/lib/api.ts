@@ -89,6 +89,7 @@ import type {
   AnalysisSetupRequest,
   AnalysisSyncStatus,
   AnalysisViewport,
+  PcBrowseResult,
 } from "@/lib/analysisSetupTypes";
 
 // API client for Django REST API
@@ -7619,10 +7620,34 @@ class ApiClient {
     });
   }
 
-  async endBookingAnalysis(bookingId: number, reason = 'Finished early by user') {
+  /** `extraFolders` (agents with extra_sources_v1): folders on the Analysis PC to copy and then remove. */
+  async endBookingAnalysis(bookingId: number, reason = 'Finished early by user', extraFolders?: string[]) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/end/`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify(extraFolders ? { reason, extra_folders: extraFolders } : { reason }),
+    });
+  }
+
+  /** Ask the Analysis PC for a folder listing ("" = starting places); poll getPcBrowseResult with the id. */
+  async browsePcFolders(bookingId: number, path: string) {
+    return this.request<{ request_id: string }>(`/v1/bookings/${bookingId}/analysis/pc-folders/browse/`, {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    });
+  }
+
+  async getPcBrowseResult(bookingId: number, requestId: string) {
+    return this.request<PcBrowseResult>(
+      `/v1/bookings/${bookingId}/analysis/pc-folders/browse/${encodeURIComponent(requestId)}/`,
+      { method: 'GET' },
+    );
+  }
+
+  /** Result folders collected when the session ends (also when it ends on the timer). */
+  async setPcFolders(bookingId: number, folders: string[]) {
+    return this.request<{ folders: string[] }>(`/v1/bookings/${bookingId}/analysis/pc-folders/`, {
+      method: 'PUT',
+      body: JSON.stringify({ folders }),
     });
   }
 

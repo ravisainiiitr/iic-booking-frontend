@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import type { AnalysisSetup, AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
+import { PC_FOLDERS_CAPABILITY, type AnalysisSetup, type AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
 import {
   describeSync,
   isMissingEndpoint,
@@ -18,12 +18,13 @@ import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspace
 import { DataWorkspaceBanner, type DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
 import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
 import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
+import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
 import { useAnalysisLiveState } from "@/components/analysis/useAnalysisLiveState";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import IITRBanner from "@/components/IITRBanner";
 import { useAdaptivePoll } from "@/hooks/use-adaptive-poll";
 import { useCountdown } from "@/hooks/use-countdown";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderPlus, Loader2, RefreshCw } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
 
@@ -128,6 +129,7 @@ export default function AnalysisLaunchPage() {
   const [setup, setSetup] = useState<AnalysisSetup | null>(null);
   const [closingSince, setClosingSince] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [folderDialog, setFolderDialog] = useState<"end" | "choose" | null>(null);
   const desktopResolved = useRef(false);
   const sessionIdRef = useRef<string | null>(sessionId);
   const lastLaunchAt = useRef(0);
@@ -172,6 +174,18 @@ export default function AnalysisLaunchPage() {
       alive = false;
     };
   }, [bookingPk]);
+
+  // The Analysis PC (and so its agent capabilities and folder paths) is only known once the desktop opens.
+  useEffect(() => {
+    if (phase !== "desktop" || !Number.isFinite(bookingPk)) return;
+    let alive = true;
+    void apiClient.getBookingAnalysisSetup(bookingPk).then((res) => {
+      if (alive && !res.error && res.data) setSetup(res.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phase, bookingPk]);
 
   const postLaunch = useCallback(async () => {
     lastLaunchAt.current = Date.now();
@@ -280,7 +294,7 @@ export default function AnalysisLaunchPage() {
   // Guacamole only receives keystrokes while its iframe has focus; clicks on page controls
   // (Sync now, Fullscreen) leave focus on the host page, so hand it back on the next key press.
   useEffect(() => {
-    if (phase !== "desktop" || !desktopReady) return;
+    if (phase !== "desktop" || !desktopReady || folderDialog) return;
     bindDesktopFocus();
     focusDesktop();
     const onKeyDown = (e: KeyboardEvent) => {
@@ -292,7 +306,7 @@ export default function AnalysisLaunchPage() {
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [phase, desktopReady, focusDesktop, bindDesktopFocus]);
+  }, [phase, desktopReady, focusDesktop, bindDesktopFocus, folderDialog]);
 
   useEffect(() => {
     if (phase !== "desktop" || !desktopReady) return;
@@ -374,7 +388,13 @@ export default function AnalysisLaunchPage() {
     return [10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
   }, [remaining]);
 
+  const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
+
   const endAnalysis = async () => {
+    if (pickerSupported) {
+      setFolderDialog("end");
+      return;
+    }
     if (!window.confirm("End analysis now? Your Output folder is copied and the Analysis PC is freed for the next user.")) {
       return;
     }
@@ -411,7 +431,7 @@ export default function AnalysisLaunchPage() {
       const res = await apiClient.syncBookingAnalysisNow(bookingPk);
       if (res.status === 409) toast.message("Sync is available while your analysis session is running.");
       else if (res.error) toast.error(res.error);
-      else toast.success("Copying your Output folder now.");
+      else toast.success(pickerSupported ? "Copying your results now." : "Copying your Output folder now.");
       pollNow();
     } finally {
       setSyncing(false);
@@ -458,6 +478,8 @@ export default function AnalysisLaunchPage() {
   const destinationLabel = setup?.output.destination_label || "Booking Details › Analyzed Data";
   const targetLabel = eligible ? "Processed Data" : "Analyzed Data";
   const outputPath = setup?.output.pc_output_path || experience.data_workspace?.output_path || "";
+  const inputPath = setup?.input.pc_input_path || experience.data_workspace?.input_path || "";
+  const chosenFolders = (sync?.extra_folders ?? []).map((f) => f.path);
   const myResearchHref = myResearchFolderHref(
     sync?.destination?.workspace_id || link?.workspace_id,
     sync?.destination?.folder_id || link?.processed_folder_id,
@@ -491,6 +513,18 @@ export default function AnalysisLaunchPage() {
           rightSlot={
             syncSupported ? (
               <div className="flex items-center gap-2">
+                {pickerSupported ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => setFolderDialog("choose")}
+                    title="Choose the folders on the Analysis PC where you save results"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" aria-hidden />
+                    Result folders{chosenFolders.length ? ` (${chosenFolders.length})` : ""}
+                  </Button>
+                ) : null}
                 {liveTransfer ? (
                   <span className="hidden max-w-[220px] truncate text-xs text-muted-foreground xl:inline" role="status" aria-live="polite">
                     {liveTransfer.percent != null ? `Syncing ${liveTransfer.percent}%` : liveTransfer.detail || "Syncing…"}
@@ -502,7 +536,7 @@ export default function AnalysisLaunchPage() {
                   className="gap-1.5"
                   onClick={syncNow}
                   disabled={syncing || Boolean(liveTransfer)}
-                  title={`Copy the Output folder to ${destinationLabel} now`}
+                  title={`Copy your results to ${destinationLabel} now`}
                 >
                   {syncing || liveTransfer ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
                   Sync now
@@ -516,13 +550,18 @@ export default function AnalysisLaunchPage() {
         <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
           {warn} minute{warn === 1 ? "" : "s"} remaining
           {sessionExp.extend_blocked_reason ? ` · ${sessionExp.extend_blocked_reason}` : ""}
-          {" · Save results to the Output folder"}
+          {pickerSupported ? " · Save your work now" : " · Save results to the Output folder"}
         </div>
       ) : null}
       {phase === "prepare" && (
         <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 dark:border-border dark:bg-background/95">
           <div className="mx-auto max-w-5xl">
-            <DataWorkspaceBanner compact={false} showDataRoot={false} data={experience.data_workspace || null} />
+            <DataWorkspaceBanner
+              compact={false}
+              showDataRoot={false}
+              showOutput={!pickerSupported}
+              data={experience.data_workspace || null}
+            />
           </div>
         </div>
       )}
@@ -576,7 +615,9 @@ export default function AnalysisLaunchPage() {
           </Card>
 
           <p className="text-center text-xs text-muted-foreground">
-            Save your results in the Output folder shown above. It is copied to {destinationLabel} when you end the session.
+            {pickerSupported
+              ? `Save your results anywhere on the Analysis PC. When you end the session you choose the folders to copy to ${destinationLabel}.`
+              : `Save your results in the Output folder shown above. It is copied to ${destinationLabel} when you end the session.`}
           </p>
         </div>
       )}
@@ -633,9 +674,21 @@ export default function AnalysisLaunchPage() {
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 {hintVisible ? (
                   <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/80 px-2 py-1 text-[10px] text-amber-50 sm:text-xs" data-testid="desktop-hint">
-                    Save results in{" "}
-                    <span className="font-mono">{outputPath || "the Output folder"}</span> — it is copied to {destinationLabel} when you
-                    end the session.
+                    {pickerSupported ? (
+                      <>
+                        {inputPath ? (
+                          <>
+                            Your input data is in <span className="font-mono">{inputPath}</span>.{" "}
+                          </>
+                        ) : null}
+                        Save results anywhere on this PC — you choose the folders to keep when you end the session.
+                      </>
+                    ) : (
+                      <>
+                        Save results in <span className="font-mono">{outputPath || "the Output folder"}</span> — it is copied to{" "}
+                        {destinationLabel} when you end the session.
+                      </>
+                    )}
                   </div>
                 ) : (
                   <span />
@@ -687,6 +740,22 @@ export default function AnalysisLaunchPage() {
           retrying={syncing}
         />
       )}
+
+      <EndSessionDialog
+        open={folderDialog != null}
+        onOpenChange={(next) => {
+          if (!next) setFolderDialog(null);
+        }}
+        bookingId={bookingPk}
+        mode={folderDialog ?? "end"}
+        initialFolders={chosenFolders}
+        destinationLabel={destinationLabel}
+        onEnded={enterClosing}
+        onSaved={(folders) => {
+          toast.success(folders.length ? `${folders.length} result folder(s) will be copied when the session ends.` : "No extra result folders.");
+          pollNow();
+        }}
+      />
     </div>
   );
 }
@@ -768,8 +837,8 @@ function FinishScreen({
           <SyncProgressPanel status={shown} targetLabel={targetLabel} onRetry={onRetry} retrying={retrying} />
           {tone === "progress" ? (
             <p className="text-muted-foreground">
-              Your Output folder is being copied to <strong className="text-foreground">{destinationLabel}</strong>. You can leave
-              this page — copying continues in the background.
+              Your results are being copied to <strong className="text-foreground">{destinationLabel}</strong>. You can leave this
+              page — copying continues in the background.
             </p>
           ) : null}
           {legacy && tone === "done" ? (

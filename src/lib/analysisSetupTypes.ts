@@ -46,6 +46,8 @@ export interface AnalysisSetup {
     default_source: AnalysisInputSourceKind;
     default_booking_id: number | null;
     selected: AnalysisSetupSelectedInput | null;
+    /** Where input files appear on the Analysis PC (known once a PC is assigned). */
+    pc_input_path?: string | null;
   };
   output: {
     pc_output_path: string | null;
@@ -112,10 +114,59 @@ export interface AnalysisSyncStatus {
   verified: boolean;
   pc_cleanup: AnalysisPcCleanup | null;
   kept_files: string[];
+  pc_deleted?: number;
+  pc_removed_folders?: string[];
+  /** Folders chosen at the end of the session, with what the Analysis PC collected from each. */
+  extra_folders?: AnalysisExtraFolder[];
   destination: { workspace_id: string | null; folder_id: string | null; path_label: string | null } | null;
   updated_at: string | null;
   poll_after_ms: number | null;
 }
+
+export interface AnalysisExtraFolder {
+  path: string;
+  alias?: string;
+  files?: number;
+  bytes?: number;
+  error?: string;
+}
+
+/** Agent capability: result folders can be chosen anywhere on the Analysis PC when the session ends. */
+export const PC_FOLDERS_CAPABILITY = "extra_sources_v1";
+
+export interface PcFolderEntry {
+  name: string;
+  path: string;
+  modified?: string | null;
+  can_select: boolean;
+  reason?: string | null;
+}
+
+export interface PcFileEntry {
+  name: string;
+  size: number;
+  modified?: string | null;
+}
+
+export interface PcFolderListing {
+  /** "" for the starting view (places + suggestions). */
+  path: string;
+  parent: string | null;
+  can_select: boolean;
+  reason: string | null;
+  summary?: { files: number; bytes: number; truncated: boolean } | null;
+  places?: { label: string; path: string }[];
+  recent?: { path: string; name: string; changed_files: number; modified?: string | null }[];
+  folders: PcFolderEntry[];
+  files: PcFileEntry[];
+  file_count: number;
+  truncated: boolean;
+}
+
+export type PcBrowseResult =
+  | { status: "pending" }
+  | { status: "done"; result: PcFolderListing }
+  | { status: "failed"; detail: string };
 
 export interface AnalysisViewport {
   width: number;

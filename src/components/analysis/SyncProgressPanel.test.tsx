@@ -64,6 +64,30 @@ describe("SyncProgressPanel", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("shows each chosen folder: copied and removed, partly kept, or skipped", () => {
+    renderPanel({
+      status: {
+        ...base,
+        phase: "done",
+        verified: true,
+        pc_cleanup: "kept",
+        kept_files: ["Run2/late.csv"],
+        pc_removed_folders: ["D:\\Results\\Run1"],
+        extra_folders: [
+          { path: "D:\\Results\\Run1", alias: "Run1", files: 3, bytes: 2048 },
+          { path: "D:\\Results\\Run2", alias: "Run2", files: 2, bytes: 10 },
+          { path: "D:\\Results\\Gone", alias: "", files: 0, bytes: 0, error: "The folder no longer exists on the Analysis PC." },
+        ],
+      },
+    });
+    const rows = screen.getByTestId("extra-folders").querySelectorAll("li");
+    expect(rows[0].textContent).toContain("Run1 · 3 files · 2.0 KB");
+    expect(rows[0].textContent).toContain("Copied · removed from the Analysis PC");
+    expect(rows[1].textContent).toContain("1 file left on the PC");
+    expect(rows[2].textContent).toContain("Gone");
+    expect(rows[2].textContent).toContain("no longer exists");
+  });
+
   it("renders nothing while the session is running", () => {
     renderPanel({ status: { ...base, phase: "in_session" } });
     expect(screen.queryByTestId("sync-progress")).toBeNull();

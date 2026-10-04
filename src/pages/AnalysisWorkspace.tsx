@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import type { AnalysisSetup } from "@/lib/analysisSetupTypes";
+import { PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
 import { isMissingEndpoint, myResearchFolderHref, plural } from "@/lib/analysisSync";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,11 +19,13 @@ import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspace
 import { DataWorkspaceBanner, type DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
 import { AnalysisSetupDialog, type PreparedSetup } from "@/components/analysis/AnalysisSetupDialog";
 import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
+import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
 import { useAnalysisLiveState } from "@/components/analysis/useAnalysisLiveState";
 import { cn } from "@/lib/utils";
 import {
   AppWindow,
   FlaskConical,
+  FolderInput,
   FolderOutput,
   HardDrive,
   Loader2,
@@ -138,6 +140,7 @@ export default function AnalysisWorkspacePage() {
   const [setupState, setSetupState] = useState<"loading" | "ready" | "unsupported">("loading");
   const [legacyInputLabel, setLegacyInputLabel] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [pollMs, setPollMs] = useState(8000);
   const autoOpened = useRef(false);
@@ -240,6 +243,7 @@ export default function AnalysisWorkspacePage() {
   const sessionStatus = String(session.status || sessionExp.status || "");
   const started = OPEN_SESSION.includes(sessionStatus);
   const sessionReadyToOpen = SESSION_READY.includes(sessionStatus);
+  const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
   const envReady =
     Boolean(reservation.allocated || awaitingCheckin) &&
     !queued &&
@@ -376,14 +380,24 @@ export default function AnalysisWorkspacePage() {
       const res = await apiClient.syncBookingAnalysisNow(bookingPk);
       if (res.status === 409) toast.message("Sync is available while your analysis session is running.");
       else if (res.error) toast.error(res.error);
-      else toast.success("Copying your Output folder now.");
+      else toast.success(pickerSupported ? "Copying your results now." : "Copying your Output folder now.");
       void pollNow();
     } finally {
       setSyncing(false);
     }
   };
 
+  const afterEnded = async () => {
+    toast.success("Analysis ended — copying your results.");
+    await refreshSummary();
+    void pollNow();
+  };
+
   const endAnalysis = async () => {
+    if (pickerSupported && started) {
+      setEndDialogOpen(true);
+      return;
+    }
     if (!window.confirm("End analysis now? Your Output folder is copied and the Analysis PC is freed for the next user.")) {
       return;
     }
@@ -391,11 +405,7 @@ export default function AnalysisWorkspacePage() {
     try {
       const res = await apiClient.endBookingAnalysis(bookingPk);
       if (res.error) toast.error(res.error);
-      else {
-        toast.success("Analysis ended — copying your results.");
-        await refreshSummary();
-        void pollNow();
-      }
+      else await afterEnded();
     } finally {
       setBusy(false);
     }
@@ -452,7 +462,7 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
-        <DataWorkspaceBanner showDataRoot={false} data={dataWorkspace} />
+        <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />
 
         {analysisEnded ? (
           <Card className="border-muted bg-muted/30">
@@ -555,7 +565,13 @@ export default function AnalysisWorkspacePage() {
               : remainingSeconds <= 10 * 60
                 ? "Your scheduled session is ending soon. "
                 : "Session ending in under 15 minutes. "}
-            Please save your work to the <strong>Output</strong> folder.
+            {pickerSupported ? (
+              "Please save your work now."
+            ) : (
+              <>
+                Please save your work to the <strong>Output</strong> folder.
+              </>
+            )}
             {sessionExp.others_waiting ? " Another user is waiting for this Analysis PC." : ""}
             {sessionExp.save_reminder ? ` ${sessionExp.save_reminder}` : ""}
           </div>
@@ -676,15 +692,31 @@ export default function AnalysisWorkspacePage() {
                       </span>
                     )}
                   </SetupRow>
-                  <SetupRow icon={<FolderOutput className="h-4 w-4" aria-hidden />} label="Results">
-                    Save them in the <strong>Output</strong> folder on the Analysis PC
-                    {setup?.output.pc_output_path || dataWorkspace?.output_path ? (
-                      <code className="ml-1 break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
-                        {setup?.output.pc_output_path || String(dataWorkspace?.output_path)}
+                  {setup?.input.pc_input_path || dataWorkspace?.input_path ? (
+                    <SetupRow icon={<FolderInput className="h-4 w-4" aria-hidden />} label="Input on the Analysis PC">
+                      <code className="break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                        {setup?.input.pc_input_path || String(dataWorkspace?.input_path)}
                       </code>
-                    ) : null}
-                    . They are copied to <strong>{destinationLabel}</strong> when you end the session
-                    {setup?.output.auto_delete_after_verify ? ", then removed from the Analysis PC once the copy is verified" : ""}.
+                    </SetupRow>
+                  ) : null}
+                  <SetupRow icon={<FolderOutput className="h-4 w-4" aria-hidden />} label="Results">
+                    {pickerSupported ? (
+                      <>
+                        Save them anywhere on the Analysis PC. When you end the session you choose the folders; they are copied to{" "}
+                        <strong>{destinationLabel}</strong>, then removed from the Analysis PC once the copy is verified.
+                      </>
+                    ) : (
+                      <>
+                        Save them in the <strong>Output</strong> folder on the Analysis PC
+                        {setup?.output.pc_output_path || dataWorkspace?.output_path ? (
+                          <code className="ml-1 break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                            {setup?.output.pc_output_path || String(dataWorkspace?.output_path)}
+                          </code>
+                        ) : null}
+                        . They are copied to <strong>{destinationLabel}</strong> when you end the session
+                        {setup?.output.auto_delete_after_verify ? ", then removed from the Analysis PC once the copy is verified" : ""}.
+                      </>
+                    )}
                   </SetupRow>
 
                   <SyncProgressPanel
@@ -777,7 +809,11 @@ export default function AnalysisWorkspacePage() {
                     <p>· Default session length is set per equipment (typically 30 minutes).</p>
                     <p>· Extend (+15 min) unlocks only when 2 minutes or less remain, and only if nobody else is waiting.</p>
                     <p>· Always click End Analysis when finished — do not only close the browser.</p>
-                    <p>· Only the Output folder is kept. Everything else on the Analysis PC is cleaned before the next user.</p>
+                    <p>
+                      {pickerSupported
+                        ? "· Only the Output folder and the folders you choose when ending are kept. Everything else on the Analysis PC is cleaned before the next user."
+                        : "· Only the Output folder is kept. Everything else on the Analysis PC is cleaned before the next user."}
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -842,11 +878,22 @@ export default function AnalysisWorkspacePage() {
             equipmentName,
             fileCount: rawFileCount > 0 ? rawFileCount : summary?.raw_ready ? null : 0,
             outputPath: dataWorkspace?.output_path ? String(dataWorkspace.output_path) : null,
+            inputPath: dataWorkspace?.input_path ? String(dataWorkspace.input_path) : null,
           }}
           onPrepared={onPrepared}
           title={setupComplete ? "Confirm your analysis setup" : undefined}
         />
       ) : null}
+
+      <EndSessionDialog
+        open={endDialogOpen}
+        onOpenChange={setEndDialogOpen}
+        bookingId={bookingPk}
+        mode="end"
+        initialFolders={(sync?.extra_folders ?? []).map((f) => f.path)}
+        destinationLabel={destinationLabel}
+        onEnded={() => void afterEnded()}
+      />
     </div>
   );
 }

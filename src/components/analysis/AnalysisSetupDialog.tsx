@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
-import { Check, Copy, Folder, FolderOutput, HardDrive, Loader2, MonitorSmartphone, Upload, X } from "lucide-react";
+import { Check, Copy, Folder, FolderInput, FolderOutput, HardDrive, Loader2, MonitorSmartphone, Upload, X } from "lucide-react";
 import { apiClient } from "@/lib/api";
-import type {
-  AnalysisInputSource,
-  AnalysisInputSourceKind,
-  AnalysisSetup,
-  AnalysisSetupRequest,
+import {
+  PC_FOLDERS_CAPABILITY,
+  type AnalysisInputSource,
+  type AnalysisInputSourceKind,
+  type AnalysisSetup,
+  type AnalysisSetupRequest,
 } from "@/lib/analysisSetupTypes";
 import { formatBytes, plural } from "@/lib/analysisSync";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export type LegacySetupContext = {
   status?: string | null;
   fileCount?: number | null;
   outputPath?: string | null;
+  inputPath?: string | null;
 };
 
 export type PreparedSetup = {
@@ -69,14 +71,14 @@ function setupErrorMessage(res: { error?: string; errorCode?: string }): string 
   }
 }
 
-function CopyPath({ path }: { path: string }) {
+function CopyPath({ path, testId, label }: { path: string; testId: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
       <code
         className="min-w-0 flex-1 truncate rounded-md border bg-background px-2.5 py-1.5 font-mono text-xs"
         title={path}
-        data-testid="pc-output-path"
+        data-testid={testId}
       >
         {path}
       </code>
@@ -85,7 +87,7 @@ function CopyPath({ path }: { path: string }) {
         size="sm"
         variant="outline"
         className="h-8 shrink-0 gap-1.5 bg-background"
-        aria-label="Copy output folder path"
+        aria-label={`Copy ${label} path`}
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(path);
@@ -369,6 +371,8 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
       ? setup.output.destination_label || LEGACY_DESTINATION
       : `My Research › ${selectedProjectName ?? "your project"} / ${folders.root} / ${folders.processed}`;
   const pcOutputPath = setup ? setup.output.pc_output_path : legacy.outputPath || null;
+  const pcInputPath = setup?.input.pc_input_path || legacy.inputPath || null;
+  const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
   const autoDelete = setup ? setup.output.auto_delete_after_verify : false;
   const n = (base: number) => (useResearch ? base : base - 1);
 
@@ -587,26 +591,56 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
             </RadioGroup>
           </section>
 
-          <section className="space-y-2.5" aria-label="Where to save results">
-            <SectionTitle n={n(3)}>Where to save results</SectionTitle>
-            <div className="space-y-2.5 rounded-lg border border-emerald-300/60 bg-emerald-50/70 p-3.5 text-sm text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/20 dark:text-emerald-50">
+          <section className="space-y-2.5" aria-label="Your data on the Analysis PC">
+            <SectionTitle n={n(3)}>Your data on the Analysis PC</SectionTitle>
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-3.5 text-sm">
               <p className="flex items-center gap-1.5 font-medium">
-                <FolderOutput className="h-4 w-4" aria-hidden />
-                On the Analysis PC, save everything you want to keep in:
+                <FolderInput className="h-4 w-4 text-primary" aria-hidden />
+                Your input data will be in:
               </p>
-              {pcOutputPath ? (
-                <CopyPath path={pcOutputPath} />
+              {pcInputPath ? (
+                <CopyPath path={pcInputPath} testId="pc-input-path" label="input folder" />
               ) : (
                 <p className="rounded-md border bg-background px-2.5 py-1.5 text-xs">
-                  The <strong>Output</strong> folder. Its full path is shown once the Analysis PC is ready.
+                  The <strong>Input</strong> folder. Its full path is shown once the Analysis PC is ready.
                 </p>
               )}
-              <p className="leading-relaxed">
-                When you end the session, this folder is copied to <strong data-testid="destination-label">{destination}</strong>
-                {useResearch ? " automatically" : ""}.{" "}
-                {autoDelete ? "Once the copy is verified, it is removed from the Analysis PC. " : ""}
-                Files saved anywhere else on the PC are not kept.
-              </p>
+              <p className="text-xs text-muted-foreground">Open your data from this folder in the analysis software.</p>
+            </div>
+            <div className="space-y-2.5 rounded-lg border border-emerald-300/60 bg-emerald-50/70 p-3.5 text-sm text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/20 dark:text-emerald-50">
+              {pickerSupported ? (
+                <>
+                  <p className="flex items-center gap-1.5 font-medium">
+                    <FolderOutput className="h-4 w-4" aria-hidden />
+                    Save your results anywhere on the Analysis PC
+                  </p>
+                  <p className="leading-relaxed" data-testid="results-explainer">
+                    When you end the session, you choose the folders you saved results in. They are copied to{" "}
+                    <strong data-testid="destination-label">{destination}</strong>, then removed from the Analysis PC once the copy
+                    is verified.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="flex items-center gap-1.5 font-medium">
+                    <FolderOutput className="h-4 w-4" aria-hidden />
+                    On the Analysis PC, save everything you want to keep in:
+                  </p>
+                  {pcOutputPath ? (
+                    <CopyPath path={pcOutputPath} testId="pc-output-path" label="output folder" />
+                  ) : (
+                    <p className="rounded-md border bg-background px-2.5 py-1.5 text-xs">
+                      The <strong>Output</strong> folder. Its full path is shown once the Analysis PC is ready.
+                    </p>
+                  )}
+                  <p className="leading-relaxed">
+                    When you end the session, this folder is copied to <strong data-testid="destination-label">{destination}</strong>
+                    {useResearch ? " automatically" : ""}.{" "}
+                    {autoDelete ? "Once the copy is verified, it is removed from the Analysis PC. " : ""}
+                    Files saved anywhere else on the PC are not kept.
+                  </p>
+                </>
+              )}
             </div>
           </section>
 
