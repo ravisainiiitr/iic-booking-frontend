@@ -3,8 +3,16 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, User, Mail, Building2 } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, User, Mail, Building2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { formatDeadlineIst } from "@/lib/registrationDeadline";
+
+interface PendingApproval {
+  message: string;
+  supervisorName: string;
+  windowHours: number;
+  deadline: string;
+}
 
 const SelfVerify = () => {
   const [searchParams] = useSearchParams();
@@ -19,6 +27,7 @@ const SelfVerify = () => {
     user_type_display: string;
   } | null>(null);
   const [done, setDone] = useState<"accepted" | "rejected" | null>(null);
+  const [pending, setPending] = useState<PendingApproval | null>(null);
 
   const uidb64 = searchParams.get("uidb64");
   const token = searchParams.get("token");
@@ -53,8 +62,19 @@ const SelfVerify = () => {
           setSubmitting(null);
           return;
         }
+        const data = res.data;
+        if (data && data.admin_approved === false) {
+          setPending({
+            message: data.message || "Your email is verified. Your request has been sent for approval.",
+            supervisorName: data.pending_faculty ? data.supervisor_name || "" : "",
+            windowHours: data.pending_faculty ? data.decision_window_hours || 24 : 0,
+            deadline: data.pending_faculty ? formatDeadlineIst(data.decision_deadline) : "",
+          });
+          setDone("accepted");
+          return;
+        }
         setDone("accepted");
-        toast.success(res.data?.message || "Account verified. You can now log in.");
+        toast.success(data?.message || "Account verified. You can now log in.");
         setTimeout(() => navigate("/auth"), 2500);
       })
       .catch(() => {
@@ -116,6 +136,51 @@ const SelfVerify = () => {
     );
   }
 
+  if (done === "accepted" && pending) {
+    return (
+      <div className="page-shell flex items-center justify-center p-4">
+        <Card className="max-w-lg w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-500">
+              <CheckCircle2 className="h-6 w-6" aria-hidden />
+              Email verified
+            </CardTitle>
+            <CardDescription className="text-base leading-relaxed">
+              {pending.supervisorName
+                ? `Your request has been sent to ${pending.supervisorName} for approval.`
+                : "Your request has been sent for approval."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pending.windowHours > 0 ? (
+              <div
+                role="status"
+                className="flex gap-3 rounded-xl border border-amber-300/70 bg-amber-50 p-4 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <Clock className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+                <div className="space-y-1 text-sm leading-relaxed">
+                  <p className="font-semibold">
+                    Your supervisor has {pending.windowHours} hours to decide
+                    {pending.deadline ? `, until ${pending.deadline}` : ""}.
+                  </p>
+                  <p>
+                    If they do not respond in time, the request is cancelled automatically and you can register again.
+                    We have emailed you these details and will email you their decision.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed text-muted-foreground">{pending.message}</p>
+            )}
+            <Button variant="outline" onClick={() => navigate("/auth")} className="w-full">
+              Back to sign in
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (done === "accepted") {
     return (
       <div className="page-shell flex items-center justify-center p-4">
@@ -157,7 +222,7 @@ const SelfVerify = () => {
         <CardHeader>
           <CardTitle>Confirm your details</CardTitle>
           <CardDescription>
-            Please verify the information below. Click <strong>Accept</strong> to activate your account and start using the booking portal, or <strong>Reject</strong> to cancel your registration.
+            Please check the information below. Click <strong>Accept</strong> to confirm your registration, or <strong>Reject</strong> to cancel it. IITR Post-docs, Research Associates and Startups then wait for their supervisor, who has 24 hours to approve.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -199,7 +264,7 @@ const SelfVerify = () => {
               ) : (
                 <CheckCircle2 className="h-4 w-4 mr-2" />
               )}
-              Accept & activate account
+              Accept & confirm
             </Button>
             <Button
               variant="destructive"

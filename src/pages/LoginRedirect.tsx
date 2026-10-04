@@ -25,7 +25,7 @@ const LoginRedirect = () => {
     }
   }
 
-  return <Navigate to="/auth" replace />;
+  return <Navigate to={searchParams.get("mode") === "register" ? "/auth?mode=register" : "/auth"} replace />;
 };
 
 export default LoginRedirect;

@@ -27,7 +27,24 @@ import {
   type RegistrationRequestRow,
   type RegistrationRequestStatus,
 } from "@/lib/registrationApprovalTypes";
+import { deadlineRemaining, formatDeadlineIst } from "@/lib/registrationDeadline";
 import { cn } from "@/lib/utils";
+
+function DecisionCountdown({ deadline }: { deadline: string }) {
+  const remaining = deadlineRemaining(deadline);
+  if (!remaining) return null;
+  return (
+    <p
+      className={cn(
+        "mt-1 text-xs font-medium",
+        remaining.expired || remaining.urgent ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300",
+      )}
+      title={`Faculty decision due by ${formatDeadlineIst(deadline)}`}
+    >
+      {remaining.expired ? "Timed out, closing shortly" : `${remaining.label} to decide`}
+    </p>
+  );
+}
 
 const TABS = [
   { value: "requests", label: "Requests", icon: UserCheck },
@@ -332,6 +349,7 @@ export default function AdminRegistrationRequests() {
                               {r.status === "pending_faculty" && r.forwarded_at ? (
                                 <p className="mt-1 text-xs text-muted-foreground">sent {formatMoment(r.forwarded_at)}</p>
                               ) : null}
+                              {r.status === "pending_faculty" && r.decision_deadline ? <DecisionCountdown deadline={r.decision_deadline} /> : null}
                             </TableCell>
                             <TableCell className="whitespace-nowrap text-sm">{formatMoment(r.registered_at)}</TableCell>
                             <TableCell className="whitespace-nowrap text-sm">{formatDay(r.programme_validity)}</TableCell>
@@ -404,8 +422,9 @@ export default function AdminRegistrationRequests() {
           <DialogHeader>
             <DialogTitle>Send {bulk?.count ?? 0} request(s) to the faculty named?</DialogTitle>
             <DialogDescription>
-              Each faculty member gets an email with a single-use approval link and sees the request under Pending approvals. Requests with no
-              faculty named are not included.
+              Each faculty member gets an email with Approve and Decline buttons and sees the request under Pending approvals. They have{" "}
+              {summary?.decision_window_hours ?? 24} hours to decide; after that the request is treated as declined and the pending account is
+              removed. Requests with no faculty named are not included.
             </DialogDescription>
           </DialogHeader>
           {bulk?.rows.length ? (

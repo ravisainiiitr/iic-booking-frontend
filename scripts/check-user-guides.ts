@@ -66,7 +66,7 @@ const REQUIRED: Partial<Record<GuideAudienceId, RegExp[]>> = {
   student: [/Request to Join Wallet/, /Type B/],
   project_staff: [/PI's wallet/],
   faculty: [/Student management/, /Manage urgent requests/, /Spending limit/],
-  startup: [/KYC/, /Startup Incubated at IIT Roorkee/],
+  startup: [/KYC/, /IITR Startup/],
   external: [/KYC/],
   oic: [/Confirm manually/, /Deduct Money/, /Tickets marked to me/],
   operator: [/Intimate Unavailability/, /Not Utilized/],

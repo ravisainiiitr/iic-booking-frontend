@@ -421,7 +421,7 @@ const USER_TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
-  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "startup_incubated_iitr", label: "IITR Startup" },
   { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "finance", label: "Accounts In Charge" },
 ];

@@ -684,7 +684,7 @@ const Profile = () => {
                     <SelectItem value="external">Educational Institute</SelectItem>
                     <SelectItem value="RND">Govt R&D Organizations</SelectItem>
                     <SelectItem value="Industry">Industry</SelectItem>
-                    <SelectItem value="startup_incubated_iitr">Startup Incubated at IIT Roorkee</SelectItem>
+                    <SelectItem value="startup_incubated_iitr">IITR Startup</SelectItem>
                     <SelectItem value="external_startup_msme">External Startup/MSME</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>

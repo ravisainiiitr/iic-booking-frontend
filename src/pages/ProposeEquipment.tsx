@@ -61,7 +61,7 @@ const CHARGE_FIELDS: Array<{ key: keyof typeof EMPTY_FORM; label: string }> = [
   { key: "charge_external_educational_student", label: "c. External Educational Student" },
   { key: "charge_external_govt_rnd", label: "d. External Government R&D Organization" },
   { key: "charge_industry", label: "e. Industry" },
-  { key: "charge_startup_incubated_iitr", label: "f. Startup Incubated at IIT Roorkee" },
+  { key: "charge_startup_incubated_iitr", label: "f. IITR Startup" },
   { key: "charge_external_startup_msme", label: "g. External Startup/MSME" },
 ];
 

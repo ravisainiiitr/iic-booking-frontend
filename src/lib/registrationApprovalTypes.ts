@@ -33,6 +33,7 @@ export interface RegistrationRequestRow {
   reminder_count: number;
   decided_at: string | null;
   decided_role: string;
+  decision_deadline?: string | null;
 }
 
 export interface RegistrationEvent {
@@ -121,6 +122,7 @@ export interface RegistrationRequestDetail extends RegistrationRequestRow {
     disclaimer_version: string;
     expiry_disabled_at: string | null;
     expiry_set_force_inactive: boolean;
+    decision_deadline?: string | null;
   };
   extensions: RegistrationExtension[];
   extension_max_until: string | null;
@@ -135,6 +137,7 @@ export interface RegistrationSummary {
   bulk_forward_candidates: number;
   pending_extensions: number;
   automation_enabled: boolean;
+  decision_window_hours?: number;
 }
 
 export interface RegistrationRequestList {
@@ -223,11 +226,38 @@ export interface FacultyRegistrationRequest {
   programme_validity: string | null;
   registered_at: string | null;
   forwarded_at: string | null;
+  decision_deadline?: string | null;
   decided_at: string | null;
   decision_reason: string;
   disclaimer_text: string;
   disclaimer_template?: string;
   disclaimer_version?: string;
+  account_removed?: boolean;
+}
+
+/** Request shown on the page opened from the Approve / Decline buttons in the faculty email. */
+export interface EmailDecisionItem extends FacultyRegistrationRequest {
+  faculty_name: string;
+  department: string;
+  decision_deadline_display: string;
+  window_hours: number;
+}
+
+export type EmailDecisionErrorCode =
+  | "timed_out"
+  | "already_decided"
+  | "request_closed"
+  | "token_invalid"
+  | "token_used"
+  | "token_expired"
+  | "wrong_faculty"
+  | "not_pending"
+  | "schema_pending";
+
+export interface EmailDecisionResult {
+  decision: "approved" | "declined";
+  message: string;
+  account_removed: boolean;
 }
 
 export interface FacultyApprovalsOverview {

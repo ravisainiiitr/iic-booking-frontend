@@ -68,7 +68,7 @@ export const adminGuide: RoleGuide = {
         icon: "users",
         group: ADMIN,
         intro: [
-          "Accounts created with email and password (not Channel i) are listed under Users & access → Registration requests. Requests from people claiming to be at IIT Roorkee (post-doctoral fellows, research associates in projects and startups incubated at IIT Roorkee) are approved by the IIT Roorkee faculty member chosen at registration.",
+          "Accounts created with email and password (not Channel i) are listed under Users & access → Registration requests. Requests from people claiming to be at IIT Roorkee (post-doctoral fellows, research associates in projects and IITR Startups) are approved by the IIT Roorkee faculty member chosen at registration, from Approve and Decline buttons in their email, within 24 hours.",
         ],
         steps: [
           {
@@ -77,7 +77,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Forward to faculty",
-            body: "New registrations are sent to the faculty automatically once the email is verified. For older requests, click Forward to faculty on one request, or Forward all pending to faculty; the confirmation shows how many requests will be sent. Resend reminder emails the faculty again.",
+            body: "New registrations are sent to the faculty automatically once the email is verified, and the 24-hour decision window starts then; the Status column shows the time left. For older requests, click Send to faculty on one request, or Send all IITR requests to faculty; the confirmation shows how many will be sent, and each gets its own 24-hour window. Resend reminder keeps the deadline; Send again starts a new window.",
           },
           {
             title: "Approve or reject yourself",
@@ -95,6 +95,7 @@ export const adminGuide: RoleGuide = {
         rules: [
           "Only the Main Administrator can open Registration requests. A faculty member can act only on requests that name them, and each email link works once.",
           "Once the faculty approves, the account is fully active and no further approval is needed. Requests from other external users follow the existing verification path.",
+          "If the faculty declines, or does not decide within 24 hours, the request is cancelled, the pending account is removed (the Registration log keeps a snapshot) and the user is emailed that they can register again. Requests sent before the window was introduced do not time out.",
           "With automatic expiry on, users are warned 30, 7 and 1 days before their programme validity ends and disabled when it passes unless their faculty grants an extension. An extension runs for at most six months from the current end date (or from today if it has already passed), and can be repeated.",
           "Future bookings of a disabled account are never cancelled automatically; they are listed in the request and on the Programme expiry tab for you or the Officer In Charge to handle.",
         ],
