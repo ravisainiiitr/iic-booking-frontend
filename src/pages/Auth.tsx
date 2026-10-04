@@ -38,6 +38,7 @@ import {
   groupUserTypes,
   iitrDepartmentOptions,
   isIitrKind,
+  matchesDepartmentSearch,
   isPublicEmailDomain,
   kindNeedsKycForPublicEmail,
   kindNeedsState,
@@ -203,6 +204,7 @@ const Auth = () => {
   const [selectedStateUt, setSelectedStateUt] = useState("");
   const [stateComboboxOpen, setStateComboboxOpen] = useState(false);
   const [departmentComboboxOpen, setDepartmentComboboxOpen] = useState(false);
+  const [departmentSearch, setDepartmentSearch] = useState("");
   const [loadingStates, setLoadingStates] = useState(false);
   const [programEndDate, setProgramEndDate] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(false);
@@ -1851,7 +1853,13 @@ const Auth = () => {
                         error={fieldError("department")}
                       >
                         {signupIsIitr ? (
-                          <Popover open={departmentComboboxOpen} onOpenChange={setDepartmentComboboxOpen}>
+                          <Popover
+                            open={departmentComboboxOpen}
+                            onOpenChange={(open) => {
+                              setDepartmentComboboxOpen(open);
+                              if (!open) setDepartmentSearch("");
+                            }}
+                          >
                             <PopoverTrigger asChild>
                               <Button
                                 id="signup-department"
@@ -1875,12 +1883,17 @@ const Auth = () => {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="Search department or centre..." className="text-base" />
+                              <Command shouldFilter={false}>
+                                <CommandInput
+                                  placeholder="Search department or centre..."
+                                  className="text-base"
+                                  value={departmentSearch}
+                                  onValueChange={setDepartmentSearch}
+                                />
                                 <CommandList>
                                   <CommandEmpty>No department or centre found.</CommandEmpty>
                                   <CommandGroup heading={`IIT Roorkee departments and centres (${departments.length})`}>
-                                    {departments.map((dept) => (
+                                    {departments.filter((dept) => matchesDepartmentSearch(dept, departmentSearch)).map((dept) => (
                                       <CommandItem
                                         key={`dept-${dept.id}`}
                                         value={`${dept.name} ${dept.code ?? ""} ${dept.id}`}
