@@ -19,6 +19,7 @@ import { loadGuideFlags } from "@/components/UserGuide/guideFlags";
 import { formatPersonName } from "@/lib/displayName";
 import { isPeakBlockableUserType } from "@/lib/peakWindow";
 import { useStaffAppShell } from "@/lib/staffApp";
+import { useProfileCompletion } from "@/components/ProfileCompletion/ProfileCompletionProvider";
 import {
   hasUserGuideAutoShownThisLogin,
   markUserGuideAutoShownThisLogin,
@@ -34,8 +35,8 @@ interface UserGuideContextValue {
   openWhatsNew: () => void;
   whatsNewOpen: boolean;
   /**
-   * True from sign-in until the post-login What's New has been shown and closed (or skipped),
-   * and while the guide or What's New is open. Other post-login prompts wait for it.
+   * True from sign-in until the Complete your profile prompt and then the post-login What's New have been
+   * shown and closed (or skipped), and while the guide or What's New is open. Other post-login prompts wait for it.
    */
   postLoginBusy: boolean;
   /** Built for the signed-in user on demand; null until requested and loaded, or when there is no guide. */
@@ -64,6 +65,7 @@ type GuideUser = GuideUserLike & {
 
 export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { blocking: profilePromptDue } = useProfileCompletion();
   const location = useLocation();
   const navigate = useNavigate();
   const peak = usePeakWindow();
@@ -196,9 +198,10 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
 
   // What's New on the first /dashboard visit after each sign-in, for every role with a guide
   // (sessionStorage survives remounts / auth flicker). Waits for the fresh profile so it never
-  // opens on a stale cached user. Not in the staff Android app, which opens its own Today screen.
+  // opens on a stale cached user, and for the Complete your profile prompt to close first.
+  // Not in the staff Android app, which opens its own Today screen.
   useEffect(() => {
-    if (!isAuthenticated || !user?.id || authLoading) return;
+    if (!isAuthenticated || !user?.id || authLoading || profilePromptDue) return;
     if (autoShowHandledUserIdRef.current === user.id) return;
 
     if (hasUserGuideAutoShownThisLogin(user.id)) {
@@ -239,9 +242,10 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
       setSettledUserId(userId);
     }, AUTO_SHOW_DELAY_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, authLoading, user?.id, audience, location.pathname, guide, staffAppShell, peakPaused, loadFailed]);
+  }, [isAuthenticated, authLoading, profilePromptDue, user?.id, audience, location.pathname, guide, staffAppShell, peakPaused, loadFailed]);
 
-  const postLoginBusy = isAuthenticated && user?.id != null && (settledUserId !== user.id || whatsNewOpen || open);
+  const postLoginBusy =
+    isAuthenticated && user?.id != null && (profilePromptDue || settledUserId !== user.id || whatsNewOpen || open);
 
   const value = useMemo(
     () => ({

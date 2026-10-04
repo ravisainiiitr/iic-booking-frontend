@@ -64,7 +64,9 @@ function gettingStartedSection(g: Gate): GuideSection {
       }),
       {
         title: "Check your profile",
-        body: "Keep your email and mobile number current in My Profile so booking and wallet emails reach you.",
+        body: g.is("faculty")
+          ? "Keep your email and mobile number current in My Profile so booking and wallet emails reach you."
+          : "Keep your email and mobile number current in My Profile so booking and wallet emails reach you. If no valid 10-digit mobile number is saved, a short Complete your profile prompt asks for it after you sign in; Remind me later asks again at your next sign-in.",
       },
     ]),
     rules: compact([

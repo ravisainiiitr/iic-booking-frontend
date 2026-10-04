@@ -7,6 +7,7 @@ import { GlobalBackButton } from "@/components/BackButton";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
+import { ProfileCompletionProvider } from "@/components/ProfileCompletion/ProfileCompletionProvider";
 import { ThemeProvider } from "next-themes";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
@@ -43,6 +44,7 @@ const App = () => (
     <TooltipProvider>
       <BrowserRouter>
         <AuthProvider>
+          <ProfileCompletionProvider>
           <UserGuideProvider>
           <NotificationProvider>
             <Toaster />
@@ -59,6 +61,7 @@ const App = () => (
             </PeakWindowGate>
           </NotificationProvider>
           </UserGuideProvider>
+          </ProfileCompletionProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { INDIAN_MOBILE_ERROR, INDIAN_MOBILE_HINT, isValidMobileNumber } from "@/lib/mobileNumber";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -429,6 +430,12 @@ const Profile = () => {
   const handleSave = async () => {
     if (!user) return;
 
+    const phone = (profileData.phone_number || "").trim();
+    if (phone && phone !== (user.phone_number || "").trim() && !isValidMobileNumber(phone)) {
+      toast.error(INDIAN_MOBILE_ERROR);
+      return;
+    }
+
     if (profileData.can_have_wallet && profileData.wallet_low_balance_alert_enabled) {
       const t =
         profileData.wallet_low_balance_alert_threshold !== null &&
@@ -653,7 +660,7 @@ const Profile = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone_number">Phone Number</Label>
+                <Label htmlFor="phone_number">Mobile number</Label>
                 <Input
                   id="phone_number"
                   type="tel"
@@ -662,6 +669,7 @@ const Profile = () => {
                   maxLength={20}
                   placeholder="Contact phone number"
                 />
+                <p className="text-xs text-muted-foreground">{INDIAN_MOBILE_HINT}</p>
               </div>
 
               <div className="space-y-2">
