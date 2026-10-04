@@ -39,7 +39,7 @@ export default function PendingActionsPrompt() {
   useEffect(() => {
     if (!eligible || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
-    // What's New comes first after sign-in; this list follows once it is closed.
+    // Complete your profile and What's New come first after sign-in; this list follows once they are closed.
     if (postLoginBusy || hasPendingActionsShownThisLogin(user.id) || inFlight.current) return;
 
     const uid = user.id;

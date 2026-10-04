@@ -5,6 +5,7 @@ import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
 import { clearLoginTipsThisLogin } from "@/lib/loginTips";
+import { clearMobilePromptSnooze } from "@/lib/mobileNumber";
 
 export interface User {
   id: number;
@@ -15,6 +16,8 @@ export interface User {
   emp_id?: string | null;
   phone_number?: string | null;
   secondary_phone_number?: string | null;
+  /** Server-computed: not IITR faculty / Officer In Charge and no valid mobile number (drives the Complete your profile prompt). */
+  needs_mobile_number?: boolean;
   profile_picture?: string | null;
   department?: number;
   department_code?: string;
@@ -277,6 +280,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (uid != null && Number.isFinite(uid)) {
         clearUserGuideAutoShownThisLogin(uid);
         clearPendingActionsShownThisLogin(uid);
+        clearMobilePromptSnooze(uid);
       }
       clearLoginTipsThisLogin();
       // Clear local state regardless of API response

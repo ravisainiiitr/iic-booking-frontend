@@ -28,6 +28,10 @@ export const operatorGuide: RoleGuide = {
           title: "Android app",
           body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, samples to receive, messages to answer and results overdue.",
         },
+        {
+          title: "Mobile number",
+          body: "If My Profile has no valid 10-digit mobile number, a short Complete your profile prompt asks for it after you sign in, on the dashboard or the app's Today. Remind me later asks again at your next sign-in.",
+        },
       ],
       rules: ["Admin Settings appears only if Admin Panel Access is enabled for Lab Operators in your department."],
     },
