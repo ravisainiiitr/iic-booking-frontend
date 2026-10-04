@@ -36,6 +36,7 @@ import {
   departmentLabel,
   findUserType,
   groupUserTypes,
+  iitrDepartmentOptions,
   isIitrKind,
   isPublicEmailDomain,
   kindNeedsKycForPublicEmail,
@@ -163,6 +164,7 @@ interface Department {
   code: string;
   department_type?: string;
   department_type_display?: string;
+  internal_subcategory?: string | null;
   verified?: boolean;
 }
 
@@ -200,6 +202,7 @@ const Auth = () => {
   const [indianStates, setIndianStates] = useState<Array<{ value: string; label: string; type?: "state" | "union_territory" }>>([]);
   const [selectedStateUt, setSelectedStateUt] = useState("");
   const [stateComboboxOpen, setStateComboboxOpen] = useState(false);
+  const [departmentComboboxOpen, setDepartmentComboboxOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState(false);
   const [programEndDate, setProgramEndDate] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(false);
@@ -310,8 +313,7 @@ const Auth = () => {
       apiClient
         .getDepartments("internal", false, undefined, undefined, "iit_roorkee_dept_centres")
         .then((response) => {
-          if (response.data?.departments) setDepartments(response.data.departments);
-          else setDepartments([]);
+          setDepartments(iitrDepartmentOptions(response.data?.departments ?? []));
         })
         .catch(() => {
           toast.error("Failed to load departments");
@@ -1848,6 +1850,55 @@ const Auth = () => {
                         hint={hint}
                         error={fieldError("department")}
                       >
+                        {signupIsIitr ? (
+                          <Popover open={departmentComboboxOpen} onOpenChange={setDepartmentComboboxOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                id="signup-department"
+                                variant="outline"
+                                role="combobox"
+                                aria-expanded={departmentComboboxOpen}
+                                aria-invalid={Boolean(fieldError("department")) || undefined}
+                                aria-describedby={describedBy("signup-department", hint, fieldError("department"))}
+                                className={cn(SIGNUP_INPUT_CLASS, "w-full justify-between font-normal")}
+                                disabled={loadingDepartments || !userType}
+                              >
+                                {(() => {
+                                  const selected = departments.find((d) => d.id.toString() === department);
+                                  return (
+                                    <span className={cn("truncate", !selected && "text-muted-foreground")}>
+                                      {selected ? `${selected.name}${selected.code ? ` (${selected.code})` : ""}` : placeholder}
+                                    </span>
+                                  );
+                                })()}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search department or centre..." className="text-base" />
+                                <CommandList>
+                                  <CommandEmpty>No department or centre found.</CommandEmpty>
+                                  <CommandGroup heading={`IIT Roorkee departments and centres (${departments.length})`}>
+                                    {departments.map((dept) => (
+                                      <CommandItem
+                                        key={`dept-${dept.id}`}
+                                        value={`${dept.name} ${dept.code ?? ""} ${dept.id}`}
+                                        className="text-base"
+                                        onSelect={() => {
+                                          setDepartment(dept.id.toString());
+                                          setDepartmentComboboxOpen(false);
+                                        }}
+                                      >
+                                        {dept.name} {dept.code ? `(${dept.code})` : ""}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
                         <Select
                           value={department}
                           onValueChange={(value) => {
@@ -1888,6 +1939,7 @@ const Auth = () => {
                             ))}
                           </SelectContent>
                         </Select>
+                        )}
                       </SignupField>
                     );
                   })()}

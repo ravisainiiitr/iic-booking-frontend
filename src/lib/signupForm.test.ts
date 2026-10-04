@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   groupUserTypes,
+  iitrDepartmentOptions,
   requirementsFor,
   signupKind,
   validateSignup,
@@ -102,5 +103,35 @@ describe("validateSignup", () => {
     const rnd = { ...base, userType: "RND", state: "UK", department: "", email: "a@drdo.gov.in", supervisorId: "" as const };
     expect(validateSignup(rnd, today).department).toBeTruthy();
     expect(validateSignup({ ...rnd, hasOrganisationRequest: true }, today).department).toBeUndefined();
+  });
+});
+
+describe("iitrDepartmentOptions", () => {
+  const rows = [
+    { id: 1, name: "Physics Department", code: "PH", department_type: "internal", internal_subcategory: null },
+    { id: 2, name: "Institute Instrumentation Centre", code: "IIC", department_type: "internal", internal_subcategory: "iit_roorkee_dept_centres" },
+    { id: 3, name: "ADMIN", code: "ADMIN", department_type: "internal", internal_subcategory: null },
+    { id: 4, name: "Acme Robotics", code: "ACME", department_type: "internal", internal_subcategory: "startups" },
+    { id: 5, name: "Delhi University", code: "DU", department_type: "external", internal_subcategory: null },
+    { id: 6, name: "architecture and Planning Department", code: null, department_type: "internal" },
+    { id: 7, name: "Centre for Nanotechnology", code: "NT", department_type: "internal", internal_subcategory: null },
+    { id: 8, name: "Administration Office", code: "admin", department_type: "internal", internal_subcategory: null },
+  ];
+
+  it("keeps every internal department or centre, with or without a subcategory, sorted by name", () => {
+    expect(iitrDepartmentOptions(rows).map((d) => d.id)).toEqual([6, 7, 2, 1]);
+  });
+
+  it("drops external organisations, Startups entries and the ADMIN department", () => {
+    const ids = iitrDepartmentOptions(rows).map((d) => d.id);
+    expect(ids).not.toContain(3);
+    expect(ids).not.toContain(4);
+    expect(ids).not.toContain(5);
+    expect(ids).not.toContain(8);
+  });
+
+  it("does not truncate long lists", () => {
+    const many = Array.from({ length: 80 }, (_, i) => ({ id: i + 1, name: `Centre ${String(i).padStart(2, "0")}`, department_type: "internal" }));
+    expect(iitrDepartmentOptions(many)).toHaveLength(80);
   });
 });
