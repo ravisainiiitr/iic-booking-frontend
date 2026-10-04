@@ -13,6 +13,7 @@ import {
 } from "@/lib/analysisSync";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { chosenItems } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
 import { DataWorkspaceBanner, type DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
@@ -480,7 +481,7 @@ export default function AnalysisLaunchPage() {
   const targetLabel = eligible ? "Processed Data" : "Analyzed Data";
   const outputPath = setup?.output.pc_output_path || experience.data_workspace?.output_path || "";
   const inputPath = setup?.input.pc_input_path || experience.data_workspace?.input_path || "";
-  const chosenFolders = sync?.extra_folders ?? [];
+  const chosenFolders = chosenItems(sync?.extra_folders);
   const myResearchHref = myResearchFolderHref(
     sync?.destination?.workspace_id || link?.workspace_id,
     sync?.destination?.folder_id || link?.processed_folder_id,

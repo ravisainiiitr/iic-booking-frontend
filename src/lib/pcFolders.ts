@@ -27,6 +27,13 @@ export function breadcrumbs(path: string): { label: string; path: string }[] {
   }));
 }
 
+/** Items the user chose (auto-saved session folders are added by the Analysis PC, never picked). */
+export const chosenItems = (folders: AnalysisExtraFolder[] | undefined) => (folders ?? []).filter((f) => !f.auto);
+
+/** What the finish screen lists: chosen items, plus auto-saved session folders that had files or failed. */
+export const visibleItems = (folders: AnalysisExtraFolder[] | undefined) =>
+  (folders ?? []).filter((f) => !f.auto || f.error || (f.files ?? 0) > 0);
+
 const PRE_COPY = new Set(["idle", "staging_input", "ready", "in_session", "collecting"]);
 
 /** State of a folder chosen on the Analysis PC: copied, removed from the PC, or why it was skipped. */
@@ -37,7 +44,9 @@ export function folderState(
   if (folder.error) return { label: folder.error, tone: "warn" };
   if (status.phase === "failed") return { label: "Not copied yet", tone: "warn" };
   if (!folder.alias || PRE_COPY.has(status.phase)) return { label: "Waiting to copy", tone: "progress" };
-  const removed = (status.pc_removed_folders ?? []).some((p) => samePath(p, folder.path));
+  const removed =
+    (folder.auto && status.pc_profile_wiped === true) ||
+    (status.pc_removed_folders ?? []).some((p) => samePath(p, folder.path));
   if (removed) return { label: "Copied · removed from the Analysis PC", tone: "done" };
   const alias = folder.alias;
   const keptHere = (status.kept_files ?? []).filter((k) =>

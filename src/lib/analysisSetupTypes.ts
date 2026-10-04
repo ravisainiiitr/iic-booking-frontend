@@ -116,6 +116,8 @@ export interface AnalysisSyncStatus {
   kept_files: string[];
   pc_deleted?: number;
   pc_removed_folders?: string[];
+  /** The session account's Windows profile was deleted after its files were copied (null: not attempted). */
+  pc_profile_wiped?: boolean | null;
   /** Folders chosen at the end of the session, with what the Analysis PC collected from each. */
   extra_folders?: AnalysisExtraFolder[];
   destination: { workspace_id: string | null; folder_id: string | null; path_label: string | null } | null;
@@ -138,6 +140,8 @@ export interface AnalysisExtraFolder {
   files?: number;
   bytes?: number;
   error?: string;
+  /** Saved automatically from the session account (Desktop, Documents…) when the session ended; not chosen. */
+  auto?: boolean;
 }
 
 /** Agent capability: result folders can be chosen anywhere on the Analysis PC when the session ends. */

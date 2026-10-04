@@ -88,6 +88,34 @@ describe("SyncProgressPanel", () => {
     expect(rows[2].textContent).toContain("no longer exists");
   });
 
+  it("lists folders saved automatically from the session account and confirms it was cleared", () => {
+    const profile = "C:\\Users\\raa-session";
+    renderPanel({
+      status: {
+        ...base,
+        phase: "done",
+        verified: true,
+        pc_cleanup: "done",
+        pc_profile_wiped: true,
+        extra_folders: [
+          { path: "D:\\Results\\Run1", alias: "Run1", files: 1, bytes: 5 },
+          { path: `${profile}\\Desktop`, alias: "Desktop", files: 2, bytes: 2048, auto: true },
+          { path: `${profile}\\Downloads`, alias: "Downloads", files: 0, bytes: 0, auto: true },
+        ],
+      },
+    });
+    const rows = screen.getByTestId("extra-folders").querySelectorAll("li");
+    expect(rows).toHaveLength(2);
+    expect(rows[1].textContent).toContain("Desktop (saved automatically) · 2 files · 2.0 KB");
+    expect(rows[1].textContent).toContain("Copied · removed from the Analysis PC");
+    expect(screen.getByTestId("profile-wipe").textContent).toContain("nothing you saved is left on the Analysis PC");
+  });
+
+  it("says when the session account could not be cleared", () => {
+    renderPanel({ status: { ...base, phase: "done", verified: true, pc_cleanup: "kept", pc_profile_wiped: false } });
+    expect(screen.getByTestId("profile-wipe").textContent).toContain("still on the Analysis PC");
+  });
+
   it("renders nothing while the session is running", () => {
     renderPanel({ status: { ...base, phase: "in_session" } });
     expect(screen.queryByTestId("sync-progress")).toBeNull();

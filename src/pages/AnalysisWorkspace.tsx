@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
 import { isMissingEndpoint, myResearchFolderHref, plural } from "@/lib/analysisSync";
+import { chosenItems } from "@/lib/pcFolders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -890,7 +891,7 @@ export default function AnalysisWorkspacePage() {
         onOpenChange={setEndDialogOpen}
         bookingId={bookingPk}
         mode="end"
-        initialFolders={sync?.extra_folders ?? []}
+        initialFolders={chosenItems(sync?.extra_folders)}
         allowFiles={Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY))}
         destinationLabel={destinationLabel}
         onEnded={() => void afterEnded()}
