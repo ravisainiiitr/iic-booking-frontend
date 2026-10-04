@@ -3533,10 +3533,12 @@ const Dashboard = () => {
   const canOpenMenuPath = (path: string) => visibleMenuPaths.has(normalizeMenuPath(path));
   const showAdminOverview = usesAdminMenuSections && !workspacePath;
   // Dashboard home only, between the page header card and the first section; each renders nothing when empty.
+  // The administration overview lists pending actions under its own "Needs attention".
+  const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
       <PendingActionsSummary />
-      <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />
+      {loginTip}
     </>
   );
 
@@ -4066,7 +4068,7 @@ const Dashboard = () => {
                 <AdminOverview
                   onOpen={(path) => openWorkspace(path)}
                   canOpen={canOpenMenuPath}
-                  notices={dashboardNotices}
+                  notices={loginTip}
                 />
               </Suspense>
             ) : !showsLabStyleDashboard && (
