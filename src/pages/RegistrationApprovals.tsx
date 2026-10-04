@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { CalendarClock, CheckCircle2, Loader2, UserCheck, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, Loader2, UserCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
@@ -21,6 +21,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
+import { deadlineRemaining, formatDeadlineIst } from "@/lib/registrationDeadline";
+import { cn } from "@/lib/utils";
 import type {
   FacultyApprovalsOverview,
   FacultyRegistrationRequest,
@@ -35,6 +37,24 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="text-sm">{value || "—"}</dd>
     </div>
+  );
+}
+
+function DeadlineNote({ deadline }: { deadline: string }) {
+  const remaining = deadlineRemaining(deadline);
+  return (
+    <p
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+        remaining?.urgent ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200" : "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100",
+      )}
+    >
+      <Clock className="h-4 w-4 shrink-0" aria-hidden />
+      <span>
+        Please respond by <strong>{formatDeadlineIst(deadline)}</strong>
+        {remaining && !remaining.expired ? ` (${remaining.label})` : ""}. After that the request is treated as declined.
+      </span>
+    </p>
   );
 }
 
@@ -137,9 +157,10 @@ function DecisionCard({
           </Button>
           <Button size="sm" variant={mode === "disapprove" ? "default" : "outline"} onClick={() => setMode("disapprove")}>
             <XCircle className="mr-1.5 h-4 w-4" />
-            {isExt ? "Decline" : "Disapprove"}
+            Decline
           </Button>
         </div>
+        {reg?.decision_deadline ? <DeadlineNote deadline={reg.decision_deadline} /> : null}
 
         {mode === "approve" ? (
           <div className="space-y-3">
@@ -171,6 +192,11 @@ function DecisionCard({
           <div className="space-y-1.5">
             <Label htmlFor={`reason-${entry.item.id}`}>Reason (emailed to the user)</Label>
             <Textarea id={`reason-${entry.item.id}`} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} />
+            {!isExt ? (
+              <p className="text-xs text-muted-foreground">
+                The request is cancelled and the pending account removed. The user is emailed your reason and can register again.
+              </p>
+            ) : null}
           </div>
         )}
 
@@ -304,7 +330,7 @@ export default function RegistrationApprovals() {
                 {overview.recent_registrations.map((r) => (
                   <li key={`rr-${r.id}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
                     <span>
-                      {r.user.name} · registration {r.status === "approved" ? "approved" : "disapproved"}
+                      {r.user.name} · registration {r.status === "approved" ? "approved" : "declined"}
                     </span>
                     <span className="text-xs text-muted-foreground">{formatMoment(r.decided_at)}</span>
                   </li>

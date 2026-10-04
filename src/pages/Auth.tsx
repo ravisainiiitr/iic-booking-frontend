@@ -9,16 +9,61 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Eye, EyeOff, Upload, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown, ListChecks, Building2, Calendar, FileSignature, AlertTriangle, CheckCircle2, FlaskConical, Loader2, LogIn, ShieldCheck, Wallet } from "lucide-react";
+import { Eye, EyeOff, X, FileText, User, Home, Mail, ArrowLeft, KeyRound, UserPlus, ChevronsUpDown, Building2, Calendar, AlertTriangle, CheckCircle2, FlaskConical, Loader2, LogIn, ShieldCheck, Wallet, UserRound, LockKeyhole, UserCheck, Paperclip, Search } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { cn } from "@/lib/utils";
+import { SignUpAside } from "@/components/auth/SignUpAside";
+import { RegistrationRequirements } from "@/components/auth/RegistrationRequirements";
+import { SignupField, SignupSection } from "@/components/auth/SignupFormParts";
+import { SIGNUP_INPUT_CLASS, describedBy } from "@/components/auth/signupFieldUtils";
+import {
+  departmentLabel,
+  findUserType,
+  groupUserTypes,
+  isIitrKind,
+  isPublicEmailDomain,
+  kindNeedsKycForPublicEmail,
+  kindNeedsState,
+  requirementsFor,
+  signupKind,
+  supervisorLabel,
+  userTypeValue,
+  validateSignup,
+  type RegisterUserType,
+  type SignupField as SignupFieldName,
+} from "@/lib/signupForm";
+
+const SIGNUP_FIELD_ORDER: Array<[SignupFieldName, string]> = [
+  ["userType", "signup-user-type"],
+  ["name", "signup-name"],
+  ["gender", "signup-gender"],
+  ["phone", "signup-phone"],
+  ["empId", "signup-emp-id"],
+  ["email", "signup-email"],
+  ["password", "signup-password"],
+  ["passwordConfirm", "signup-password-confirm"],
+  ["state", "signup-state-ut"],
+  ["department", "signup-department"],
+  ["programEndDate", "signup-program-end-date"],
+  ["supervisor", "signup-supervisor"],
+  ["documents", "signup-documents"],
+];
 
 function PasswordInput({
   id,
@@ -29,6 +74,10 @@ function PasswordInput({
   autoComplete,
   required,
   minLength,
+  className,
+  invalid,
+  describedBy: ariaDescribedBy,
+  onBlur,
 }: {
   id: string;
   value: string;
@@ -38,6 +87,10 @@ function PasswordInput({
   autoComplete: string;
   required?: boolean;
   minLength?: number;
+  className?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  onBlur?: () => void;
 }) {
   return (
     <div className="relative">
@@ -47,10 +100,13 @@ function PasswordInput({
         placeholder="••••••••"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         autoComplete={autoComplete}
         required={required}
         minLength={minLength}
-        className="h-11 rounded-xl bg-background pr-10"
+        aria-invalid={invalid || undefined}
+        aria-describedby={ariaDescribedBy}
+        className={cn("h-11 rounded-xl bg-background pr-10", className)}
       />
       <Button
         type="button"
@@ -94,22 +150,6 @@ const authSchema = z.object({
   path: ["password_confirm"],
 });
 
-// Public/free email domains: for Educational Institute and Govt R&D, documents are required when email uses these.
-const PUBLIC_EMAIL_DOMAINS = new Set([
-  "gmail.com", "googlemail.com",
-  "yahoo.com", "yahoo.co.in", "yahoo.in", "ymail.com",
-  "outlook.com", "hotmail.com", "hotmail.co.in", "live.com", "live.in", "msn.com",
-  "rediffmail.com", "rediff.com",
-  "icloud.com", "me.com", "mac.com",
-  "mail.com", "protonmail.com", "pm.me", "aol.com", "zoho.com",
-  "gmx.com", "gmx.net", "inbox.com", "mailinator.com",
-]);
-
-function isPublicEmailDomain(email: string): boolean {
-  const part = email.trim().split("@")[1]?.toLowerCase();
-  return !!part && PUBLIC_EMAIL_DOMAINS.has(part);
-}
-
 const EMAIL_LOGIN_DISABLED_CODE = "email_login_disabled";
 
 const signInSchema = z.object({
@@ -130,13 +170,6 @@ interface PendingOrganizationRequest {
   id: number;
   name: string;
   verified: boolean;
-}
-
-interface UserType {
-  code: string;
-  name: string;
-  description: string;
-  alias?: string;
 }
 
 interface FacultySearchResult {
@@ -170,12 +203,16 @@ const Auth = () => {
   const [loadingStates, setLoadingStates] = useState(false);
   const [programEndDate, setProgramEndDate] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(false);
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [userTypes, setUserTypes] = useState<RegisterUserType[]>([]);
   const [loadingUserTypes, setLoadingUserTypes] = useState(false);
   const [showSignInPassword, setShowSignInPassword] = useState(false);
   const [showSignUpPassword, setShowSignUpPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState("signin");
+  const [activeTab, setActiveTab] = useState(() => (searchParams.get("mode") === "register" ? "signup" : "signin"));
+  const [requirementsOpen, setRequirementsOpen] = useState(true);
+  const [touched, setTouched] = useState<Partial<Record<SignupFieldName, boolean>>>({});
+  const [signupSubmitAttempted, setSignupSubmitAttempted] = useState(false);
+  const [signupDone, setSignupDone] = useState<{ email: string; iitr: boolean; supervisor: string; message: string } | null>(null);
   const [documents, setDocuments] = useState<File[]>([]);
   const [documentErrors, setDocumentErrors] = useState<string[]>([]);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
@@ -247,21 +284,15 @@ const Auth = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
-  // Fetch departments when signup tab is active and user type is selected.
-  // For IITR Post Doctoral Fellows, IITR Research Associates in Projects, IITR Startups → internal departments.
-  // For Educational Institute, Govt R&D Organizations, Industry → external departments filtered by external_subcategory and state.
-  // For Other → all external departments.
+  // IITR Post-docs, Research Associates and IITR Startup choose from the IIT Roorkee departments and centres.
+  // Educational Institute, Govt R&D, Industry and External Startup/MSME: external list filtered by category and state.
   useEffect(() => {
     if (activeTab !== "signup" || !userType) {
       if (!userType) setDepartments([]);
       return;
     }
-    const selectedType = userTypes.find((t) =>
-      t.alias ? `${t.code}|${t.name}` === userType : t.code === userType
-    );
     const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
-    const useInternalDepartments =
-      Boolean(selectedType?.alias) || resolvedCode === "startup_incubated_iitr";
+    const useInternalDepartments = isIitrKind(signupKind(userType));
     setDepartment("");
 
     const externalSubcategoryByCode: Record<string, string> = {
@@ -274,16 +305,10 @@ const Auth = () => {
     const needsStateForDepts = Boolean(!useInternalDepartments && externalSubcategory);
 
     if (useInternalDepartments) {
-      const selectedName = selectedType?.name ?? "";
-      const internalSubcategory =
-        selectedName === "IITR Startups" || resolvedCode === "startup_incubated_iitr"
-          ? "startups"
-          : selectedName === "IITR Post Doctoral Fellows" || selectedName === "IITR Research Associates in Projects"
-            ? "iit_roorkee_dept_centres"
-            : undefined;
       setLoadingDepartments(true);
+      setPendingOrganizationRequests([]);
       apiClient
-        .getDepartments("internal", false, undefined, undefined, internalSubcategory)
+        .getDepartments("internal", false, undefined, undefined, "iit_roorkee_dept_centres")
         .then((response) => {
           if (response.data?.departments) setDepartments(response.data.departments);
           else setDepartments([]);
@@ -325,7 +350,7 @@ const Auth = () => {
         setPendingOrganizationRequests([]);
       })
       .finally(() => setLoadingDepartments(false));
-  }, [activeTab, userType, userTypes, selectedStateUt]);
+  }, [activeTab, userType, selectedStateUt]);
 
   // Fetch user types when Auth mounts and when signup tab is active (so list is ready when user opens signup)
   useEffect(() => {
@@ -347,12 +372,11 @@ const Auth = () => {
       .finally(() => setLoadingStates(false));
   }, [activeTab]);
 
-  const needsSupervisor = useCallback(() => {
-    const selected = userTypes.find((t) =>
-      t.alias ? `${t.code}|${t.name}` === userType : t.code === userType
-    );
-    return selected?.name === "IITR Post Doctoral Fellows" || selected?.name === "IITR Research Associates in Projects";
-  }, [userType, userTypes]);
+  const needsSupervisor = useCallback(() => isIitrKind(signupKind(userType)), [userType]);
+
+  useEffect(() => {
+    setRequirementsOpen(!userType);
+  }, [userType]);
 
   useEffect(() => {
     if (!needsSupervisor()) {
@@ -441,48 +465,51 @@ const Auth = () => {
     }
   };
 
+  const signupKindValue = signupKind(userType);
+  const signupIsIitr = isIitrKind(signupKindValue);
+  const signupNeedsState = kindNeedsState(signupKindValue);
+  const signupKycRequired = kindNeedsKycForPublicEmail(signupKindValue) && isPublicEmailDomain(email);
+  const selectedUserType = findUserType(userTypes, userType);
+  const groupedUserTypes = groupUserTypes(userTypes);
+  const todayIso = new Date().toLocaleDateString("en-CA");
+  const signupErrors = validateSignup(
+    {
+      userType,
+      name,
+      gender,
+      phone: phoneNumber,
+      empId,
+      email,
+      password,
+      passwordConfirm,
+      state: selectedStateUt,
+      department,
+      hasOrganisationRequest: pendingOrganizationRequestId != null,
+      programEndDate,
+      supervisorId,
+      documentCount: documents.length,
+    },
+    todayIso,
+  );
+  const fieldError = (field: SignupFieldName) =>
+    signupSubmitAttempted || touched[field] ? signupErrors[field] : undefined;
+  const touch = (field: SignupFieldName) => () => setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }));
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate profile picture is selected
-    if (!profilePicture) {
-      toast.error("Profile picture is required");
-      return;
-    }
-    if (needsSupervisor() && !supervisorId) {
-      toast.error("Please select your IITR Faculty supervisor");
+    setSignupSubmitAttempted(true);
+    const firstInvalid = SIGNUP_FIELD_ORDER.find(([field]) => signupErrors[field]);
+    if (firstInvalid) {
+      const [field, elementId] = firstInvalid;
+      const count = Object.keys(signupErrors).length;
+      toast.error(count > 1 ? `Please check the ${count} highlighted fields.` : signupErrors[field]!);
+      const el = document.getElementById(elementId);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.focus({ preventScroll: true });
       return;
     }
     const resolvedCode = userType.includes("|") ? userType.split("|")[0]! : userType;
-    const isExternalType =
-      resolvedCode === "external" ||
-      resolvedCode === "RND" ||
-      resolvedCode === "Industry" ||
-      resolvedCode === "external_startup_msme";
-    if (isExternalType && !selectedStateUt) {
-      toast.error("State/Union Territory is required for Educational Institute, Govt R&D Organizations, Industry, and External Startup/MSME");
-      return;
-    }
-    if (isExternalType && email.trim().toLowerCase().endsWith("@iitr.ac.in")) {
-      toast.error("External users cannot register with an IIT Roorkee (iitr.ac.in) email. Please use your institution or organization email.");
-      return;
-    }
-    const needsKycForm = (resolvedCode === "external" || resolvedCode === "RND") && isPublicEmailDomain(email);
-    if (needsKycForm && documents.length === 0) {
-      toast.error("A signed and filled KYC form (scan) is required when using a public email. Download the form below, fill it, sign it, scan it, and upload it—or use your institution/organization email.");
-      return;
-    }
-    // Document type selection is not required; any uploaded document is treated as the KYC scan for this validation.
     const isReqFromDropdown = resolvedCode === "RND" && department.startsWith("req-");
-    const hasOrgSelection = department || pendingOrganizationRequestId != null;
-    if (resolvedCode === "RND" && !hasOrgSelection) {
-      toast.error("Select an organization from the list or request a new organization name, then proceed with signup.");
-      return;
-    }
-    if (resolvedCode !== "RND" && !department) {
-      toast.error("Please select a department.");
-      return;
-    }
 
     let signupDepartment: number | null = null;
     let signupOrgRequestId: number | undefined;
@@ -565,9 +592,8 @@ const Auth = () => {
         } else {
           // No token - email verification required
           const message = response.data.message || "Account created successfully! Please check your email to verify your account before logging in.";
-          toast.success(message, {
-            duration: 8000, // Show longer since it's important
-          });
+          toast.success("Account created. Check your email to continue.", { duration: 6000 });
+          setSignupDone({ email: validated.email, iitr: signupIsIitr, supervisor: supervisorDisplay?.name ?? "", message });
           
           // Reset form
           setEmail("");
@@ -591,8 +617,8 @@ const Auth = () => {
           setPendingOrganizationRequestId(null);
           setPendingOrganizationName("");
           
-          // Switch to signin tab to guide user
-          setActiveTab("signin");
+          setTouched({});
+          setSignupSubmitAttempted(false);
         }
       } else {
         // Fallback if no data
@@ -618,6 +644,8 @@ const Auth = () => {
         setDocumentErrors([]);
         setProgramEndDate("");
         setGender("");
+        setTouched({});
+        setSignupSubmitAttempted(false);
         setActiveTab("signin");
       }
     } catch (error: any) {
@@ -1005,12 +1033,20 @@ const Auth = () => {
   );
 
   return (
-    <div className="page-shell grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-      {/* Brand panel (desktop) */}
-      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[hsl(215_62%_20%)] via-primary to-[hsl(200_65%_34%)] text-white lg:flex lg:flex-col">
+    <div
+      className={cn(
+        "page-shell grid min-h-screen",
+        activeTab === "signup"
+          ? "lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)]"
+          : "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
+      )}
+    >
+      {/* Brand panel (desktop): the gradient fills the whole column; the content stays pinned beside the long Create account form */}
+      <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-primary to-[hsl(200_65%_30%)] text-white lg:block">
+        <div className="relative overflow-hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-2xl" aria-hidden />
         <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-sky-300/10 blur-3xl" aria-hidden />
-        <div className="relative flex h-full flex-col justify-between gap-10 p-10 xl:p-14">
+        <div className="relative flex h-full flex-col justify-between gap-8 overflow-y-auto p-10 xl:p-12">
           <div className="flex items-center gap-4">
             {brandLogo}
             <div>
@@ -1019,6 +1055,10 @@ const Auth = () => {
             </div>
           </div>
 
+          {activeTab === "signup" ? (
+            <SignUpAside />
+          ) : (
+          <>
           <div className="space-y-8">
             <h2 className="max-w-md text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
               Book research equipment, track your samples and manage your wallet in one place.
@@ -1058,6 +1098,9 @@ const Auth = () => {
               </div>
             </dl>
           </div>
+          </>
+          )}
+        </div>
         </div>
       </aside>
 
@@ -1087,15 +1130,15 @@ const Auth = () => {
           </Button>
         </div>
 
-        <div className={cn("w-full transition-[max-width]", activeTab === "signup" ? "max-w-3xl" : "max-w-lg")}>
+        <div className={cn("w-full transition-[max-width]", activeTab === "signup" ? "max-w-[54rem]" : "max-w-lg")}>
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
               {activeTab === "signin" ? "Welcome back" : "Create your account"}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className={cn("mt-1 text-muted-foreground", activeTab === "signup" ? "text-base" : "text-sm")}>
               {activeTab === "signin"
                 ? "Sign in to book equipment and manage your requests."
-                : "For external users and IITR Post-docs, Research Associates and Startups."}
+                : "For IITR Post-docs, Research Associates and Startups, and external users."}
             </p>
           </div>
 
@@ -1452,748 +1495,656 @@ const Auth = () => {
               )}
             </TabsContent>
             <TabsContent value="signup" className="mt-6 focus-visible:outline-none">
-              <form onSubmit={handleSignUp} className="space-y-6">
-                {/* Who can register — elegant info box */}
-                <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-5">
-                  <p className="text-base font-semibold text-foreground">Who can register</p>
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                    External users and IITR Post Doctoral Fellows, Research Associates in Projects, and IITR Startups can register here.
-                  </p>
-                  <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary dark:text-primary">
-                    IITR Students, Faculty, and Officer in Charge / Lab Operator do not need to register: use{" "}
-                    <button type="button" className="underline underline-offset-2" onClick={() => setActiveTab("signin")}>
-                      Sign in with {CHANNEL_I_DISPLAY_NAME} IITR
-                    </button>
-                    .
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/80 bg-muted/20 dark:bg-muted/30 overflow-hidden">
-                  <div className="px-5 py-4 border-b border-border/60 bg-muted/40">
-                    <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                      <ListChecks className="h-5 w-5 text-primary" />
-                      Registration requirements
-                    </h3>
-                  </div>
-                  <div className="p-5 space-y-4">
-                    <div className="flex gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <User className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">For everyone</p>
-                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed"><strong>Gender</strong> and <strong>Current Program/Employment Validity</strong> are required.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Building2 className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Educational Institute, Govt R&amp;D, Industry</p>
-                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select <strong>State/Union Territory</strong> first; departments are filtered by type and state. Use your <strong>institution or organization email</strong> (not @iitr.ac.in).</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <Mail className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Institution/organization email</p>
-                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">With a non-public email you get a <strong>self-verification link</strong>—no admin approval. Confirm your details and accept to start using the portal.</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                        <FileSignature className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground">Public email (Gmail, Yahoo, etc.)</p>
-                        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Download the <strong>KYC form</strong>, fill it, sign it, and upload a <strong>scan</strong> (choose &quot;KYC Form (signed &amp; scanned)&quot; as document type). Or use your institution email to skip this.</p>
-                        <a
-                          href="/IIC_IIT_Roorkee_KYC_Form.pdf"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 mt-2 text-sm font-medium text-primary hover:underline"
+              {signupDone ? (
+                <div role="status" className="rounded-2xl border border-emerald-300/70 bg-emerald-50/70 p-6 text-emerald-950 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-50 sm:p-8">
+                  <div className="flex items-start gap-4">
+                    <CheckCircle2 className="mt-0.5 h-7 w-7 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                    <div className="space-y-3 text-base leading-relaxed">
+                      <h2 className="text-xl font-semibold">Check your email</h2>
+                      <p>
+                        We have sent a verification link to <strong>{signupDone.email}</strong>. Open it to confirm your details.
+                      </p>
+                      {signupDone.iitr ? (
+                        <p>
+                          Once you confirm, your request goes to {signupDone.supervisor || "your IITR faculty supervisor"}, who has{" "}
+                          <strong>24 hours</strong> to approve it. If they decline or do not respond in time, the request is cancelled and you can register again. We email you at each step.
+                        </p>
+                      ) : (
+                        <p className="text-emerald-900/80 dark:text-emerald-100/80">{signupDone.message}</p>
+                      )}
+                      <div className="flex flex-wrap gap-3 pt-2">
+                        <Button
+                          type="button"
+                          className="h-11 rounded-xl px-6 text-base"
+                          onClick={() => {
+                            setSignupDone(null);
+                            setActiveTab("signin");
+                          }}
                         >
-                          <FileText className="h-4 w-4 shrink-0" />
-                          Download IIT Roorkee KYC Form (PDF)
-                        </a>
+                          Go to sign in
+                        </Button>
+                        <Button type="button" variant="outline" className="h-11 rounded-xl px-6 text-base" onClick={() => setSignupDone(null)}>
+                          Register another account
+                        </Button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              ) : (
+              <form onSubmit={handleSignUp} noValidate className="space-y-6">
+                <div className="flex flex-col gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+                    <p className="text-base leading-relaxed text-foreground">
+                      <strong>IITR Students, Faculty, Officers in Charge and Lab Operators do not need to register.</strong>{" "}
+                      <span className="text-muted-foreground">Use {CHANNEL_I_DISPLAY_NAME} IITR on the Sign in tab.</span>
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" className="h-11 shrink-0 rounded-xl border-primary/40 text-base text-primary hover:bg-primary/10" onClick={() => setActiveTab("signin")}>
+                    Sign in with {CHANNEL_I_DISPLAY_NAME}
+                  </Button>
+                </div>
 
-                    <div className="border-t border-border/60 pt-4 space-y-3">
-                      <div className="flex gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Building2 className="h-4 w-4" />
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">IITR Post Doctoral Fellows &amp; Research Associates</p>
-                          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select a department under IIT Roorkee Department/Centres and an <strong>IITR Faculty supervisor</strong>.</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Building2 className="h-4 w-4" />
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-foreground">IITR Startups</p>
-                          <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">Select a department under <strong>Startups</strong>.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name" className="text-foreground font-medium">Full Name</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                <SignupSection icon={UserRound} title="About you" description="Choose who you are registering as; the form adapts to it.">
+                  <SignupField
+                    id="signup-user-type"
+                    label="I am registering as"
                     required
-                    maxLength={255}
-                    className="h-11 rounded-xl border-border/80 bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-gender" className="text-foreground font-medium">Gender <span className="text-destructive">*</span></Label>
-                  <Select
-                    value={gender || ""}
-                    onValueChange={(v) => setGender(v)}
-                    required
+                    wide
+                    error={fieldError("userType")}
+                    hint={selectedUserType?.description || (loadingUserTypes ? "Loading user types…" : undefined)}
                   >
-                    <SelectTrigger id="signup-gender" className="h-11 rounded-xl border-border/80 bg-background">
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email" className="text-foreground font-medium">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="h-11 rounded-xl border-border/80 bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-user-type" className="text-foreground font-medium">User Type</Label>
-                  <Select
-                    value={userType}
-                    onValueChange={(value) => {
-                      setUserType(value);
-                      const type = userTypes.find((t) =>
-                        t.alias ? `${t.code}|${t.name}` === value : t.code === value
-                      );
-                      if (type) setUserTypeAlias(type.alias ?? type.name ?? "");
-                    }}
-                    required
-                    disabled={loadingUserTypes}
-                  >
-                    <SelectTrigger className="h-11 rounded-xl border-border/80 bg-background">
-                      <SelectValue placeholder={loadingUserTypes ? "Loading user types..." : "Select user type"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userTypes.map((type) => {
-                        const value = type.alias ? `${type.code}|${type.name}` : type.code;
-                        return (
-                          <SelectItem key={value} value={value}>
-                            {type.name}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                  {userType && userTypes.find(t => t.code === userType)?.description && (
-                    <p className="text-xs text-muted-foreground">
-                      {userTypes.find(t => t.code === userType)?.description}
-                    </p>
-                  )}
-                  {userTypes.length === 0 && !loadingUserTypes && (
-                    <p className="text-xs text-muted-foreground">
-                      No user types available
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-emp-id" className="text-foreground font-medium">Employee / Student ID</Label>
-                  <Input
-                    id="signup-emp-id"
-                    type="text"
-                    placeholder="EMP001 or STUDENT123"
-                    value={empId}
-                    onChange={(e) => setEmpId(e.target.value)}
-                    required
-                    maxLength={50}
-                    className="h-11 rounded-xl border-border/80 bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-phone" className="text-foreground font-medium">Phone Number</Label>
-                  <Input
-                    id="signup-phone"
-                    type="tel"
-                    placeholder="e.g. 9876543210 or +91 9876543210"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    required
-                    maxLength={20}
-                    className="h-11 rounded-xl border-border/80 bg-background"
-                  />
-                  <p className="text-xs text-muted-foreground">10-digit Indian mobile (starts with 6, 7, 8, or 9)</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="text-foreground font-medium">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password"
-                      type={showSignUpPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={8}
-                      className="h-11 rounded-xl pr-10 border-border/80 bg-background"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowSignUpPassword(!showSignUpPassword)}
-                      aria-label={showSignUpPassword ? "Hide password" : "Show password"}
+                    <Select
+                      value={userType}
+                      onValueChange={(value) => {
+                        setUserType(value);
+                        const type = findUserType(userTypes, value);
+                        if (type) setUserTypeAlias(type.alias ?? type.name ?? "");
+                      }}
+                      disabled={loadingUserTypes}
                     >
-                      {showSignUpPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">At least 8 characters</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password-confirm" className="text-foreground font-medium">Confirm Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password-confirm"
-                      type={showPasswordConfirm ? "text" : "password"}
-                      placeholder="••••••••"
-                      value={passwordConfirm}
-                      onChange={(e) => setPasswordConfirm(e.target.value)}
-                      required
-                      minLength={8}
-                      className="h-11 rounded-xl pr-10 border-border/80 bg-background"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
-                      aria-label={showPasswordConfirm ? "Hide password" : "Show password"}
-                    >
-                      {showPasswordConfirm ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-state-ut" className="text-foreground font-medium">
-                    {(() => {
-                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      const needsState = code === "external" || code === "RND" || code === "Industry";
-                      const requiredMark = needsState ? <span className="text-destructive"> *</span> : null;
-                      if (selectedStateUt) {
-                        const selected = indianStates.find((s) => s.value === selectedStateUt);
-                        const label = selected?.type === "union_territory" ? "Union Territory" : "State";
-                        return <>{label}{requiredMark}</>;
-                      }
-                      return <>State / Union Territory{requiredMark}</>;
-                    })()}
-                  </Label>
-                  <Popover open={stateComboboxOpen} onOpenChange={setStateComboboxOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="signup-state-ut"
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={stateComboboxOpen}
-                        className="h-11 w-full justify-between rounded-xl border-border/80 bg-background font-normal"
-                        disabled={loadingStates}
+                      <SelectTrigger
+                        id="signup-user-type"
+                        className={SIGNUP_INPUT_CLASS}
+                        aria-invalid={Boolean(fieldError("userType")) || undefined}
+                        aria-describedby={describedBy("signup-user-type", selectedUserType?.description, fieldError("userType"))}
                       >
-                        {loadingStates
-                          ? "Loading..."
-                          : selectedStateUt
-                            ? indianStates.find((s) => s.value === selectedStateUt)?.label ?? selectedStateUt
-                            : "Select State / Union Territory..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search state or union territory..." />
-                        <CommandList>
-                          <CommandEmpty>No state or union territory found.</CommandEmpty>
-                          {(() => {
-                            const states = indianStates.filter((s) => (s.type ?? "state") === "state");
-                            const uts = indianStates.filter((s) => s.type === "union_territory");
-                            return (
-                              <>
-                                {states.length > 0 && (
-                                  <CommandGroup heading="States">
-                                    {states.map((s) => (
-                                      <CommandItem
-                                        key={s.value}
-                                        value={s.label}
-                                        onSelect={() => {
-                                          setSelectedStateUt(s.value);
-                                          setStateComboboxOpen(false);
-                                        }}
-                                      >
-                                        {s.label}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                )}
-                                {uts.length > 0 && (
-                                  <CommandGroup heading="Union Territories">
-                                    {uts.map((s) => (
-                                      <CommandItem
-                                        key={s.value}
-                                        value={s.label}
-                                        onSelect={() => {
-                                          setSelectedStateUt(s.value);
-                                          setStateComboboxOpen(false);
-                                        }}
-                                      >
-                                        {s.label}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <p className="text-xs text-muted-foreground">
-                    {(() => {
-                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      const needsState = code === "external" || code === "RND" || code === "Industry";
-                      return needsState
-                        ? "Required for Educational Institute, Govt R&D Organizations, and Industry. The list below is filtered by your selection."
-                        : "Optional. You can search by name.";
-                    })()}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-department" className="text-foreground font-medium">
-                    {(() => {
-                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      if (code === "RND") return "Organization";
-                      if (code === "Industry") return "Organization";
-                      if (code === "external") return "Department / Institute";
-                      return "Department";
-                    })()}
-                  </Label>
-                  <Select
-                    value={department}
-                    onValueChange={(value) => {
-                      setDepartment(value);
-                      if (value && !value.startsWith("req-")) {
-                        setPendingOrganizationRequestId(null);
-                        setPendingOrganizationName("");
-                      }
-                    }}
-                    required={!(() => {
-                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      return code === "RND" && (department || pendingOrganizationRequestId != null);
-                    })()}
-                    disabled={
-                      loadingDepartments ||
-                      !userType ||
-                      (() => {
-                        const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                        const needsState =
-                          code === "external" ||
-                          code === "RND" ||
-                          code === "Industry" ||
-                          code === "external_startup_msme";
-                        return needsState && !selectedStateUt;
-                      })()
-                    }
+                        <SelectValue placeholder={loadingUserTypes ? "Loading user types..." : "Select user type"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupedUserTypes.iitr.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-xs uppercase tracking-wider text-muted-foreground">IIT Roorkee</SelectLabel>
+                            {groupedUserTypes.iitr.map((type) => (
+                              <SelectItem key={userTypeValue(type)} value={userTypeValue(type)} className="py-2.5 text-base">
+                                {type.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {groupedUserTypes.iitr.length > 0 && groupedUserTypes.external.length > 0 && <SelectSeparator />}
+                        {groupedUserTypes.external.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel className="text-xs uppercase tracking-wider text-muted-foreground">External</SelectLabel>
+                            {groupedUserTypes.external.map((type) => (
+                              <SelectItem key={userTypeValue(type)} value={userTypeValue(type)} className="py-2.5 text-base">
+                                {type.name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {userTypes.length === 0 && !loadingUserTypes && (
+                      <p className="text-sm text-muted-foreground">No user types available. Please reload the page.</p>
+                    )}
+                  </SignupField>
+
+                  <div className="md:col-span-2">
+                    <RegistrationRequirements
+                      items={requirementsFor(signupKindValue)}
+                      typeName={selectedUserType?.name}
+                      open={requirementsOpen}
+                      onOpenChange={setRequirementsOpen}
+                    />
+                  </div>
+
+                  <SignupField id="signup-name" label="Full name" required error={fieldError("name")}>
+                    <Input
+                      id="signup-name"
+                      type="text"
+                      autoComplete="name"
+                      placeholder="As on your ID card"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onBlur={touch("name")}
+                      maxLength={255}
+                      aria-invalid={Boolean(fieldError("name")) || undefined}
+                      aria-describedby={describedBy("signup-name", undefined, fieldError("name"))}
+                      className={SIGNUP_INPUT_CLASS}
+                    />
+                  </SignupField>
+                  <SignupField id="signup-gender" label="Gender" required error={fieldError("gender")}>
+                    <Select value={gender || ""} onValueChange={(v) => setGender(v)}>
+                      <SelectTrigger
+                        id="signup-gender"
+                        className={SIGNUP_INPUT_CLASS}
+                        aria-invalid={Boolean(fieldError("gender")) || undefined}
+                        aria-describedby={describedBy("signup-gender", undefined, fieldError("gender"))}
+                      >
+                        <SelectValue placeholder="Select gender" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male" className="text-base">Male</SelectItem>
+                        <SelectItem value="female" className="text-base">Female</SelectItem>
+                        <SelectItem value="other" className="text-base">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </SignupField>
+                  <SignupField
+                    id="signup-phone"
+                    label="Mobile number"
+                    required
+                    hint="10-digit Indian mobile number"
+                    error={fieldError("phone")}
                   >
-                    <SelectTrigger className="h-11 rounded-xl border-border/80 bg-background">
-                      <SelectValue
-                        placeholder={
-                          !userType
-                            ? "Select user type first"
-                            : (() => {
-                                const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                                const needsState =
-                          code === "external" ||
-                          code === "RND" ||
-                          code === "Industry" ||
-                          code === "external_startup_msme";
-                                if (needsState && !selectedStateUt) {
-                                  return "Select State / Union Territory first";
-                                }
-                                const selected = userTypes.find((t) => (t.alias ? `${t.code}|${t.name}` === userType : t.code === userType));
-                                if (selected?.alias || code === "startup_incubated_iitr") {
-                                  return code === "startup_incubated_iitr" || selected?.name === "IITR Startups"
-                                    ? "Select internal Startup"
-                                    : "Select internal department";
-                                }
-                                if (code === "RND" || code === "Industry" || code === "external_startup_msme") {
-                                  return loadingDepartments ? "Loading organizations..." : "Select organization";
-                                }
-                                if (code === "external") {
-                                  return loadingDepartments ? "Loading departments..." : "Select department / institute";
-                                }
-                                return loadingDepartments ? "Loading departments..." : "Select department";
-                              })()
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(() => {
-                        const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                        if (code === "RND") {
-                          return (
-                            <>
-                              {departments.map((dept) => (
-                                <SelectItem key={`dept-${dept.id}`} value={dept.id.toString()}>
-                                  <span className="flex items-center gap-2">
-                                    {dept.name} {dept.code ? `(${dept.code})` : ""}
-                                    <span className="text-xs font-medium text-green-600 dark:text-green-500">Verified</span>
-                                  </span>
-                                </SelectItem>
-                              ))}
-                              {pendingOrganizationRequests.map((r) => (
-                                <SelectItem key={`req-${r.id}`} value={`req-${r.id}`}>
-                                  <span className="flex items-center gap-2">
-                                    {r.name}
-                                    <span className="text-xs font-medium text-muted-foreground">Unverified</span>
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </>
-                          );
-                        }
-                        return (
-                          <>
+                    <Input
+                      id="signup-phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="9876543210"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      onBlur={touch("phone")}
+                      maxLength={20}
+                      aria-invalid={Boolean(fieldError("phone")) || undefined}
+                      aria-describedby={describedBy("signup-phone", "hint", fieldError("phone"))}
+                      className={SIGNUP_INPUT_CLASS}
+                    />
+                  </SignupField>
+                  <SignupField
+                    id="signup-emp-id"
+                    label={signupKindValue === "iitr_startup" ? "Startup or incubation ID" : "Employee / Student ID"}
+                    required
+                    hint={signupIsIitr ? "As issued by IIT Roorkee or your incubator" : "As issued by your institution or organisation"}
+                    error={fieldError("empId")}
+                  >
+                    <Input
+                      id="signup-emp-id"
+                      type="text"
+                      placeholder={signupKindValue === "iitr_startup" ? "e.g. TIDES-2026-014" : "e.g. EMP001"}
+                      value={empId}
+                      onChange={(e) => setEmpId(e.target.value)}
+                      onBlur={touch("empId")}
+                      maxLength={50}
+                      aria-invalid={Boolean(fieldError("empId")) || undefined}
+                      aria-describedby={describedBy("signup-emp-id", "hint", fieldError("empId"))}
+                      className={SIGNUP_INPUT_CLASS}
+                    />
+                  </SignupField>
+                </SignupSection>
+
+                <SignupSection icon={LockKeyhole} title="Account" description="You will sign in with this email and password.">
+                  <SignupField
+                    id="signup-email"
+                    label="Email"
+                    required
+                    wide
+                    hint={
+                      signupIsIitr
+                        ? "We send a verification link to this address."
+                        : "Use your institution or organisation email (not @iitr.ac.in)."
+                    }
+                    error={fieldError("email")}
+                  >
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onBlur={touch("email")}
+                      aria-invalid={Boolean(fieldError("email")) || undefined}
+                      aria-describedby={describedBy("signup-email", "hint", fieldError("email"))}
+                      className={SIGNUP_INPUT_CLASS}
+                    />
+                  </SignupField>
+                  <SignupField id="signup-password" label="Password" required hint="At least 8 characters" error={fieldError("password")}>
+                    <PasswordInput
+                      id="signup-password"
+                      value={password}
+                      onChange={setPassword}
+                      onBlur={touch("password")}
+                      show={showSignUpPassword}
+                      onToggleShow={() => setShowSignUpPassword(!showSignUpPassword)}
+                      autoComplete="new-password"
+                      minLength={8}
+                      invalid={Boolean(fieldError("password"))}
+                      describedBy={describedBy("signup-password", "hint", fieldError("password"))}
+                      className={cn(SIGNUP_INPUT_CLASS, "pr-11")}
+                    />
+                  </SignupField>
+                  <SignupField id="signup-password-confirm" label="Confirm password" required error={fieldError("passwordConfirm")}>
+                    <PasswordInput
+                      id="signup-password-confirm"
+                      value={passwordConfirm}
+                      onChange={setPasswordConfirm}
+                      onBlur={touch("passwordConfirm")}
+                      show={showPasswordConfirm}
+                      onToggleShow={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                      autoComplete="new-password"
+                      minLength={8}
+                      invalid={Boolean(fieldError("passwordConfirm"))}
+                      describedBy={describedBy("signup-password-confirm", undefined, fieldError("passwordConfirm"))}
+                      className={cn(SIGNUP_INPUT_CLASS, "pr-11")}
+                    />
+                  </SignupField>
+                </SignupSection>
+
+                <SignupSection
+                  icon={Building2}
+                  title="Organisation"
+                  description={
+                    signupIsIitr
+                      ? "Your department or centre at IIT Roorkee."
+                      : signupNeedsState
+                        ? "Select your state first; the list is filtered by your category and state."
+                        : "Choose your user type above to load the list."
+                  }
+                >
+                  {signupNeedsState && (
+                    <SignupField
+                      id="signup-state-ut"
+                      label="State / Union Territory"
+                      required
+                      error={fieldError("state")}
+                    >
+                      <Popover open={stateComboboxOpen} onOpenChange={setStateComboboxOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            id="signup-state-ut"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={stateComboboxOpen}
+                            aria-invalid={Boolean(fieldError("state")) || undefined}
+                            aria-describedby={describedBy("signup-state-ut", undefined, fieldError("state"))}
+                            className={cn(SIGNUP_INPUT_CLASS, "w-full justify-between font-normal")}
+                            disabled={loadingStates}
+                          >
+                            <span className={cn(!selectedStateUt && "text-muted-foreground")}>
+                              {loadingStates
+                                ? "Loading..."
+                                : selectedStateUt
+                                  ? indianStates.find((s) => s.value === selectedStateUt)?.label ?? selectedStateUt
+                                  : "Select State / Union Territory"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search state or union territory..." className="text-base" />
+                            <CommandList>
+                              <CommandEmpty>No state or union territory found.</CommandEmpty>
+                              {(["state", "union_territory"] as const).map((kind) => {
+                                const items = indianStates.filter((s) => (s.type ?? "state") === kind);
+                                if (items.length === 0) return null;
+                                return (
+                                  <CommandGroup key={kind} heading={kind === "state" ? "States" : "Union Territories"}>
+                                    {items.map((s) => (
+                                      <CommandItem
+                                        key={s.value}
+                                        value={s.label}
+                                        className="text-base"
+                                        onSelect={() => {
+                                          setSelectedStateUt(s.value);
+                                          setStateComboboxOpen(false);
+                                        }}
+                                      >
+                                        {s.label}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                );
+                              })}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </SignupField>
+                  )}
+                  {(() => {
+                    const code = userType.includes("|") ? userType.split("|")[0] : userType;
+                    const listEmpty = departments.length === 0 && pendingOrganizationRequests.length === 0;
+                    const waitingForState = signupNeedsState && !selectedStateUt;
+                    const placeholder = !userType
+                      ? "Choose your user type first"
+                      : waitingForState
+                        ? "Select State / Union Territory first"
+                        : loadingDepartments
+                          ? "Loading..."
+                          : signupIsIitr
+                            ? "Select your department or centre"
+                            : code === "external"
+                              ? "Select department / institute"
+                              : "Select organisation";
+                    const hint = !userType || waitingForState
+                      ? undefined
+                      : !loadingDepartments && listEmpty
+                        ? code === "RND"
+                          ? "No organisations listed for this state yet. Request yours below."
+                          : "Nothing is listed for this category and state yet. Contact iic@iitr.ac.in."
+                        : signupIsIitr
+                          ? "IIT Roorkee departments and centres"
+                          : undefined;
+                    return (
+                      <SignupField
+                        id="signup-department"
+                        label={departmentLabel(signupKindValue)}
+                        required
+                        wide={!signupNeedsState}
+                        hint={hint}
+                        error={fieldError("department")}
+                      >
+                        <Select
+                          value={department}
+                          onValueChange={(value) => {
+                            setDepartment(value);
+                            if (value && !value.startsWith("req-")) {
+                              setPendingOrganizationRequestId(null);
+                              setPendingOrganizationName("");
+                            }
+                          }}
+                          disabled={loadingDepartments || !userType || waitingForState}
+                        >
+                          <SelectTrigger
+                            id="signup-department"
+                            className={SIGNUP_INPUT_CLASS}
+                            aria-invalid={Boolean(fieldError("department")) || undefined}
+                            aria-describedby={describedBy("signup-department", hint, fieldError("department"))}
+                          >
+                            <SelectValue placeholder={placeholder} />
+                          </SelectTrigger>
+                          <SelectContent>
                             {departments.map((dept) => (
-                              <SelectItem key={`dept-${dept.id}`} value={dept.id.toString()}>
+                              <SelectItem key={`dept-${dept.id}`} value={dept.id.toString()} className="text-base">
                                 <span className="flex items-center gap-2">
                                   {dept.name} {dept.code ? `(${dept.code})` : ""}
-                                  {dept.verified !== false && (
+                                  {!signupIsIitr && (code === "RND" || dept.verified !== false) && (
                                     <span className="text-xs font-medium text-green-600 dark:text-green-500">Verified</span>
                                   )}
                                 </span>
                               </SelectItem>
                             ))}
                             {pendingOrganizationRequests.map((r) => (
-                              <SelectItem key={`req-${r.id}`} value={`req-${r.id}`}>
+                              <SelectItem key={`req-${r.id}`} value={`req-${r.id}`} className="text-base">
                                 <span className="flex items-center gap-2">
                                   {r.name}
                                   <span className="text-xs font-medium text-muted-foreground">Unverified</span>
                                 </span>
                               </SelectItem>
                             ))}
-                          </>
-                        );
-                      })()}
-                    </SelectContent>
-                  </Select>
-                  {userType && (() => {
-                    const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                    const needsState = code === "external" || code === "RND" || code === "Industry";
-                    if (needsState && !selectedStateUt) {
-                      return (
-                        <p className="text-xs text-muted-foreground">
-                          {code === "RND" || code === "Industry"
-                            ? "Select State / Union Territory above to load organizations for your type and location."
-                            : "Select State / Union Territory above to load departments for your type and location."}
-                        </p>
-                      );
-                    }
-                    if (code === "RND" || code === "Industry") {
-                      const hasAny = departments.length > 0 || pendingOrganizationRequests.length > 0;
-                      if (!hasAny && !loadingDepartments && code === "RND") {
-                        return (
-                          <p className="text-xs text-muted-foreground">
-                            No organizations available for this user type and state. Request a new organization below.
-                          </p>
-                        );
-                      }
-                      if (!hasAny && !loadingDepartments && code === "Industry") {
-                        return (
-                          <p className="text-xs text-muted-foreground">
-                            No organizations available for this user type and state.
-                          </p>
-                        );
-                      }
-                    } else if (departments.length === 0 && !loadingDepartments) {
-                      return (
-                        <p className="text-xs text-muted-foreground">
-                          {code === "external"
-                            ? "No departments / institutes available for this user type and state."
-                            : "No departments available for this user type and state."}
-                        </p>
-                      );
-                    }
-                    return null;
+                          </SelectContent>
+                        </Select>
+                      </SignupField>
+                    );
                   })()}
-                  {!userType && (
-                    <p className="text-xs text-muted-foreground">
-                      Select user type to load the appropriate list
-                    </p>
-                  )}
-                </div>
-                {(() => {
-                  const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                  if (code === "RND") {
-                    return (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">
-                          Can’t find your organization in the list?
-                        </p>
-                        <div className="space-y-2 rounded-lg border border-border/70 bg-muted/30 p-3">
-                          <div className="space-y-1">
-                            <Label htmlFor="signup-org-request-name" className="text-xs font-medium text-foreground">
-                              Request new Organization name
-                            </Label>
-                            <Input
-                              id="signup-org-request-name"
-                              type="text"
-                              value={orgRequestName}
-                              onChange={(e) => setOrgRequestName(e.target.value)}
-                              placeholder="Enter full organization name"
-                              className="h-9 rounded-lg border-border/80 bg-background text-sm"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label htmlFor="signup-org-request-notes" className="text-xs font-medium text-foreground">
-                              Webpage (optional)
-                            </Label>
-                            <Input
-                              id="signup-org-request-notes"
-                              type="url"
-                              value={orgRequestNotes}
-                              onChange={(e) => setOrgRequestNotes(e.target.value)}
-                              placeholder="https://..."
-                              className="h-9 rounded-lg border-border/80 bg-background text-sm"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setOrgRequestName("");
-                                setOrgRequestNotes("");
-                              }}
-                            >
-                              Clear
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={!orgRequestName.trim() || !selectedStateUt}
-                              onClick={async () => {
-                                if (!selectedStateUt) {
-                                  toast.error("Select State/UT before requesting a new organization.");
-                                  return;
-                                }
-                                try {
-                                  const res = await apiClient.requestOrganization({
-                                    name: orgRequestName.trim(),
-                                    state: selectedStateUt,
-                                    email: email.trim() || undefined,
-                                    web_page: orgRequestNotes.trim() || undefined,
-                                  });
-                                  if (res.error) {
-                                    throw new Error(res.error);
-                                  }
-                                  const requestId = res.data?.id;
-                                  const requestedName = orgRequestName.trim();
-                                  if (requestId != null && selectedStateUt) {
-                                    setPendingOrganizationRequestId(requestId);
-                                    setPendingOrganizationName(requestedName);
-                                    setDepartment(`req-${requestId}`);
-                                    apiClient
-                                      .getDepartments("external", false, "govt_rnd", selectedStateUt)
-                                      .then((response) => {
-                                        if (response.data?.pending_organization_requests) {
-                                          setPendingOrganizationRequests(response.data.pending_organization_requests);
-                                        }
-                                      })
-                                      .catch(() => {});
-                                  }
-                                  toast.success(
-                                    requestId != null
-                                      ? `Organization "${requestedName}" requested. You can proceed with signup below using this organization; it will be linked once admin approves.`
-                                      : (res.data?.message || "Organization request submitted. Admin will review and add it to the list.")
-                                  );
-                                  setOrgRequestName("");
-                                  setOrgRequestNotes("");
-                                } catch (err: any) {
-                                  toast.error(err?.message || "Failed to submit organization request");
-                                }
-                              }}
-                            >
-                              Submit request
-                            </Button>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">
-                            Your request will be validated by an administrator. Once approved, the organization
-                            will appear in this list for all users.
-                          </p>
-                          {pendingOrganizationRequestId != null && pendingOrganizationName && (
-                            <p className="text-xs font-medium text-primary">
-                              You are signing up with requested organization: <strong>{pendingOrganizationName}</strong>. You can proceed with &quot;Create account&quot; below; your account will be linked once admin approves.
-                            </p>
-                          )}
+                  {signupKindValue === "rnd" && (
+                    <div className="space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4 md:col-span-2">
+                      <p className="text-base font-medium text-foreground">Can’t find your organisation?</p>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="signup-org-request-name" className="text-sm font-medium text-foreground">
+                            Organisation name
+                          </Label>
+                          <Input
+                            id="signup-org-request-name"
+                            type="text"
+                            value={orgRequestName}
+                            onChange={(e) => setOrgRequestName(e.target.value)}
+                            placeholder="Full organisation name"
+                            className="h-11 rounded-xl border-border/80 bg-background text-base"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="signup-org-request-notes" className="text-sm font-medium text-foreground">
+                            Website (optional)
+                          </Label>
+                          <Input
+                            id="signup-org-request-notes"
+                            type="url"
+                            value={orgRequestNotes}
+                            onChange={(e) => setOrgRequestNotes(e.target.value)}
+                            placeholder="https://..."
+                            className="h-11 rounded-xl border-border/80 bg-background text-base"
+                          />
                         </div>
                       </div>
-                    );
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-sm text-muted-foreground">
+                          An administrator checks the request; you can finish registering meanwhile.
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setOrgRequestName("");
+                              setOrgRequestNotes("");
+                            }}
+                          >
+                            Clear
+                          </Button>
+                          <Button
+                            type="button"
+                            disabled={!orgRequestName.trim() || !selectedStateUt}
+                            onClick={async () => {
+                              if (!selectedStateUt) {
+                                toast.error("Select State/UT before requesting a new organization.");
+                                return;
+                              }
+                              try {
+                                const res = await apiClient.requestOrganization({
+                                  name: orgRequestName.trim(),
+                                  state: selectedStateUt,
+                                  email: email.trim() || undefined,
+                                  web_page: orgRequestNotes.trim() || undefined,
+                                });
+                                if (res.error) {
+                                  throw new Error(res.error);
+                                }
+                                const requestId = res.data?.id;
+                                const requestedName = orgRequestName.trim();
+                                if (requestId != null && selectedStateUt) {
+                                  setPendingOrganizationRequestId(requestId);
+                                  setPendingOrganizationName(requestedName);
+                                  setDepartment(`req-${requestId}`);
+                                  apiClient
+                                    .getDepartments("external", false, "govt_rnd", selectedStateUt)
+                                    .then((response) => {
+                                      if (response.data?.pending_organization_requests) {
+                                        setPendingOrganizationRequests(response.data.pending_organization_requests);
+                                      }
+                                    })
+                                    .catch(() => {});
+                                }
+                                toast.success(
+                                  requestId != null
+                                    ? `Organization "${requestedName}" requested. You can proceed with signup below using this organization; it will be linked once admin approves.`
+                                    : (res.data?.message || "Organization request submitted. Admin will review and add it to the list.")
+                                );
+                                setOrgRequestName("");
+                                setOrgRequestNotes("");
+                              } catch (err) {
+                                toast.error(err instanceof Error && err.message ? err.message : "Failed to submit organization request");
+                              }
+                            }}
+                          >
+                            Submit request
+                          </Button>
+                        </div>
+                      </div>
+                      {pendingOrganizationRequestId != null && pendingOrganizationName && (
+                        <p className="text-sm font-medium text-primary">
+                          Registering with requested organisation <strong>{pendingOrganizationName}</strong>. It is linked to your account once approved.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </SignupSection>
+
+                <SignupSection
+                  icon={UserCheck}
+                  title={signupIsIitr ? "Supervisor and validity" : "Validity"}
+                  description={
+                    signupIsIitr
+                      ? "Your supervisor gets an email with Approve and Decline buttons and has 24 hours to decide."
+                      : "Your access to the portal ends on this date."
                   }
-                  return null;
-                })()}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-program-end-date" className="text-foreground font-medium">
-                    Current Program/Employment Validity <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
+                >
+                  <SignupField
                     id="signup-program-end-date"
-                    type="date"
-                    value={programEndDate}
-                    onChange={(e) => setProgramEndDate(e.target.value)}
+                    label="Programme or employment end date"
                     required
-                    className="h-11 rounded-xl border-border/80 bg-background"
-                  />
-                </div>
-                {needsSupervisor() && (
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-supervisor" className="text-foreground font-medium">Supervisor (IITR Internal Faculty)</Label>
-                    <p className="text-xs text-muted-foreground">Search by name or email. Select your supervisor.</p>
-                    {supervisorDisplay ? (
-                      <div className="rounded-xl border border-border/80 bg-muted/40 p-3 space-y-1">
-                        <p className="font-medium text-sm">{supervisorDisplay.name}</p>
-                        <p className="text-xs text-muted-foreground">Department: {supervisorDisplay.department || "—"}</p>
-                        <p className="text-xs text-muted-foreground">Email: {supervisorDisplay.email}</p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg mt-1"
-                          onClick={() => {
-                            setSupervisorId("");
-                            setSupervisorDisplay(null);
-                            setFacultySearchQuery("");
-                            setFacultySearchResults([]);
-                          }}
-                        >
-                          Change
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Input
-                          id="signup-supervisor"
-                          type="text"
-                          placeholder="Search by supervisor name or email..."
-                          value={facultySearchQuery}
-                          onChange={(e) => setFacultySearchQuery(e.target.value)}
-                          className="h-11 rounded-xl border-border/80 bg-background mb-1"
-                        />
-                        {loadingFacultySearch && (
-                          <p className="text-xs text-muted-foreground">Searching...</p>
-                        )}
-                        {facultySearchResults.length > 0 && (
-                          <div className="border border-border/80 rounded-xl divide-y divide-border/80 max-h-48 overflow-y-auto">
-                            {facultySearchResults.map((f) => (
-                              <button
-                                key={f.id}
-                                type="button"
-                                className="w-full text-left px-3 py-2.5 hover:bg-muted/60 transition-colors"
-                                onClick={() => {
-                                  setSupervisorId(f.id);
-                                  setSupervisorDisplay(f);
-                                  setFacultySearchQuery("");
-                                  setFacultySearchResults([]);
-                                }}
-                              >
-                                <p className="font-medium text-sm">{f.name}</p>
-                                <p className="text-xs text-muted-foreground">{f.department || "—"} · {f.email}</p>
-                              </button>
-                            ))}
+                    hint={signupIsIitr ? "Access ends on this date; your supervisor can extend it later." : "You can request an extension later."}
+                    error={fieldError("programEndDate")}
+                  >
+                    <Input
+                      id="signup-program-end-date"
+                      type="date"
+                      min={todayIso}
+                      value={programEndDate}
+                      onChange={(e) => setProgramEndDate(e.target.value)}
+                      onBlur={touch("programEndDate")}
+                      aria-invalid={Boolean(fieldError("programEndDate")) || undefined}
+                      aria-describedby={describedBy("signup-program-end-date", "hint", fieldError("programEndDate"))}
+                      className={SIGNUP_INPUT_CLASS}
+                    />
+                  </SignupField>
+                  {signupIsIitr && (
+                    <SignupField
+                      id="signup-supervisor"
+                      label={supervisorLabel(signupKindValue)}
+                      required
+                      wide
+                      hint={supervisorDisplay ? undefined : "Search by name or email (at least 2 letters)."}
+                      error={fieldError("supervisor")}
+                    >
+                      {supervisorDisplay ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                          <div className="min-w-0">
+                            <p className="text-base font-medium">{supervisorDisplay.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {supervisorDisplay.department || "—"} · {supervisorDisplay.email}
+                            </p>
                           </div>
-                        )}
-                        {facultySearchQuery.length >= 2 && !loadingFacultySearch && facultySearchResults.length === 0 && (
-                          <p className="text-xs text-muted-foreground">No faculty found. Try a different search.</p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-profile-picture" className="text-foreground font-medium">
-                    Profile Picture <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="space-y-3">
-                    {profilePicturePreview && (
-                      <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-primary/50 shadow-md">
-                        <img
-                          src={profilePicturePreview}
-                          alt="Profile preview"
-                          className="w-full h-full object-cover"
-                        />
-                        <Button
-                          aria-label="Remove profile picture"
-                          title="Remove profile picture"
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="absolute top-0 right-0 h-6 w-6 rounded-full p-0"
-                          onClick={() => {
-                            setProfilePicture(null);
-                            setProfilePicturePreview(null);
-                          }}
-                        >
-                          <X className="h-3 w-3" aria-hidden />
-                        </Button>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-lg"
+                            onClick={() => {
+                              setSupervisorId("");
+                              setSupervisorDisplay(null);
+                              setFacultySearchQuery("");
+                              setFacultySearchResults([]);
+                            }}
+                          >
+                            Change
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="relative">
+                            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                            <Input
+                              id="signup-supervisor"
+                              type="search"
+                              autoComplete="off"
+                              placeholder="Search faculty by name or email"
+                              value={facultySearchQuery}
+                              onChange={(e) => setFacultySearchQuery(e.target.value)}
+                              onBlur={touch("supervisor")}
+                              aria-invalid={Boolean(fieldError("supervisor")) || undefined}
+                              aria-describedby={describedBy("signup-supervisor", "hint", fieldError("supervisor"))}
+                              className={cn(SIGNUP_INPUT_CLASS, "pl-10")}
+                            />
+                          </div>
+                          {loadingFacultySearch && <p className="text-sm text-muted-foreground">Searching…</p>}
+                          {facultySearchResults.length > 0 && (
+                            <ul className="max-h-56 divide-y divide-border/80 overflow-y-auto rounded-xl border border-border/80" aria-label="Matching faculty">
+                              {facultySearchResults.map((f) => (
+                                <li key={f.id}>
+                                  <button
+                                    type="button"
+                                    className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/60 focus:bg-muted/60 focus:outline-none"
+                                    onClick={() => {
+                                      setSupervisorId(f.id);
+                                      setSupervisorDisplay(f);
+                                      setFacultySearchQuery("");
+                                      setFacultySearchResults([]);
+                                    }}
+                                  >
+                                    <p className="text-base font-medium">{f.name}</p>
+                                    <p className="text-sm text-muted-foreground">{f.department || "—"} · {f.email}</p>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {facultySearchQuery.length >= 2 && !loadingFacultySearch && facultySearchResults.length === 0 && (
+                            <p className="text-sm text-muted-foreground">No faculty found. Try a different name or email.</p>
+                          )}
+                        </div>
+                      )}
+                    </SignupField>
+                  )}
+                </SignupSection>
+
+                <SignupSection
+                  icon={Paperclip}
+                  title={signupKycRequired ? "Documents" : "Documents (optional)"}
+                  description={
+                    signupKycRequired
+                      ? "With a public email, the signed IIT Roorkee KYC form is required."
+                      : "You can skip this section and add a profile picture later from your profile."
+                  }
+                >
+                  <SignupField id="signup-profile-picture" label="Profile picture" optional hint="You can add it later from your profile. JPG, PNG, GIF or WEBP.">
+                    <div className="flex items-center gap-4">
+                      {profilePicturePreview ? (
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border-2 border-primary/50 shadow-sm">
+                          <img src={profilePicturePreview} alt="Profile preview" className="h-full w-full object-cover" />
+                          <Button
+                            aria-label="Remove profile picture"
+                            title="Remove profile picture"
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute right-0 top-0 h-5 w-5 rounded-full p-0"
+                            onClick={() => {
+                              setProfilePicture(null);
+                              setProfilePicturePreview(null);
+                            }}
+                          >
+                            <X className="h-3 w-3" aria-hidden />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-border/80 bg-muted/50">
+                          <User className="h-7 w-7 text-muted-foreground" aria-hidden />
+                        </div>
+                      )}
                       <Input
                         id="signup-profile-picture"
                         type="file"
                         accept="image/*"
+                        aria-describedby="signup-profile-picture-hint"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            if (!file.type.startsWith('image/')) {
+                            if (!file.type.startsWith("image/")) {
                               toast.error("Please select an image file");
                               return;
                             }
@@ -2205,150 +2156,142 @@ const Auth = () => {
                             reader.readAsDataURL(file);
                           }
                         }}
-                        className="cursor-pointer file:rounded-lg file:border-0 file:bg-primary file:text-primary-foreground file:text-sm file:font-medium"
-                        required
+                        className="h-12 cursor-pointer rounded-xl pt-2.5 text-base file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1 file:text-sm file:font-medium file:text-primary-foreground"
                       />
-                      {!profilePicturePreview && (
-                        <div className="flex items-center justify-center w-24 h-24 border-2 border-dashed border-border/80 rounded-full bg-muted/50">
-                          <User className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground">JPG, PNG, GIF, or WEBP</p>
-                  </div>
-                </div>
-                {(() => {
-                  const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                  const showKycSection = (code === "external" || code === "RND") && isPublicEmailDomain(email);
-                  return showKycSection ? (
-                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30 p-4 space-y-2">
-                      <p className="text-sm font-semibold text-foreground">KYC form required (public email)</p>
-                      <p className="text-xs text-muted-foreground">
-                        Download the IIT Roorkee KYC form below, fill it, sign it, and upload a scan of the signed form. One of your document uploads must be this KYC form with type &quot;KYC Form (signed &amp; scanned)&quot;.
-                      </p>
+                  </SignupField>
+                  <SignupField
+                    id="signup-documents"
+                    label={
+                      signupIsIitr
+                        ? "Proof of employment or enrolment in a programme"
+                        : signupKycRequired
+                          ? "Signed KYC form (scan)"
+                          : "Supporting documents"
+                    }
+                    required={signupKycRequired}
+                    optional={!signupKycRequired}
+                    hint={
+                      signupIsIitr
+                        ? "For example an appointment letter, project offer letter or incubation letter. Images, PDF, DOC or DOCX."
+                        : signupKycRequired
+                          ? "Download the IIT Roorkee KYC form, sign it and upload the scan, or register with your institution email instead."
+                          : "Only needed with a public email such as Gmail or Yahoo. Images, PDF, DOC or DOCX."
+                    }
+                    error={fieldError("documents")}
+                  >
+                    <Input
+                      id="signup-documents"
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx"
+                      aria-invalid={Boolean(fieldError("documents")) || undefined}
+                      aria-describedby={describedBy("signup-documents", "hint", fieldError("documents"))}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        const errors: string[] = [];
+                        const validFiles: File[] = [];
+                        files.forEach((file) => {
+                          const fileExtension = file.name.split(".").pop()?.toLowerCase();
+                          const validExtensions = ["jpg", "jpeg", "png", "gif", "webp", "pdf", "doc", "docx"];
+                          const isValidImage = file.type.startsWith("image/");
+                          const isValidPdf = file.type === "application/pdf";
+                          const isValidDoc =
+                            file.type === "application/msword" ||
+                            file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                          if (isValidImage || isValidPdf || isValidDoc || (fileExtension && validExtensions.includes(fileExtension))) {
+                            validFiles.push(file);
+                          } else {
+                            errors.push(`${file.name}: Invalid file type. Only images, PDF, and DOC files are allowed.`);
+                          }
+                        });
+                        if (errors.length > 0) {
+                          setDocumentErrors(errors);
+                          toast.error(errors[0]);
+                        } else {
+                          setDocumentErrors([]);
+                          setDocuments((prev) => [...prev, ...validFiles]);
+                        }
+                        e.target.value = "";
+                      }}
+                      className="h-12 cursor-pointer rounded-xl pt-2.5 text-base file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium"
+                    />
+                    {signupKycRequired && (
                       <a
                         href="/IIC_IIT_Roorkee_KYC_Form.pdf"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                       >
-                        <FileText className="h-4 w-4" />
+                        <FileText className="h-4 w-4" aria-hidden />
                         Download IIT Roorkee KYC Form (PDF)
                       </a>
-                    </div>
-                  ) : null;
-                })()}
-                <div className="space-y-2">
-                  <Label htmlFor="signup-documents" className="text-foreground font-medium">
-                    Upload KYC
-                    {(() => {
-                      const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                      if ((code === "external" || code === "RND") && isPublicEmailDomain(email)) {
-                        return <span className="text-destructive"> *</span>;
-                      }
-                      return "";
-                    })()}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Only required if public emails (e.g. Gmail, Yahoo) are used for registration.
-                  </p>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        id="signup-documents"
-                        type="file"
-                        multiple
-                        accept="image/*,.pdf,.doc,.docx"
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          const errors: string[] = [];
-                          const validFiles: File[] = [];
-                          
-                          files.forEach((file) => {
-                            const fileExtension = file.name.split('.').pop()?.toLowerCase();
-                            const validExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx'];
-                            const isValidImage = file.type.startsWith('image/');
-                            const isValidPdf = file.type === 'application/pdf';
-                            const isValidDoc = file.type === 'application/msword' || 
-                                             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                            
-                            if (isValidImage || isValidPdf || isValidDoc || (fileExtension && validExtensions.includes(fileExtension))) {
-                              validFiles.push(file);
-                            } else {
-                              errors.push(`${file.name}: Invalid file type. Only images, PDF, and DOC files are allowed.`);
-                            }
-                          });
-                          
-                          if (errors.length > 0) {
-                            setDocumentErrors(errors);
-                            toast.error(errors[0]);
-                          } else {
-                            setDocumentErrors([]);
-                            setDocuments((prev) => [...prev, ...validFiles]);
-                          }
-                          
-                          // Reset input
-                          e.target.value = '';
-                        }}
-                        className="cursor-pointer"
-                      />
-                    </div>
+                    )}
                     {documents.length > 0 && (
-                      <div className="space-y-3">
+                      <ul className="space-y-2">
                         {documents.map((file, index) => (
-                          <div
-                            key={index}
-                            className="p-3 rounded-xl border border-border/80 bg-muted/30 space-y-2"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                <span className="text-sm truncate">{file.name}</span>
-                                <span className="text-xs text-muted-foreground flex-shrink-0">
-                                  ({(file.size / 1024).toFixed(1)} KB)
-                                </span>
-                              </div>
-                              <Button
-                                aria-label="Remove document"
-                                title="Remove document"
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 flex-shrink-0 rounded-lg"
-                                onClick={() => {
-                                  setDocuments((prev) => prev.filter((_, i) => i !== index));
-                                }}
-                              >
-                                <X className="h-4 w-4" aria-hidden />
-                              </Button>
-                            </div>
-                          </div>
+                          <li key={index} className="flex items-center justify-between gap-2 rounded-xl border border-border/80 bg-muted/30 px-3 py-2">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                              <span className="truncate text-sm">{file.name}</span>
+                              <span className="shrink-0 text-xs text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span>
+                            </span>
+                            <Button
+                              aria-label={`Remove ${file.name}`}
+                              title="Remove document"
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 shrink-0 rounded-lg p-0"
+                              onClick={() => setDocuments((prev) => prev.filter((_, i) => i !== index))}
+                            >
+                              <X className="h-4 w-4" aria-hidden />
+                            </Button>
+                          </li>
                         ))}
-                      </div>
+                      </ul>
                     )}
                     {documentErrors.length > 0 && (
-                      <div className="text-xs text-destructive space-y-1">
+                      <div className="space-y-1 text-sm text-destructive">
                         {documentErrors.map((error, index) => (
                           <p key={index}>{error}</p>
                         ))}
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {(() => {
-                        const code = userType.includes("|") ? userType.split("|")[0] : userType;
-                        const required = (code === "external" || code === "RND") && isPublicEmailDomain(email);
-                        return required
-                          ? "Required: upload a scan of the signed KYC form (select 'KYC Form (signed & scanned)' as type). Use your institution/organization email to skip this."
-                          : "Images, PDF, DOC, DOCX";
-                      })()}
+                  </SignupField>
+                </SignupSection>
+
+                <div className="space-y-3 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+                  {signupSubmitAttempted && Object.keys(signupErrors).length > 0 && (
+                    <p role="alert" className="flex items-center gap-2 text-sm font-medium text-destructive">
+                      <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+                      Please check the {Object.keys(signupErrors).length === 1 ? "highlighted field" : `${Object.keys(signupErrors).length} highlighted fields`}.
                     </p>
-                  </div>
+                  )}
+                  {signupIsIitr && (
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      After you verify your email, your request goes to your supervisor, who has 24 hours to approve it.
+                    </p>
+                  )}
+                  <Button type="submit" className="h-12 w-full rounded-xl text-base font-semibold" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                        Creating account…
+                      </>
+                    ) : (
+                      "Create account"
+                    )}
+                  </Button>
+                  <p className="text-center text-sm text-muted-foreground">
+                    Already registered?{" "}
+                    <button type="button" className="font-medium text-primary hover:underline" onClick={() => setActiveTab("signin")}>
+                      Sign in
+                    </button>
+                  </p>
                 </div>
-                </div>
-                <Button type="submit" className="w-full h-11 rounded-xl font-medium" disabled={loading}>
-                  {loading ? "Creating account..." : "Create account"}
-                </Button>
               </form>
+              )}
             </TabsContent>
           </Tabs>
         </div>

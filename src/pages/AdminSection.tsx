@@ -151,7 +151,7 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
-  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "startup_incubated_iitr", label: "IITR Startup" },
   { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "other", label: "Other" },
 ];
@@ -169,12 +169,11 @@ const USER_TYPE_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "external", label: "External (Educational Institute)" },
   { value: "RND", label: "Govt R&D Organizations" },
   { value: "Industry", label: "Industry" },
-  { value: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { value: "startup_incubated_iitr", label: "IITR Startup" },
   { value: "external_startup_msme", label: "External Startup/MSME" },
   { value: "other", label: "Other" },
   { value: "student|IITR Post Doctoral Fellows", label: "IITR Post Doctoral Fellows" },
   { value: "student|IITR Research Associates in Projects", label: "IITR Research Associates in Projects" },
-  { value: "individual_student|IITR Startups", label: "IITR Startups" },
 ];
 
 export default function AdminSection() {

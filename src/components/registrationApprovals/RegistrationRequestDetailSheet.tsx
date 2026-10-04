@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Textarea } from "@/components/ui/textarea";
 import { apiClient } from "@/lib/api";
 import type { RegistrationExtension, RegistrationPerson, RegistrationRequestDetail } from "@/lib/registrationApprovalTypes";
+import { formatDeadlineIst } from "@/lib/registrationDeadline";
 import {
   EventTimeline,
   ExtensionStatusBadge,
@@ -251,10 +252,16 @@ export default function RegistrationRequestDetailSheet({ userId, onClose, onChan
                 </Button>
               ) : null}
               {d.status === "pending_faculty" ? (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => runUserAction("remind")}>
-                  <Mail className="mr-1.5 h-4 w-4" />
-                  Resend reminder
-                </Button>
+                <>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => runUserAction("remind")} title="Same deadline">
+                    <Mail className="mr-1.5 h-4 w-4" />
+                    Resend reminder
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => runUserAction("forward")} title="Starts a new decision window">
+                    <Send className="mr-1.5 h-4 w-4" />
+                    Send again (new window)
+                  </Button>
+                </>
               ) : null}
               {d.claims_iitr && d.status !== "approved" ? (
                 <Button size="sm" variant="outline" disabled={busy} onClick={() => openAction("faculty")}>
@@ -282,6 +289,9 @@ export default function RegistrationRequestDetailSheet({ userId, onClose, onChan
                 <AlertDescription>
                   With {d.approval.faculty?.name || "the faculty member"} since {formatMoment(d.approval.forwarded_at)}
                   {d.approval.first_viewed_at ? `; first opened ${formatMoment(d.approval.first_viewed_at)}` : "; not opened yet"}.
+                  {d.approval.decision_deadline
+                    ? ` Decision due by ${formatDeadlineIst(d.approval.decision_deadline)}; after that it is treated as declined and the pending account removed. A reminder keeps this deadline; Send again starts a new window.`
+                    : " Sent before the decision window was introduced, so it does not time out."}{" "}
                   Approving or rejecting here overrides the faculty decision and is logged as an override.
                 </AlertDescription>
               </Alert>

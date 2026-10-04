@@ -32,6 +32,7 @@ vi.mock("@/lib/api", () => {
             programme_validity: "2027-01-01",
             registered_at: null,
             forwarded_at: null,
+            decision_deadline: new Date(Date.now() + 5 * 3600 * 1000).toISOString(),
             decided_at: null,
             decision_reason: "",
             disclaimer_text: "",
@@ -116,13 +117,14 @@ describe("Registration approvals (faculty)", () => {
     expect(submitButtons()[1].disabled).toBe(true);
   });
 
-  it("needs a reason to disapprove", async () => {
+  it("needs a reason to decline and shows the response deadline", async () => {
     render(
       <MemoryRouter>
         <RegistrationApprovals />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Disapprove" }));
+    expect(await screen.findByText(/Please respond by/)).toBeTruthy();
+    fireEvent.click((await screen.findAllByRole("button", { name: "Decline" }))[0]);
     const [registrationSubmit] = submitButtons();
     expect(registrationSubmit.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Reason (emailed to the user)"), { target: { value: "Not in my group" } });

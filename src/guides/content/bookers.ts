@@ -31,12 +31,14 @@ function gettingStartedSection(g: Gate): GuideSection {
       g.when(!campus, {
         title: "Register",
         body: g.is("startup")
-          ? "Choose Startup Incubated at IIT Roorkee or External Startup/MSME, then fill in your organisation details."
+          ? "Choose IITR Startup or External Startup/MSME, then fill in your organisation details."
           : "Choose your user category and fill in your organisation details, including GST where applicable.",
       }),
       g.when(!campus, {
         title: "Upload documents",
-        body: "With a public email (such as Gmail), click Download IIT Roorkee KYC Form (PDF), sign it and upload the scan as KYC Form (signed & scanned). An institution email skips this.",
+        body: g.is("project_staff", "startup")
+          ? "Optional: upload proof of employment or enrolment in a programme. Your profile picture is also optional and can be added later from My Profile."
+          : "With a public email (such as Gmail), click Download IIT Roorkee KYC Form (PDF), sign it and upload the scan as KYC Form (signed & scanned). An institution email skips this. Your profile picture is optional and can be added later from My Profile.",
       }),
       g.when(!campus, {
         title: "Wait for verification",
@@ -49,8 +51,8 @@ function gettingStartedSection(g: Gate): GuideSection {
       g.when(g.is("project_staff", "startup"), {
         title: "Registered with email?",
         body: g.is("startup")
-          ? "If you registered as Startup Incubated at IIT Roorkee, the Main Administrator may ask an IIT Roorkee faculty member to confirm your registration. You are emailed when it is approved."
-          : "If you registered with email instead of Channel i, the faculty member you chose at registration must approve your account. You are emailed when they approve; the Sign in page names them while it is pending.",
+          ? "If you registered as IITR Startup, the IITR faculty member who mentors your startup must approve within 24 hours of receiving the request. If they decline or do not respond in time, the request is cancelled and you can register again. You are emailed at each step."
+          : "If you registered with email instead of Channel i, the faculty member you chose at registration must approve within 24 hours of receiving the request. If they decline or do not respond in time, the request is cancelled and you can register again. You are emailed at each step; the Sign in page names them while it is pending.",
       }),
       g.when(g.is("project_staff", "startup"), {
         title: "Programme validity and extensions",
@@ -103,7 +105,7 @@ function studentsSection(g: Gate): GuideSection {
       },
       {
         title: "Registration approvals",
-        body: "When someone registers with email (a post-doctoral fellow, research associate or incubated startup) and names you as their faculty, you get an email and an item under Pending actions. Open Registration approvals, check their details and programme validity, tick the confirmation that they work under you and the details are correct to the best of your knowledge, then click Approve, or Disapprove with a reason.",
+        body: "When someone registers with email (a post-doctoral fellow, research associate or IITR Startup) and names you as their faculty, you get an email with Approve and Decline buttons; no sign-in is needed. Check their details, tick the confirmation that they work under you and the details are correct to the best of your knowledge, then Approve, or Decline with a reason. Please respond within 24 hours: after that the request is treated as declined and they can register again. The request is also listed under Registration approvals.",
       },
       {
         title: "Programme extensions",

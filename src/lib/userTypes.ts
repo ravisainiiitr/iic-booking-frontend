@@ -57,7 +57,7 @@ export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   external: "Educational Institute",
   rnd: "Govt R&D Organizations",
   industry: "Industry",
-  startup_incubated_iitr: "Startup Incubated at IIT Roorkee",
+  startup_incubated_iitr: "IITR Startup",
   external_startup_msme: "External Startup/MSME",
   other: "Other",
 };
@@ -90,7 +90,7 @@ export const CHARGE_ESTIMATE_USER_TYPE_OPTIONS: ReadonlyArray<{ code: string; la
   { code: "external", label: "Educational Institute" },
   { code: "rnd", label: "Govt R&D Organizations" },
   { code: "industry", label: "Industry" },
-  { code: "startup_incubated_iitr", label: "Startup Incubated at IIT Roorkee" },
+  { code: "startup_incubated_iitr", label: "IITR Startup" },
   { code: "external_startup_msme", label: "External Startup/MSME" },
 ];
 

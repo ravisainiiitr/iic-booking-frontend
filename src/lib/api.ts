@@ -23,6 +23,8 @@ import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
+  EmailDecisionItem,
+  EmailDecisionResult,
   FacultyApprovalsOverview,
   FacultyDecisionInput,
   FacultyRegistrationRequest,
@@ -2982,6 +2984,25 @@ class ApiClient {
     });
   }
 
+  async getEmailDecisionRequest(token: string) {
+    return this.request<{ item: EmailDecisionItem }>(
+      `/registration-approvals/email-decision/?token=${encodeURIComponent(token)}`,
+    );
+  }
+
+  async submitEmailDecision(body: {
+    token: string;
+    decision: "approve" | "decline";
+    reason?: string;
+    disclaimer_accepted?: boolean;
+    disclaimer_version?: string;
+  }) {
+    return this.request<EmailDecisionResult>("/registration-approvals/email-decision/", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
   async decideFacultyExtension(extId: number, body: FacultyDecisionInput) {
     return this.request<{ message: string; item: RegistrationExtension }>(`/registration-approvals/extensions/${extId}/decide/`, {
       method: "POST",
@@ -3030,7 +3051,15 @@ class ApiClient {
 
   /** Self-verification: accept (activate account) or reject (remove registration). */
   async selfVerifyAction(uidb64: string, token: string, action: 'accept' | 'reject') {
-    return this.request<{ message: string; email_verified?: boolean; admin_approved?: boolean }>(
+    return this.request<{
+      message: string;
+      email_verified?: boolean;
+      admin_approved?: boolean;
+      pending_faculty?: boolean;
+      supervisor_name?: string;
+      decision_window_hours?: number;
+      decision_deadline?: string | null;
+    }>(
       `/auth/self-verify/${encodeURIComponent(uidb64)}/${encodeURIComponent(token)}/`,
       { method: 'POST', body: JSON.stringify({ action }) }
     );
