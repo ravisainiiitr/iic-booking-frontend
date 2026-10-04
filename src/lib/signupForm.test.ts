@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupUserTypes,
   iitrDepartmentOptions,
+  matchesDepartmentSearch,
   requirementsFor,
   signupKind,
   validateSignup,
@@ -128,6 +129,16 @@ describe("iitrDepartmentOptions", () => {
     expect(ids).not.toContain(4);
     expect(ids).not.toContain(5);
     expect(ids).not.toContain(8);
+  });
+
+  it("searches by words in the name or code, not by scattered letters", () => {
+    const options = iitrDepartmentOptions(rows);
+    const search = (q: string) => options.filter((d) => matchesDepartmentSearch(d, q)).map((d) => d.id);
+    expect(search("centre")).toEqual([7, 2]);
+    expect(search("CENTRE nano")).toEqual([7]);
+    expect(search("ph")).toEqual([1]);
+    expect(search("  ")).toEqual([6, 7, 2, 1]);
+    expect(search("xyz")).toEqual([]);
   });
 
   it("does not truncate long lists", () => {

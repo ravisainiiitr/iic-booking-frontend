@@ -117,6 +117,16 @@ export function iitrDepartmentOptions<T extends IitrDepartmentRow>(rows: T[]): T
     .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 }
 
+/** Department search: every typed word must appear in the name or code (case-insensitive). */
+export function matchesDepartmentSearch(row: { name: string; code?: string | null }, query: string): boolean {
+  const haystack = `${row.name} ${row.code ?? ""}`.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => haystack.includes(word));
+}
+
 export function supervisorLabel(kind: SignupKind | null): string {
   return kind === "iitr_startup" ? "IITR Faculty mentor" : "IITR Faculty supervisor";
 }
