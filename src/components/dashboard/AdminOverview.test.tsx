@@ -104,10 +104,11 @@ describe("AdminOverview", () => {
     expect(onOpen).toHaveBeenLastCalledWith("/admin-settings/wallet-recharge-requests");
   });
 
-  it("shows the dashboard notices between the header and the figures", async () => {
-    render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} notices={<p>Notice slot</p>} />);
+  it("shows the tip of the day between the header and the figures, without a separate attention bar", async () => {
+    render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} notices={<p>Tip slot</p>} />);
     const header = await screen.findByText("Administration overview");
-    const notice = screen.getByText("Notice slot");
+    const notice = screen.getByText("Tip slot");
+    expect(screen.queryByText(/Needs your attention/)).toBeNull();
     const firstKpi = screen.getByText("Sessions today");
     expect(header.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(notice.compareDocumentPosition(firstKpi) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

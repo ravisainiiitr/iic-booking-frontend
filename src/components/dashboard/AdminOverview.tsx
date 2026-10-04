@@ -34,7 +34,7 @@ interface AdminOverviewProps {
   onOpen: (path: string) => void;
   /** True when the signed-in user has a menu entry for this page (links are only shown for those). */
   canOpen: (path: string) => boolean;
-  /** Dashboard notices shown between the overview header and the figures. */
+  /** Dashboard notices (the tip of the day) shown between the overview header and the figures. */
   notices?: ReactNode;
 }
 
