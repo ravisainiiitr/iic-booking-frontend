@@ -123,8 +123,17 @@ export interface AnalysisSyncStatus {
   poll_after_ms: number | null;
 }
 
+export type PcItemKind = "folder" | "file";
+
+/** A folder or single file on the Analysis PC chosen to be copied when the session ends. */
+export interface PcChosenItem {
+  path: string;
+  kind: PcItemKind;
+}
+
 export interface AnalysisExtraFolder {
   path: string;
+  kind?: PcItemKind;
   alias?: string;
   files?: number;
   bytes?: number;
@@ -133,6 +142,9 @@ export interface AnalysisExtraFolder {
 
 /** Agent capability: result folders can be chosen anywhere on the Analysis PC when the session ends. */
 export const PC_FOLDERS_CAPABILITY = "extra_sources_v1";
+
+/** Agent capability: single files can be chosen too (and up to 50 items). */
+export const PC_FILES_CAPABILITY = "extra_files_v1";
 
 export interface PcFolderEntry {
   name: string;
@@ -144,8 +156,11 @@ export interface PcFolderEntry {
 
 export interface PcFileEntry {
   name: string;
+  /** Sent by agents that let single files be chosen. */
+  path?: string;
   size: number;
   modified?: string | null;
+  can_select?: boolean;
 }
 
 export interface PcFolderListing {

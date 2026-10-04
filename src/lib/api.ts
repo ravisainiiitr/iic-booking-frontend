@@ -90,6 +90,7 @@ import type {
   AnalysisSyncStatus,
   AnalysisViewport,
   PcBrowseResult,
+  PcChosenItem,
 } from "@/lib/analysisSetupTypes";
 
 // API client for Django REST API
@@ -7621,7 +7622,7 @@ class ApiClient {
   }
 
   /** `extraFolders` (agents with extra_sources_v1): folders on the Analysis PC to copy and then remove. */
-  async endBookingAnalysis(bookingId: number, reason = 'Finished early by user', extraFolders?: string[]) {
+  async endBookingAnalysis(bookingId: number, reason = 'Finished early by user', extraFolders?: PcChosenItem[]) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/end/`, {
       method: 'POST',
       body: JSON.stringify(extraFolders ? { reason, extra_folders: extraFolders } : { reason }),
@@ -7644,8 +7645,8 @@ class ApiClient {
   }
 
   /** Result folders collected when the session ends (also when it ends on the timer). */
-  async setPcFolders(bookingId: number, folders: string[]) {
-    return this.request<{ folders: string[] }>(`/v1/bookings/${bookingId}/analysis/pc-folders/`, {
+  async setPcFolders(bookingId: number, folders: PcChosenItem[]) {
+    return this.request<{ folders: string[]; items: PcChosenItem[] }>(`/v1/bookings/${bookingId}/analysis/pc-folders/`, {
       method: 'PUT',
       body: JSON.stringify({ folders }),
     });

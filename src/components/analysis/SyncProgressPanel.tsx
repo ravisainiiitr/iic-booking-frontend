@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, ExternalLink, Folder, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, FileText, Folder, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import type { AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
@@ -95,16 +95,19 @@ function ExtraFolders({ status }: { status: AnalysisSyncStatus }) {
   const folders = status.extra_folders ?? [];
   if (!folders.length) return null;
   return (
-    <ul className="mt-3 space-y-1.5 border-t border-current/10 pt-2.5" aria-label="Result folders" data-testid="extra-folders">
+    <ul className="mt-3 space-y-1.5 border-t border-current/10 pt-2.5" aria-label="Chosen results" data-testid="extra-folders">
       {folders.map((f) => {
         const s = folderState(f, status);
         const name = f.alias || folderName(f.path);
+        const isFile = f.kind === "file";
         return (
           <li key={f.path} className="flex items-start gap-2 text-xs">
             {s.tone === "done" ? (
               <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
             ) : s.tone === "warn" ? (
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
+            ) : isFile ? (
+              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
             ) : (
               <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
             )}
@@ -114,7 +117,7 @@ function ExtraFolders({ status }: { status: AnalysisSyncStatus }) {
                 {f.files != null && f.alias ? (
                   <span className="opacity-75">
                     {" "}
-                    · {plural(f.files, "file")} · {formatBytes(f.bytes ?? 0)}
+                    · {isFile ? formatBytes(f.bytes ?? 0) : `${plural(f.files, "file")} · ${formatBytes(f.bytes ?? 0)}`}
                   </span>
                 ) : null}
               </p>

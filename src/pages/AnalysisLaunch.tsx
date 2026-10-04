@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import { PC_FOLDERS_CAPABILITY, type AnalysisSetup, type AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
+import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup, type AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
 import {
   describeSync,
   isMissingEndpoint,
@@ -389,6 +389,7 @@ export default function AnalysisLaunchPage() {
   }, [remaining]);
 
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
+  const filesSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY));
 
   const endAnalysis = async () => {
     if (pickerSupported) {
@@ -479,7 +480,7 @@ export default function AnalysisLaunchPage() {
   const targetLabel = eligible ? "Processed Data" : "Analyzed Data";
   const outputPath = setup?.output.pc_output_path || experience.data_workspace?.output_path || "";
   const inputPath = setup?.input.pc_input_path || experience.data_workspace?.input_path || "";
-  const chosenFolders = (sync?.extra_folders ?? []).map((f) => f.path);
+  const chosenFolders = sync?.extra_folders ?? [];
   const myResearchHref = myResearchFolderHref(
     sync?.destination?.workspace_id || link?.workspace_id,
     sync?.destination?.folder_id || link?.processed_folder_id,
@@ -519,10 +520,15 @@ export default function AnalysisLaunchPage() {
                     variant="outline"
                     className="gap-1.5"
                     onClick={() => setFolderDialog("choose")}
-                    title="Choose the folders on the Analysis PC where you save results"
+                    title={
+                      filesSupported
+                        ? "Choose the folders and files on the Analysis PC where you saved results"
+                        : "Choose the folders on the Analysis PC where you save results"
+                    }
                   >
                     <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-                    Result folders{chosenFolders.length ? ` (${chosenFolders.length})` : ""}
+                    {filesSupported ? "Results to save" : "Result folders"}
+                    {chosenFolders.length ? ` (${chosenFolders.length})` : ""}
                   </Button>
                 ) : null}
                 {liveTransfer ? (
@@ -616,7 +622,7 @@ export default function AnalysisLaunchPage() {
 
           <p className="text-center text-xs text-muted-foreground">
             {pickerSupported
-              ? `Save your results anywhere on the Analysis PC. When you end the session you choose the folders to copy to ${destinationLabel}.`
+              ? `Save your results anywhere on the Analysis PC. When you end the session you choose the folders or files to copy to ${destinationLabel}.`
               : `Save your results in the Output folder shown above. It is copied to ${destinationLabel} when you end the session.`}
           </p>
         </div>
@@ -681,7 +687,7 @@ export default function AnalysisLaunchPage() {
                             Your input data is in <span className="font-mono">{inputPath}</span>.{" "}
                           </>
                         ) : null}
-                        Save results anywhere on this PC — you choose the folders to keep when you end the session.
+                        Save results anywhere on this PC — you choose the folders or files to keep when you end the session.
                       </>
                     ) : (
                       <>
@@ -749,10 +755,15 @@ export default function AnalysisLaunchPage() {
         bookingId={bookingPk}
         mode={folderDialog ?? "end"}
         initialFolders={chosenFolders}
+        allowFiles={filesSupported}
         destinationLabel={destinationLabel}
         onEnded={enterClosing}
-        onSaved={(folders) => {
-          toast.success(folders.length ? `${folders.length} result folder(s) will be copied when the session ends.` : "No extra result folders.");
+        onSaved={(items) => {
+          toast.success(
+            items.length
+              ? `${items.length} ${filesSupported ? "item(s)" : "result folder(s)"} will be copied when the session ends.`
+              : "Nothing extra will be copied.",
+          );
           pollNow();
         }}
       />

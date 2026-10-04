@@ -143,7 +143,7 @@ describe("EndSessionDialog", () => {
     await waitForListing("Changed during this session");
     expect(screen.getByTestId("folder-browser").textContent).toContain("Data (D:)");
 
-    fireEvent.click(screen.getByRole("button", { name: /Run1/ }));
+    fireEvent.doubleClick(screen.getByRole("option", { name: /Run1/ }));
     await waitForListing("fit.csv");
     expect(screen.getByTestId("choose-hint").textContent).toBe("4 files · 4.0 KB");
     fireEvent.click(screen.getByRole("button", { name: "Choose this folder" }));
@@ -155,7 +155,7 @@ describe("EndSessionDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /End session & save results/ }));
     await waitFor(() => expect(onEnded).toHaveBeenCalled());
-    expect(api.endBookingAnalysis).toHaveBeenCalledWith(42, "Finished early by user", ["D:\\Results\\Run1"]);
+    expect(api.endBookingAnalysis).toHaveBeenCalledWith(42, "Finished early by user", [{ path: "D:\\Results\\Run1", kind: "folder" }]);
   });
 
   it("explains why a drive cannot be chosen", async () => {
@@ -192,7 +192,7 @@ describe("EndSessionDialog", () => {
     await waitForListing("Places");
     fireEvent.click(screen.getByRole("button", { name: "Data (D:)" }));
     await waitForListing("Results");
-    fireEvent.click(screen.getByRole("button", { name: /^Results/ }));
+    fireEvent.doubleClick(screen.getByRole("option", { name: /^Results/ }));
     await waitForListing("This folder is empty");
     fireEvent.click(screen.getByRole("button", { name: "Choose this folder" }));
     const rows = screen.getByTestId("chosen-folders").querySelectorAll("li");
@@ -204,9 +204,70 @@ describe("EndSessionDialog", () => {
   it("in choose mode saves the folder list instead of ending", async () => {
     const onSaved = vi.fn();
     renderDialog({ mode: "choose", initialFolders: ["D:\\Results\\Run1"], onSaved });
-    fireEvent.click(screen.getByRole("button", { name: "Save folders" }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(["D:\\Results\\Run1"]));
-    expect(api.setPcFolders).toHaveBeenCalledWith(42, ["D:\\Results\\Run1"]);
+    fireEvent.click(screen.getByRole("button", { name: "Save list" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith([{ path: "D:\\Results\\Run1", kind: "folder" }]));
+    expect(api.setPcFolders).toHaveBeenCalledWith(42, [{ path: "D:\\Results\\Run1", kind: "folder" }]);
     expect(api.endBookingAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("single click selects, double click opens, and several folders and files can be added at once", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    listings["D:\\Results\\Run1"] = {
+      ...run1,
+      files: [
+        { name: "fit.csv", path: "D:\\Results\\Run1\\fit.csv", size: 1200, can_select: true },
+        { name: "busy.partial", path: "D:\\Results\\Run1\\busy.partial", size: 5, can_select: false },
+      ],
+      file_count: 2,
+    };
+    const { onEnded } = renderDialog({ allowFiles: true });
+    fireEvent.click(screen.getByRole("button", { name: "Add folders or files" }));
+    await waitForListing("Changed during this session");
+
+    const suggestion = screen.getByRole("option", { name: /Run1/ });
+    fireEvent.click(suggestion);
+    expect(suggestion.getAttribute("aria-selected")).toBe("true");
+    expect(api.browsePcFolders).toHaveBeenCalledTimes(1);
+    fireEvent.click(suggestion);
+    expect(suggestion.getAttribute("aria-selected")).toBe("false");
+
+    fireEvent.keyDown(suggestion, { key: "Enter" });
+    await waitForListing("fit.csv");
+    expect(api.browsePcFolders).toHaveBeenLastCalledWith(42, "D:\\Results\\Run1");
+
+    fireEvent.click(screen.getByRole("option", { name: /plots/ }));
+    fireEvent.click(screen.getByRole("option", { name: /fit\.csv/ }));
+    fireEvent.click(screen.getByRole("option", { name: /busy\.partial/ }));
+    expect(screen.getByRole("option", { name: /busy\.partial/ }).getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByTestId("choose-hint").textContent).toContain("2 selected");
+    fireEvent.click(screen.getByRole("button", { name: "Add 2 selected" }));
+
+    const chosen = screen.getByTestId("chosen-folders");
+    expect(chosen.querySelectorAll("li")).toHaveLength(2);
+    expect(chosen.textContent).toContain("fit.csv");
+    expect(chosen.textContent).toContain("1.2 KB");
+
+    fireEvent.click(screen.getByRole("button", { name: /End session & save results/ }));
+    await waitFor(() => expect(onEnded).toHaveBeenCalled());
+    expect(api.endBookingAnalysis).toHaveBeenCalledWith(42, "Finished early by user", [
+      { path: "D:\\Results\\Run1\\plots", kind: "folder" },
+      { path: "D:\\Results\\Run1\\fit.csv", kind: "file" },
+    ]);
+  });
+
+  it("does not select items already covered by a chosen folder", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    listings["D:\\Results\\Run1"] = {
+      ...run1,
+      files: [{ name: "fit.csv", path: "D:\\Results\\Run1\\fit.csv", size: 1200, can_select: true }],
+    };
+    renderDialog({ allowFiles: true, initialFolders: [{ path: "D:\\Results\\Run1", kind: "folder" }] });
+    fireEvent.click(screen.getByRole("button", { name: "Add more" }));
+    await waitForListing("Places");
+    fireEvent.doubleClick(screen.getByRole("option", { name: /Run1/ }));
+    await waitForListing("fit.csv");
+    fireEvent.click(screen.getByRole("option", { name: /fit\.csv/ }));
+    expect(screen.getByRole("option", { name: /fit\.csv/ }).getAttribute("aria-selected")).toBe("false");
+    expect(screen.getByTestId("choose-hint").textContent).toContain("already included in D:\\Results\\Run1");
   });
 });

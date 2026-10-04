@@ -2,6 +2,8 @@ import type { AnalysisExtraFolder, AnalysisSyncStatus } from "@/lib/analysisSetu
 import { plural } from "@/lib/analysisSync";
 
 export const MAX_RESULT_FOLDERS = 10;
+/** With agents that support single files. */
+export const MAX_RESULT_ITEMS = 50;
 
 const lower = (path: string) => path.toLowerCase().replace(/[\\/]+$/, "");
 
@@ -37,8 +39,13 @@ export function folderState(
   if (!folder.alias || PRE_COPY.has(status.phase)) return { label: "Waiting to copy", tone: "progress" };
   const removed = (status.pc_removed_folders ?? []).some((p) => samePath(p, folder.path));
   if (removed) return { label: "Copied · removed from the Analysis PC", tone: "done" };
-  const prefix = `${folder.alias}/`;
-  const keptHere = (status.kept_files ?? []).filter((k) => k.startsWith(prefix));
+  const alias = folder.alias;
+  const keptHere = (status.kept_files ?? []).filter((k) =>
+    folder.kind === "file" ? k === alias : k.startsWith(`${alias}/`),
+  );
+  if (folder.kind === "file" && status.pc_cleanup === "kept" && keptHere.length) {
+    return { label: "Copied · left on the PC (changed or in use)", tone: "warn" };
+  }
   if (status.pc_cleanup === "kept" && keptHere.length) {
     return { label: `Copied · ${plural(keptHere.length, "file")} left on the PC (changed or in use)`, tone: "warn" };
   }

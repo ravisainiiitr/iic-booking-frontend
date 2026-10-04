@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import { PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
+import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
 import { isMissingEndpoint, myResearchFolderHref, plural } from "@/lib/analysisSync";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -702,7 +702,7 @@ export default function AnalysisWorkspacePage() {
                   <SetupRow icon={<FolderOutput className="h-4 w-4" aria-hidden />} label="Results">
                     {pickerSupported ? (
                       <>
-                        Save them anywhere on the Analysis PC. When you end the session you choose the folders; they are copied to{" "}
+                        Save them anywhere on the Analysis PC. When you end the session you choose the folders or files; they are copied to{" "}
                         <strong>{destinationLabel}</strong>, then removed from the Analysis PC once the copy is verified.
                       </>
                     ) : (
@@ -890,7 +890,8 @@ export default function AnalysisWorkspacePage() {
         onOpenChange={setEndDialogOpen}
         bookingId={bookingPk}
         mode="end"
-        initialFolders={(sync?.extra_folders ?? []).map((f) => f.path)}
+        initialFolders={sync?.extra_folders ?? []}
+        allowFiles={Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY))}
         destinationLabel={destinationLabel}
         onEnded={() => void afterEnded()}
       />

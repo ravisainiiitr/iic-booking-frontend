@@ -615,7 +615,7 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
                     Save your results anywhere on the Analysis PC
                   </p>
                   <p className="leading-relaxed" data-testid="results-explainer">
-                    When you end the session, you choose the folders you saved results in. They are copied to{" "}
+                    When you end the session, you choose the folders or files you saved results in. They are copied to{" "}
                     <strong data-testid="destination-label">{destination}</strong>, then removed from the Analysis PC once the copy
                     is verified.
                   </p>
