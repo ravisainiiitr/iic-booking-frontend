@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, Download, Search } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
@@ -25,6 +25,7 @@ export default function UserGuidePage() {
   const { guide, hasGuide, requestGuide } = useUserGuide();
   const { user } = useAuth();
   const embedded = useEmbeddedMode();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState(WHATS_NEW_ID);
 
@@ -123,7 +124,7 @@ export default function UserGuidePage() {
 
           {!query.trim() ? (
             <section id={anchor(WHATS_NEW_ID)} className="scroll-mt-4 rounded-2xl border border-border/70 bg-card p-5 shadow-sm sm:p-6">
-              <WhatsNewView guide={guide} onNavigate={jump} />
+              <WhatsNewView guide={guide} onNavigate={jump} onTry={(href) => navigate(href)} />
             </section>
           ) : null}
 

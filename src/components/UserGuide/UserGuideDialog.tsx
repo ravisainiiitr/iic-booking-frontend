@@ -19,6 +19,10 @@ interface UserGuideDialogProps {
   userName?: string | null;
   /** Shown in the header when no name is known. */
   userEmail?: string | null;
+  /** Chapter shown when the window opens; What's New when absent or unknown. */
+  initialSectionId?: string | null;
+  /** Opens a portal page from a What's New "Try it" link. */
+  onTry?: (href: string) => void;
 }
 
 type WindowMode = "normal" | "minimized" | "maximized";
@@ -33,7 +37,16 @@ function defaultPosition() {
   return { x, y };
 }
 
-export default function UserGuideDialog({ open, onOpenChange, guide, loading = false, userName, userEmail }: UserGuideDialogProps) {
+export default function UserGuideDialog({
+  open,
+  onOpenChange,
+  guide,
+  loading = false,
+  userName,
+  userEmail,
+  initialSectionId,
+  onTry,
+}: UserGuideDialogProps) {
   const [activeId, setActiveId] = useState(WHATS_NEW_ID);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<WindowMode>("normal");
@@ -51,12 +64,14 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
 
   useEffect(() => {
     if (!open) return;
-    setActiveId(WHATS_NEW_ID);
+    const start = initialSectionId && guide?.sections.some((s) => s.id === initialSectionId) ? initialSectionId : WHATS_NEW_ID;
+    setActiveId(start);
     setQuery("");
     setMode(window.innerWidth < 640 ? "maximized" : "normal");
     setPos(defaultPosition());
     setPreMaximize(null);
-  }, [open, guide?.audience]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, guide?.audience, initialSectionId]);
 
   const go = useCallback((id: string) => {
     setActiveId(id);
@@ -268,7 +283,18 @@ export default function UserGuideDialog({ open, onOpenChange, guide, loading = f
                         <GuideSectionBody section={section} large={mode === "maximized"} />
                       </>
                     ) : (
-                      <WhatsNewView guide={guide} onNavigate={go} />
+                      <WhatsNewView
+                        guide={guide}
+                        onNavigate={go}
+                        onTry={
+                          onTry
+                            ? (href) => {
+                                close();
+                                onTry(href);
+                              }
+                            : undefined
+                        }
+                      />
                     )}
                   </div>
                 </div>

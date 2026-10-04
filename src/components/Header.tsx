@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen } from "lucide-react";
+import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen, Sparkles } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
@@ -26,7 +26,7 @@ import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/d
 const Header = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
-  const { openGuide } = useUserGuide();
+  const { openGuide, openWhatsNew, hasGuide } = useUserGuide();
   const [isAdmin, setIsAdmin] = useState(false);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
@@ -185,6 +185,12 @@ const Header = () => {
                       <UserIcon className="mr-2 h-4 w-4" />
                       <span>Profile</span>
                     </DropdownMenuItem>
+                    {hasGuide ? (
+                      <DropdownMenuItem onClick={openWhatsNew}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        <span>What's new</span>
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem onClick={() => openGuide({ force: true })}>
                       <BookOpen className="mr-2 h-4 w-4" />
                       <span>User Guide</span>

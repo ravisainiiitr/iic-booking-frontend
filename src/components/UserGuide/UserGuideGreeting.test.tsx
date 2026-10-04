@@ -25,6 +25,7 @@ const auth = vi.hoisted(() => ({
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.state }));
 vi.mock("@/components/UserGuide/guideFlags", () => ({ loadGuideFlags: vi.fn(async () => ({})) }));
 vi.mock("@/contexts/EmbeddedModeContext", () => ({ useEmbeddedMode: () => true }));
+vi.mock("@/hooks/use-peak-window", () => ({ usePeakWindow: () => ({ externalPaused: false }) }));
 
 const facultyGuide = buildGuide({ audience: "faculty" });
 const greetingText = () => screen.getAllByTestId("user-guide-greeting").map((el) => el.textContent);
@@ -88,9 +89,10 @@ function OpenGuideButton() {
   );
 }
 
-const renderProvider = () => {
+/** Opens on /profile by default so the post-login What's New on /dashboard stays out of the way. */
+const renderProvider = (path = "/profile") => {
   const tree = () => (
-    <MemoryRouter initialEntries={["/dashboard"]}>
+    <MemoryRouter initialEntries={[path]}>
       <UserGuideProvider>
         <OpenGuideButton />
       </UserGuideProvider>
@@ -126,7 +128,7 @@ describe("UserGuideProvider greeting", () => {
   it("waits for the fresh profile before auto-opening, so a stale cached user is never greeted", async () => {
     const cached = faculty({ display_name: null, name: "", user_guide_viewed: false });
     auth.state = { user: cached, isAuthenticated: true, loading: true };
-    const view = renderProvider();
+    const view = renderProvider("/dashboard");
     await act(async () => {
       await new Promise((r) => setTimeout(r, 1300));
     });

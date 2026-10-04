@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } fro
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
-import { getUserTypeDisplayName, isExternalBookingUserType } from "@/lib/userTypes";
+import { getUserTypeDisplayName, isEndUserBookingType, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { formatBookingDateTime } from "@/lib/bookingDates";
@@ -351,7 +351,8 @@ function labDashPanelTitle(panel: NonNullable<LabDashPanel>): string {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated, refreshUser, logout } = useAuth();
-  const { hasGuide: userGuide } = useUserGuide();
+  // Sign-in toasts wait until What's New is closed so they never cover its buttons.
+  const { hasGuide: userGuide, postLoginBusy } = useUserGuide();
 
   const handleProfileAvatarUploaded = useCallback(async () => {
     await refreshUser();
@@ -361,7 +362,9 @@ const Dashboard = () => {
   const [hasWallet, setHasWallet] = useState(false);
   const [showWalletOption, setShowWalletOption] = useState(false);
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
-  const [sampleDeadlines, setSampleDeadlines] = useState<SampleDeadlineItem[]>([]);
+  const [sampleDeadlines, setSampleDeadlines] = useState<
+    Array<SampleDeadlineItem & { equipment_name: string; remaining_seconds: number; link: string; virtual_booking_id: string }>
+  >([]);
   const nextSampleReminder = useMemo(
     () => pickNextSampleReminder(upcomingBookings, sampleDeadlines),
     [upcomingBookings, sampleDeadlines]
@@ -602,7 +605,7 @@ const Dashboard = () => {
   }, [labEquipmentSummariesKey, labDashEquipmentFilter, labOperatorDash?.equipment_summaries]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || postLoginBusy) return;
     const userTypeLower = String(user.user_type || "").toLowerCase();
     const shouldShowWelcome = userTypeLower === "student" || userTypeLower === "faculty";
     if (!shouldShowWelcome) return;
@@ -621,10 +624,10 @@ const Dashboard = () => {
       });
     }
     localStorage.setItem(welcomeKey, "1");
-  }, [user?.id, user?.name, user?.user_type]);
+  }, [user?.id, user?.name, user?.user_type, postLoginBusy]);
 
   useEffect(() => {
-    if (!showWalletLinkPrompt || !user?.id) return;
+    if (!showWalletLinkPrompt || !user?.id || postLoginBusy) return;
     const promptKey = `wallet_link_prompt_shown_${user.id}`;
     if (sessionStorage.getItem(promptKey)) return;
 
@@ -637,9 +640,8 @@ const Dashboard = () => {
       duration: 10000,
     });
     sessionStorage.setItem(promptKey, "1");
-  }, [showWalletLinkPrompt, user?.id, navigate]);
+  }, [showWalletLinkPrompt, user?.id, navigate, postLoginBusy]);
 
-  // Sample submission deadline approaching — toast once per login session
   useEffect(() => {
     if (!isAuthenticated || authLoading || !user?.id) return;
     let cancelled = false;
@@ -647,33 +649,38 @@ const Dashboard = () => {
       const res = await apiClient.getApproachingSampleSubmissionDeadlines();
       if (cancelled || res.error || !res.data?.items?.length) return;
       setSampleDeadlines(res.data.items);
-      for (const item of res.data.items) {
-        const toastKey = `sample_submission_deadline_toast_${user.id}_${item.booking_id}`;
-        if (sessionStorage.getItem(toastKey)) continue;
-        const remaining = Math.max(0, item.remaining_seconds || 0);
-        const hours = Math.floor(remaining / 3600);
-        const mins = Math.floor((remaining % 3600) / 60);
-        const remainingLabel =
-          hours > 0 ? `${hours}h ${mins}m` : `${mins} minute(s)`;
-        const deadlineLabel = item.deadline_at
-          ? new Date(item.deadline_at).toLocaleString()
-          : "soon";
-        toast.warning("Sample submission deadline approaching", {
-          description: `${item.equipment_name} (Booking #${item.virtual_booking_id}): submit by ${deadlineLabel} (${remainingLabel} left).`,
-          action: {
-            label: "View booking",
-            onClick: () =>
-              navigate(item.link || `/my-bookings?booking=${item.virtual_booking_id}`),
-          },
-          duration: 14000,
-        });
-        sessionStorage.setItem(toastKey, "1");
-      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, authLoading, user?.id, navigate]);
+  }, [isAuthenticated, authLoading, user?.id]);
+
+  // Sample submission deadline approaching — toast once per login session
+  useEffect(() => {
+    if (!user?.id || postLoginBusy || sampleDeadlines.length === 0) return;
+    for (const item of sampleDeadlines) {
+      const toastKey = `sample_submission_deadline_toast_${user.id}_${item.booking_id}`;
+      if (sessionStorage.getItem(toastKey)) continue;
+      const remaining = Math.max(0, item.remaining_seconds || 0);
+      const hours = Math.floor(remaining / 3600);
+      const mins = Math.floor((remaining % 3600) / 60);
+      const remainingLabel =
+        hours > 0 ? `${hours}h ${mins}m` : `${mins} minute(s)`;
+      const deadlineLabel = item.deadline_at
+        ? new Date(item.deadline_at).toLocaleString()
+        : "soon";
+      toast.warning("Sample submission deadline approaching", {
+        description: `${item.equipment_name} (Booking #${item.virtual_booking_id}): submit by ${deadlineLabel} (${remainingLabel} left).`,
+        action: {
+          label: "View booking",
+          onClick: () =>
+            navigate(item.link || `/my-bookings?booking=${item.virtual_booking_id}`),
+        },
+        duration: 14000,
+      });
+      sessionStorage.setItem(toastKey, "1");
+    }
+  }, [user?.id, postLoginBusy, sampleDeadlines, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2307,8 +2314,7 @@ const Dashboard = () => {
       id: "user_guide",
       label: "User guide",
       path: "/user-guide",
-      visible: Boolean((userTypeStr === "faculty" || userTypeStr === "student" || userTypeStr === "individual_student") &&
-            userGuide),
+      visible: Boolean(isEndUserBookingType(userTypeStr) && userGuide),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"

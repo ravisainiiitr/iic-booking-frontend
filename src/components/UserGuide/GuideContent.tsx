@@ -26,18 +26,20 @@ import {
   Sparkles,
   Star,
   Ticket,
+  TrendingUp,
   Users,
   Wallet,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  WHATS_NEW_THEME_LABELS,
+  WHATS_NEW_KIND_LABELS,
   type GuideIconId,
   type GuideSection,
   type UserGuideContent,
   type WhatsNewItem,
-  type WhatsNewTheme,
+  type WhatsNewKind,
 } from "@/guides/types";
 import { groupSections, sectionMatches, WHATS_NEW_ID } from "./guideUtils";
 
@@ -153,21 +155,134 @@ export function GuideChapterSelect({
   );
 }
 
-const THEME_ORDER = Object.keys(WHATS_NEW_THEME_LABELS) as WhatsNewTheme[];
+const KIND_ORDER = Object.keys(WHATS_NEW_KIND_LABELS) as WhatsNewKind[];
+
+const KIND_STYLE: Record<WhatsNewKind, { icon: LucideIcon; tile: string; accent: string }> = {
+  new: { icon: Sparkles, tile: "bg-primary/10 text-primary dark:bg-primary/20", accent: "text-primary" },
+  improved: {
+    icon: TrendingUp,
+    tile: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+    accent: "text-sky-700 dark:text-sky-300",
+  },
+  fixed: {
+    icon: Wrench,
+    tile: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    accent: "text-emerald-700 dark:text-emerald-300",
+  },
+};
+
+export function groupWhatsNew(items: WhatsNewItem[]): Array<{ kind: WhatsNewKind; items: WhatsNewItem[] }> {
+  return KIND_ORDER.map((kind) => ({ kind, items: items.filter((i) => i.kind === kind) })).filter((g) => g.items.length > 0);
+}
+
+/** What's New items under New, Improved and Fixed, each with Try it (when the role can open the page) and Learn more. */
+export function WhatsNewGroups({
+  items,
+  onLearnMore,
+  onTry,
+  unreadIds,
+  short = false,
+  twoColumns = false,
+  idPrefix = "wn",
+}: {
+  items: WhatsNewItem[];
+  onLearnMore: (sectionId: string) => void;
+  onTry?: (href: string) => void;
+  unreadIds?: ReadonlySet<string>;
+  /** Show the one-line summary instead of the full benefit. */
+  short?: boolean;
+  twoColumns?: boolean;
+  idPrefix?: string;
+}) {
+  if (items.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+        No changes for your role in this release.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-5">
+      {groupWhatsNew(items).map(({ kind, items: group }) => {
+        const style = KIND_STYLE[kind];
+        const KindIcon = style.icon;
+        return (
+          <section key={kind} className="space-y-2" aria-labelledby={`${idPrefix}-${kind}`}>
+            <h3 id={`${idPrefix}-${kind}`} className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <KindIcon className={cn("h-3.5 w-3.5", style.accent)} aria-hidden />
+              {WHATS_NEW_KIND_LABELS[kind]}
+              <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-medium tabular-nums text-muted-foreground" aria-label={`${group.length} items`}>
+                {group.length}
+              </span>
+            </h3>
+            <ul className={cn("grid gap-2.5", twoColumns && "sm:grid-cols-2")}>
+              {group.map((item) => {
+                const unread = unreadIds?.has(item.id) ?? false;
+                return (
+                  <li
+                    key={item.id}
+                    data-unread={unread || undefined}
+                    className={cn(
+                      "flex gap-3 rounded-xl border bg-card p-3 shadow-sm transition-colors",
+                      unread ? "border-primary/50 bg-primary/[0.03] dark:bg-primary/10" : "border-border/70 dark:border-border"
+                    )}
+                  >
+                    <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", style.tile)}>
+                      <GuideIcon id={item.icon} className="h-[18px] w-[18px]" />
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="flex items-start gap-1.5 text-sm font-semibold leading-snug text-foreground">
+                        {unread ? <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden /> : null}
+                        <span>
+                          {item.title}
+                          {unread ? <span className="sr-only"> (unread)</span> : null}
+                        </span>
+                      </p>
+                      <p className="text-[13px] leading-snug text-muted-foreground">{short ? item.summary ?? item.benefit : item.benefit}</p>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
+                        {item.href && onTry ? (
+                          <button
+                            type="button"
+                            onClick={() => onTry(item.href as string)}
+                            aria-label={`Try it: ${item.title}`}
+                            className="inline-flex items-center gap-1 rounded text-xs font-semibold text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            Try it
+                            <ArrowRight className="h-3 w-3" aria-hidden />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => onLearnMore(item.sectionId)}
+                          aria-label={`Learn more: ${item.title}`}
+                          className="inline-flex items-center gap-1 rounded text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          Learn more
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 export function WhatsNewView({
   guide,
   onNavigate,
+  onTry,
   greeting,
 }: {
   guide: UserGuideContent;
   onNavigate: (sectionId: string) => void;
+  onTry?: (href: string) => void;
   greeting?: string;
 }) {
-  const byTheme = new Map<WhatsNewTheme, WhatsNewItem[]>();
-  for (const item of guide.whatsNew.items) {
-    byTheme.set(item.theme, [...(byTheme.get(item.theme) ?? []), item]);
-  }
   return (
     <div className="space-y-5">
       <div className="space-y-1">
@@ -183,48 +298,7 @@ export function WhatsNewView({
         </p>
       </div>
 
-      {guide.whatsNew.items.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          No changes for your role in this release.
-        </p>
-      ) : (
-        THEME_ORDER.filter((t) => byTheme.has(t)).map((theme) => (
-          <section key={theme} className="space-y-2" aria-labelledby={`wn-${theme}`}>
-            <h3 id={`wn-${theme}`} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {WHATS_NEW_THEME_LABELS[theme]}
-            </h3>
-            <ul className="grid gap-2.5 sm:grid-cols-2">
-              {byTheme.get(theme)!.map((item) => (
-                <li
-                  key={item.id}
-                  className="group flex gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-colors hover:border-primary/40 dark:border-border"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
-                    <GuideIcon id={item.icon} className="h-[18px] w-[18px]" />
-                  </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-semibold leading-snug text-foreground">{item.title}</p>
-                      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
-                        New
-                      </span>
-                    </div>
-                    <p className="text-[13px] leading-snug text-muted-foreground">{item.benefit}</p>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate(item.sectionId)}
-                      className="inline-flex items-center gap-1 pt-0.5 text-xs font-medium text-primary hover:underline underline-offset-2"
-                    >
-                      Learn more
-                      <ArrowRight className="h-3 w-3" aria-hidden />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
-      )}
+      <WhatsNewGroups items={guide.whatsNew.items} onLearnMore={onNavigate} onTry={onTry} twoColumns idPrefix="guide-wn" />
     </div>
   );
 }
