@@ -3532,6 +3532,13 @@ const Dashboard = () => {
   );
   const canOpenMenuPath = (path: string) => visibleMenuPaths.has(normalizeMenuPath(path));
   const showAdminOverview = usesAdminMenuSections && !workspacePath;
+  // Dashboard home only, between the page header card and the first section; each renders nothing when empty.
+  const dashboardNotices = (
+    <>
+      <PendingActionsSummary />
+      <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />
+    </>
+  );
 
   const dashboardMenuDefaultOrder = isOicUser
     ? [
@@ -3771,12 +3778,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
-        {/* The administration overview lists these under "Needs attention". */}
-        {showAdminOverview ? null : <PendingActionsSummary className="mb-4" />}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {showAdminOverview ? null : (
-          <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} className="mb-4" />
-        )}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
@@ -4061,7 +4063,11 @@ const Dashboard = () => {
                   </Card>
                 }
               >
-                <AdminOverview onOpen={(path) => openWorkspace(path)} canOpen={canOpenMenuPath} />
+                <AdminOverview
+                  onOpen={(path) => openWorkspace(path)}
+                  canOpen={canOpenMenuPath}
+                  notices={dashboardNotices}
+                />
               </Suspense>
             ) : !showsLabStyleDashboard && (
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
@@ -4078,6 +4084,7 @@ const Dashboard = () => {
               </CardHeader>
             </Card>
             )}
+            {showAdminOverview ? null : dashboardNotices}
 
         {showsLabStyleDashboard && (
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">

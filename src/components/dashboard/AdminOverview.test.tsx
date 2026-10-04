@@ -104,6 +104,15 @@ describe("AdminOverview", () => {
     expect(onOpen).toHaveBeenLastCalledWith("/admin-settings/wallet-recharge-requests");
   });
 
+  it("shows the dashboard notices between the header and the figures", async () => {
+    render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} notices={<p>Notice slot</p>} />);
+    const header = await screen.findByText("Administration overview");
+    const notice = screen.getByText("Notice slot");
+    const firstKpi = screen.getByText("Sessions today");
+    expect(header.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.compareDocumentPosition(firstKpi) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("offers a retry when the overview cannot load", async () => {
     api.getAdminDashboardSummary.mockResolvedValueOnce({ error: "Only the Main Administrator can view this overview." });
     render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} />);
