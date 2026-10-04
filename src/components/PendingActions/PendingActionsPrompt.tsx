@@ -23,7 +23,7 @@ import { PendingActionList, type PendingItem } from "@/components/PendingActions
 /** After sign-in, lists everything waiting on the user (requests, shares, payments, reviews) with a direct link to each. */
 export default function PendingActionsPrompt() {
   const { user, isAuthenticated } = useAuth();
-  const { isOpen: guideOpen } = useUserGuide();
+  const { postLoginBusy } = useUserGuide();
   const location = useLocation();
   const navigate = useNavigate();
   const [items, setItems] = useState<PendingItem[]>([]);
@@ -39,7 +39,8 @@ export default function PendingActionsPrompt() {
   useEffect(() => {
     if (!eligible || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
-    if (guideOpen || hasPendingActionsShownThisLogin(user.id) || inFlight.current) return;
+    // What's New comes first after sign-in; this list follows once it is closed.
+    if (postLoginBusy || hasPendingActionsShownThisLogin(user.id) || inFlight.current) return;
 
     const uid = user.id;
     const timer = window.setTimeout(async () => {
@@ -57,7 +58,7 @@ export default function PendingActionsPrompt() {
       }
     }, 1500);
     return () => window.clearTimeout(timer);
-  }, [eligible, user?.id, location.pathname, guideOpen]);
+  }, [eligible, user?.id, location.pathname, postLoginBusy]);
 
   if (!eligible) return null;
 

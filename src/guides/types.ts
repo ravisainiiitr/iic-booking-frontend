@@ -140,15 +140,29 @@ export const WHATS_NEW_THEME_LABELS: Record<WhatsNewTheme, string> = {
   assistant: "Assistant & tools",
 };
 
+export type WhatsNewKind = "new" | "improved" | "fixed";
+
+/** Display order of the What's New groups. */
+export const WHATS_NEW_KIND_LABELS: Record<WhatsNewKind, string> = {
+  new: "New",
+  improved: "Improved",
+  fixed: "Fixed",
+};
+
 export interface WhatsNewItem {
   id: string;
+  kind: WhatsNewKind;
   theme: WhatsNewTheme;
   icon: GuideIconId;
   title: string;
-  /** One line: what the user gains. */
+  /** What the user gains, in full (user guide and PDF). */
   benefit: string;
+  /** One plain-language line for the What's New dialog; `benefit` is used when absent. */
+  summary?: string;
   /** Chapter opened by "Learn more". */
   sectionId: string;
+  /** Portal page opened by "Try it"; only set where this role can open it. */
+  href?: string;
 }
 
 export interface UserGuideContent {

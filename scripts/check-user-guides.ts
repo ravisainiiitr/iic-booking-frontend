@@ -23,7 +23,8 @@ const ALL_ON: GuideFeatureFlags = {
 };
 const ALL_OFF: GuideFeatureFlags = Object.fromEntries(Object.keys(ALL_ON).map((k) => [k, false])) as unknown as GuideFeatureFlags;
 
-const NON_TEXT_KEYS = new Set(["id", "icon", "group", "sectionId", "theme", "screenshotSrc", "audience"]);
+const NON_TEXT_KEYS = new Set(["id", "icon", "group", "sectionId", "theme", "kind", "href", "screenshotSrc", "audience"]);
+const KINDS = new Set(["new", "improved", "fixed"]);
 
 function texts(value: unknown, key = ""): string[] {
   if (typeof value === "string") return NON_TEXT_KEYS.has(key) ? [] : [value];
@@ -114,6 +115,8 @@ function check(audience: GuideAudienceId, flags: GuideFeatureFlags, label: strin
   if (n < 1 || n > 10) fail(`${where}: What's New has ${n} items`);
   for (const item of guide.whatsNew.items) {
     if (!ids.includes(item.sectionId)) fail(`${where}: What's New ${item.id} links to missing ${item.sectionId}`);
+    if (!KINDS.has(item.kind)) fail(`${where}: What's New ${item.id} has no New/Improved/Fixed kind`);
+    if (item.href !== undefined && !/^\/[a-z0-9/-]*$/.test(item.href)) fail(`${where}: What's New ${item.id} has a bad Try it link ${item.href}`);
   }
   for (const s of guide.sections) {
     if (!s.intro.length) fail(`${where}: section ${s.id} has no intro`);

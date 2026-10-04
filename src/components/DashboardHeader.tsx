@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical } from "lucide-react";
+import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
@@ -34,7 +34,7 @@ const DashboardHeader = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
-  const { openGuide } = useUserGuide();
+  const { openGuide, openWhatsNew, hasGuide } = useUserGuide();
   const embedded = useEmbeddedMode();
   const staffShell = useStaffAppShell();
   const isEmbed =
@@ -437,6 +437,12 @@ const DashboardHeader = () => {
                 <UserIcon className="mr-2 h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
+              {hasGuide ? (
+                <DropdownMenuItem onClick={openWhatsNew}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  <span>What's new</span>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuItem onClick={() => openGuide({ force: true })}>
                 <BookOpen className="mr-2 h-4 w-4" />
                 <span>User Guide</span>

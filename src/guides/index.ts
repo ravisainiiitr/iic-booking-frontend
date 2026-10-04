@@ -61,6 +61,7 @@ export type {
   GuideSection,
   UserGuideContent,
   WhatsNewItem,
+  WhatsNewKind,
   WhatsNewTheme,
 } from "./types";
 export {
@@ -68,5 +69,6 @@ export {
   GUIDE_AUDIENCE_LABELS,
   PRODUCT_NAME,
   PRODUCT_NAME_SHORT,
+  WHATS_NEW_KIND_LABELS,
   WHATS_NEW_THEME_LABELS,
 } from "./types";
