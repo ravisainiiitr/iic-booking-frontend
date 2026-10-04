@@ -74,7 +74,7 @@ export function ServerClock({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "inline-flex min-w-0 items-center gap-3 rounded-full border border-border/70 bg-background/80 py-1 pl-3 pr-4 shadow-sm backdrop-blur",
+        "inline-flex min-h-[calc(1.75rem+2px)] min-w-0 items-center gap-3 rounded-full border border-border/70 bg-background/80 py-1 pl-3 pr-4 shadow-sm backdrop-blur",
         className,
       )}
       role="timer"
@@ -83,14 +83,12 @@ export function ServerClock({ className }: { className?: string }) {
       title={`Portal server time (${sync.zoneLabel}). Booking windows open by this clock.`}
     >
       <Clock className="h-4 w-4 shrink-0 text-primary/80" aria-hidden />
-      <span className="flex min-w-0 flex-col leading-tight">
-        <span className="server-clock-time font-mono font-semibold tabular-nums tracking-tight text-foreground">
-          {hhmm}
-          <span className="text-muted-foreground">:{ss}</span>
-        </span>
+      <span className="server-clock-text server-clock-time whitespace-nowrap font-mono font-semibold tabular-nums tracking-tight text-foreground">
+        {hhmm}
+        <span className="text-muted-foreground">:{ss}</span>
       </span>
       <span className="server-clock-extra h-7 w-px shrink-0 bg-border" aria-hidden />
-      <span className="server-clock-extra whitespace-nowrap text-xs font-medium text-muted-foreground">{date}</span>
+      <span className="server-clock-text server-clock-extra whitespace-nowrap text-xs font-medium text-muted-foreground">{date}</span>
     </div>
   );
 }

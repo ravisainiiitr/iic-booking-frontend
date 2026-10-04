@@ -792,6 +792,14 @@ body:has([data-embed-chrome]),
 .server-clock-time {
   font-size: 1rem;
 }
+/* The time (monospace) and date (sans) have different ascent/descent, so centring their line boxes
+   leaves the glyphs at different heights. Trimming each box to cap height makes the pill's
+   items-center line up the visible digits with the icon. text-box only trims block containers,
+   so these must not be flex/inline-flex. */
+.server-clock-text {
+  line-height: 1;
+  text-box: trim-both cap alphabetic;
+}
 .server-clock-extra {
   display: none;
 }
@@ -800,7 +808,7 @@ body:has([data-embed-chrome]),
     font-size: 1.125rem;
   }
   .server-clock-extra {
-    display: inline-flex;
+    display: block;
   }
 }
 
