@@ -3102,7 +3102,9 @@ export function BookingDetailCard({
                         <Button
                           size="sm"
                           disabled={analysisBusy}
-                          onClick={() => navigate(`/analysis-workspace/${bookingPk}`)}
+                          onClick={() =>
+                            navigate(`/analysis-workspace/${bookingPk}${hasOpenAnalysisSession ? "" : "?setup=1"}`)
+                          }
                         >
                           {hasOpenAnalysisSession ? "Continue Analysis" : "Open Analysis Workspace"}
                         </Button>

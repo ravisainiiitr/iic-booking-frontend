@@ -140,6 +140,8 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
   const projectHeadingId = useId();
 
   const useResearch = setupMode && eligible;
+  const previousUploadCount =
+    setup?.input.selected?.source === "upload" ? Math.max(0, Number(setup.input.selected.file_count || 0)) : 0;
   const research = useResearchUploads(useResearch ? uploadTarget : null);
   const direct = useDirectAnalysisUploads(bookingId);
   const uploads = useResearch ? research : direct;
@@ -276,6 +278,10 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
         return;
       }
       savedRef.current = res.data;
+      if (source === "upload" && pendingFiles.length === 0 && previousUploadCount > 0) {
+        await finish(res.data);
+        return;
+      }
       if (source === "upload") {
         if (useResearch) {
           const savedLink = res.data.my_research.current_link;
@@ -339,7 +345,7 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
   const bookingReady =
     source !== "booking" ||
     Boolean(inputBooking && !inputBooking.locked_reason && (inputBooking.file_count == null || inputBooking.file_count > 0));
-  const uploadReady = source !== "upload" || pendingFiles.length > 0;
+  const uploadReady = source !== "upload" || pendingFiles.length > 0 || previousUploadCount > 0;
   const canPrepare =
     step === "uploading"
       ? !uploads.busy && uploads.items.some((i) => i.status === "done")
@@ -510,6 +516,12 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
                     </label>
                     {source === "upload" ? (
                       <>
+                        {previousUploadCount > 0 && pendingFiles.length === 0 && (step === "idle" || step === "saving") ? (
+                          <p className="text-sm text-muted-foreground" data-testid="previous-upload">
+                            {plural(previousUploadCount, "file")} you uploaded earlier will be used
+                            {useResearch ? ` (${folders.root} / ${folders.raw})` : ""}. Add more below if you need to.
+                          </p>
+                        ) : null}
                         {step === "idle" || step === "saving" ? (
                           <div
                             onDragOver={(e) => {

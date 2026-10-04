@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
 import type { AnalysisSetup } from "@/lib/analysisSetupTypes";
@@ -127,6 +127,8 @@ function formatStart(iso?: string | null) {
 export default function AnalysisWorkspacePage() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const setupRequested = searchParams.get("setup") === "1";
   const bookingPk = Number(bookingId);
   const [busy, setBusy] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<string>("");
@@ -277,15 +279,25 @@ export default function AnalysisWorkspacePage() {
       ? Boolean(setup?.input.selected) && (!eligible || Boolean(link))
       : Boolean(legacyInputLabel);
   const needsSetup = setupState === "ready" ? !setupComplete : !legacyInputLabel && !awaitingCheckin;
+  /** Every new session confirms input data and the results folder, pre-filled with the last choices. */
+  const askBeforeStart = needsSetup || setupState === "ready";
   const canOpen = canAnalyze || envReady || awaitingCheckin || started || sessionReadyToOpen;
   const startDisabled = busy || queued || analysisEnded || !canOpen || setupState === "loading";
 
   useEffect(() => {
     if (autoOpened.current || !summary || setupState === "loading") return;
     autoOpened.current = true;
-    if (analysisEnded || started || sessionReadyToOpen || queued || !canOpen || !needsSetup) return;
+    if (setupRequested) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("setup");
+      setSearchParams(next, { replace: true });
+    }
+    if (analysisEnded || started || sessionReadyToOpen || queued || !canOpen) return;
+    if (!needsSetup && !setupRequested) return;
     setDialogOpen(true);
-  }, [summary, setupState, analysisEnded, started, sessionReadyToOpen, queued, canOpen, needsSetup]);
+    // searchParams is only read on the first settled render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, setupState, analysisEnded, started, sessionReadyToOpen, queued, canOpen, needsSetup, setupRequested]);
 
   const launchHref = `/analysis-launch/${bookingPk}${session.id ? `?session=${session.id}` : ""}`;
 
@@ -328,7 +340,7 @@ export default function AnalysisWorkspacePage() {
       navigate(launchHref);
       return;
     }
-    if (needsSetup) {
+    if (askBeforeStart) {
       setDialogOpen(true);
       return;
     }
@@ -509,7 +521,7 @@ export default function AnalysisWorkspacePage() {
                         ? "Waiting in queue…"
                         : busy
                           ? "Starting…"
-                          : awaitingCheckin && !started && !sessionReadyToOpen && !needsSetup
+                          : awaitingCheckin && !started && !sessionReadyToOpen && !askBeforeStart
                             ? "Start Analysis"
                             : "Open Analysis PC"}
                     </span>
@@ -517,7 +529,7 @@ export default function AnalysisWorkspacePage() {
                       <span className="text-[10px] font-normal text-white/80">
                         {started || sessionReadyToOpen
                           ? "Connect to your reserved Analysis PC"
-                          : needsSetup
+                          : askBeforeStart
                             ? "Choose your data and where results are saved"
                             : awaitingCheckin
                               ? "Your Analysis PC is reserved — start before the timer expires"
@@ -832,6 +844,7 @@ export default function AnalysisWorkspacePage() {
             outputPath: dataWorkspace?.output_path ? String(dataWorkspace.output_path) : null,
           }}
           onPrepared={onPrepared}
+          title={setupComplete ? "Confirm your analysis setup" : undefined}
         />
       ) : null}
     </div>

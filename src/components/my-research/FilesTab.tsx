@@ -46,7 +46,7 @@ import { FolderTree } from "./FolderTree";
 import { UploadQueuePanel } from "./UploadQueuePanel";
 import { fileIcon, formatBytes, formatDate } from "./researchUtils";
 import { useResearchUploads } from "./useResearchUploads";
-import { downloadResearchFile } from "./downloadResearchFile";
+import { downloadResearchFile, downloadResearchZip } from "./downloadResearchFile";
 
 type NameTarget =
   | { kind: "new-folder" }
@@ -79,6 +79,7 @@ export function FilesTab({
   onBookEquipment,
 }: Props) {
   const [folderId, setFolderId] = useState<string | null>(initialFolderId);
+  const [zippingFolder, setZippingFolder] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<ResearchBreadcrumb[]>([]);
   const [folders, setFolders] = useState<ResearchFolder[]>([]);
   const [files, setFiles] = useState<ResearchFile[]>([]);
@@ -244,6 +245,16 @@ export function FilesTab({
     if (canEdit) queueFiles(e.dataTransfer.files);
   };
 
+  const zipFolder = async (id: string) => {
+    if (zippingFolder) return;
+    setZippingFolder(id);
+    try {
+      await downloadResearchZip(workspaceId, id);
+    } finally {
+      setZippingFolder(null);
+    }
+  };
+
   const expandPath = breadcrumbs.map((c) => c.id);
   const currentFolderLabel = folderId && breadcrumbs.length ? breadcrumbs.map((c) => c.name).join(" / ") : null;
   const folderBookings = folderId ? bookings.filter((b) => b.folder_id === folderId) : [];
@@ -316,6 +327,18 @@ export function FilesTab({
                 <SelectItem value="size">Largest first</SelectItem>
               </SelectContent>
             </Select>
+            {folderId && !bookingFilter ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 gap-1.5 sm:h-8"
+                disabled={Boolean(zippingFolder)}
+                title={currentFolderLabel ? `Download ${currentFolderLabel} as a zip` : "Download this folder as a zip"}
+                onClick={() => void zipFolder(folderId)}
+              >
+                {zippingFolder === folderId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Download folder
+              </Button>
+            ) : null}
             {canEdit && !bookingFilter ? (
               <Button variant="outline" size="sm" className="h-10 gap-1.5 sm:h-8" onClick={() => openName({ kind: "new-folder" })}>
                 <FolderPlus className="h-4 w-4" /> New folder
@@ -402,6 +425,17 @@ export function FilesTab({
                       </span>
                     ) : null}
                   </button>
+                  <Button
+                    aria-label={`Download ${folder.name} as a zip`}
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 sm:h-7 sm:w-7"
+                    title="Download folder (zip)"
+                    disabled={Boolean(zippingFolder)}
+                    onClick={() => void zipFolder(folder.id)}
+                  >
+                    {zippingFolder === folder.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  </Button>
                   {canEdit ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

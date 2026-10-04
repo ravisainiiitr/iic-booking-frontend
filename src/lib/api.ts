@@ -10475,6 +10475,14 @@ class ApiClient {
     );
   }
 
+  /** Single-use link (relative to the API base) for a zip of the whole project or one folder. */
+  async requestResearchZip(workspaceId: string, folderId: string | null) {
+    return this.request<{ path: string; filename: string; file_count: number; total_bytes: number; expires_in: number }>(
+      `/v1/my-research/workspaces/${workspaceId}/download-zip/`,
+      { method: 'POST', body: JSON.stringify({ folder_id: folderId }) },
+    );
+  }
+
   async getResearchFileTextPreview(fileId: string) {
     return this.request<{ kind: 'text' | 'csv'; content: string; truncated: boolean; size_bytes: number }>(
       `/v1/my-research/files/${fileId}/preview/`,

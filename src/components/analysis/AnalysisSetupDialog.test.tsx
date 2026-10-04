@@ -160,6 +160,20 @@ describe("AnalysisSetupDialog — My Research", () => {
     expect(screen.getByTestId("destination-label").textContent).toBe("My Research › your project / IICDSA0042 / Processed Data");
   });
 
+  it("reopens with the last upload and can continue without new files", async () => {
+    const previous = setup({ input: { default_source: "booking", default_booking_id: 42, selected: { source: "upload", booking_id: null, virtual_id: null, file_count: 2 } } });
+    api.saveBookingAnalysisSetup.mockResolvedValue({ data: previous, status: 200 });
+    const { onPrepared } = renderDialog({ setup: previous, title: "Confirm your analysis setup" });
+    expect(screen.getByText("Confirm your analysis setup")).toBeTruthy();
+    expect(screen.getByTestId("previous-upload").textContent).toContain("2 files you uploaded earlier will be used");
+    expect(prepareButton().hasAttribute("disabled")).toBe(false);
+    fireEvent.click(prepareButton());
+    await waitFor(() => expect(onPrepared).toHaveBeenCalled());
+    expect(api.saveBookingAnalysisSetup).toHaveBeenCalledTimes(1);
+    expect(api.saveBookingAnalysisSetup.mock.calls[0][1]).toMatchObject({ input_source: "upload", workspace_id: "ws1" });
+    expect(onPrepared.mock.calls[0][0]).toMatchObject({ source: "upload" });
+  });
+
   it("explains server validation errors", async () => {
     api.saveBookingAnalysisSetup.mockResolvedValue({ error: "bad", errorCode: "invalid_workspace", status: 400 });
     const { onPrepared } = renderDialog();

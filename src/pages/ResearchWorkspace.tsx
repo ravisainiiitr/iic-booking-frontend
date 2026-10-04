@@ -9,6 +9,7 @@ import {
   CalendarPlus,
   CheckCircle2,
   Circle,
+  Download,
   Eye,
   FileText,
   FlaskConical,
@@ -66,7 +67,7 @@ import { BookFromWorkspaceDialog } from "@/components/my-research/BookFromWorksp
 import { BookingResultsBadge, BookingResultsFiles, useProjectBookingResults } from "@/components/my-research/BookingResults";
 import { CreateWorkspaceDialog } from "@/components/my-research/CreateWorkspaceDialog";
 import { FilesTab } from "@/components/my-research/FilesTab";
-import { downloadResearchFile } from "@/components/my-research/downloadResearchFile";
+import { downloadResearchFile, downloadResearchZip } from "@/components/my-research/downloadResearchFile";
 import { LinkBookingsDialog } from "@/components/my-research/LinkBookingsDialog";
 import { LinkPublicationsDialog } from "@/components/my-research/LinkPublicationsDialog";
 import { ShareWorkspaceDialog, type ShareSuggestion } from "@/components/my-research/ShareWorkspaceDialog";
@@ -167,6 +168,7 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
   const [bookFrom, setBookFrom] = useState<{ folderId: string | null; folderLabel: string | null } | null>(null);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [zipping, setZipping] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<ResearchSearchResult | null>(null);
   const [searching, setSearching] = useState(false);
@@ -482,38 +484,54 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
               </>
             }
             actions={
-              canShare || canManage ? (
-                <>
-                  {canShare ? (
-                    <Button size="sm" className={`gap-1.5 ${heroButtonClass.primary}`} onClick={() => setShareOpen(true)}>
-                      <Share2 className="h-4 w-4" aria-hidden /> Share
-                    </Button>
-                  ) : null}
-                  {canManage ? (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="sm" variant="outline" className={`gap-1.5 ${heroButtonClass.secondary}`} aria-label="Manage project">
-                          <MoreHorizontal className="h-4 w-4" aria-hidden /> Manage
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {canEdit ? (
-                          <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                            <Pencil className="mr-2 h-4 w-4" aria-hidden /> Edit details
-                          </DropdownMenuItem>
-                        ) : null}
-                        {canEdit && (perms?.can_archive || perms?.can_restore) ? <DropdownMenuSeparator /> : null}
-                        {perms?.can_archive || perms?.can_restore ? (
-                          <DropdownMenuItem onClick={() => setArchiveOpen(true)}>
-                            {archived ? <ArchiveRestore className="mr-2 h-4 w-4" aria-hidden /> : <Archive className="mr-2 h-4 w-4" aria-hidden />}
-                            {archived ? "Restore project" : "Archive project"}
-                          </DropdownMenuItem>
-                        ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  ) : null}
-                </>
-              ) : null
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`gap-1.5 ${heroButtonClass.secondary}`}
+                  disabled={zipping}
+                  title="Download every folder and file in this project as one zip"
+                  onClick={async () => {
+                    setZipping(true);
+                    try {
+                      await downloadResearchZip(workspaceId, null);
+                    } finally {
+                      setZipping(false);
+                    }
+                  }}
+                >
+                  {zipping ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+                  Download project
+                </Button>
+                {canShare ? (
+                  <Button size="sm" className={`gap-1.5 ${heroButtonClass.primary}`} onClick={() => setShareOpen(true)}>
+                    <Share2 className="h-4 w-4" aria-hidden /> Share
+                  </Button>
+                ) : null}
+                {canManage ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className={`gap-1.5 ${heroButtonClass.secondary}`} aria-label="Manage project">
+                        <MoreHorizontal className="h-4 w-4" aria-hidden /> Manage
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {canEdit ? (
+                        <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                          <Pencil className="mr-2 h-4 w-4" aria-hidden /> Edit details
+                        </DropdownMenuItem>
+                      ) : null}
+                      {canEdit && (perms?.can_archive || perms?.can_restore) ? <DropdownMenuSeparator /> : null}
+                      {perms?.can_archive || perms?.can_restore ? (
+                        <DropdownMenuItem onClick={() => setArchiveOpen(true)}>
+                          {archived ? <ArchiveRestore className="mr-2 h-4 w-4" aria-hidden /> : <Archive className="mr-2 h-4 w-4" aria-hidden />}
+                          {archived ? "Restore project" : "Archive project"}
+                        </DropdownMenuItem>
+                      ) : null}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
+              </>
             }
           />
         </div>
