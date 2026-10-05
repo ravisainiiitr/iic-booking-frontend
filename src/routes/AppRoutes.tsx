@@ -77,7 +77,6 @@ const InboxEmail = lazyPage(() => import("@/pages/InboxEmail"));
 const AdminSettingsEquipment = lazyPage(() => import("@/pages/AdminSettingsEquipment"));
 const AdminSemesters = lazyPage(() => import("@/pages/AdminSemesters"));
 const AdminIcpmsStandards = lazyPage(() => import("@/pages/AdminIcpmsStandards"));
-const AdminEquipmentModeSchedules = lazyPage(() => import("@/pages/AdminEquipmentModeSchedules"));
 const AdminBookingChargeSettings = lazyPage(() => import("@/pages/AdminBookingChargeSettings"));
 const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBufferConfig"));
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
@@ -100,7 +99,7 @@ const Rewards = lazyPage(() => import("@/pages/Rewards"));
 const OICAccessories = lazyPage(() => import("@/pages/OICAccessories"));
 const OICPrintMaterials = lazyPage(() => import("@/pages/OICPrintMaterials"));
 const OICEquipmentSettings = lazyPage(() => import("@/pages/OICEquipmentSettings"));
-const OICMultiMode = lazyPage(() => import("@/pages/OICMultiMode"));
+const MultiModeEquipment = lazyPage(() => import("@/pages/MultiModeEquipment"));
 const CalendarColorSettings = lazyPage(() => import("@/pages/CalendarColorSettings"));
 const InventoryManagement = lazyPage(() => import("@/pages/InventoryManagement"));
 const RemoteAnalysis = lazyPage(() => import("@/pages/RemoteAnalysis"));
@@ -356,7 +355,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
           <Route path="/admin-settings/equipment/semesters" element={<AdminSemesters />} />
           <Route path="/admin-settings/equipment/icpms-standards" element={<AdminIcpmsStandards />} />
-          <Route path="/admin-settings/equipment/mode-schedules" element={<AdminEquipmentModeSchedules />} />
+          <Route path="/admin-settings/equipment/mode-schedules" element={<Navigate to="/multi-mode-equipment" replace />} />
           <Route path="/admin-settings/equipment/booking-charge-settings" element={<AdminBookingChargeSettings />} />
           <Route path="/admin-settings/equipment/booking-buffer-config" element={<AdminBookingBufferConfig />} />
           <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
@@ -377,7 +376,8 @@ export default function AppRoutes() {
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
           <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Equipment Booking Configuration" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
-          <Route path="/oic/multi-mode" element={<ErrorBoundary fallbackTitle="Multi-Mode Equipment" backPath="/dashboard"><OICMultiMode /></ErrorBoundary>} />
+          <Route path="/oic/multi-mode" element={<Navigate to="/multi-mode-equipment" replace />} />
+          <Route path="/multi-mode-equipment" element={<ErrorBoundary fallbackTitle="Multi-mode equipment" backPath="/dashboard"><MultiModeEquipment /></ErrorBoundary>} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/setup-test-users" element={<SetupTestUsers />} />
           <Route path="/profile" element={<Profile />} />

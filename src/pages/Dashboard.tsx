@@ -120,7 +120,10 @@ const OIC_DASHBOARD_MENU_ORDER = [
 const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string }> = {
   "/booking-management": { title: "View Booking", description: "Review and manage bookings for your equipment." },
   "/urgent-requests": { title: "Urgent Booking", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
-  "/oic/multi-mode": { title: "Multi-mode Equipment" },
+  "/multi-mode-equipment": {
+    title: "Multi-mode equipment",
+    description: "Choose an instrument's modes and plan which mode can be booked on which days.",
+  },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
   "/oic/equipment-settings": {
     title: "Equipment Booking Configuration",
@@ -2820,12 +2823,12 @@ const Dashboard = () => {
     {
       id: "multi_mode_equipment",
       label: "Multi-mode equipment",
-      path: "/oic/multi-mode",
+      path: "/multi-mode-equipment",
       visible: Boolean(canSeeOicMultiMode),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/multi-mode")}
+              onClick={() => openWorkspace("/multi-mode-equipment")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2835,7 +2838,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Schedule modes and set each mode&apos;s operate days via Change slot status
+                      Pick an instrument&apos;s modes and plan which mode runs on which days
                     </CardDescription>
                   </div>
                 </div>
