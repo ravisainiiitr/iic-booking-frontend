@@ -143,7 +143,7 @@ export function slotStatusSection(g: Gate): GuideSection {
     icon: "calendar",
     group: LAB,
     intro: ["Open slots, block them or mark maintenance in bulk from a week view."],
-    steps: [
+    steps: compact([
       {
         title: "Open it",
         body: "On the equipment page, choose Change slot status in the menu.",
@@ -156,10 +156,18 @@ export function slotStatusSection(g: Gate): GuideSection {
         title: "Select and apply",
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
-    ],
+      g.only(["oic", "admin"], {
+        title: "Repeat block",
+        body: "To block the same slots every week (say every Mon and Thu at 10:00), click Repeat block…, pick the weekdays, slot times, date range (Rest of this month, Next 12 months or custom dates) and an optional label, then Preview and Confirm and block. Slots created later in the range are blocked too. Remove a repeat block from the list below it to open its future slots again.",
+      }),
+    ]),
     rules: compact([
       g.only(["oic"], "Available only on equipment assigned to you."),
       "Admins and Officers In Charge can see and book slots in any week.",
+      g.only(
+        ["oic", "admin"],
+        "Repeat block only blocks free slots. Booked slots keep their bookings (nothing is cancelled or refunded) and are listed for you; slots already blocked or under maintenance are left as they are.",
+      ),
     ]),
   };
 }
