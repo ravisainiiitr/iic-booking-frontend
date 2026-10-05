@@ -146,7 +146,7 @@ export default function LegacyBookingMapping() {
       </div>
 
       {schemaPending ? (
-        <Card className="border-amber-400 bg-amber-50">
+        <Card className="border-amber-400 bg-amber-50 dark:border-amber-700/70 dark:bg-amber-950/40">
           <CardHeader>
             <CardTitle className="text-base">SCHEMA_PENDING — legacy bookings unavailable</CardTitle>
             <CardDescription>
@@ -296,7 +296,7 @@ export default function LegacyBookingMapping() {
                 </TableRow>
               ) : (
                 rows.map((r) => (
-                  <TableRow key={r.legacy_booking_id} className={r.conflict ? "bg-red-50/50" : undefined}>
+                  <TableRow key={r.legacy_booking_id} className={r.conflict ? "bg-red-50/50 dark:bg-red-950/40" : undefined}>
                     <TableCell className="font-mono">
                       <Link
                         to={`/admin/portal-migration/legacy-bookings/${r.legacy_booking_id}`}
