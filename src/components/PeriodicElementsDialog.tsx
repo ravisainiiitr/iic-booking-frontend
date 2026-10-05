@@ -70,10 +70,10 @@ export default function PeriodicElementsDialog({
         className={cn(
           "w-10 h-10 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative",
           getCategoryColor(el.category),
-          isSelected && "ring-2 ring-primary ring-offset-1 scale-105",
+          isSelected && "ring-2 ring-primary ring-offset-1 ring-offset-background scale-105",
           isLocked && "ring-2 ring-sky-500 ring-offset-1",
           (isDisabled || isLocked) && "opacity-60 cursor-not-allowed pointer-events-none",
-          isDisabled && "bg-muted border-dashed"
+          isDisabled && "bg-muted dark:bg-muted border-dashed"
         )}
       >
         {isSelected && <Check className="w-3 h-3 absolute top-0 right-0" />}
@@ -88,7 +88,8 @@ export default function PeriodicElementsDialog({
         <DialogHeader>
           <DialogTitle>Select elements</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        {/* min-w-0 lets the table scroll sideways inside the dialog instead of widening it past a phone screen. */}
+        <div className="min-w-0 space-y-4">
           <p className="text-sm text-muted-foreground">
             {periodicSelectionChargeSummaryFromHelpText(selected, helpText)}
           </p>

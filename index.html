@@ -5,6 +5,9 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/iitr-logo-64.png" />
     <link rel="alternate icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The portal has its own light and dark themes (it follows the phone/OS setting), so browsers and the
+         Android WebView must not apply their automatic darkening on top of it. -->
+    <meta name="color-scheme" content="light dark" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Only the IITRBanner Hindi line uses this font; `text=` must list its characters (update if that text changes). -->
@@ -25,7 +28,7 @@
 
   <body>
     <div id="root">
-      <div id="app-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #334155;">
+      <div id="app-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #64748b;">
         Loading…
       </div>
     </div>
