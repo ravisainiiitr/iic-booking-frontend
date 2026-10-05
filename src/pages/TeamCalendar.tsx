@@ -740,7 +740,7 @@ export default function TeamCalendar() {
                             key={`h-${d}`}
                             className={cn(
                               "sticky top-0 z-20 border-b border-r border-border/50 px-1.5 py-2 text-center backdrop-blur",
-                              weekend ? "bg-slate-50/90" : "bg-background/95",
+                              weekend ? "bg-slate-50/90 dark:bg-slate-800/90" : "bg-background/95",
                               isToday && "ring-1 ring-inset ring-primary/30",
                             )}
                             title={h?.reason || d}
@@ -752,7 +752,7 @@ export default function TeamCalendar() {
                               {format(parseISO(d), "EEE")}
                             </div>
                             {h?.kind === "holiday" ? (
-                              <div className="mt-0.5 truncate text-[9px] text-slate-600" title={holidayHoverText(h.reason)}>
+                              <div className="mt-0.5 truncate text-[9px] text-slate-600 dark:text-slate-300" title={holidayHoverText(h.reason)}>
                                 {HOLIDAY_LABEL}
                               </div>
                             ) : null}
@@ -773,7 +773,7 @@ export default function TeamCalendar() {
                                 key={`${member.id}-${day}`}
                                 className={cn(
                                   "border-b border-r border-border/40 px-1 py-1.5",
-                                  weekend && "bg-slate-50/70",
+                                  weekend && "bg-slate-50/70 dark:bg-slate-800/50",
                                   day === todayIso && "bg-primary/[0.03]",
                                 )}
                               >

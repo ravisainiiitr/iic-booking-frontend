@@ -510,7 +510,7 @@ export default function AdminPortalMigration() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-md border border-amber-300 bg-amber-50/50 p-3 text-sm">
+          <div className="rounded-md border border-amber-300 bg-amber-50/50 p-3 text-sm dark:border-amber-700/70 dark:bg-amber-950/40">
             <p className="font-medium">Migration window status</p>
             <p>
               Configured:{" "}
