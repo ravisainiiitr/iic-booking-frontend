@@ -1973,6 +1973,30 @@ export interface LegacySyncConfirmResult {
   synced_bookings: LegacySyncBookingRow[];
 }
 
+export interface FacultyWalletSyncDeadlineChange {
+  id: number;
+  changed_at: string | null;
+  changed_by_name: string;
+  changed_by_email: string;
+  old_cutoff: string | null;
+  new_cutoff: string | null;
+  reason: string;
+}
+
+export interface FacultyWalletSyncDeadline {
+  cutoff: string;
+  cutoff_ist: string;
+  /** "setting" when the Main Administrator stored a deadline, "default" for the built-in one. */
+  source: 'setting' | 'default';
+  stored_cutoff: string | null;
+  default_cutoff: string;
+  window_open: boolean;
+  server_time: string;
+  max_cutoff: string;
+  last_change: FacultyWalletSyncDeadlineChange | null;
+  recent_changes: FacultyWalletSyncDeadlineChange[];
+}
+
 export interface WalletRechargeParseRow {
   /** Present for rows loaded from server (stored parse entries). */
   id?: number;
@@ -5310,6 +5334,18 @@ class ApiClient {
   }) {
     return this.request<LegacySyncConfirmResult>('/portal-migration/admin/legacy-user-sync/confirm/', {
       method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getFacultyWalletSyncDeadline() {
+    return this.request<FacultyWalletSyncDeadline>('/portal-migration/admin/faculty-wallet-sync/');
+  }
+
+  /** Empty cutoff closes the faculty login wallet sync immediately. */
+  async setFacultyWalletSyncDeadline(body: { cutoff: string; reason: string }) {
+    return this.request<FacultyWalletSyncDeadline>('/portal-migration/admin/faculty-wallet-sync/', {
+      method: 'PUT',
       body: JSON.stringify(body),
     });
   }
