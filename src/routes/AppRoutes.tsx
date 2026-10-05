@@ -119,6 +119,7 @@ const AnalysisLaunch = lazyPage(() => import("@/pages/AnalysisLaunch"));
 const WorkflowDesigner = lazyPage(() => import("@/pages/WorkflowDesigner"));
 const DepartmentSync = lazyPage(() => import("@/pages/DepartmentSync"));
 const ProcurementWorkflow = lazyPage(() => import("@/pages/ProcurementWorkflow"));
+const ProcurementAssets = lazyPage(() => import("@/pages/procurement/ProcurementRoutes"));
 const EquipmentLifecycleHub = lazyPage(() => import("@/pages/EquipmentLifecycleHub"));
 const UserManagement = lazyPage(() => import("@/pages/UserManagement"));
 const SetupTestUsers = lazyPage(() => import("@/pages/SetupTestUsers"));
@@ -347,6 +348,7 @@ export default function AppRoutes() {
           <Route path="/laboratory-infrastructure" element={<ErrorBoundary fallbackTitle="Laboratory Infrastructure" backPath="/dashboard"><LaboratoryInfrastructure /></ErrorBoundary>} />
           <Route path="/test-dashboard" element={<ErrorBoundary fallbackTitle="Test Dashboard" backPath="/dashboard"><TestDashboard /></ErrorBoundary>} />
           <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
+          <Route path="/procurement/*" element={<ErrorBoundary fallbackTitle="Procurement & Assets" backPath="/dashboard"><ProcurementAssets /></ErrorBoundary>} />
           <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
           <Route path="/propose-equipment" element={<ProposeEquipment />} />
           <Route path="/admin/equipment-addition-requests" element={<EquipmentAdditionRequests />} />

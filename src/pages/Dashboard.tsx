@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw } from "lucide-react";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -521,6 +522,7 @@ const Dashboard = () => {
   const canSeeAdminSettingsCard =
     !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
+  const { available: showProcurementAssets } = useProcurementAvailability(Boolean(user));
   /** Main / Department Administrator: sectioned sidebar and the administration overview on the home page. */
   const usesAdminMenuSections = isAdmin || isDeptAdmin;
   const isExternalRelations = userTypeStr === 'external_relations';
@@ -3126,6 +3128,36 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "procurement_assets",
+      label: "Procurement & Assets",
+      path: "/procurement",
+      visible: showProcurementAssets,
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/procurement")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg">
+                    <PackageOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Procurement &amp; Assets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Purchase requests, approvals, small purchases, bills, assets, stock and AMC
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open Procurement &amp; Assets</Button>
               </CardContent>
             </Card>
       ),

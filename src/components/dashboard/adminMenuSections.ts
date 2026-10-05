@@ -103,6 +103,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     items: [
       "inventory_management",
       "procurement_workflow",
+      "procurement_assets",
       "laboratory_infrastructure",
       "remote_analysis",
       "department_sync_agents",
