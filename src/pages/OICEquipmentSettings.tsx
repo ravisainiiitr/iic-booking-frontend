@@ -4,6 +4,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import {
   apiClient,
+  type OicEquipmentDepthUsage,
   type OicEquipmentSettings,
   type OicEquipmentSettingsRow,
   type ResultsDeadlineUnit,
@@ -30,7 +31,13 @@ type IntField =
 
 type TimeField = "slot_window_reference_time" | "weekly_view_time_from" | "weekly_view_time_to";
 
-type Draft = Record<IntField | TimeField, string> & {
+type DepthField =
+  | "waitlist_queue_depth"
+  | "max_urgent_requests"
+  | "max_rush_relief_requests_per_week"
+  | "max_surcharge_urgent_requests_per_week";
+
+type Draft = Record<IntField | TimeField | DepthField, string> & {
   slot_window_reference_weekday: string;
   results_deadline_value: string;
   results_deadline_unit: ResultsDeadlineUnit;
@@ -97,6 +104,65 @@ const INT_FIELDS: Array<{ key: IntField; label: string; hint: string; max: numbe
   },
 ];
 
+const DEPTH_FIELDS: Array<{
+  key: DepthField;
+  label: string;
+  hint: string;
+  max: number;
+  usage: (u: OicEquipmentDepthUsage, limit: number | null) => string;
+}> = [
+  {
+    key: "waitlist_queue_depth",
+    label: "Waitlist depth",
+    hint: "Most people who can wait in this equipment's queue at once. 0 or empty = waitlist off (no one can join). Lowering it never removes people already in the queue; new people can join once the queue is below the limit.",
+    max: 500,
+    usage: (u, limit) =>
+      limit
+        ? `${u.waitlist_active} of ${limit} in queue`
+        : u.waitlist_active > 0
+          ? `Waitlist off; ${u.waitlist_active} still in queue`
+          : "Waitlist off",
+  },
+  {
+    key: "max_urgent_requests",
+    label: "Open urgent requests at a time (Type A and B together)",
+    hint: "Most urgent requests that can wait for a decision at once. Empty = no limit. 0 = no new urgent requests.",
+    max: 100,
+    usage: (u, limit) => (limit == null ? `${u.urgent_pending} open (no limit)` : `${u.urgent_pending} of ${limit} open`),
+  },
+  {
+    key: "max_rush_relief_requests_per_week",
+    label: "Type A urgent requests (rush relief) per week",
+    hint: "Counts this calendar week's (Monday–Sunday) approved Type A requests plus those still pending. Empty = no limit. 0 = no Type A requests for this equipment.",
+    max: 100,
+    usage: (u, limit) =>
+      limit == null ? `${u.rush_relief_this_week} this week (no limit)` : `${u.rush_relief_this_week} of ${limit} this week`,
+  },
+  {
+    key: "max_surcharge_urgent_requests_per_week",
+    label: "Type B urgent requests (50% surcharge) per week",
+    hint: "Counts this calendar week's (Monday–Sunday) approved Type B requests plus those still pending. Empty = no limit. 0 = no Type B requests for this equipment.",
+    max: 100,
+    usage: (u, limit) =>
+      limit == null ? `${u.surcharge_this_week} this week (no limit)` : `${u.surcharge_this_week} of ${limit} this week`,
+  },
+];
+
+const EMPTY_USAGE: OicEquipmentDepthUsage = {
+  waitlist_active: 0,
+  urgent_pending: 0,
+  rush_relief_this_week: 0,
+  surcharge_this_week: 0,
+};
+
+const optionalCount = (value: number | null | undefined) => (value == null ? "" : String(value));
+
+function parseDepth(raw: string, key: DepthField): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return key === "waitlist_queue_depth" ? 0 : null;
+  return Number(trimmed);
+}
+
 function toDraft(settings: OicEquipmentSettings): Draft {
   return {
     slot_window_reference_weekday:
@@ -111,20 +177,39 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     show_results_deadline_to_users: Boolean(settings.show_results_deadline_to_users),
     sample_submission_lead_hours: String(settings.sample_submission_lead_hours ?? 0),
     sample_collect_deadline_hours: String(settings.sample_collect_deadline_hours ?? 0),
+    waitlist_queue_depth: String(settings.waitlist_queue_depth ?? 0),
+    max_urgent_requests: optionalCount(settings.max_urgent_requests),
+    max_rush_relief_requests_per_week: optionalCount(settings.max_rush_relief_requests_per_week),
+    max_surcharge_urgent_requests_per_week: optionalCount(settings.max_surcharge_urgent_requests_per_week),
     important_instruction: settings.important_instruction ?? "",
     important_instruction_by_user_type: { ...(settings.important_instruction_by_user_type ?? {}) },
   };
 }
 
-function toPayload(draft: Draft): { payload: Partial<OicEquipmentSettings>; errors: Record<string, string> } {
+function toPayload(
+  draft: Draft,
+  saved: Draft,
+  canEditSlotWindowReference: boolean,
+): { payload: Partial<OicEquipmentSettings>; errors: Record<string, string> } {
   const errors: Record<string, string> = {};
   const payload: Partial<OicEquipmentSettings> = {
-    slot_window_reference_weekday:
-      draft.slot_window_reference_weekday === NO_WEEKDAY ? null : Number(draft.slot_window_reference_weekday),
-    slot_window_reference_time: draft.slot_window_reference_time || null,
     weekly_view_time_from: draft.weekly_view_time_from || null,
     weekly_view_time_to: draft.weekly_view_time_to || null,
   };
+  if (canEditSlotWindowReference) {
+    payload.slot_window_reference_weekday =
+      draft.slot_window_reference_weekday === NO_WEEKDAY ? null : Number(draft.slot_window_reference_weekday);
+    payload.slot_window_reference_time = draft.slot_window_reference_time || null;
+  }
+  for (const field of DEPTH_FIELDS) {
+    if (draft[field.key].trim() === saved[field.key].trim()) continue;
+    const value = parseDepth(draft[field.key], field.key);
+    if (value !== null && (!Number.isInteger(value) || value < 0 || value > field.max)) {
+      errors[field.key] = `Enter a whole number from 0 to ${field.max}, or leave empty.`;
+    } else {
+      (payload as Record<DepthField, number | null>)[field.key] = value;
+    }
+  }
   for (const field of INT_FIELDS) {
     const raw = draft[field.key].trim();
     const value = Number(raw);
@@ -194,6 +279,7 @@ export default function OICEquipmentSettings() {
   const userType = String(user?.user_type ?? "").toLowerCase();
   const canManage = userType === "admin" || userType === "manager";
 
+  const [canEditSlotWindowReference, setCanEditSlotWindowReference] = useState(userType === "admin");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<OicEquipmentSettingsRow[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -240,6 +326,9 @@ export default function OICEquipmentSettings() {
       }
       const list = res.data?.equipments ?? [];
       setRows(list);
+      if (typeof res.data?.can_edit_slot_window_reference === "boolean") {
+        setCanEditSlotWindowReference(res.data.can_edit_slot_window_reference);
+      }
       setInstructionUserTypes(res.data?.instruction_user_types ?? []);
       if (list.length > 0) setSelectedId(String(list[0].equipment_id));
     });
@@ -302,8 +391,8 @@ export default function OICEquipmentSettings() {
   };
 
   const saveSettings = async (): Promise<boolean> => {
-    if (!selected || !draft) return false;
-    const { payload, errors: localErrors } = toPayload(draft);
+    if (!selected || !draft || !savedDraft) return false;
+    const { payload, errors: localErrors } = toPayload(draft, savedDraft, canEditSlotWindowReference);
     if (Object.keys(localErrors).length > 0) {
       setErrors(localErrors);
       toast.error("Please correct the highlighted settings.");
@@ -388,8 +477,8 @@ export default function OICEquipmentSettings() {
             </Button>
             <h1 className="text-2xl font-semibold tracking-tight">Equipment Booking Configuration</h1>
             <p className="mt-1 max-w-2xl text-sm text-white/85">
-              Set the important instruction shown to users, when slots become visible, usage quotas, and booking and
-              sample deadlines for each equipment you manage.
+              Set the important instruction shown to users, slot visibility, waitlist and urgent request limits, usage
+              quotas, and booking and sample deadlines for each equipment you manage.
             </p>
           </div>
         </StandaloneOnly>
@@ -534,46 +623,53 @@ export default function OICEquipmentSettings() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Slot visibility</CardTitle>
                       <CardDescription>
-                        When next week&apos;s slots open to internal users, and the time range regular users see.
+                        {canEditSlotWindowReference
+                          ? "When next week's slots open to internal users, and the time range regular users see."
+                          : "The time range regular users see, and the share of slots external users may book."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="oic-setting-weekday">Slot window reference weekday</Label>
-                          <Select
-                            value={draft.slot_window_reference_weekday}
-                            onValueChange={(v) => setField("slot_window_reference_weekday", v)}
-                          >
-                            <SelectTrigger id="oic-setting-weekday">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={NO_WEEKDAY}>No restriction</SelectItem>
-                              {WEEKDAYS.map((day, i) => (
-                                <SelectItem key={day} value={String(i)}>
-                                  {day}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {fieldError("slot_window_reference_weekday")}
+                      {canEditSlotWindowReference && (
+                        <div className="space-y-4" data-testid="oic-slot-window-reference">
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oic-setting-weekday">Slot window reference weekday</Label>
+                              <Select
+                                value={draft.slot_window_reference_weekday}
+                                onValueChange={(v) => setField("slot_window_reference_weekday", v)}
+                              >
+                                <SelectTrigger id="oic-setting-weekday">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={NO_WEEKDAY}>No restriction</SelectItem>
+                                  {WEEKDAYS.map((day, i) => (
+                                    <SelectItem key={day} value={String(i)}>
+                                      {day}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {fieldError("slot_window_reference_weekday")}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="oic-setting-ref-time">Reference time (24h)</Label>
+                              <Input
+                                id="oic-setting-ref-time"
+                                type="time"
+                                value={draft.slot_window_reference_time}
+                                onChange={(e) => setField("slot_window_reference_time", e.target.value)}
+                              />
+                              {fieldError("slot_window_reference_time")}
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Before this day and time only the current week is visible; from then on the current and
+                            next week are visible. Leave empty for no restriction. Only the Main Administrator can
+                            change this.
+                          </p>
                         </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="oic-setting-ref-time">Reference time (24h)</Label>
-                          <Input
-                            id="oic-setting-ref-time"
-                            type="time"
-                            value={draft.slot_window_reference_time}
-                            onChange={(e) => setField("slot_window_reference_time", e.target.value)}
-                          />
-                          {fieldError("slot_window_reference_time")}
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Before this day and time only the current week is visible; from then on the current and next
-                        week are visible. Leave empty for no restriction.
-                      </p>
+                      )}
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label htmlFor="oic-setting-view-from">Weekly view from (24h)</Label>
@@ -676,6 +772,45 @@ export default function OICEquipmentSettings() {
                     </Card>
                   </div>
                 </div>
+
+                <Card className="rounded-2xl border-border/70" data-testid="oic-booking-depths">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Waitlist and urgent requests</CardTitle>
+                    <CardDescription>
+                      How many people can wait in the queue, and how many urgent requests this equipment accepts. When
+                      a limit is reached, new requests are refused with a message saying so; nothing already in the
+                      queue or awaiting a decision is removed.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 sm:grid-cols-2">
+                    {DEPTH_FIELDS.map((f) => {
+                      const parsed = parseDepth(draft[f.key], f.key);
+                      const limit = parsed !== null && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+                      return (
+                        <div key={f.key} className="space-y-1.5">
+                          <Label htmlFor={`oic-setting-${f.key}`}>{f.label}</Label>
+                          <Input
+                            id={`oic-setting-${f.key}`}
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            max={f.max}
+                            step={1}
+                            placeholder={f.key === "waitlist_queue_depth" ? "0 (off)" : "No limit"}
+                            value={draft[f.key]}
+                            onChange={(e) => setField(f.key, e.target.value)}
+                            aria-invalid={Boolean(errors[f.key])}
+                          />
+                          <p className="text-xs font-medium text-foreground" data-testid={`oic-usage-${f.key}`}>
+                            {f.usage(selected?.usage ?? EMPTY_USAGE, limit)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{f.hint}</p>
+                          {fieldError(f.key)}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
 
                 <Card className="rounded-2xl border-border/70">
                   <CardHeader className="pb-3">

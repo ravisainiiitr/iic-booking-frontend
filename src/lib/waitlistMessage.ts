@@ -25,5 +25,8 @@ export function waitlistQueueMessage(position: number | null): string {
 export const WAITLIST_FOLLOW_UP =
   "No slot was booked or charged yet. If a slot frees up for you, it is booked automatically and you get an email; you can also check My Bookings.";
 
-export const WAITLIST_FULL_MESSAGE =
-  "All slots this week are taken and the waiting queue is full. Try another week, or check back later — cancelled slots go back on the calendar.";
+export function waitlistFullMessage(equipmentName?: string | null): string {
+  const name = String(equipmentName || "").trim();
+  const lead = name ? `The waitlist for ${name} is full.` : "The waitlist is full.";
+  return `${lead} Try another week, or check back later — cancelled slots go back on the calendar.`;
+}

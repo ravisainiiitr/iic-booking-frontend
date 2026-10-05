@@ -32,6 +32,16 @@ describe("What's New", () => {
     expect(ids(buildGuide({ audience: "faculty" }))).not.toContain("wallet-modes-departments");
   });
 
+  it("announces waitlist and urgent request limits to Officers In Charge only", () => {
+    const oic = buildGuide({ audience: "oic", flags: { training: true } });
+    expect(ids(oic)[0]).toBe("booking-depths");
+    expect(ids(oic)).toContain("training-oic");
+    expect(oic.whatsNew.items.length).toBeLessThanOrEqual(10);
+    for (const audience of ["admin", "dept_admin", "operator", "student"] as const) {
+      expect(ids(buildGuide({ audience }))).not.toContain("booking-depths");
+    }
+  });
+
   it("announces registration approvals to the Main Administrator, faculty and project staff only", () => {
     expect(ids(buildGuide({ audience: "admin" }))[0]).toBe("registration-requests");
     expect(ids(buildGuide({ audience: "faculty" }))).toContain("registration-approvals-faculty");

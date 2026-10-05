@@ -186,7 +186,11 @@ export function oicConfigSection(g: Gate): GuideSection {
       },
       {
         title: "Booking and sample timings",
-        body: "In the same page set slot visibility, usage quotas, the sample submission lead time and the sample collect deadline.",
+        body: "In the same page set the weekly view time range, the external slot quota, usage quotas, the sample submission lead time and the sample collect deadline. When next week's slots open (Slot window reference weekday and Reference time) is set by the Main Administrator only.",
+      },
+      {
+        title: "Waitlist and urgent requests",
+        body: "Under Waitlist and urgent requests set Waitlist depth (how many people can wait in the queue; 0 or empty = waitlist off), Open urgent requests at a time (Type A and B together), and the Type A (rush relief) and Type B (50% surcharge) limits per week. Empty means no limit and 0 means none accepted. Each box shows the current count, such as 3 of 10 in queue.",
       },
       {
         title: "Results deadline",
@@ -208,6 +212,7 @@ export function oicConfigSection(g: Gate): GuideSection {
     rules: [
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",
       "You can only add an instrument as a mode if you are its Officer In Charge and it is in the same department as the base. A mode that still has upcoming bookings or current or future schedules cannot be removed; clear those first.",
+      "When a waitlist or urgent limit is reached, new users are told the waitlist is full or the urgent limit has been reached. Nobody already in the queue, and no request awaiting a decision, is removed. The weekly Type A and Type B limits count this week's (Monday–Sunday) approved requests plus the pending ones.",
       "Only you (as primary or temporary Officer In Charge) and the Main Administrator can change the results deadline. It replaces the old Auto Operator Unavailable and Auto Operator Absent Disruption hours: when results are still not shared after the deadline, the booking is marked Operator Unavailable with a full refund if the sample was received but never taken up by the lab, or goes to Operator Absent (the user chooses refund or reschedule) if the sample is with the lab, as before. Use Extend results deadline in the booking details for a genuine delay.",
     ],
   };

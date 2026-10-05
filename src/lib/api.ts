@@ -1180,8 +1180,23 @@ export interface OicEquipmentSettings {
   show_results_deadline_to_users: boolean;
   sample_submission_lead_hours: number;
   sample_collect_deadline_hours: number;
+  /** Maximum active waitlist entries; 0 = waitlist off. */
+  waitlist_queue_depth?: number;
+  /** Maximum open (pending) urgent requests of both types at a time; null = no limit. */
+  max_urgent_requests?: number | null;
+  /** Type A (rush relief) per calendar week, approved this week plus pending; null = no limit. */
+  max_rush_relief_requests_per_week?: number | null;
+  /** Type B (50% surcharge) per calendar week, approved this week plus pending; null = no limit. */
+  max_surcharge_urgent_requests_per_week?: number | null;
   important_instruction: string;
   important_instruction_by_user_type?: Record<string, string>;
+}
+
+export interface OicEquipmentDepthUsage {
+  waitlist_active: number;
+  urgent_pending: number;
+  rush_relief_this_week: number;
+  surcharge_this_week: number;
 }
 
 export type ResultsDeadlineUnit = 'WORKING_DAYS' | 'HOURS';
@@ -1236,6 +1251,7 @@ export interface OicEquipmentSettingsRow {
   equipment_code: string;
   equipment_name: string;
   profile_type: string;
+  usage?: OicEquipmentDepthUsage;
   settings: OicEquipmentSettings;
 }
 
@@ -9927,6 +9943,8 @@ class ApiClient {
     return this.request<{
       equipments: OicEquipmentSettingsRow[];
       has_print_3d_equipment: boolean;
+      /** Main Administrator only: slot window reference weekday and time. */
+      can_edit_slot_window_reference?: boolean;
       instruction_user_types?: Array<{ value: string; label: string }>;
     }>(
       "/oic/equipment-settings/",

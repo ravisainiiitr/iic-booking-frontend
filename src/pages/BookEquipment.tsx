@@ -225,7 +225,7 @@ import {
 } from "@/lib/quotaBreakdown";
 import {
   WAITLIST_FOLLOW_UP,
-  WAITLIST_FULL_MESSAGE,
+  waitlistFullMessage,
   isWaitlistedResponse,
   waitlistPositionFrom,
   waitlistQueueMessage,
@@ -6610,7 +6610,7 @@ const BookEquipment = () => {
       return;
     }
     const raw = String(errRes.error || "Booking unsuccessful.");
-    const message = errRes.waitlist_full ? `${raw} ${WAITLIST_FULL_MESSAGE}` : raw;
+    const message = errRes.waitlist_full ? `${raw} ${waitlistFullMessage(workspaceEquipmentTitle)}` : raw;
     const quotaFailure = quotaFailureFrom(errRes);
     const firstSlotDate = selectedSlots[0]?.date ? format(selectedSlots[0].date, "yyyy-MM-dd") : null;
     let dropped = 0;
@@ -10780,7 +10780,7 @@ const BookEquipment = () => {
                                         <Button className="mt-3" size="sm" onClick={() => setWaitlistIntentMode(true)}>Join the queue</Button>
                                       </>
                                     ) : (
-                                      <p className="text-sm text-muted-foreground">{WAITLIST_FULL_MESSAGE}</p>
+                                      <p className="text-sm text-muted-foreground">{waitlistFullMessage(workspaceEquipmentTitle)}</p>
                                     )}
                                   </div>
                                 )}
@@ -10801,7 +10801,7 @@ const BookEquipment = () => {
                                 {equipmentDetail?.waitlist_has_room ? (
                                   <Button size="sm" onClick={() => setWaitlistIntentMode(true)}>Join the queue</Button>
                                 ) : (
-                                  <p className="text-sm text-muted-foreground">{WAITLIST_FULL_MESSAGE}</p>
+                                  <p className="text-sm text-muted-foreground">{waitlistFullMessage(workspaceEquipmentTitle)}</p>
                                 )}
                               </div>
                             )}
