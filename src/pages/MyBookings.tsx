@@ -162,6 +162,7 @@ interface Booking extends BookingRef {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  amount_paid?: string | null;
   waitlist_entry_id?: number;
   waitlist_position?: number;
   waitlist_code?: string;
@@ -293,11 +294,18 @@ function getDefaultCancelSlotIds(booking: Booking, allowStartedSlots: boolean): 
   return slots.filter((s) => allowStartedSlots || !slotHasStarted(s)).map((s) => s.id);
 }
 
+/** A full cancellation refunds what was paid: a recalculation refund still awaiting the OIC is included,
+ *  an extra amount not yet paid is not. */
+function fullCancelRefundAmount(booking: Booking): number {
+  if (booking.amount_paid != null && booking.amount_paid !== "") return Number(booking.amount_paid);
+  return Number(booking.total_charge);
+}
+
 function calculateCancelRefundAmount(booking: Booking, selectedSlotIds: number[]): number {
   const slots = booking.daily_slots ?? [];
   if (slots.length === 0 || selectedSlotIds.length === 0) return 0;
   const totalCharge = Number(booking.total_charge);
-  if (selectedSlotIds.length >= slots.length) return totalCharge;
+  if (selectedSlotIds.length >= slots.length) return fullCancelRefundAmount(booking);
   // Equal share per slot (matches backend partial-cancel refund).
   return (totalCharge / slots.length) * selectedSlotIds.length;
 }
@@ -2272,7 +2280,7 @@ const MyBookings = () => {
                         return cancelPreviewLoading ? "Calculating refund…" : "Could not calculate refund for selected file(s).";
                       }
                       if (cancelEntireBooking && isPrint3dProfile(selectedBooking)) {
-                        return `The booking will be cancelled and ₹${Number(selectedBooking.total_charge).toFixed(2)} will be refunded to your wallet immediately.`;
+                        return `The booking will be cancelled and ₹${fullCancelRefundAmount(selectedBooking).toFixed(2)} will be refunded to your wallet immediately.`;
                       }
                       if (!cancelEntireBooking && cancelPreview) {
                         const refundAmount = Number(cancelPreview.refund_amount);
@@ -2283,7 +2291,7 @@ const MyBookings = () => {
                       }
                       const allSlots = selectedBooking.daily_slots ?? [];
                       const refundAmount = cancelEntireBooking
-                        ? Number(selectedBooking.total_charge)
+                        ? fullCancelRefundAmount(selectedBooking)
                         : calculateCancelRefundAmount(selectedBooking, cancelSlotIds);
                       if (!cancelEntireBooking && !usesInputReductionForPartialCancel(selectedBooking) && cancelSlotIds.length === 0) {
                         return "Select at least one slot to see the refund amount.";
