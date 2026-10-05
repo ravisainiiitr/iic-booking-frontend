@@ -32,6 +32,7 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   CONFIRMED: BLUE,
   APPROVED: BLUE,
   DISRUPTION_PENDING: "border-transparent bg-amber-700 text-white hover:bg-amber-700",
+  FABRICATION_REJECTED: "border-transparent bg-rose-700 text-white hover:bg-rose-700",
   PROCESSING: "border-transparent bg-indigo-600 text-white hover:bg-indigo-600",
   IN_PROGRESS: GREEN,
   COMPLETED: GREEN,
@@ -48,12 +49,29 @@ export function bookingStatusBadgeClass(status: string | null | undefined): stri
   return STATUS_BADGE_CLASSES[String(status || "").toUpperCase()] ?? DEFAULT_BADGE_CLASS;
 }
 
+/** Status key for the badge colour: a 3D print / laser booking rejected by the lab stays Booked but shows as rejected. */
+export function bookingBadgeStatus(booking: {
+  status?: string | null;
+  fabrication_rejected_at?: string | null;
+  fabrication_workflow?: { rejected?: boolean } | null;
+}): string {
+  const status = String(booking.status || "").toUpperCase();
+  const rejected = !!booking.fabrication_rejected_at || !!booking.fabrication_workflow?.rejected;
+  return status === "BOOKED" && rejected ? "FABRICATION_REJECTED" : status;
+}
+
 const LEGEND: Array<Omit<BookingStatusLegendEntry, "badgeClass">> = [
   { status: "PENDING", label: "Pending", meaning: "Request received; waiting for the lab / Officer in Charge to confirm." },
   { status: "PENDING_PAYMENT", label: "Awaiting payment", meaning: "Pay the amount due to confirm the booking." },
   { status: "BOOKED", label: "Booked", meaning: "Slot confirmed. Bring or send your sample on time." },
   { status: "WAITLISTED", label: "Waitlisted", meaning: "You are in the queue. You will be notified if a slot frees up." },
   { status: "HOLD", label: "Hold", meaning: "Slots are held for an urgent request awaiting approval." },
+  {
+    status: "FABRICATION_REJECTED",
+    label: "Rejected – waiting for new files",
+    meaning:
+      "3D printing / laser cutting: the lab cannot make the parts from your files. Upload new files before the deadline, or the booking is cancelled and refunded.",
+  },
   {
     status: "DISRUPTION_PENDING",
     label: "Awaiting your choice (disruption)",

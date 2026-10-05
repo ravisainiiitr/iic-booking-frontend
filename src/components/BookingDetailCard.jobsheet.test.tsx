@@ -80,6 +80,39 @@ describe("BookingDetailCard job sheet", () => {
     }
   });
 
+  it("shows Lab Operators the laser parts, the own-material flag and DXF downloads", () => {
+    const laser = {
+      ...booking,
+      equipment_profile_type: "LASER_CUT_2D",
+      own_material: true,
+      fabrication_parts: [
+        {
+          kind: "laser",
+          analysis_id: "a1",
+          name: "Bracket",
+          filename: "bracket.dxf",
+          quantity: 5,
+          material_name: "Acrylic sheet 3 mm",
+          width_mm: "200.00",
+          height_mm: "100.00",
+          area_mm2: "20000.00",
+        },
+      ],
+      fabrication_file_changes: [],
+      fabrication_files_replaceable: { allowed: false, reason: null },
+    } as unknown as BookingDetailCardBooking;
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <BookingDetailCard booking={laser} onClose={() => {}} onUpdated={() => {}} isOperator currentUserType="operator" currentUserId={99} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain("Job sheet");
+    expect(html).toContain("Laser cutting parts");
+    expect(html).toContain("Acrylic sheet 3 mm · 200 × 100 mm (0.0200 m² each)");
+    expect(html).toContain("User brings own material");
+    expect(html).toContain("Download bracket.dxf");
+  });
+
   it("leaves the booking owner's view unchanged", () => {
     const html = renderCard({ isOperator: false, currentUserType: "faculty", currentUserId: 7 });
     expect(html).not.toContain("Job sheet");
@@ -113,6 +146,70 @@ describe("BookingDetailCard job sheet", () => {
       );
     expect(asFinance(external("COMPLETED"))).toContain("Return shipping label");
     expect(asFinance(external("BOOKED"))).not.toContain("Return shipping label");
+  });
+
+  describe("deadlines for Lab Operators", () => {
+    const withDeadlines = (over: Record<string, unknown> = {}) =>
+      ({
+        ...booking,
+        lifecycle_countdown: {
+          enabled: true,
+          phase: "submit_sample",
+          started_at: "2026-10-01T10:00:00Z",
+          deadline_at: "2099-10-06T04:30:00Z",
+        },
+        results_deadline: {
+          value: 2,
+          unit: "WORKING_DAYS",
+          label: "within 2 working days after the slot",
+          due_at: "2099-10-08T18:29:59Z",
+          due_display: "Thu 08 Oct",
+          extended: false,
+          overdue: false,
+          visible_to_user: true,
+        },
+        ...over,
+      }) as unknown as BookingDetailCardBooking;
+    const render = (b: BookingDetailCardBooking, props: { isOperator: boolean; isManagerOrAdmin?: boolean; currentUserType: string; currentUserId: number }) =>
+      renderToStaticMarkup(
+        <MemoryRouter>
+          <BookingDetailCard booking={b} onClose={() => {}} onUpdated={() => {}} {...props} />
+        </MemoryRouter>,
+      );
+    const operator = { isOperator: true, currentUserType: "operator", currentUserId: 99 };
+
+    it("hides the booking user's Time remaining countdown and the results date before Sample Accepted", () => {
+      const html = render(withDeadlines(), operator);
+      expect(html).not.toContain("Time remaining");
+      expect(html).not.toContain("job-sheet-results-due");
+      expect(html).not.toContain("Results due");
+    });
+
+    it("shows the results deadline once the sample is accepted, flagged when overdue", () => {
+      const accepted = [{ status: "SAMPLE_ACCEPTED", created_at: "2026-10-06T05:00:00Z" }];
+      const due = render(withDeadlines({ sample_trace: accepted }), operator);
+      expect(due).not.toContain("Time remaining");
+      expect(due).toContain("job-sheet-results-due");
+      expect(due).toContain("Results due");
+
+      const late = render(
+        withDeadlines({
+          sample_trace: accepted,
+          results_deadline: { ...(withDeadlines().results_deadline as object), overdue: true },
+        }),
+        operator,
+      );
+      expect(late).toContain("Results overdue");
+    });
+
+    it("still shows the countdown to the booking user and the Officer In Charge", () => {
+      expect(render(withDeadlines(), { isOperator: false, currentUserType: "faculty", currentUserId: 7 })).toContain(
+        "Time remaining to submit sample",
+      );
+      expect(
+        render(withDeadlines(), { isOperator: false, isManagerOrAdmin: true, currentUserType: "manager", currentUserId: 50 }),
+      ).toContain("Time remaining to submit sample");
+    });
   });
 
   it("leaves the Officer In Charge's view unchanged", () => {

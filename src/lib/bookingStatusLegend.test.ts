@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOOKING_STATUS_LEGEND, bookingStatusBadgeClass } from "./bookingStatusLegend";
+import { BOOKING_STATUS_LEGEND, bookingBadgeStatus, bookingStatusBadgeClass } from "./bookingStatusLegend";
 
 const LOW_CONTRAST_WITH_WHITE = /\bbg-(yellow|amber|lime|orange)-(50|100|200|300|400|500)\b/;
 
@@ -42,6 +42,19 @@ describe("bookingStatusBadgeClass", () => {
   it("keeps Waitlisted neutral rather than alarming", () => {
     const cls = bookingStatusBadgeClass("WAITLISTED");
     expect(cls).not.toMatch(/\bbg-(red|amber|orange|yellow)-/);
+  });
+});
+
+describe("bookingBadgeStatus", () => {
+  it("shows a booked fabrication job rejected by the lab with its own badge", () => {
+    expect(bookingBadgeStatus({ status: "BOOKED", fabrication_rejected_at: "2026-10-05T04:30:00Z" })).toBe("FABRICATION_REJECTED");
+    expect(bookingBadgeStatus({ status: "BOOKED", fabrication_workflow: { rejected: true } })).toBe("FABRICATION_REJECTED");
+    expect(bookingStatusBadgeClass("FABRICATION_REJECTED")).not.toBe(bookingStatusBadgeClass("BOOKED"));
+  });
+
+  it("keeps the normal status otherwise, including after an expired rejection was cancelled", () => {
+    expect(bookingBadgeStatus({ status: "booked" })).toBe("BOOKED");
+    expect(bookingBadgeStatus({ status: "REFUNDED", fabrication_rejected_at: "2026-10-05T04:30:00Z" })).toBe("REFUNDED");
   });
 });
 

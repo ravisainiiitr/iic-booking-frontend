@@ -1,8 +1,9 @@
 import { Clock3 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { useCountdown } from "@/hooks/use-countdown";
 import { cn } from "@/lib/utils";
 
 function formatHMS(totalSeconds: number) {
@@ -31,6 +32,8 @@ type Props = {
   showReturnToDashboard?: boolean;
   /** When true, confirm before leaving if a session may still be running. */
   confirmLeaveSession?: boolean;
+  /** Count down locally between updates. Pass false when the parent already ticks `remainingSeconds`. */
+  ticking?: boolean;
 };
 
 export function AnalysisWorkspaceChrome({
@@ -49,23 +52,10 @@ export function AnalysisWorkspaceChrome({
   compact = false,
   showReturnToDashboard = true,
   confirmLeaveSession = false,
+  ticking = true,
 }: Props) {
-  const [remaining, setRemaining] = useState<number | null>(
-    typeof remainingSeconds === "number" ? remainingSeconds : null
-  );
-
-  useEffect(() => {
-    setRemaining(typeof remainingSeconds === "number" ? remainingSeconds : null);
-  }, [remainingSeconds]);
-
-  useEffect(() => {
-    if (remaining == null || remaining <= 0) return;
-    const id = window.setInterval(
-      () => setRemaining((r) => (r == null ? r : Math.max(0, r - 1))),
-      1000
-    );
-    return () => window.clearInterval(id);
-  }, [remaining == null]);
+  const local = useCountdown(ticking ? remainingSeconds : null);
+  const remaining = ticking ? local : typeof remainingSeconds === "number" ? remainingSeconds : null;
 
   // Extend only in the final 2 minutes, and only when the backend allows it.
   const withinExtendWindow = remaining != null && remaining > 0 && remaining <= 120;

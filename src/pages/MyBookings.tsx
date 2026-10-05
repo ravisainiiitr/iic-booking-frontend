@@ -61,7 +61,7 @@ import {
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
-import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 
@@ -162,6 +162,7 @@ interface Booking extends BookingRef {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  amount_paid?: string | null;
   waitlist_entry_id?: number;
   waitlist_position?: number;
   waitlist_code?: string;
@@ -190,6 +191,9 @@ interface Booking extends BookingRef {
   cancel_block_message?: string | null;
   equipment_profile_type?: string | null;
   equipment_profile_type_display?: string | null;
+  /** 3D print / laser: set while the lab's "not feasible" rejection waits for new files. */
+  fabrication_rejected_at?: string | null;
+  fabrication_replace_deadline?: string | null;
   print_analyses?: Array<{
     id: string;
     stl_filename?: string;
@@ -225,6 +229,11 @@ function usesInputReductionForPartialCancel(booking: Booking | null): boolean {
 
 function isPrint3dProfile(booking: Booking | null): boolean {
   return String(booking?.equipment_profile_type || "").toUpperCase() === "PRINT_3D";
+}
+
+/** Laser jobs are cut in one go, so only whole-booking cancellation is offered. */
+function isLaserCutProfile(booking: Booking | null): boolean {
+  return String(booking?.equipment_profile_type || "").toUpperCase() === "LASER_CUT_2D";
 }
 
 function getActivePrintFiles(booking: Booking | null) {
@@ -285,11 +294,18 @@ function getDefaultCancelSlotIds(booking: Booking, allowStartedSlots: boolean): 
   return slots.filter((s) => allowStartedSlots || !slotHasStarted(s)).map((s) => s.id);
 }
 
+/** A full cancellation refunds what was paid: a recalculation refund still awaiting the OIC is included,
+ *  an extra amount not yet paid is not. */
+function fullCancelRefundAmount(booking: Booking): number {
+  if (booking.amount_paid != null && booking.amount_paid !== "") return Number(booking.amount_paid);
+  return Number(booking.total_charge);
+}
+
 function calculateCancelRefundAmount(booking: Booking, selectedSlotIds: number[]): number {
   const slots = booking.daily_slots ?? [];
   if (slots.length === 0 || selectedSlotIds.length === 0) return 0;
   const totalCharge = Number(booking.total_charge);
-  if (selectedSlotIds.length >= slots.length) return totalCharge;
+  if (selectedSlotIds.length >= slots.length) return fullCancelRefundAmount(booking);
   // Equal share per slot (matches backend partial-cancel refund).
   return (totalCharge / slots.length) * selectedSlotIds.length;
 }
@@ -875,6 +891,9 @@ const MyBookings = () => {
   const canCancelBooking = (booking: Booking) =>
     isWaitlistedEntry(booking) || canCancelOrReschedule(booking.status);
 
+  /** Rejected by the lab and waiting for new files: the owner may cancel for a full refund at any time. */
+  const isFabricationRejected = (booking: Booking) => bookingBadgeStatus(booking) === "FABRICATION_REJECTED";
+
   const isRepeatBooking = (booking: Booking): boolean =>
     (booking.source_booking_id != null && booking.source_booking_id !== undefined) ||
     (typeof booking.virtual_booking_id === "string" && booking.virtual_booking_id.endsWith("R"));
@@ -996,7 +1015,7 @@ const MyBookings = () => {
     return (
       serverAllowsOwnerCancel(booking) &&
       canCancelBooking(booking) &&
-      (!!booking.maintenance_disruption_flag || isWithinThresholdWindow(booking))
+      (!!booking.maintenance_disruption_flag || isFabricationRejected(booking) || isWithinThresholdWindow(booking))
     );
   };
 
@@ -1071,6 +1090,7 @@ const MyBookings = () => {
     if (
       !isStaffCancelingOtherUser(booking) &&
       !booking.maintenance_disruption_flag &&
+      !isFabricationRejected(booking) &&
       !isWithinThresholdWindow(booking)
     ) {
       if (booking.start_time) {
@@ -1348,6 +1368,7 @@ const MyBookings = () => {
     }
     if (restrictedExternalUserType) return null;
     if (user?.id == null || Number(booking.user) !== Number(user.id)) return null;
+    if (isFabricationRejected(booking)) return null;
     return cancelRescheduleDeadline(booking, now);
   };
 
@@ -1687,7 +1708,7 @@ const MyBookings = () => {
                           ₹{Number(booking.total_charge).toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(booking.status)}>
+                          <Badge className={getStatusColor(bookingBadgeStatus(booking))}>
                             {booking.status_display}
                           </Badge>
                         </TableCell>
@@ -1722,7 +1743,7 @@ const MyBookings = () => {
                         <li key={booking.booking_id} className="space-y-2 p-4">
                           <div className="flex items-start justify-between gap-2">
                             {renderBookingIdButton(booking, true)}
-                            <Badge className={`mt-2 shrink-0 ${getStatusColor(booking.status)}`}>
+                            <Badge className={`mt-2 shrink-0 ${getStatusColor(bookingBadgeStatus(booking))}`}>
                               {booking.status_display}
                             </Badge>
                           </div>
@@ -2053,7 +2074,9 @@ const MyBookings = () => {
                 const { key, label } = getReductionFieldMeta(selectedBooking);
                 const currentReduction = getCurrentReductionValue(selectedBooking, key);
                 const printFiles = getActivePrintFiles(selectedBooking);
-                const canOfferPartialCancel = isPrint3dProfile(selectedBooking)
+                const canOfferPartialCancel = isLaserCutProfile(selectedBooking)
+                  ? false
+                  : isPrint3dProfile(selectedBooking)
                   ? printFiles.length > 1
                   : (inputReduction
                     ? currentReduction > 1 || slotCount > 1
@@ -2257,7 +2280,7 @@ const MyBookings = () => {
                         return cancelPreviewLoading ? "Calculating refund…" : "Could not calculate refund for selected file(s).";
                       }
                       if (cancelEntireBooking && isPrint3dProfile(selectedBooking)) {
-                        return `The booking will be cancelled and ₹${Number(selectedBooking.total_charge).toFixed(2)} will be refunded to your wallet immediately.`;
+                        return `The booking will be cancelled and ₹${fullCancelRefundAmount(selectedBooking).toFixed(2)} will be refunded to your wallet immediately.`;
                       }
                       if (!cancelEntireBooking && cancelPreview) {
                         const refundAmount = Number(cancelPreview.refund_amount);
@@ -2268,7 +2291,7 @@ const MyBookings = () => {
                       }
                       const allSlots = selectedBooking.daily_slots ?? [];
                       const refundAmount = cancelEntireBooking
-                        ? Number(selectedBooking.total_charge)
+                        ? fullCancelRefundAmount(selectedBooking)
                         : calculateCancelRefundAmount(selectedBooking, cancelSlotIds);
                       if (!cancelEntireBooking && !usesInputReductionForPartialCancel(selectedBooking) && cancelSlotIds.length === 0) {
                         return "Select at least one slot to see the refund amount.";

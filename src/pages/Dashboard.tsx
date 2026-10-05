@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } fro
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
+import { localDateStamp } from "@/lib/localDate";
 import { getUserTypeDisplayName, isEndUserBookingType, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
@@ -25,8 +26,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight } from "lucide-react";
+import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
+import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
@@ -35,7 +38,9 @@ import PendingActionsSummary from "@/components/PendingActions/PendingActionsSum
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
 import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
-import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
+import BookingsAwaitingCompletionCard, {
+  BOOKINGS_AWAITING_COMPLETION_KEY,
+} from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -118,7 +123,10 @@ const OIC_DASHBOARD_MENU_ORDER = [
 const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string }> = {
   "/booking-management": { title: "View Booking", description: "Review and manage bookings for your equipment." },
   "/urgent-requests": { title: "Urgent Booking", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
-  "/oic/multi-mode": { title: "Multi-mode Equipment" },
+  "/multi-mode-equipment": {
+    title: "Multi-mode equipment",
+    description: "Choose an instrument's modes and plan which mode can be booked on which days.",
+  },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
   "/oic/equipment-settings": {
     title: "Equipment Booking Configuration",
@@ -135,7 +143,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   },
   "/reports": { title: "Reports & Statistics" },
   "/oic/accessories": { title: "Accessories" },
-  "/oic/print-materials": { title: "Print Materials" },
+  "/oic/print-materials": { title: "Fabrication Materials" },
   "/publication-claims": { title: "Publication Claims" },
   "/ta-assignments": { title: "TA Duty Assignments" },
   "/ta-nomination-call": { title: "TA Nomination Call" },
@@ -521,6 +529,8 @@ const Dashboard = () => {
   const canSeeAdminSettingsCard =
     !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
+  const { available: showProcurementAssets } = useProcurementAvailability(Boolean(user));
+  const remoteAnalysisAvailable = moduleAvailable(user?.department_modules, "remote_analysis");
   /** Main / Department Administrator: sectioned sidebar and the administration overview on the home page. */
   const usesAdminMenuSections = isAdmin || isDeptAdmin;
   const isExternalRelations = userTypeStr === 'external_relations';
@@ -1219,9 +1229,7 @@ const Dashboard = () => {
   const fetchUpcomingBookings = async () => {
     try {
       setLoadingBookings(true);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = localDateStamp();
       
       // Fetch bookings starting from today onwards; limit to reduce payload
       const response = await apiClient.getBookings({
@@ -1426,7 +1434,7 @@ const Dashboard = () => {
 
   const canCustomizeDashboardMenu = isOicUser || isAdmin;
   const [dashboardMenuLayout, setDashboardMenuLayout] = useState<DashboardMenuLayout | null>(null);
-  const [oicHasPrint3dEquipment, setOicHasPrint3dEquipment] = useState(false);
+  const [hasFabricationEquipment, setHasFabricationEquipment] = useState(false);
 
   useEffect(() => {
     if (!user?.id || !canCustomizeDashboardMenu) {
@@ -1443,18 +1451,18 @@ const Dashboard = () => {
   }, [user?.id, canCustomizeDashboardMenu]);
 
   useEffect(() => {
-    if (!user?.id || !isOicUser) {
-      setOicHasPrint3dEquipment(false);
+    if (!user?.id || !(isOicUser || isDeptAdmin)) {
+      setHasFabricationEquipment(false);
       return;
     }
     let cancelled = false;
-    void apiClient.getOicEquipmentSettings().then((res) => {
-      if (!cancelled) setOicHasPrint3dEquipment(Boolean(res.data?.has_print_3d_equipment));
+    void apiClient.getFabricationMaterialEquipment().then((res) => {
+      if (!cancelled) setHasFabricationEquipment(Boolean(res.data?.has_fabrication_equipment));
     });
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isOicUser]);
+  }, [user?.id, isOicUser, isDeptAdmin]);
 
   const saveDashboardMenuLayout = useCallback(async (layout: DashboardMenuLayout) => {
     const res = await apiClient.saveDashboardMenuLayout(layout);
@@ -2755,9 +2763,9 @@ const Dashboard = () => {
     },
     {
       id: "3d_print_materials",
-      label: "3D print materials",
+      label: "Fabrication materials",
       path: "/oic/print-materials",
-      visible: Boolean(isAdmin || (isOicUser && oicHasPrint3dEquipment)),
+      visible: Boolean(isAdmin || ((isOicUser || isDeptAdmin) && hasFabricationEquipment)),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
@@ -2769,9 +2777,9 @@ const Dashboard = () => {
                     <PackageOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">3D print materials</CardTitle>
+                    <CardTitle className="text-lg">Fabrication materials</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Add, edit, enable, or disable filament materials for 3D printers
+                      3D print materials, laser cutting sheets, own-material charges and lab notification emails
                     </CardDescription>
                   </div>
                 </div>
@@ -2816,12 +2824,12 @@ const Dashboard = () => {
     {
       id: "multi_mode_equipment",
       label: "Multi-mode equipment",
-      path: "/oic/multi-mode",
+      path: "/multi-mode-equipment",
       visible: Boolean(canSeeOicMultiMode),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
-              onClick={() => openWorkspace("/oic/multi-mode")}
+              onClick={() => openWorkspace("/multi-mode-equipment")}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
@@ -2831,7 +2839,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Multi-mode equipment</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Schedule modes and set each mode&apos;s operate days via Change slot status
+                      Pick an instrument&apos;s modes and plan which mode runs on which days
                     </CardDescription>
                   </div>
                 </div>
@@ -3131,6 +3139,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "procurement_assets",
+      label: "Procurement & Assets",
+      path: "/procurement",
+      visible: showProcurementAssets,
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/procurement")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg">
+                    <PackageOpen className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Procurement &amp; Assets</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Purchase requests, approvals, small purchases, bills, assets, stock and AMC
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open Procurement &amp; Assets</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "inventory_management",
       label: "Inventory management",
       path: "/inventory-management",
@@ -3164,7 +3202,9 @@ const Dashboard = () => {
       id: "remote_analysis",
       label: "Remote analysis",
       path: "/remote-analysis",
-      visible: Boolean((isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage"))),
+      visible:
+        Boolean(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) &&
+        (isAdmin || remoteAnalysisAvailable),
       render: () => (
           <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
@@ -3472,6 +3512,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "department_modules",
+      label: "Department modules",
+      path: "/admin/department-modules",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin/department-modules")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-primary text-white shadow-lg">
+                    <ToggleRight className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department modules</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      DSA, Remote Analysis, Training and Procurement per department: on, off or test users only
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open department modules</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "calendar_colors",
       label: "Calendar colors",
       path: "/calendar-colors",
@@ -3543,7 +3613,7 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary />
+      <PendingActionsSummary excludeKeys={showsLabStyleDashboard ? [BOOKINGS_AWAITING_COMPLETION_KEY] : undefined} />
       {loginTip}
     </>
   );

@@ -51,6 +51,8 @@ export const USER_TYPE_DISPLAY_NAMES: Record<string, string> = {
   finance: "Accounts In Charge",
   org_admin: "Organization Administrator",
   external_relations: "External Relations Administrator",
+  oc_stores: "Officer In Charge Stores",
+  hod: "Head of Department",
   student: "IIT Roorkee Students",
   individual_student: "Individual Student",
   faculty: "IIT Roorkee Faculty",

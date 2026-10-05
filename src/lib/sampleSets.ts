@@ -19,7 +19,8 @@ export type SampleSetValues = Record<
 export function sampleSetsAllowedFor(
   equipment: { allow_multiple_sample_sets?: boolean | null; profile_type?: string | null } | null | undefined,
 ): boolean {
-  return equipment?.allow_multiple_sample_sets !== false && equipment?.profile_type !== "PRINT_3D";
+  const profile = String(equipment?.profile_type || "").toUpperCase();
+  return equipment?.allow_multiple_sample_sets !== false && profile !== "PRINT_3D" && profile !== "LASER_CUT_2D";
 }
 
 export function readSampleSets(inputValues: Record<string, unknown> | null | undefined): SampleSetValues[] {

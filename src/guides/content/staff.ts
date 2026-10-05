@@ -143,7 +143,7 @@ export function slotStatusSection(g: Gate): GuideSection {
     icon: "calendar",
     group: LAB,
     intro: ["Open slots, block them or mark maintenance in bulk from a week view."],
-    steps: [
+    steps: compact([
       {
         title: "Open it",
         body: "On the equipment page, choose Change slot status in the menu.",
@@ -156,10 +156,18 @@ export function slotStatusSection(g: Gate): GuideSection {
         title: "Select and apply",
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
-    ],
+      g.only(["oic", "admin"], {
+        title: "Repeat block",
+        body: "To block the same slots every week (say every Mon and Thu at 10:00), click Repeat block…, pick the weekdays, slot times, date range (Rest of this month, Next 12 months or custom dates) and an optional label, then Preview and Confirm and block. Slots created later in the range are blocked too. Remove a repeat block from the list below it to open its future slots again.",
+      }),
+    ]),
     rules: compact([
       g.only(["oic"], "Available only on equipment assigned to you."),
       "Admins and Officers In Charge can see and book slots in any week.",
+      g.only(
+        ["oic", "admin"],
+        "Repeat block only blocks free slots. Booked slots keep their bookings (nothing is cancelled or refunded) and are listed for you; slots already blocked or under maintenance are left as they are.",
+      ),
     ]),
   };
 }
@@ -185,8 +193,12 @@ export function oicConfigSection(g: Gate): GuideSection {
         body: "Under Booking and operator timings, set Results deadline (after the slot): a number of working days (default 2) or hours, counted from the end of the slot. Working days skip Saturdays, Sundays and institute holidays; 0 means no deadline. Tick Show results deadline to users if users should see Results expected by on their bookings and the list in the sample submission policy; it is off by default, and the deadline still works for staff when it is off.",
       },
       {
-        title: "Accessories and modes",
-        body: "Use Accessories, 3D Print Materials (where applicable) and Multi-Mode Equipment to keep options and mode schedules current.",
+        title: "Accessories",
+        body: "Use Accessories and 3D Print Materials (where applicable) to keep booking options current.",
+      },
+      {
+        title: "Multi-mode equipment",
+        body: "When one instrument runs in several modes (for example XPS with UPS and Depth Profile), open Multi-mode equipment, pick the base instrument and tick its modes. For each mode choose Always available (bookable any day) or Only on scheduled days. Then click a day in the calendar to add a schedule: the mode, From and To dates, optional Repeat on days (for example Mon and Thu), optional hours, and whether other modes and the base can be booked at the same time. Answer No to run that mode on its own; the base and the other modes are then closed for those hours. Use Slot status beside each mode to open its slots.",
       },
       g.when(g.flags.oicLeaveManagement, {
         title: "Cover your leave",
@@ -195,6 +207,7 @@ export function oicConfigSection(g: Gate): GuideSection {
     ]),
     rules: [
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",
+      "You can only add an instrument as a mode if you are its Officer In Charge and it is in the same department as the base. A mode that still has upcoming bookings or current or future schedules cannot be removed; clear those first.",
       "Only you (as primary or temporary Officer In Charge) and the Main Administrator can change the results deadline. It replaces the old Auto Operator Unavailable and Auto Operator Absent Disruption hours: when results are still not shared after the deadline, the booking is marked Operator Unavailable with a full refund if the sample was received but never taken up by the lab, or goes to Operator Absent (the user chooses refund or reschedule) if the sample is with the lab, as before. Use Extend results deadline in the booking details for a genuine delay.",
     ],
   };

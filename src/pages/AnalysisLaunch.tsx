@@ -2,65 +2,56 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup, type AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
+import {
+  describeSync,
+  isMissingEndpoint,
+  isTransferPhase,
+  legacySyncFromSummary,
+  measureViewport,
+  myResearchFolderHref,
+} from "@/lib/analysisSync";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Card, CardContent } from "@/components/ui/card";
+import { chosenItems } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
-import { DataWorkspaceBanner } from "@/components/analysis/DataWorkspaceBanner";
+import { DataWorkspaceBanner, type DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
 import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
+import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
+import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
+import { useAnalysisLiveState } from "@/components/analysis/useAnalysisLiveState";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import IITRBanner from "@/components/IITRBanner";
-import {
-  Check,
-  Clock3,
-  Download,
-  Loader2,
-  ShieldCheck,
-} from "lucide-react";
+import { useAdaptivePoll } from "@/hooks/use-adaptive-poll";
+import { useCountdown } from "@/hooks/use-countdown";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderPlus, Loader2, RefreshCw } from "lucide-react";
 
-type Phase = "prepare" | "desktop" | "closing" | "results";
+type Phase = "prepare" | "desktop" | "closing";
 
 type Experience = {
   virtual_booking_id?: string;
   equipment_name?: string;
   equipment_code?: string;
-  journey?: Array<{ id: string; status: string; label?: string; timestamp?: string | null; detail?: string }>;
-  queue?: any;
-  session?: any;
-  workspace?: any;
-  sync_pipeline?: any[];
+  queue?: { is_queued?: boolean; position?: number | null; estimated_wait_minutes?: number | null };
+  session?: {
+    status?: string;
+    remaining_seconds?: number | null;
+    can_extend?: boolean;
+    extension_minutes?: number;
+    extend_blocked_reason?: string | null;
+  };
   desktop_prepare?: Array<{ id: string; label: string; status: string }>;
-  results?: any;
-  cleanup?: any;
-  input_choice?: any;
-  poll_interval_seconds?: number;
+  data_workspace?: DataWorkspaceInfo | null;
 };
 
-const CLOSING_STEPS = [
-  { id: "closed", label: "Desktop Closed" },
-  { id: "collect", label: "Collecting Results" },
-  { id: "sync", label: "Synchronizing Results" },
-  { id: "portal", label: "Uploading to Portal" },
-  { id: "cloud", label: "Uploading to Cloud Storage" },
-  { id: "clean", label: "Cleaning Workspace" },
-  { id: "downloads", label: "Preparing Downloads" },
-];
-
-function formatHMS(total: number) {
-  const s = Math.max(0, Math.floor(total));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
-}
-
-function formatBytes(n?: number) {
-  const v = Number(n || 0);
-  if (v < 1024) return `${v} B`;
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
-  return `${(v / (1024 * 1024)).toFixed(1)} MB`;
-}
+const READY_LIKE = new Set(["READY", "TOKEN_GENERATED", "LAUNCHED", "CONNECTING", "CONNECTED", "ACTIVE", "IDLE"]);
+const PAINTED = new Set(["CONNECTED", "ACTIVE", "IDLE"]);
+const LAUNCH_POLL_MS = 2500;
+/** Re-POST launch even without a status change, in case the status endpoint cannot advance the session. */
+const LAUNCH_SAFETY_REPOST_MS = 20000;
+const LEGACY_SLOW_MS = 3 * 60 * 1000;
+const HINT_VISIBLE_MS = 8000;
 
 function resolveDesktopUrl(raw: string): string {
   try {
@@ -91,7 +82,6 @@ function parseLaunchConnect(launchUrl: string): { sessionId: string; token: stri
 async function resolveGuacamoleDesktopUrl(launchUrl: string): Promise<string> {
   const parsed = parseLaunchConnect(launchUrl);
   if (!parsed) {
-    // Legacy absolute Guacamole URL already returned
     if (/#\/client\//i.test(launchUrl) || /guacamole/i.test(launchUrl)) {
       return resolveDesktopUrl(launchUrl);
     }
@@ -109,14 +99,18 @@ async function resolveGuacamoleDesktopUrl(launchUrl: string): Promise<string> {
     "";
   if (!clientUrl) {
     if (data.mock || data.mock_desktop) {
-      // Keep prepare overlay / mock message — no Guacamole iframe needed
       return "";
     }
     throw new Error(
-      "Analysis Environment could not start automatic login. Workstation credentials may be missing — contact your lab administrator."
+      "The Analysis PC could not start automatic login. Workstation credentials may be missing — contact your lab administrator."
     );
   }
   return resolveDesktopUrl(clientUrl);
+}
+
+/** Height taken by the compact chrome above the desktop (it wraps to two rows below lg). */
+function reservedChromePx() {
+  return window.innerWidth >= 1024 ? 64 : 112;
 }
 
 export default function AnalysisLaunchPage() {
@@ -126,77 +120,98 @@ export default function AnalysisLaunchPage() {
   const bookingPk = Number(bookingId);
 
   const [phase, setPhase] = useState<Phase>("prepare");
-  const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(search.get("session"));
   const [desktopUrl, setDesktopUrl] = useState<string | null>(null);
   const [desktopReady, setDesktopReady] = useState(false);
-  /** After overlay clears, offer recovery if the Guacamole canvas never paints (Welcome hang / dead RDP). */
-  const [blankDesktopHint, setBlankDesktopHint] = useState(false);
+  const [hintVisible, setHintVisible] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [closingStep, setClosingStep] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const launchAttempted = useRef(false);
+  const [setup, setSetup] = useState<AnalysisSetup | null>(null);
+  const [closingSince, setClosingSince] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [folderDialog, setFolderDialog] = useState<"end" | "choose" | null>(null);
   const desktopResolved = useRef(false);
+  const sessionIdRef = useRef<string | null>(sessionId);
+  const lastLaunchAt = useRef(0);
+  const launchPending = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const desktopSurfaceRef = useRef<HTMLDivElement>(null);
-
   const [bookingLabel, setBookingLabel] = useState<string>("");
+
+  const live = useAnalysisLiveState(bookingPk, {
+    summaryEveryMs: phase === "prepare" ? 10000 : null,
+    legacySummaryEveryMs: phase === "prepare" ? 10000 : phase === "closing" ? 5000 : null,
+  });
+  const { summary, sync, syncSupported, refreshSummary, pollNow } = live;
 
   const experience = (summary?.experience || {}) as Experience;
   const sessionExp = experience.session || {};
   const queue = experience.queue || {};
-  const results = experience.results || {};
-  const workspace = experience.workspace || {};
-  const input = experience.input_choice || {};
-  const prepareSteps = experience.desktop_prepare || [];
+  const prepareSteps = useMemo(() => experience.desktop_prepare || [], [experience.desktop_prepare]);
 
-  const refreshSummary = useCallback(async () => {
-    if (!Number.isFinite(bookingPk)) return null;
-    const res = await apiClient.getBookingAnalysis(bookingPk);
-    if (res.error) return null;
-    const data = (res.data || {}) as Record<string, unknown>;
-    setSummary(data);
-    const exp = (data.experience || {}) as Experience;
-    const vid = String(exp.virtual_booking_id || data.virtual_booking_id || "").trim();
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const vid = String(experience.virtual_booking_id || summary?.virtual_booking_id || "").trim();
     if (vid) setBookingLabel(vid);
-    return data;
+  }, [experience.virtual_booking_id, summary?.virtual_booking_id]);
+
+  useEffect(() => {
+    if (!Number.isFinite(bookingPk)) return;
+    let alive = true;
+    void apiClient.getBookings({ booking_id: bookingPk, limit: 1 }).then((bres) => {
+      const row = bres.data?.bookings?.[0] as { virtual_booking_id?: string } | undefined;
+      const vid = String(row?.virtual_booking_id || "").trim();
+      if (alive && vid) setBookingLabel((prev) => prev || vid);
+    });
+    void apiClient.getBookingAnalysisSetup(bookingPk).then((res) => {
+      if (alive && !res.error && res.data) setSetup(res.data);
+      else if (res.error && !isMissingEndpoint(res)) console.warn("Analysis setup unavailable:", res.error);
+    });
+    return () => {
+      alive = false;
+    };
   }, [bookingPk]);
 
-    const pollLaunch = useCallback(async () => {
-    if (!Number.isFinite(bookingPk)) return;
-    // Already exchanged Portal launch token → Guacamole client URL.
-    if (desktopResolved.current) {
-      await refreshSummary();
-      return;
-    }
-    const res = await apiClient.launchBookingAnalysisDesktop(bookingPk);
+  // The Analysis PC (and so its agent capabilities and folder paths) is only known once the desktop opens.
+  useEffect(() => {
+    if (phase !== "desktop" || !Number.isFinite(bookingPk)) return;
+    let alive = true;
+    void apiClient.getBookingAnalysisSetup(bookingPk).then((res) => {
+      if (alive && !res.error && res.data) setSetup(res.data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [phase, bookingPk]);
+
+  const postLaunch = useCallback(async () => {
+    lastLaunchAt.current = Date.now();
+    const viewport = measureViewport(desktopSurfaceRef.current, reservedChromePx());
+    const res = await apiClient.launchBookingAnalysisDesktop(bookingPk, { viewport });
     if (res.error) {
       setError(res.error);
       return;
     }
     const data = res.data || {};
     if (typeof data.session_id === "string") setSessionId(data.session_id);
-    const failure = data.failure as
-      | { user_message?: string; detail?: string; failure_category?: string; failed_stage?: string }
-      | undefined;
+    launchPending.current = Boolean(data.launch_pending);
+    const failure = data.failure as { user_message?: string; failure_category?: string } | undefined;
     if (failure?.user_message) {
       const cat = failure.failure_category ? `[${failure.failure_category}] ` : "";
       setError(`${cat}${failure.user_message}`);
-      // Credential / hard failures: stop creating more sessions.
-      if (
-        failure.failure_category === "credentials" ||
-        /credentials/i.test(failure.user_message)
-      ) {
+      if (failure.failure_category === "credentials" || /credentials/i.test(failure.user_message)) {
         desktopResolved.current = true;
       }
       return;
     } else if (data.launch_pending && data.detail) {
-      // Soft wait (e.g. reverse tunnel joining) — keep polling, do not freeze the UI as a hard failure.
       setError(String(data.detail));
     }
     if (typeof data.status === "string" && data.status === "FAILED") {
-      const detail = String(data.detail || "Analysis Environment preparation failed.");
-      setError(detail);
+      setError(String(data.detail || "Preparing the Analysis PC failed."));
       desktopResolved.current = true;
       return;
     }
@@ -213,196 +228,160 @@ export default function AnalysisLaunchPage() {
           setError(null);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Failed to open Analysis Environment";
+        const message = err instanceof Error ? err.message : "Failed to open the Analysis PC";
         setError(message);
-        // Tunnel-not-ready / transient connect failures: keep polling for a fresh launch URL.
-        if (
-          /tunnel|secure link|not ready|try again|credentials/i.test(message) &&
-          !/credentials are not configured/i.test(message)
-        ) {
-          // leave desktopResolved false so pollLaunch retries
-        } else if (/credentials/i.test(message)) {
+        if (/credentials/i.test(message) && !/tunnel|secure link|not ready|try again/i.test(message)) {
           desktopResolved.current = true;
         }
       }
     }
-    await refreshSummary();
-  }, [bookingPk, refreshSummary]);
+  }, [bookingPk]);
 
-  // Initial load + auto prepare
-  useEffect(() => {
-    if (!Number.isFinite(bookingPk)) return;
-    void (async () => {
-      // Prefer virtual booking id for chrome even before experience payload arrives.
-      try {
-        const bres = await apiClient.getBookings({ booking_id: bookingPk, limit: 1 });
-        const row = bres.data?.bookings?.[0] as
-          | { virtual_booking_id?: string; booking_id?: string | number }
-          | undefined;
-        const vid = String(row?.virtual_booking_id || "").trim();
-        if (vid) setBookingLabel(vid);
-      } catch {
-        /* ignore */
+  // The launch POST re-runs server-side setup, so while the PC prepares we poll the cheap session
+  // status (which also advances preparation) and only POST again when a launch URL can be issued.
+  const pollLaunchNow = useAdaptivePoll(
+    async () => {
+      if (desktopResolved.current) return 15000;
+      const sid = sessionIdRef.current;
+      const sinceLast = Date.now() - lastLaunchAt.current;
+      let shouldPost = !sid || launchPending.current || sinceLast >= LAUNCH_SAFETY_REPOST_MS;
+      if (sid && !shouldPost) {
+        const st = await apiClient.getRemoteAnalysisSessionStatus(sid);
+        const status = String((st.data as { status?: string } | undefined)?.status || "").toUpperCase();
+        if (PAINTED.has(status)) setDesktopReady(true);
+        if (READY_LIKE.has(status) || status === "FAILED") shouldPost = true;
       }
-      await refreshSummary();
-      if (!launchAttempted.current) {
-        launchAttempted.current = true;
-        await pollLaunch();
-      }
-    })();
-  }, [bookingPk, refreshSummary, pollLaunch]);
+      if (shouldPost && sinceLast >= (launchPending.current ? 5000 : LAUNCH_POLL_MS)) await postLaunch();
+      return LAUNCH_POLL_MS;
+    },
+    { enabled: phase === "prepare" && Number.isFinite(bookingPk), fallbackDelayMs: LAUNCH_POLL_MS },
+  );
 
-  // Poll while preparing
-  useEffect(() => {
-    if (phase !== "prepare" || !Number.isFinite(bookingPk)) return;
-    const id = window.setInterval(() => {
-      void (async () => {
-        await pollLaunch();
-        if (sessionId) {
-          const st = await apiClient.getRemoteAnalysisSessionStatus(sessionId);
-          const status = String((st.data as any)?.status || "");
-          if (["READY", "TOKEN_GENERATED", "LAUNCHED", "CONNECTING", "CONNECTED", "ACTIVE"].includes(status)) {
-            // keep polling launch_url
-          }
-          if (["CONNECTED", "ACTIVE", "IDLE"].includes(status)) {
-            setDesktopReady(true);
-          }
-        }
-      })();
-    }, 2500);
-    return () => window.clearInterval(id);
-  }, [phase, bookingPk, pollLaunch, sessionId]);
-
-  // Enter desktop phase once URL exists — branded prepare covers the wait; never surface Guacamole UI.
+  // Enter desktop phase once URL exists — branded prepare covers the wait.
   useEffect(() => {
     if (phase !== "prepare" || !desktopUrl) return;
-    const status = String(
-      (summary?.session as any)?.status || sessionExp.status || ""
-    );
-    const canEnter = [
-      "READY",
-      "TOKEN_GENERATED",
-      "LAUNCHED",
-      "CONNECTING",
-      "CONNECTED",
-      "ACTIVE",
-      "IDLE",
-    ].includes(status) || Boolean(desktopUrl);
-    if (!canEnter) return;
-    // Short handoff into desktop with branded overlay until CONNECTED/ACTIVE.
     const t = window.setTimeout(() => setPhase("desktop"), 400);
     return () => window.clearTimeout(t);
-  }, [desktopUrl, phase, summary, sessionExp.status]);
+  }, [desktopUrl, phase]);
 
   // Keep branded overlay until iframe has loaded + a short settle, not only portal ACTIVE.
-  // Portal marks ACTIVE when Guacamole auth is issued — RDP paint can still be mid-flight.
   useEffect(() => {
-    if (phase !== "desktop") return;
-    if (desktopReady) return;
+    if (phase !== "desktop" || desktopReady) return;
     const t = window.setTimeout(() => setDesktopReady(true), 12000);
     return () => window.clearTimeout(t);
   }, [phase, desktopReady]);
 
-  // If the canvas stays black after Welcome/overlay (common when Analysis PC console
-  // steals the RDP session or agent < 1.0.22), surface an explicit recovery panel.
-  useEffect(() => {
-    if (phase !== "desktop" || !desktopReady || !desktopUrl) {
-      setBlankDesktopHint(false);
-      return;
+  const focusDesktop = useCallback(() => {
+    try {
+      iframeRef.current?.contentWindow?.focus();
+    } catch {
+      iframeRef.current?.focus();
     }
-    setBlankDesktopHint(false);
-    const t = window.setTimeout(() => setBlankDesktopHint(true), 8000);
+  }, []);
+
+  /** Guacamole cancels mousedown, so a click inside the iframe never moves keyboard focus into it on its own. */
+  const bindDesktopFocus = useCallback(() => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc || (doc as Document & { __iicFocusBound?: boolean }).__iicFocusBound) return;
+      (doc as Document & { __iicFocusBound?: boolean }).__iicFocusBound = true;
+      doc.addEventListener("pointerdown", focusDesktop, true);
+      doc.addEventListener("mousedown", focusDesktop, true);
+    } catch {
+      /* cross-origin remote desktop — rely on the host-page handlers */
+    }
+  }, [focusDesktop]);
+
+  // Guacamole only receives keystrokes while its iframe has focus; clicks on page controls
+  // (Sync now, Fullscreen) leave focus on the host page, so hand it back on the next key press.
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady || folderDialog) return;
+    bindDesktopFocus();
+    focusDesktop();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el === iframeRef.current) return;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      e.preventDefault();
+      focusDesktop();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [phase, desktopReady, focusDesktop, bindDesktopFocus, folderDialog]);
+
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady) return;
+    setHintVisible(true);
+    const t = window.setTimeout(() => setHintVisible(false), HINT_VISIBLE_MS);
     return () => window.clearTimeout(t);
-  }, [phase, desktopReady, desktopUrl]);
+  }, [phase, desktopReady]);
 
   const reconnectDesktop = useCallback(async () => {
     desktopResolved.current = false;
+    lastLaunchAt.current = 0;
     setDesktopUrl(null);
     setDesktopReady(false);
-    setBlankDesktopHint(false);
     setPhase("prepare");
-    setError("Reconnecting Analysis Environment…");
-    await pollLaunch();
-  }, [pollLaunch]);
+    setError("Reconnecting to the Analysis PC…");
+    pollLaunchNow();
+  }, [pollLaunchNow]);
 
   const requestDesktopFullscreen = useCallback(async () => {
-    const surface = desktopSurfaceRef.current;
-    const frame = iframeRef.current;
-    const target = surface || frame;
+    const target = desktopSurfaceRef.current || iframeRef.current;
     if (!target) {
-      toast.error("Desktop surface is not ready yet. Wait a moment, then try Fullscreen again.");
+      toast.error("The desktop is not ready yet. Wait a moment, then try Fullscreen again.");
       return;
     }
     const req =
       target.requestFullscreen?.bind(target) ||
-      (
-        target as HTMLElement & {
-          webkitRequestFullscreen?: () => Promise<void> | void;
-        }
-      ).webkitRequestFullscreen?.bind(target);
+      (target as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }).webkitRequestFullscreen?.bind(target);
     if (!req) {
-      toast.error("This browser does not support fullscreen for the Analysis Environment.");
+      toast.error("This browser does not support fullscreen for the Analysis PC.");
       return;
     }
     try {
       await Promise.resolve(req());
-      // Guacamole measures from window size; nudge after fullscreen settles.
       window.setTimeout(() => {
         try {
           window.dispatchEvent(new Event("resize"));
           iframeRef.current?.contentWindow?.dispatchEvent(new Event("resize"));
         } catch {
-          /* cross-origin Guacamole */
+          /* cross-origin remote desktop */
         }
+        focusDesktop();
       }, 250);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Fullscreen request was blocked.";
-      toast.error(
-        `${msg} Try the browser’s fullscreen (F11), or click Reconnect if the desktop is blank.`
-      );
+      toast.error(`${msg} Try the browser’s fullscreen (F11), or click Reconnect if the desktop is blank.`);
     }
+  }, [focusDesktop]);
+
+  const serverRemaining =
+    typeof sessionExp.remaining_seconds === "number"
+      ? sessionExp.remaining_seconds
+      : typeof (summary?.session as { remaining_seconds?: unknown } | undefined)?.remaining_seconds === "number"
+        ? ((summary?.session as { remaining_seconds: number }).remaining_seconds)
+        : null;
+  const remaining = useCountdown(serverRemaining);
+
+  const enterClosing = useCallback(() => {
+    setPhase("closing");
+    setClosingSince(Date.now());
   }, []);
 
-  // Live remaining timer from experience
-  const [remaining, setRemaining] = useState<number | null>(null);
   useEffect(() => {
-    const r =
-      typeof sessionExp.remaining_seconds === "number"
-        ? sessionExp.remaining_seconds
-        : typeof (summary?.session as any)?.remaining_seconds === "number"
-          ? (summary?.session as any).remaining_seconds
-          : null;
-    setRemaining(r);
-  }, [sessionExp.remaining_seconds, summary]);
+    if (phase === "desktop" && remaining != null && remaining <= 0) enterClosing();
+  }, [remaining, phase, enterClosing]);
 
   useEffect(() => {
-    if (remaining == null || remaining <= 0) return;
-    const id = window.setInterval(() => setRemaining((x) => (x == null ? x : Math.max(0, x - 1))), 1000);
+    if (phase === "closing") pollNow();
+  }, [phase, pollNow]);
+
+  useEffect(() => {
+    if (phase !== "closing" || syncSupported !== false) return;
+    const id = window.setInterval(() => setNow(Date.now()), 15000);
     return () => window.clearInterval(id);
-  }, [remaining == null]);
-
-  // Expiry → closing flow
-  useEffect(() => {
-    if (phase !== "desktop" || remaining == null) return;
-    if (remaining > 0) return;
-    setPhase("closing");
-  }, [remaining, phase]);
-
-  // Closing animation sequence then results
-  useEffect(() => {
-    if (phase !== "closing") return;
-    setClosingStep(0);
-    let step = 0;
-    const id = window.setInterval(() => {
-      step += 1;
-      setClosingStep(step);
-      if (step >= CLOSING_STEPS.length - 1) {
-        window.clearInterval(id);
-        void refreshSummary().then(() => setPhase("results"));
-      }
-    }, 900);
-    return () => window.clearInterval(id);
-  }, [phase, refreshSummary]);
+  }, [phase, syncSupported]);
 
   const warn = useMemo(() => {
     if (remaining == null) return null;
@@ -410,8 +389,15 @@ export default function AnalysisLaunchPage() {
     return [10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
   }, [remaining]);
 
+  const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
+  const filesSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY));
+
   const endAnalysis = async () => {
-    if (!window.confirm("End analysis now? Results will be collected and the workspace cleaned.")) {
+    if (pickerSupported) {
+      setFolderDialog("end");
+      return;
+    }
+    if (!window.confirm("End analysis now? Your Output folder is copied and the Analysis PC is freed for the next user.")) {
       return;
     }
     setBusy(true);
@@ -421,7 +407,7 @@ export default function AnalysisLaunchPage() {
         toast.error(res.error);
         return;
       }
-      setPhase("closing");
+      enterClosing();
     } finally {
       setBusy(false);
     }
@@ -433,7 +419,7 @@ export default function AnalysisLaunchPage() {
       const res = await apiClient.extendBookingAnalysis(bookingPk);
       if (res.error) toast.error(res.error);
       else {
-        toast.success(String((res.data as any)?.message || "Session extended"));
+        toast.success(String((res.data as Record<string, unknown> | undefined)?.message || "Session extended"));
         await refreshSummary();
       }
     } finally {
@@ -441,41 +427,30 @@ export default function AnalysisLaunchPage() {
     }
   };
 
-  if (!Number.isFinite(bookingPk)) {
-    return <div className="p-8">Invalid booking.</div>;
-  }
-
-  const virtualId = String(
-    experience.virtual_booking_id ||
-      summary?.virtual_booking_id ||
-      bookingLabel ||
-      ""
-  ).trim() || String(bookingPk);
-  const equipment = experience.equipment_name || experience.equipment_code || "Equipment";
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      const res = await apiClient.syncBookingAnalysisNow(bookingPk);
+      if (res.status === 409) toast.message("Sync is available while your analysis session is running.");
+      else if (res.error) toast.error(res.error);
+      else toast.success(pickerSupported ? "Copying your results now." : "Copying your Output folder now.");
+      pollNow();
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   /** User-facing provisioning ladder — never mention Guacamole / tunnels. */
   const provisionSteps = useMemo(() => {
     const sessionStatus = String(
       (summary?.session as { status?: string } | undefined)?.status || sessionExp.status || ""
     ).toUpperCase();
-    const readyLike = [
-      "READY",
-      "TOKEN_GENERATED",
-      "LAUNCHED",
-      "CONNECTING",
-      "CONNECTED",
-      "ACTIVE",
-      "IDLE",
-    ].includes(sessionStatus);
+    const readyLike = READY_LIKE.has(sessionStatus);
     const allocated = readyLike || Boolean(desktopUrl) || prepareSteps.some((s) => s.status === "done");
     const connecting =
-      Boolean(desktopUrl) ||
-      ["CONNECTING", "CONNECTED", "ACTIVE", "IDLE", "LAUNCHED"].includes(sessionStatus) ||
-      phase === "desktop";
-    const loadingEnv =
-      desktopReady || ["CONNECTED", "ACTIVE", "IDLE"].includes(sessionStatus);
+      Boolean(desktopUrl) || ["CONNECTING", "CONNECTED", "ACTIVE", "IDLE", "LAUNCHED"].includes(sessionStatus) || phase === "desktop";
+    const loadingEnv = desktopReady || PAINTED.has(sessionStatus);
 
-    // Prefer API desktop_prepare when present; otherwise branded ladder.
     if (prepareSteps.length >= 3) {
       return prepareSteps.map((s) => ({
         id: String(s.id),
@@ -485,45 +460,33 @@ export default function AnalysisLaunchPage() {
     }
 
     return [
-      {
-        id: "prepare-ws",
-        label: "Preparing workstation",
-        status: allocated ? "done" : "active",
-      },
-      {
-        id: "alloc",
-        label: "Workstation allocated",
-        status: allocated ? "done" : "pending",
-      },
-      {
-        id: "software",
-        label: "Software verified",
-        status: allocated ? "done" : "pending",
-      },
-      {
-        id: "session",
-        label: "Starting analysis session",
-        status: connecting ? "done" : allocated ? "active" : "pending",
-      },
-      {
-        id: "connect",
-        label: "Connecting remote desktop",
-        status: loadingEnv ? "done" : connecting ? "active" : "pending",
-      },
-      {
-        id: "load",
-        label: "Loading environment",
-        status: loadingEnv ? "done" : connecting ? "active" : "pending",
-      },
+      { id: "prepare-ws", label: "Preparing Analysis PC", status: allocated ? "done" : "active" },
+      { id: "alloc", label: "Analysis PC allocated", status: allocated ? "done" : "pending" },
+      { id: "software", label: "Software verified", status: allocated ? "done" : "pending" },
+      { id: "session", label: "Starting analysis session", status: connecting ? "done" : allocated ? "active" : "pending" },
+      { id: "connect", label: "Connecting remote desktop", status: loadingEnv ? "done" : connecting ? "active" : "pending" },
+      { id: "load", label: "Loading desktop", status: loadingEnv ? "done" : connecting ? "active" : "pending" },
     ];
-  }, [
-    prepareSteps,
-    desktopUrl,
-    desktopReady,
-    phase,
-    summary?.session,
-    sessionExp.status,
-  ]);
+  }, [prepareSteps, desktopUrl, desktopReady, phase, summary?.session, sessionExp.status]);
+
+  if (!Number.isFinite(bookingPk)) {
+    return <div className="p-8">Invalid booking.</div>;
+  }
+
+  const virtualId = String(experience.virtual_booking_id || summary?.virtual_booking_id || bookingLabel || "").trim() || String(bookingPk);
+  const equipment = experience.equipment_name || experience.equipment_code || "Equipment";
+  const eligible = Boolean(setup?.my_research.eligible);
+  const link = setup?.my_research.current_link ?? null;
+  const destinationLabel = setup?.output.destination_label || "Booking Details › Analyzed Data";
+  const targetLabel = eligible ? "Processed Data" : "Analyzed Data";
+  const outputPath = setup?.output.pc_output_path || experience.data_workspace?.output_path || "";
+  const inputPath = setup?.input.pc_input_path || experience.data_workspace?.input_path || "";
+  const chosenFolders = chosenItems(sync?.extra_folders);
+  const myResearchHref = myResearchFolderHref(
+    sync?.destination?.workspace_id || link?.workspace_id,
+    sync?.destination?.folder_id || link?.processed_folder_id,
+  );
+  const liveTransfer = syncSupported && sync && isTransferPhase(sync.phase) ? describeSync(sync, targetLabel) : null;
 
   return (
     <div
@@ -532,42 +495,79 @@ export default function AnalysisLaunchPage() {
         phase === "desktop" && "h-[100dvh] overflow-hidden",
       )}
     >
-      {/* Fixed chrome during desktop — keep compact; desktop iframe is fullscreen below */}
       {phase === "desktop" && (
         <AnalysisWorkspaceChrome
           compact
           equipmentName={equipment}
           bookingLabel={virtualId}
           remainingSeconds={remaining}
+          ticking={false}
           showSessionControls
           canExtend={Boolean(sessionExp.can_extend)}
           extendMinutes={Number(sessionExp.extension_minutes || 15)}
-          extendBlockedReason={
-            sessionExp.extend_blocked_reason ? String(sessionExp.extend_blocked_reason) : null
-          }
+          extendBlockedReason={sessionExp.extend_blocked_reason ? String(sessionExp.extend_blocked_reason) : null}
           busy={busy}
           onExtend={extendSession}
           onEnd={endAnalysis}
           showEnd
           showReturnToDashboard
           confirmLeaveSession
+          rightSlot={
+            syncSupported ? (
+              <div className="flex items-center gap-2">
+                {pickerSupported ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => setFolderDialog("choose")}
+                    title={
+                      filesSupported
+                        ? "Choose the folders and files on the Analysis PC where you saved results"
+                        : "Choose the folders on the Analysis PC where you save results"
+                    }
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" aria-hidden />
+                    {filesSupported ? "Results to save" : "Result folders"}
+                    {chosenFolders.length ? ` (${chosenFolders.length})` : ""}
+                  </Button>
+                ) : null}
+                {liveTransfer ? (
+                  <span className="hidden max-w-[220px] truncate text-xs text-muted-foreground xl:inline" role="status" aria-live="polite">
+                    {liveTransfer.percent != null ? `Syncing ${liveTransfer.percent}%` : liveTransfer.detail || "Syncing…"}
+                  </span>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={syncNow}
+                  disabled={syncing || Boolean(liveTransfer)}
+                  title={`Copy your results to ${destinationLabel} now`}
+                >
+                  {syncing || liveTransfer ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+                  Sync now
+                </Button>
+              </div>
+            ) : null
+          }
         />
       )}
       {phase === "desktop" && warn != null ? (
         <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
           {warn} minute{warn === 1 ? "" : "s"} remaining
           {sessionExp.extend_blocked_reason ? ` · ${sessionExp.extend_blocked_reason}` : ""}
-          {" · Save results to the Output folder"}
+          {pickerSupported ? " · Save your work now" : " · Save results to the Output folder"}
         </div>
       ) : null}
-      {/* Paths during prepare only — during desktop they steal height and collapse Guacamole paint */}
       {phase === "prepare" && (
         <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 dark:border-border dark:bg-background/95">
           <div className="mx-auto max-w-5xl">
             <DataWorkspaceBanner
               compact={false}
               showDataRoot={false}
-              data={(experience as any)?.data_workspace || null}
+              showOutput={!pickerSupported}
+              data={experience.data_workspace || null}
             />
           </div>
         </div>
@@ -576,16 +576,14 @@ export default function AnalysisLaunchPage() {
       {phase === "prepare" && (
         <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-h-0 min-w-0">
-              <p className="text-sm font-medium text-slate-600 dark:text-muted-foreground">
-                {equipment} · Booking {virtualId}
-              </p>
-            </div>
+            <p className="min-w-0 text-sm font-medium text-slate-600 dark:text-muted-foreground">
+              {equipment} · Booking {virtualId}
+            </p>
             <BackToDashboardButton
               variant="outline"
               size="sm"
               label="Return to Dashboard"
-              confirmMessage="Leave while the Analysis Environment is preparing?\n\nYour session will continue in the background. You can reopen it from your booking."
+              confirmMessage="Leave while the Analysis PC is preparing?\n\nYour session will continue in the background. You can reopen it from your booking."
             />
           </div>
 
@@ -595,35 +593,38 @@ export default function AnalysisLaunchPage() {
                 <IITRBanner size="sm" />
               </div>
               <AnalysisEnvironmentProgress
-                title="Preparing Analysis Environment"
-                subtitle="Your Analysis PC opens automatically when ready. Please keep this tab open."
+                title="Preparing your Analysis PC"
+                subtitle="It opens automatically when ready. Please keep this tab open."
                 steps={provisionSteps}
                 onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
                 cancelLabel="Cancel"
               />
 
+              {syncSupported && sync?.direction === "input" ? <SyncProgressPanel status={sync} /> : null}
+
               {queue.is_queued ? (
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-                  <p className="font-semibold">You are in the execution queue</p>
+                  <p className="font-semibold">You are in the queue</p>
                   <p className="mt-1 text-muted-foreground">
-                    Position {queue.position ?? "—"} · Est. wait {queue.estimated_wait_minutes ?? "—"}{" "}
-                    min
+                    Position {queue.position ?? "—"} · Est. wait {queue.estimated_wait_minutes ?? "—"} min
                   </p>
                 </div>
               ) : null}
 
-              {error ? <p className="text-center text-sm text-rose-600">{error}</p> : null}
+              {error ? <p className="text-center text-sm text-rose-600 dark:text-rose-400">{error}</p> : null}
 
               <div className="flex justify-center">
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to={`/analysis-workspace/${bookingPk}`}>Back to workspace</Link>
+                  <Link to={`/analysis-workspace/${bookingPk}`}>Back to Analysis Workspace</Link>
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           <p className="text-center text-xs text-muted-foreground">
-            Input and Output folders are shown above — use them on the Analysis PC once connected.
+            {pickerSupported
+              ? `Save your results anywhere on the Analysis PC. When you end the session you choose the folders or files to copy to ${destinationLabel}.`
+              : `Save your results in the Output folder shown above. It is copied to ${destinationLabel} when you end the session.`}
           </p>
         </div>
       )}
@@ -631,94 +632,74 @@ export default function AnalysisLaunchPage() {
       {phase === "desktop" && (
         <div ref={desktopSurfaceRef} className="relative min-h-0 flex-1 bg-black">
           {!desktopReady && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/75 backdrop-blur-md">
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90">
               <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
                 <div className="mb-4 flex justify-center">
                   <IITRBanner size="sm" />
                 </div>
                 <AnalysisEnvironmentProgress
                   compact
-                  title="Connecting Analysis Environment"
-                  subtitle="Finalizing your secure Analysis PC connection. This opens automatically."
+                  title="Connecting to your Analysis PC"
+                  subtitle="Finalizing your secure connection. This opens automatically."
                   steps={provisionSteps}
                   onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
                   cancelLabel="Cancel"
                 />
-                {error ? <p className="mt-3 text-center text-sm text-rose-600">{error}</p> : null}
+                {error ? <p className="mt-3 text-center text-sm text-rose-600 dark:text-rose-400">{error}</p> : null}
               </div>
             </div>
           )}
-          {desktopReady && blankDesktopHint ? (
-            <div className="absolute inset-x-0 top-3 z-[10050] flex justify-center px-3 pointer-events-none">
-              <div className="pointer-events-auto max-w-xl rounded-xl border border-amber-400/40 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-xl dark:border-amber-500/30 dark:bg-amber-950/90 dark:text-amber-50">
-                <p className="font-semibold">Desktop looks blank?</p>
-                <p className="mt-1 text-xs opacity-90">
-                  Guacamole is waiting because the Analysis PC console is still unlocked for the
-                  same Windows user. Do <strong>not</strong> use the Analysis PC keyboard/screen
-                  during the session. Start Analysis from another computer, then click{" "}
-                  <strong>Reconnect</strong>. If you unlocked RAVI, lock it again (Win+L) and
-                  reconnect.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-8"
-                    onClick={() => void reconnectDesktop()}
-                  >
-                    Reconnect
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="h-8"
-                    onClick={() => void requestDesktopFullscreen()}
-                  >
-                    Fullscreen
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-8"
-                    onClick={() => setBlankDesktopHint(false)}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ) : null}
           {desktopUrl ? (
             <>
               <iframe
                 ref={iframeRef}
-                title="Analysis Environment"
+                title="Analysis PC"
                 src={desktopUrl}
                 className="absolute inset-0 h-full w-full border-0 bg-black"
                 style={{ touchAction: "none" }}
                 allow="clipboard-read; clipboard-write; fullscreen"
-                // allowFullScreen helps some browsers honor iframe fullscreen requests
                 allowFullScreen
+                onMouseEnter={() => {
+                  const el = document.activeElement as HTMLElement | null;
+                  if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+                  focusDesktop();
+                }}
                 onLoad={() => {
+                  bindDesktopFocus();
                   window.setTimeout(() => {
                     setDesktopReady(true);
-                    // Nudge Guacamole to measure a real viewport after paint.
                     try {
                       window.dispatchEvent(new Event("resize"));
                       iframeRef.current?.contentWindow?.dispatchEvent(new Event("resize"));
                     } catch {
-                      /* cross-origin Guacamole — ignore */
+                      /* cross-origin remote desktop — ignore */
                     }
+                    focusDesktop();
                   }, 800);
                 }}
               />
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
-                <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/70 px-2 py-1 text-[10px] text-amber-50 backdrop-blur sm:text-xs">
-                  Input/Output folders are on the Analysis PC under ProgramData\RemoteAnalysisAgent. Use
-                  Fullscreen if the desktop looks cropped. If the screen stays black, use Reconnect.
-                </div>
+                {hintVisible ? (
+                  <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/80 px-2 py-1 text-[10px] text-amber-50 sm:text-xs" data-testid="desktop-hint">
+                    {pickerSupported ? (
+                      <>
+                        {inputPath ? (
+                          <>
+                            Your input data is in <span className="font-mono">{inputPath}</span>.{" "}
+                          </>
+                        ) : null}
+                        Save results anywhere on this PC — you choose the folders or files to keep when you end the session.
+                      </>
+                    ) : (
+                      <>
+                        Save results in <span className="font-mono">{outputPath || "the Output folder"}</span> — it is copied to{" "}
+                        {destinationLabel} when you end the session.
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <span />
+                )}
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -742,117 +723,170 @@ export default function AnalysisLaunchPage() {
               </div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center p-8 text-muted-foreground">
-              Preparing Analysis Environment…
-            </div>
+            <div className="flex h-full items-center justify-center p-8 text-muted-foreground">Preparing your Analysis PC…</div>
           )}
         </div>
       )}
 
       {phase === "closing" && (
-        <div className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 p-6">
-          <div className="text-center">
-            <Clock3 className="mx-auto h-10 w-10 text-primary" />
-            <h1 className="mt-3 text-2xl font-semibold">Closing Analysis Environment</h1>
-            <p className="mt-1 text-muted-foreground">
-              Collecting results and cleaning the workspace. Please wait…
-            </p>
-          </div>
-          <Card>
-            <CardContent className="space-y-3 p-6">
-              {CLOSING_STEPS.map((s, idx) => {
-                const done = idx < closingStep;
-                const active = idx === closingStep;
-                return (
-                  <div key={s.id} className="flex items-center gap-3">
-                    {done ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    ) : active ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    ) : (
-                      <span className="h-4 w-4 rounded-full border" />
-                    )}
-                    <span className={cn("text-sm", active && "font-semibold")}>{s.label}</span>
-                  </div>
-                );
-              })}
-              <Progress value={((closingStep + 1) / CLOSING_STEPS.length) * 100} className="mt-2" />
-            </CardContent>
-          </Card>
-        </div>
+        <FinishScreen
+          equipment={equipment}
+          virtualId={virtualId}
+          bookingPk={bookingPk}
+          status={
+            syncSupported === false
+              ? legacySyncFromSummary(summary)
+              : sync
+          }
+          legacy={syncSupported === false}
+          slow={syncSupported === false && closingSince != null && now - closingSince > LEGACY_SLOW_MS}
+          targetLabel={targetLabel}
+          destinationLabel={destinationLabel}
+          myResearchHref={eligible ? myResearchHref : null}
+          onRetry={syncSupported ? syncNow : undefined}
+          retrying={syncing}
+        />
       )}
 
-      {phase === "results" && (
-        <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-6 p-6">
-          <div className="text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
-              <ShieldCheck className="h-7 w-7" />
-            </div>
-            <h1 className="mt-4 text-3xl font-semibold">Results Ready</h1>
-            <p className="mt-2 text-muted-foreground">
-              Your analysis results are available. The Analysis Environment workspace has been cleaned
-              for privacy.
-            </p>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Results summary</CardTitle>
-              <CardDescription>
-                {equipment} · {virtualId}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 sm:grid-cols-2">
-              <InfoTile label="Input files" value={String((workspace.input as any)?.file_count ?? "—")} />
-              <InfoTile
-                label="Output files"
-                value={String(results.file_count ?? (workspace.output as any)?.file_count ?? "—")}
-              />
-              <InfoTile
-                label="Output size"
-                value={formatBytes(results.total_size_bytes ?? (workspace.output as any)?.total_size_bytes)}
-              />
-              <InfoTile label="Cleanup" value={experience.cleanup?.message || "Workspace cleaned"} />
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-500/30 bg-emerald-500/5">
-            <CardContent className="space-y-2 p-5 text-sm">
-              <p className="font-semibold text-emerald-800 dark:text-emerald-200">
-                Workspace successfully cleaned
-              </p>
-              <p className="text-muted-foreground">
-                Uploaded RAW files, additional uploads, temporary files, and generated files have been
-                removed from the Analysis Environment. Only synchronized Portal / cloud copies remain.
-              </p>
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button size="lg" asChild>
-              <Link to="/my-bookings">
-                <Download className="mr-2 h-4 w-4" />
-                Download Results
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link to={`/analysis-workspace/${bookingPk}`}>Return to Workspace</Link>
-            </Button>
-            <Button size="lg" variant="ghost" onClick={() => navigate(-1)}>
-              Return to Booking
-            </Button>
-          </div>
-        </div>
-      )}
+      <EndSessionDialog
+        open={folderDialog != null}
+        onOpenChange={(next) => {
+          if (!next) setFolderDialog(null);
+        }}
+        bookingId={bookingPk}
+        mode={folderDialog ?? "end"}
+        initialFolders={chosenFolders}
+        allowFiles={filesSupported}
+        destinationLabel={destinationLabel}
+        onEnded={enterClosing}
+        onSaved={(items) => {
+          toast.success(
+            items.length
+              ? `${items.length} ${filesSupported ? "item(s)" : "result folder(s)"} will be copied when the session ends.`
+              : "Nothing extra will be copied.",
+          );
+          pollNow();
+        }}
+      />
     </div>
   );
 }
 
-function InfoTile({ label, value }: { label: string; value: string }) {
+const WAITING: AnalysisSyncStatus = {
+  phase: "collecting",
+  direction: "output",
+  percent: null,
+  bytes_done: null,
+  bytes_total: null,
+  files_done: 0,
+  files_total: null,
+  current_file: null,
+  message: "Waiting for the Analysis PC to send your results",
+  verified: false,
+  pc_cleanup: null,
+  kept_files: [],
+  destination: null,
+  updated_at: null,
+  poll_after_ms: 2000,
+};
+
+function FinishScreen({
+  equipment,
+  virtualId,
+  bookingPk,
+  status,
+  legacy,
+  slow,
+  targetLabel,
+  destinationLabel,
+  myResearchHref,
+  onRetry,
+  retrying,
+}: {
+  equipment: string;
+  virtualId: string;
+  bookingPk: number;
+  status: AnalysisSyncStatus | null;
+  legacy: boolean;
+  slow: boolean;
+  targetLabel: string;
+  destinationLabel: string;
+  myResearchHref: string | null;
+  onRetry?: () => void;
+  retrying?: boolean;
+}) {
+  const shown = status && describeSync(status, targetLabel).tone !== "idle" ? status : WAITING;
+  const tone = describeSync(shown, targetLabel).tone;
+  const title = tone === "done" ? "Results saved" : tone === "failed" ? "Some results need attention" : "Saving your results";
+
   return (
-    <div className="rounded-xl border bg-muted/20 px-3 py-2">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="font-medium leading-snug">{value}</p>
+    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 p-6" data-testid="finish-screen">
+      <div className="text-center">
+        <div
+          className={cn(
+            "mx-auto flex h-14 w-14 items-center justify-center rounded-2xl",
+            tone === "done" && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+            tone === "failed" && "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+            tone === "progress" && "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+          )}
+        >
+          {tone === "done" ? (
+            <CheckCircle2 className="h-7 w-7" aria-hidden />
+          ) : tone === "failed" ? (
+            <AlertTriangle className="h-7 w-7" aria-hidden />
+          ) : (
+            <Loader2 className="h-7 w-7 animate-spin" aria-hidden />
+          )}
+        </div>
+        <h1 className="mt-4 text-2xl font-semibold sm:text-3xl">{title}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {equipment} · Booking {virtualId}
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-3 p-5 text-sm">
+          <SyncProgressPanel status={shown} targetLabel={targetLabel} onRetry={onRetry} retrying={retrying} />
+          {tone === "progress" ? (
+            <p className="text-muted-foreground">
+              Your results are being copied to <strong className="text-foreground">{destinationLabel}</strong>. You can leave this
+              page — copying continues in the background.
+            </p>
+          ) : null}
+          {legacy && tone === "done" ? (
+            <p className="text-muted-foreground">
+              Results are in <strong className="text-foreground">{destinationLabel}</strong>.
+            </p>
+          ) : null}
+          {slow && tone === "progress" ? (
+            <p className="text-muted-foreground">
+              This is taking longer than usual. Results appear in {destinationLabel} when the copy finishes. If you saved files on the
+              Analysis PC and they don't appear, contact the lab team.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-wrap justify-center gap-3">
+        {myResearchHref && tone === "done" ? (
+          <Button size="lg" asChild>
+            <Link to={myResearchHref}>
+              <ExternalLink className="mr-2 h-4 w-4" aria-hidden />
+              Open in My Research
+            </Link>
+          </Button>
+        ) : !myResearchHref ? (
+          <Button size="lg" asChild variant={tone === "done" ? "default" : "outline"}>
+            <Link to="/my-bookings">
+              <Download className="mr-2 h-4 w-4" aria-hidden />
+              Booking Details
+            </Link>
+          </Button>
+        ) : null}
+        <Button size="lg" variant="outline" asChild>
+          <Link to={`/analysis-workspace/${bookingPk}`}>Return to Analysis Workspace</Link>
+        </Button>
+      </div>
     </div>
   );
 }

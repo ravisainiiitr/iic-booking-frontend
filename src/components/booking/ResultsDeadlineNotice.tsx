@@ -8,6 +8,15 @@ export function resultsDeadlineApplies(status: string | null | undefined): boole
   return OPEN_STATUSES.has(String(status || "").toUpperCase());
 }
 
+/** Lab Operators only track the results deadline once the sample is accepted (or the booking is processing). */
+export function sampleAcceptedForResults(
+  status: string | null | undefined,
+  sampleTrace: Array<{ status?: string | null }> | null | undefined,
+): boolean {
+  if (String(status || "").toUpperCase() === "PROCESSING") return true;
+  return (sampleTrace ?? []).some((e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED");
+}
+
 /**
  * Booking details: staff see "Results due" (and an overdue warning); the booking user sees
  * "Results expected by" only when the OIC shows the results deadline to users.

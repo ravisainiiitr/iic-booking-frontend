@@ -4,9 +4,14 @@ import {
   apiClient,
   type BookingLabMessageThread,
   type BookingResultsDeadline,
+  type FabricationFileChange,
+  type FabricationPart,
+  type FabricationWorkflow,
   type LabOutreachKind,
   type PrintAnalysisResult,
 } from "@/lib/api";
+import { FabricationBookingParts } from "@/components/FabricationBookingParts";
+import { isFabricationProfile } from "@/lib/fabricationProfiles";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
@@ -70,9 +75,14 @@ import {
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
-import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
-import { ResultsDeadlineNotice } from "@/components/booking/ResultsDeadlineNotice";
+import {
+  FABRICATION_COMPLETE_FILES_WARNING,
+  FabricationRejectDialog,
+  FabricationRejectedNotice,
+} from "@/components/booking/FabricationRejection";
+import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -288,6 +298,12 @@ export interface BookingDetailCardBooking extends BookingRef {
   equipment_profile_type?: string;
   print_analysis?: PrintAnalysisResult | null;
   print_analyses?: PrintAnalysisResult[];
+  own_material?: boolean;
+  own_material_fixed_charge?: string | null;
+  fabrication_parts?: FabricationPart[];
+  fabrication_file_changes?: FabricationFileChange[];
+  fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
+  fabrication_workflow?: FabricationWorkflow | null;
 }
 
 type ActionType =
@@ -747,7 +763,7 @@ export function BookingDetailCard({
 
   // Auto-refresh sample lifecycle while this booking detail is open
   useVisibilityPolling({
-    enabled: !isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D",
+    enabled: !isWaitlistedEntry && !isFabricationProfile(booking.equipment_profile_type),
     intervalMs: 12000,
     onPoll: () => refreshBookingDetail({ silent: true }),
   });
@@ -1396,11 +1412,16 @@ export function BookingDetailCard({
   const isOperatorUnavailable = booking.status.toUpperCase() === "ABSENT";
   const isBookingNotUtilized = booking.status.toUpperCase() === "BOOKING_NOT_UTILIZED";
   const isHold = booking.status.toUpperCase() === "HOLD";
+  /** 3D printing / laser cutting: no sample lifecycle; the lab marks the job complete or rejects it as not feasible. */
+  const isFabrication = isFabricationProfile(booking.equipment_profile_type);
+  const fabricationWorkflow = isFabrication ? booking.fabrication_workflow ?? null : null;
+  const isFabricationRejected = !!fabricationWorkflow?.rejected && booking.status.toUpperCase() === "BOOKED";
   const sampleTraceList = booking.sample_trace ?? [];
   const traceHasSampleAccepted = sampleTraceList.some(
     (e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED"
   );
   const canEditAtmosphereSensitive =
+    !isFabrication &&
     booking.equipment_atmosphere_sensitive_sample_enabled === true &&
     !isWaitlistedEntry &&
     booking.status.toUpperCase() === "BOOKED" &&
@@ -1429,6 +1450,7 @@ export function BookingDetailCard({
 
   /** Sample Accepted / Rejected in the main Actions toolbar (internal staff only). */
   const showSampleAcceptRejectActions =
+    !isFabrication &&
     isOperatorOrManager &&
     !isExternalSelfView &&
     !isExternalBookingType &&
@@ -1523,8 +1545,9 @@ export function BookingDetailCard({
   const isOwnBooking = currentUserId != null && Number(booking.user) === Number(currentUserId);
   const deadlineNow = new Date();
   /** Owner cancel/reschedule cutoff (same window as My Bookings); none for staff roles or external self-service. */
+  /** A booking rejected by the lab can be cancelled by its owner for a full refund at any time. */
   const ownerDeadlineRaw =
-    isOwnBooking && !isOperator && !isFinanceUser && !isHold && !isExternalBookingType
+    isOwnBooking && !isOperator && !isFinanceUser && !isHold && !isExternalBookingType && !isFabricationRejected
       ? cancelRescheduleDeadline(booking, deadlineNow)
       : null;
   const ownerDeadline =
@@ -1542,6 +1565,12 @@ export function BookingDetailCard({
     (normalizedCurrentUserType === "operator" || isLabInchargeType) &&
     !isWaitlistedEntry &&
     !isOwnBooking;
+  /** Lifecycle "Time remaining" countdowns are for the booking user; Lab Operators only track the results deadline after Sample Accepted. */
+  const isLabOperatorViewer = isOperator && !isManagerOrAdmin && !isOwnBooking;
+  const showResultsDeadlineNotice =
+    !isJobSheetView &&
+    !isFabrication &&
+    (!isLabOperatorViewer || sampleAcceptedForResults(booking.status, booking.sample_trace));
 
   const hasInputValues = Boolean(booking.input_values && Object.keys(booking.input_values).length > 0);
   const bookingUserInputsProps: ComponentProps<typeof BookingUserInputs> = {
@@ -1621,7 +1650,7 @@ export function BookingDetailCard({
             <OperatorJobSheet
               ref={jobSheetRef}
               booking={booking}
-              statusBadgeClass={getStatusColor(booking.status)}
+              statusBadgeClass={getStatusColor(bookingBadgeStatus(booking))}
               editInputs={
                 hasInputValues ? <BookingUserInputs {...bookingUserInputsProps} variant="editButtonOnly" /> : null
               }
@@ -1661,7 +1690,7 @@ export function BookingDetailCard({
                 )}
               </div>
             </div>
-            <Badge className={`${getStatusColor(booking.status)} text-sm shrink-0`}>{booking.status_display}</Badge>
+            <Badge className={`${getStatusColor(bookingBadgeStatus(booking))} text-sm shrink-0`}>{booking.status_display}</Badge>
           </div>
         </CardHeader>
         )}
@@ -1799,14 +1828,23 @@ export function BookingDetailCard({
               </div>
             )}
 
-          {(booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
+          {isFabricationRejected && fabricationWorkflow && (
+            <FabricationRejectedNotice
+              workflow={fabricationWorkflow}
+              staffView={isOperatorOrManager && !isOwnBooking}
+            />
+          )}
+
+          {!isLabOperatorViewer &&
+            !isFabrication &&
+            (booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
             (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) && (
             <BookingLifecycleCountdown
               countdown={(booking.lifecycle_countdown || booking.completion_countdown)!}
             />
           )}
 
-          {!isJobSheetView && (
+          {showResultsDeadlineNotice && (
             <ResultsDeadlineNotice
               deadline={booking.results_deadline}
               status={booking.status}
@@ -1814,7 +1852,7 @@ export function BookingDetailCard({
             />
           )}
 
-          {isCompleted && booking.sample_collection_deadline_at && !isJobSheetView && (
+          {isCompleted && booking.sample_collection_deadline_at && !isJobSheetView && !isFabrication && (
             <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
               <div className="text-base font-semibold text-foreground">Sample Collection Deadline</div>
               <p className="text-base font-medium text-foreground">
@@ -1859,7 +1897,7 @@ export function BookingDetailCard({
                 </p>
               )}
             </div>
-          ) : booking.atmosphere_sensitive_sample && !isJobSheetView ? (
+          ) : booking.atmosphere_sensitive_sample && !isJobSheetView && !isFabrication ? (
             <div className="mb-4 rounded-lg border border-sky-500/40 bg-sky-50/80 dark:bg-sky-950/30 px-3 py-2 text-sm text-sky-900 dark:text-sky-100">
               Atmosphere-sensitive sample: will be submitted at slot start. Do not mark Booking Not Utilized before the slot begins.
             </div>
@@ -2228,7 +2266,7 @@ export function BookingDetailCard({
             )}
             <BookingDeadlineNote deadline={ownerDeadline} className="mb-2 text-sm" />
             <div data-actions-buttons className="flex flex-wrap gap-2">
-              {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
+              {!isWaitlistedEntry && !isFabrication && (
                 <SampleSubmittedAction
                   bookingId={bookingPk ?? 0}
                   sampleTrace={booking.sample_trace ?? []}
@@ -2566,7 +2604,7 @@ export function BookingDetailCard({
                   Refund
                 </Button>
               )}
-              {!isHold && isOperatorOrManager && !isLabInchargeUser && canPerformAction(booking, "absent", isOperator) && !isExternalSelfView && (
+              {!isHold && !isFabrication && isOperatorOrManager && !isLabInchargeUser && canPerformAction(booking, "absent", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("absent", booking)}>
                   <XCircle className="h-4 w-4 mr-2" />
                   Operator Unavailable
@@ -2582,6 +2620,7 @@ export function BookingDetailCard({
                   </Button>
                 )}
               {!isHold &&
+                !isFabrication &&
                 isOperatorOrManager &&
                 canPerformAction(booking, "other_disruption", isOperator) &&
                 !isExternalSelfView && (
@@ -2603,7 +2642,7 @@ export function BookingDetailCard({
                   Reschedule
                 </Button>
               )}
-              {!isHold && isOperatorOrManager && booking.status.toUpperCase() === "BOOKED" && !isExternalSelfView && (
+              {!isHold && !isFabrication && isOperatorOrManager && booking.status.toUpperCase() === "BOOKED" && !isExternalSelfView && (
                 <div className="space-y-1">
                   {(booking.sample_trace ?? []).some(
                     (t) =>
@@ -2626,11 +2665,26 @@ export function BookingDetailCard({
                   </Button>
                 </div>
               )}
-              {!isHold && isOperatorOrManager && canPerformAction(booking, "complete", isOperator) && !isExternalSelfView && (
+              {!isHold &&
+                !isFabricationRejected &&
+                isOperatorOrManager &&
+                canPerformAction(booking, "complete", isOperator) &&
+                !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("complete", booking)}>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Complete
+                  {isFabrication ? "Mark complete" : "Complete"}
                 </Button>
+              )}
+              {!isHold && fabricationWorkflow?.can_reject && bookingPk != null && (
+                <FabricationRejectDialog
+                  bookingId={bookingPk}
+                  minLength={fabricationWorkflow.reason_min_length}
+                  windowHours={fabricationWorkflow.replace_window_hours}
+                  onRejected={() => {
+                    void refreshBookingDetail({ silent: true });
+                    onUpdated();
+                  }}
+                />
               )}
               {isManagerOrAdmin &&
                 booking.status.toUpperCase() === "COMPLETED" &&
@@ -2647,6 +2701,7 @@ export function BookingDetailCard({
                 </Button>
               )}
               {isManagerOrAdmin &&
+                !isFabrication &&
                 (booking.status.toUpperCase() === "BOOKED" || booking.status.toUpperCase() === "PENDING") &&
                 !isExternalSelfView && (
                 <div className="w-full mt-3 rounded-lg border border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 space-y-2">
@@ -3102,7 +3157,9 @@ export function BookingDetailCard({
                         <Button
                           size="sm"
                           disabled={analysisBusy}
-                          onClick={() => navigate(`/analysis-workspace/${bookingPk}`)}
+                          onClick={() =>
+                            navigate(`/analysis-workspace/${bookingPk}${hasOpenAnalysisSession ? "" : "?setup=1"}`)
+                          }
                         >
                           {hasOpenAnalysisSession ? "Continue Analysis" : "Open Analysis Workspace"}
                         </Button>
@@ -3237,7 +3294,7 @@ export function BookingDetailCard({
               </div>
             )}
 
-          {!isWaitlistedEntry && booking.equipment_profile_type !== "PRINT_3D" && (
+          {!isWaitlistedEntry && !isFabrication && (
             <div className="mt-4 pt-4 border-t no-print">
             {isHold && (
               <p className="text-sm text-muted-foreground mb-2">
@@ -3461,7 +3518,17 @@ export function BookingDetailCard({
             </DialogContent>
           </Dialog>
 
-          {!isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&
+          {!isFinanceUser && isFabricationProfile(booking.equipment_profile_type) && Array.isArray(booking.fabrication_parts) ? (
+            <FabricationBookingParts
+              booking={booking}
+              onUpdated={() => {
+                if (bookingPk == null) return;
+                void apiClient.getBooking(bookingPk).then((res) => {
+                  if (res.data) setBooking(res.data as BookingDetailCardBooking);
+                });
+              }}
+            />
+          ) : !isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&
             (booking.print_analyses?.length || booking.print_analysis) && (
             <div className="rounded-lg border p-4 space-y-2">
               <p className="text-sm font-medium">Print files</p>
@@ -3507,7 +3574,7 @@ export function BookingDetailCard({
 
           {isJobSheetView ? null : !isFinanceUser && hasInputValues ? (
             <BookingUserInputs {...bookingUserInputsProps} />
-          ) : !isFinanceUser ? (
+          ) : !isFinanceUser && !isFabrication ? (
             <div className="mt-6 pt-6 border-t border-border/80">
               <div className="rounded-xl bg-muted/30 dark:bg-muted/20 border border-border/60 shadow-sm overflow-hidden">
                 <ul className="divide-y divide-border/50">
@@ -3769,6 +3836,14 @@ export function BookingDetailCard({
 
           {actionDialog.type === "complete" && (
             <div className="space-y-3">
+              {isFabrication && (
+                <p
+                  role="alert"
+                  className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                  {FABRICATION_COMPLETE_FILES_WARNING} The user will get an email that the parts are ready for pickup.
+                </p>
+              )}
               <div>
                 <Label>Upload results (optional)</Label>
                 <p className="text-sm text-muted-foreground mb-2">
@@ -3921,6 +3996,11 @@ export function BookingDetailCard({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction.type === "complete" && "Are you sure you want to mark this booking as completed? This action cannot be undone."}
+              {confirmAction.type === "complete" && isFabrication && (
+                <span className="mt-2 block font-medium text-amber-700 dark:text-amber-300">
+                  {FABRICATION_COMPLETE_FILES_WARNING}
+                </span>
+              )}
               {confirmAction.type === "refund" && "Are you sure you want to refund this booking? The amount will be credited to the user's wallet. This action cannot be undone."}
               {confirmAction.type === "absent" &&
                 "Are you sure you want to mark this booking as Operator Unavailable? The user will be asked to choose cancel (refund) or reschedule by email; no immediate refund."}

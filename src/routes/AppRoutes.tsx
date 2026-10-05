@@ -77,7 +77,6 @@ const InboxEmail = lazyPage(() => import("@/pages/InboxEmail"));
 const AdminSettingsEquipment = lazyPage(() => import("@/pages/AdminSettingsEquipment"));
 const AdminSemesters = lazyPage(() => import("@/pages/AdminSemesters"));
 const AdminIcpmsStandards = lazyPage(() => import("@/pages/AdminIcpmsStandards"));
-const AdminEquipmentModeSchedules = lazyPage(() => import("@/pages/AdminEquipmentModeSchedules"));
 const AdminBookingChargeSettings = lazyPage(() => import("@/pages/AdminBookingChargeSettings"));
 const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBufferConfig"));
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
@@ -100,7 +99,7 @@ const Rewards = lazyPage(() => import("@/pages/Rewards"));
 const OICAccessories = lazyPage(() => import("@/pages/OICAccessories"));
 const OICPrintMaterials = lazyPage(() => import("@/pages/OICPrintMaterials"));
 const OICEquipmentSettings = lazyPage(() => import("@/pages/OICEquipmentSettings"));
-const OICMultiMode = lazyPage(() => import("@/pages/OICMultiMode"));
+const MultiModeEquipment = lazyPage(() => import("@/pages/MultiModeEquipment"));
 const CalendarColorSettings = lazyPage(() => import("@/pages/CalendarColorSettings"));
 const InventoryManagement = lazyPage(() => import("@/pages/InventoryManagement"));
 const RemoteAnalysis = lazyPage(() => import("@/pages/RemoteAnalysis"));
@@ -119,6 +118,7 @@ const AnalysisLaunch = lazyPage(() => import("@/pages/AnalysisLaunch"));
 const WorkflowDesigner = lazyPage(() => import("@/pages/WorkflowDesigner"));
 const DepartmentSync = lazyPage(() => import("@/pages/DepartmentSync"));
 const ProcurementWorkflow = lazyPage(() => import("@/pages/ProcurementWorkflow"));
+const ProcurementAssets = lazyPage(() => import("@/pages/procurement/ProcurementRoutes"));
 const EquipmentLifecycleHub = lazyPage(() => import("@/pages/EquipmentLifecycleHub"));
 const UserManagement = lazyPage(() => import("@/pages/UserManagement"));
 const SetupTestUsers = lazyPage(() => import("@/pages/SetupTestUsers"));
@@ -154,6 +154,7 @@ const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
 const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
 const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
 const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
+const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
 function RouteFallback() {
@@ -347,13 +348,14 @@ export default function AppRoutes() {
           <Route path="/laboratory-infrastructure" element={<ErrorBoundary fallbackTitle="Laboratory Infrastructure" backPath="/dashboard"><LaboratoryInfrastructure /></ErrorBoundary>} />
           <Route path="/test-dashboard" element={<ErrorBoundary fallbackTitle="Test Dashboard" backPath="/dashboard"><TestDashboard /></ErrorBoundary>} />
           <Route path="/procurement-workflow" element={<ProcurementWorkflow />} />
+          <Route path="/procurement/*" element={<ErrorBoundary fallbackTitle="Procurement & Assets" backPath="/dashboard"><ProcurementAssets /></ErrorBoundary>} />
           <Route path="/equipment-lifecycle" element={<EquipmentLifecycleHub />} />
           <Route path="/propose-equipment" element={<ProposeEquipment />} />
           <Route path="/admin/equipment-addition-requests" element={<EquipmentAdditionRequests />} />
           <Route path="/admin-settings/equipment" element={<AdminSettingsEquipment />} />
           <Route path="/admin-settings/equipment/semesters" element={<AdminSemesters />} />
           <Route path="/admin-settings/equipment/icpms-standards" element={<AdminIcpmsStandards />} />
-          <Route path="/admin-settings/equipment/mode-schedules" element={<AdminEquipmentModeSchedules />} />
+          <Route path="/admin-settings/equipment/mode-schedules" element={<Navigate to="/multi-mode-equipment" replace />} />
           <Route path="/admin-settings/equipment/booking-charge-settings" element={<AdminBookingChargeSettings />} />
           <Route path="/admin-settings/equipment/booking-buffer-config" element={<AdminBookingBufferConfig />} />
           <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
@@ -369,11 +371,14 @@ export default function AppRoutes() {
           <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
+          <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
-          <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
+          <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="Fabrication Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
+          <Route path="/oic/fabrication-materials" element={<Navigate to="/oic/print-materials" replace />} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
           <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Equipment Booking Configuration" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
-          <Route path="/oic/multi-mode" element={<ErrorBoundary fallbackTitle="Multi-Mode Equipment" backPath="/dashboard"><OICMultiMode /></ErrorBoundary>} />
+          <Route path="/oic/multi-mode" element={<Navigate to="/multi-mode-equipment" replace />} />
+          <Route path="/multi-mode-equipment" element={<ErrorBoundary fallbackTitle="Multi-mode equipment" backPath="/dashboard"><MultiModeEquipment /></ErrorBoundary>} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/setup-test-users" element={<SetupTestUsers />} />
           <Route path="/profile" element={<Profile />} />

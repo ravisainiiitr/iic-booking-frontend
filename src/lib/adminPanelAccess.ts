@@ -103,7 +103,7 @@ const PATH_TO_MODULE_KEY: Array<{ path: string; key: string }> = [
   { path: "/admin-settings/equipment/semesters", key: "admin_settings.equipment.semesters" },
   { path: "/admin-settings/equipment/student-nominations", key: "admin_settings.equipment.student_nominations" },
   { path: "/admin-settings/equipment/icpms-standards", key: "admin_settings.equipment.icpms_standards" },
-  { path: "/admin-settings/equipment/mode-schedules", key: "admin_settings.equipment.mode_schedules" },
+  { path: "/multi-mode-equipment", key: "admin_settings.equipment.mode_schedules" },
   { path: "/admin-settings/equipment/booking-charge-settings", key: "admin_settings.equipment.booking_charge_settings" },
   { path: "/admin-settings/equipment/booking-buffer-config", key: "admin_settings.equipment.booking_buffer_config" },
   { path: "/admin/department-rbac", key: "admin_settings.department_rbac" },

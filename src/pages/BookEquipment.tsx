@@ -15,6 +15,7 @@ import {
   type TemplateSlotAlternative,
   type TemplateHealth,
   type TemplateSlotFallback,
+  isFabricationProfile,
 } from "@/lib/api";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
@@ -31,6 +32,7 @@ import {
   type PreferredSlotDraft,
 } from "@/lib/templatePreferredSlot";
 import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
+import { localDateStamp } from "@/lib/localDate";
 import {
   fallbackForMode,
   flagsForFallback,
@@ -93,6 +95,7 @@ import {
   getUserTypeDisplayName,
 } from "@/lib/userTypes";
 import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
+import { LaserCutBookingPanel, type LaserCutBookingValues } from "@/components/LaserCutBookingPanel";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -155,6 +158,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { periodicTableElements, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText } from "@/data/periodicTableData";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
+import RecurringBlockRules from "@/components/slot-status/RecurringBlockRules";
 import { cn } from "@/lib/utils";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
@@ -792,6 +796,8 @@ type ChargeCalcHashInput = {
   chargeEstimateUserType: string | null;
   urgent?: boolean;
   sampleSets?: SampleSetValues[];
+  /** 3D print / laser: uploaded parts, quantities, sheets and the own-material choice. */
+  fabricationKey?: string | null;
 };
 
 function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
@@ -803,7 +809,19 @@ function buildChargeCalculationHash(input: ChargeCalcHashInput): string {
     sample_return_after_analysis: input.sampleReturnAfterAnalysis,
     charge_estimate_user_type: input.chargeEstimateUserType,
     urgent: Boolean(input.urgent),
+    fabrication: input.fabricationKey ?? null,
   });
+}
+
+/** True when a fabrication booking has its uploaded files ready for a charge estimate. */
+function fabricationUploadReady(
+  profileType: string | null | undefined,
+  ids: { printAnalysisId: string | null; printAnalysisBatchId: string | null; laserCutBatchId: string | null },
+): boolean {
+  const t = String(profileType || "").toUpperCase();
+  if (t === "PRINT_3D") return Boolean(ids.printAnalysisId || ids.printAnalysisBatchId);
+  if (t === "LASER_CUT_2D") return Boolean(ids.laserCutBatchId);
+  return true;
 }
 
 function inputsReadyForChargeEstimate(
@@ -826,7 +844,7 @@ function inputsReadyForChargeEstimate(
   });
   if (!requiredOk) return false;
 
-  if (equipmentDetail?.profile_type === "PRINT_3D") return true;
+  if (isFabricationProfile(equipmentDetail?.profile_type)) return true;
 
   for (const key of ["A", "B"]) {
     const field = fields.find((f) => f.field_key === key);
@@ -1024,6 +1042,12 @@ const BookEquipment = () => {
   const [printAnalysisId, setPrintAnalysisId] = useState<string | null>(null);
   const [printAnalysisBatchId, setPrintAnalysisBatchId] = useState<string | null>(null);
   const [print3dAnalyzing, setPrint3dAnalyzing] = useState(false);
+  const [laserCutBatchId, setLaserCutBatchId] = useState<string | null>(null);
+  /** Laser: changes with part quantities / sheets / units, so the estimate refreshes for the same upload. */
+  const [laserPartsKey, setLaserPartsKey] = useState<string | null>(null);
+  /** 3D print / laser: the user brings their own material (fixed charge replaces the material cost). */
+  const [fabricationOwnMaterial, setFabricationOwnMaterial] = useState(false);
+  const fabricationKey = JSON.stringify([laserCutBatchId, laserPartsKey, fabricationOwnMaterial]);
   const [chargeProgress, setChargeProgress] = useState(0);
   const [icpmsCoverageByFieldKey, setIcpmsCoverageByFieldKey] = useState<
     Record<
@@ -1114,7 +1138,7 @@ const BookEquipment = () => {
   const calculateHiddenFieldKeys = useMemo(() => {
     const hidden = new Set<string>();
     const fields = equipmentDetail?.input_fields;
-    if (!isCalculateChargesFlow || !fields?.length || equipmentDetail?.profile_type === "PRINT_3D") return hidden;
+    if (!isCalculateChargesFlow || !fields?.length || isFabricationProfile(equipmentDetail?.profile_type)) return hidden;
     const chargeKeys = chargeAffectingInputKeys(equipmentDetail, chargeEstimateUserType);
     for (const field of fields) {
       const key = String(field?.field_key || "").trim();
@@ -1131,13 +1155,13 @@ const BookEquipment = () => {
   /** Field A / B maximums apply to all sample sets combined; the editor shows the error inline. */
   const sampleSetLimitError = useMemo(
     () =>
-      equipmentDetail?.profile_type === "PRINT_3D"
+      isFabricationProfile(equipmentDetail?.profile_type)
         ? null
         : combinedLimitError(equipmentDetail?.input_fields, inputFieldValues, sampleSets),
     [equipmentDetail, inputFieldValues, sampleSets]
   );
   const primaryCombinedLimits = useMemo(
-    () => (equipmentDetail?.profile_type === "PRINT_3D" ? [] : combinedLimits(equipmentDetail?.input_fields)),
+    () => (isFabricationProfile(equipmentDetail?.profile_type) ? [] : combinedLimits(equipmentDetail?.input_fields)),
     [equipmentDetail]
   );
   /** After charge calc / slots shown, Sample + Charge sections collapse so Step 3 is visible sooner. */
@@ -1257,7 +1281,7 @@ const BookEquipment = () => {
   /** First shown NUMERIC field holding a value outside its limits (e.g. a 0 from an older template). */
   const numericInputLimitError = useMemo(() => {
     const fields = equipmentDetail?.input_fields;
-    if (!fields?.length || equipmentDetail?.profile_type === "PRINT_3D") return null;
+    if (!fields?.length || isFabricationProfile(equipmentDetail?.profile_type)) return null;
     for (const field of fields) {
       if (String(field?.field_type || "").toUpperCase().trim() !== "NUMERIC") continue;
       const key = String(field?.field_key || "").trim();
@@ -1286,7 +1310,7 @@ const BookEquipment = () => {
   /** Extra sample sets: each field against its own set's limits (A <= B*4 uses that set's B), as Step 1 does. */
   const sampleSetFieldError = useMemo(
     () =>
-      equipmentDetail?.profile_type === "PRINT_3D"
+      isFabricationProfile(equipmentDetail?.profile_type)
         ? null
         : sampleSetFieldLimitError(
             sampleSetFields.filter((field) => !(isProformaFlow && isNonChargeAffectingInputField(field))),
@@ -1431,10 +1455,12 @@ const BookEquipment = () => {
   // When enabled, failed booking attempts (e.g. no slots / selected slots already occupied)
   // are pushed to waitlist queue (FCFS) up to configured waitlist depth.
   const [waitlistIntentMode, setWaitlistIntentMode] = useState(true);
+  /** Laser cutting jobs are tied to their uploaded parts, so they cannot wait in the queue for a slot. */
+  const waitlistUnavailableForProfile = equipmentDetail?.profile_type === "LASER_CUT_2D";
   /** External (and admin booking for external): no waitlist — only real slot selection counts. */
   const waitlistIntentEffective = useMemo(
-    () => (bookingAsExternalTarget ? false : waitlistIntentMode),
-    [bookingAsExternalTarget, waitlistIntentMode]
+    () => (bookingAsExternalTarget || waitlistUnavailableForProfile ? false : waitlistIntentMode),
+    [bookingAsExternalTarget, waitlistUnavailableForProfile, waitlistIntentMode]
   );
 
   const workspaceEquipmentTitle =
@@ -1653,7 +1679,7 @@ const BookEquipment = () => {
   /** The equipment's "Allow samples with different parameters" switch (on unless the main admin turned it off). */
   const sampleSetsAllowed = sampleSetsAllowedFor(equipmentDetail);
   /** A saved template keeps its sets after the switch is turned off: they can be changed or removed, not added to. */
-  const keepExistingSampleSets = isTemplateFlow && equipmentDetail?.profile_type !== "PRINT_3D";
+  const keepExistingSampleSets = isTemplateFlow && !isFabricationProfile(equipmentDetail?.profile_type);
   const sampleSetsOffered =
     (sampleSetsAllowed || (keepExistingSampleSets && sampleSets.length > 0)) &&
     !repeatSourceBooking &&
@@ -1667,7 +1693,7 @@ const BookEquipment = () => {
   const [autoAllocateAlternative, setAutoAllocateAlternative] = useState(false);
   const groupAlternativeOption =
     !!equipmentDetail?.group_alternatives_enabled &&
-    equipmentDetail?.profile_type !== "PRINT_3D" &&
+    !isFabricationProfile(equipmentDetail?.profile_type) &&
     !isUrgentTypeBHoldMode &&
     !isRushReliefMode &&
     !repeatSourceBooking;
@@ -3408,6 +3434,7 @@ const BookEquipment = () => {
         return;
       }
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const isFabrication = isFabricationProfile(equipmentDetail?.profile_type);
       const rebookFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const { carried, droppedLabels } = sanitizeRebookInputValues(
         withoutSampleSets(source.input_values),
@@ -3420,7 +3447,7 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
-      const rebookSets = isPrint3d
+      const rebookSets = isFabrication
         ? []
         : readSampleSets(source.input_values)
             .map((s) => sanitizeRebookInputValues(s, rebookFields).carried as SampleSetValues)
@@ -3536,6 +3563,7 @@ const BookEquipment = () => {
   const applyBookingTemplate = useCallback(
     (template: BookingTemplate, opts?: { resolvePreferredSlot?: boolean }): { dropped: string[]; notified: boolean } => {
       const isPrint3d = equipmentDetail?.profile_type === "PRINT_3D";
+      const isFabrication = isFabricationProfile(equipmentDetail?.profile_type);
       const templateFields = equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>;
       const health = isTemplateFlow ? null : template.health ?? null;
       const { values: templateValues, adjusted } = clampTemplateValues(template.input_values || {}, health?.issues);
@@ -3549,7 +3577,7 @@ const BookEquipment = () => {
         applyTableRowSyncToValues(next, equipmentDetail?.input_fields);
         return next as Record<string, string | boolean | string[] | number>;
       });
-      const templateSets = isPrint3d
+      const templateSets = isFabrication
         ? []
         : readSampleSets(templateValues)
             .map((s) => sanitizeRebookInputValues(s, templateFields).carried as SampleSetValues)
@@ -3985,9 +4013,10 @@ const BookEquipment = () => {
       return;
     }
 
-    if (equipmentDetail.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
+    if (!fabricationUploadReady(equipmentDetail.profile_type, { printAnalysisId, printAnalysisBatchId, laserCutBatchId })) {
       return;
     }
+    const isFabrication = isFabricationProfile(equipmentDetail.profile_type);
 
     // Skip if already loading to prevent concurrent calls (booking flow only; estimate re-queues)
     if (loadingCharge && !isCalculateChargesFlow) {
@@ -4003,6 +4032,7 @@ const BookEquipment = () => {
       chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
       urgent: isUrgentTypeBHoldMode,
       sampleSets,
+      fabricationKey: isFabrication ? fabricationKey : null,
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
@@ -4023,7 +4053,7 @@ const BookEquipment = () => {
         }
       }
       // Parameters A and B (when present): NUMERIC must be within configured min/max; RADIO/COMBO must have a selection.
-      if (equipmentDetail.profile_type !== "PRINT_3D") {
+      if (!isFabrication) {
         const abKeys = ['A', 'B'];
         for (const key of abKeys) {
         const field = equipmentDetail.input_fields.find((f: any) => f.field_key === key);
@@ -4084,8 +4114,12 @@ const BookEquipment = () => {
             : equipmentDetail.profile_type === "PRINT_3D" && printAnalysisId
               ? { print_analysis_id: printAnalysisId }
               : {}),
+          ...(equipmentDetail.profile_type === "LASER_CUT_2D" && laserCutBatchId
+            ? { laser_cut_batch_id: laserCutBatchId }
+            : {}),
+          ...(isFabrication && fabricationOwnMaterial ? { own_material: true } : {}),
           ...(isUrgentTypeBHoldMode ? { urgent: true } : {}),
-          ...(sampleSets.length > 0 && equipmentDetail.profile_type !== "PRINT_3D" ? { sample_sets: sampleSets } : {}),
+          ...(sampleSets.length > 0 && !isFabrication ? { sample_sets: sampleSets } : {}),
         }
       );
 
@@ -4112,7 +4146,7 @@ const BookEquipment = () => {
         ) ?? [];
         // PRINT_3D uses A=weight, B=material, C=time — do not treat low time as invalid A/B samples.
         if (
-          equipmentDetail.profile_type !== "PRINT_3D" &&
+          !isFabrication &&
           abFields.length > 0 &&
           totalMinutes < 1
         ) {
@@ -4171,7 +4205,7 @@ const BookEquipment = () => {
         setLoadingCharge(false);
       }
     }
-  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys, numericInputLimitError, sampleSetFieldError]);
+  }, [selectedEquipment, equipmentDetail, inputFieldValues, sampleSets, loadingCharge, adminBookForUserId, repeatSourceBooking, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, rewardPointsToRedeem, printAnalysisId, printAnalysisBatchId, laserCutBatchId, fabricationKey, fabricationOwnMaterial, isCalculateChargesFlow, chargeEstimateUserType, isProformaFlow, isTemplateFlow, isUrgentTypeBHoldMode, adminManageMode, calculateHiddenFieldKeys, numericInputLimitError, sampleSetFieldError]);
 
   const handleExportChargeEstimatePdf = useCallback(async () => {
     if (!selectedEquipment || !equipmentDetail || !chargeCalculated || !calculatedCharge || chargeCalculationFailed) {
@@ -4216,7 +4250,7 @@ const BookEquipment = () => {
         const a = document.createElement("a");
         a.href = url;
         const code = equipmentDetail.code || `equipment_${selectedEquipment.id}`;
-        a.download = `charge_estimate_${code}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        a.download = `charge_estimate_${code}_${localDateStamp()}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
         toast.success("Charge estimate downloaded.");
@@ -4367,7 +4401,7 @@ const BookEquipment = () => {
       return;
     }
 
-    if (equipmentDetail.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
+    if (!fabricationUploadReady(equipmentDetail.profile_type, { printAnalysisId, printAnalysisBatchId, laserCutBatchId })) {
       if (chargeCalculated || chargeCalculationFailed) {
         setChargeCalculated(false);
         setCalculatedCharge(null);
@@ -4420,6 +4454,7 @@ const BookEquipment = () => {
         chargeEstimateUserType: isCalculateChargesFlow ? chargeEstimateUserType : null,
         urgent: isUrgentTypeBHoldMode,
         sampleSets,
+        fabricationKey: isFabricationProfile(equipmentDetail.profile_type) ? fabricationKey : null,
       });
       
       // Skip if we already calculated (or failed) for these exact values
@@ -4455,7 +4490,7 @@ const BookEquipment = () => {
         lastCalculatedValuesRef.current = ''; // Reset the hash
       }
     }
-  }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, sampleSetFieldError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
+  }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, sampleSetFieldError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, laserCutBatchId, fabricationKey, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
@@ -5724,7 +5759,7 @@ const BookEquipment = () => {
   });
   useEffect(() => {
     if (!isTemplateFlow || !equipmentDetail || !selectedEquipment) return;
-    if (!(isAdminOrOIC() || chargeCalculationFailed) || equipmentDetail.profile_type === "PRINT_3D") {
+    if (!(isAdminOrOIC() || chargeCalculationFailed) || isFabricationProfile(equipmentDetail.profile_type)) {
       setTemplateStaffAnalysis({ minutes: null, loading: false });
       return;
     }
@@ -6154,6 +6189,7 @@ const BookEquipment = () => {
     }
     setPrintAnalysisId(values.batchId ? null : values.analysisId ?? null);
     setPrintAnalysisBatchId(values.batchId ?? null);
+    setFabricationOwnMaterial(values.ownMaterial);
     lastCalculatedValuesRef.current = '';
     setInputFieldValues((prev) => ({
       ...prev,
@@ -6162,6 +6198,28 @@ const BookEquipment = () => {
       C: values.timeMinutes,
     }));
   }, []);
+
+  const handleLaserCutReady = useCallback((values: LaserCutBookingValues | null) => {
+    lastCalculatedValuesRef.current = '';
+    if (!values) {
+      setLaserCutBatchId(null);
+      setLaserPartsKey(null);
+      setChargeCalculated(false);
+      setCalculatedCharge(null);
+      setShowSlots(false);
+      setChargeCalculationFailed(false);
+      return;
+    }
+    setLaserCutBatchId(values.batchId);
+    setLaserPartsKey(values.partsKey);
+    setFabricationOwnMaterial(values.ownMaterial);
+  }, []);
+
+  useEffect(() => {
+    setLaserCutBatchId(null);
+    setLaserPartsKey(null);
+    setFabricationOwnMaterial(false);
+  }, [selectedEquipment?.id]);
 
   /** Prefer admin-configured source; otherwise first PERIODIC_TABLE field on this equipment. */
   const resolvePeriodicFieldKey = useCallback(
@@ -6721,15 +6779,24 @@ const BookEquipment = () => {
       toast.error("Upload and analyze STL file(s) before booking.");
       return;
     }
+    if (equipmentDetail?.profile_type === "LASER_CUT_2D" && !laserCutBatchId) {
+      toast.error("Upload your DXF file(s) and choose a sheet material for every part before booking.");
+      return;
+    }
 
-    const print3dBookExtras =
-      equipmentDetail?.profile_type === "PRINT_3D"
+    const fabricationBookExtras: Partial<Parameters<typeof apiClient.bookEquipment>[1]> = {
+      ...(equipmentDetail?.profile_type === "PRINT_3D"
         ? printAnalysisBatchId
           ? { print_analysis_batch_id: printAnalysisBatchId }
           : printAnalysisId
             ? { print_analysis_id: printAnalysisId }
             : {}
-        : {};
+        : {}),
+      ...(equipmentDetail?.profile_type === "LASER_CUT_2D" && laserCutBatchId
+        ? { laser_cut_batch_id: laserCutBatchId }
+        : {}),
+      ...(isFabricationProfile(equipmentDetail?.profile_type) && fabricationOwnMaterial ? { own_material: true } : {}),
+    };
 
     const attemptForFollowUp = buildAttemptSnapshot();
     setAttemptSlotFallback(null);
@@ -6748,7 +6815,7 @@ const BookEquipment = () => {
           request_waitlist_without_slot_selection: true,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
-          ...print3dBookExtras,
+          ...fabricationBookExtras,
         };
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           ...noSlotBody,
@@ -6851,7 +6918,7 @@ const BookEquipment = () => {
               book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
               ...(isRushReliefMode ? { rush_relief: true } : {}),
               ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
-              ...print3dBookExtras,
+              ...fabricationBookExtras,
             });
             if (res.error) {
               toast.error((res as { error: string }).error);
@@ -6897,7 +6964,7 @@ const BookEquipment = () => {
         const weekEnd = addDays(weekStart, 6);
         const offerGroupAlternatives =
           !!equipmentDetail?.group_alternatives_enabled &&
-          equipmentDetail?.profile_type !== "PRINT_3D" &&
+          !isFabricationProfile(equipmentDetail?.profile_type) &&
           !isRushReliefMode;
         const bookBody: Parameters<typeof apiClient.bookEquipment>[1] = {
           slot_ids: finalSlotIds,
@@ -6923,7 +6990,7 @@ const BookEquipment = () => {
                 use_template_slot_fallback: isTemplateFallback(bookingSlotFallback),
               }
             : {}),
-          ...print3dBookExtras,
+          ...fabricationBookExtras,
         };
         const res = await apiClient.bookEquipment(selectedEquipment.id, {
           ...bookBody,
@@ -7130,7 +7197,7 @@ const BookEquipment = () => {
           atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
-          ...print3dBookExtras,
+          ...fabricationBookExtras,
         });
       });
 
@@ -7751,6 +7818,18 @@ const BookEquipment = () => {
 
             </CardContent>
           </Card>
+        )}
+
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow &&
+          !equipmentCatalogOnly && (isAdminUser() || String(userType).toLowerCase() === 'manager') && (
+          <RecurringBlockRules
+            equipmentId={selectedEquipment.id}
+            onChanged={async () => {
+              setLastFetchedWeek(null);
+              await fetchSlotsForWeek(true, statusChangePopupWeekStart ?? undefined);
+              if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+            }}
+          />
         )}
 
         {/* Inline week view (pick by time) */}
@@ -9279,6 +9358,7 @@ const BookEquipment = () => {
 
                 {equipmentDetail?.profile_type === "PRINT_3D" && selectedEquipment && !repeatSourceBooking && (
                   <Print3DBookingPanel
+                    key={selectedEquipment.id}
                     equipmentId={selectedEquipment.id}
                     materials={
                       isCalculateChargesFlow
@@ -9286,9 +9366,21 @@ const BookEquipment = () => {
                         : (equipmentDetail as { print_materials?: PrintMaterial[] }).print_materials
                     }
                     estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
+                    ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
                     disabled={!!repeatSourceBooking}
+                  />
+                )}
+
+                {equipmentDetail?.profile_type === "LASER_CUT_2D" && selectedEquipment && !repeatSourceBooking && (
+                  <LaserCutBookingPanel
+                    key={selectedEquipment.id}
+                    equipmentId={selectedEquipment.id}
+                    estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
+                    ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}
+                    onReady={handleLaserCutReady}
+                    onAnalyzingChange={setPrint3dAnalyzing}
                   />
                 )}
 
@@ -10136,11 +10228,15 @@ const BookEquipment = () => {
                     <div className="mt-4 space-y-2 rounded-lg border bg-muted/30 p-4">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
-                          {print3dAnalyzing && loadingCharge
-                            ? "Analyzing STL and calculating charges…"
-                            : print3dAnalyzing
-                              ? "Analyzing STL file…"
-                              : "Calculating charge and print time…"}
+                          {equipmentDetail?.profile_type === "LASER_CUT_2D"
+                            ? print3dAnalyzing
+                              ? "Measuring drawings…"
+                              : "Calculating charge…"
+                            : print3dAnalyzing && loadingCharge
+                              ? "Analyzing STL and calculating charges…"
+                              : print3dAnalyzing
+                                ? "Analyzing STL file…"
+                                : "Calculating charge and print time…"}
                         </span>
                         <span className="font-medium tabular-nums">
                           {loadingCharge ? `${Math.round(chargeProgress)}%` : "…"}
@@ -10154,7 +10250,7 @@ const BookEquipment = () => {
                     !loadingCharge &&
                     !chargeCalculationFailed &&
                     !repeatSourceBooking &&
-                    equipmentDetail?.profile_type !== "PRINT_3D" &&
+                    !isFabricationProfile(equipmentDetail?.profile_type) &&
                     missingStep1Fields.length > 0 && (
                     <MissingFieldsHint
                       fields={missingStep1Fields}
@@ -10175,7 +10271,9 @@ const BookEquipment = () => {
                             detail:
                               equipmentDetail?.profile_type === "PRINT_3D"
                                 ? "Check that a user is selected and STL analysis completed, then try again."
-                                : "Add an active charge profile for this user's type on the equipment, then try again.",
+                                : equipmentDetail?.profile_type === "LASER_CUT_2D"
+                                  ? "Check that a user is selected and every part has a sheet material, then try again."
+                                  : "Add an active charge profile for this user's type on the equipment, then try again.",
                           }
                         : friendly;
                     return (
@@ -10673,7 +10771,7 @@ const BookEquipment = () => {
                                     </p>
                                   )}
                                 </div>
-                                {waitlistDepth > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && (
+                                {waitlistDepth > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && !waitlistUnavailableForProfile && (
                                   <div className="rounded-lg border bg-background px-5 py-4">
                                     {waitlistHasRoom ? (
                                       <>
@@ -10698,7 +10796,7 @@ const BookEquipment = () => {
                                 ? "Try the next week using the button above."
                                 : "Try another week using the buttons above, or contact support if the issue continues."}
                             </p>
-                            {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && (
+                            {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 && !hasBookableSlotInSelectedWeek && !bookingAsExternalTarget && !waitlistUnavailableForProfile && (
                               <div className="mt-3">
                                 {equipmentDetail?.waitlist_has_room ? (
                                   <Button size="sm" onClick={() => setWaitlistIntentMode(true)}>Join the queue</Button>

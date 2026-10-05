@@ -17,6 +17,7 @@ import {
   FolderTree,
   FileSpreadsheet,
   GraduationCap,
+  ToggleRight,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -208,6 +209,14 @@ const AdminSettings = () => {
               title="Reward Config (Per Equipment)"
               description="Per-equipment reward settings"
               onClick={() => navigate("/admin-settings/rewards")}
+            />
+          )}
+          {isAdmin && (
+            <SettingsTile
+              icon={<ToggleRight className="h-5 w-5" />}
+              title="Department Modules"
+              description="Switch DSA, Remote Analysis, Training and Procurement on, off or test-users-only per department"
+              onClick={() => navigate("/admin/department-modules")}
             />
           )}
           {(can("admin_settings.training") || trainingMenu("training_policy_settings")) && (
