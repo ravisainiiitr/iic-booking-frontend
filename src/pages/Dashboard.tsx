@@ -38,7 +38,9 @@ import PendingActionsSummary from "@/components/PendingActions/PendingActionsSum
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
 import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
-import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
+import BookingsAwaitingCompletionCard, {
+  BOOKINGS_AWAITING_COMPLETION_KEY,
+} from "@/components/dashboard/BookingsAwaitingCompletionCard";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -3611,7 +3613,7 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary />
+      <PendingActionsSummary excludeKeys={showsLabStyleDashboard ? [BOOKINGS_AWAITING_COMPLETION_KEY] : undefined} />
       {loginTip}
     </>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 
@@ -6,21 +6,36 @@ import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { PendingActionList, type PendingItem } from "@/components/PendingActions/PendingActionList";
 
-/** Dashboard banner: how many items need the user's attention, expandable to the full list with links. */
-export default function PendingActionsSummary({ className = "" }: { className?: string }) {
+/**
+ * Dashboard banner: how many items need the user's attention, expandable to the full list with links.
+ * `excludeKeys` drops items that already have their own card on the same page.
+ */
+export default function PendingActionsSummary({
+  className = "",
+  excludeKeys = [],
+}: {
+  className?: string;
+  excludeKeys?: string[];
+}) {
   const navigate = useNavigate();
-  const [items, setItems] = useState<PendingItem[]>([]);
+  const [allItems, setAllItems] = useState<PendingItem[]>([]);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     apiClient.getPendingActions().then((res) => {
-      if (!cancelled) setItems(res.data?.items ?? []);
+      if (!cancelled) setAllItems(res.data?.items ?? []);
     });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const excludeKey = excludeKeys.join("|");
+  const items = useMemo(
+    () => (excludeKey ? allItems.filter((i) => !excludeKey.split("|").includes(i.key)) : allItems),
+    [allItems, excludeKey],
+  );
 
   if (items.length === 0) return null;
   const total = items.reduce((sum, i) => sum + i.count, 0);

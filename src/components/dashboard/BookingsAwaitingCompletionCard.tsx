@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const BOOKINGS_AWAITING_COMPLETION_ANCHOR = "bookings-awaiting-completion";
+/** Pending-actions item key for the same list (iic_booking/equipment/pending_actions.py). */
+export const BOOKINGS_AWAITING_COMPLETION_KEY = "bookings_awaiting_completion";
 
 /** OIC / Lab in-charge dashboard: every booking of their equipment whose slot time is over but not marked Completed. */
 export default function BookingsAwaitingCompletionCard({ className = "" }: { className?: string }) {
