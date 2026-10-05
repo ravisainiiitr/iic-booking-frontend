@@ -39,7 +39,6 @@ export type JobSheetBooking = {
   atmosphere_sensitive_sample?: boolean;
   sample_return_after_analysis?: boolean;
   source_booking_id?: number | null;
-  sample_collection_deadline_at?: string | null;
   results_deadline?: BookingResultsDeadline | null;
   equipment_profile_type?: string | null;
 };
@@ -60,9 +59,6 @@ function Fact({ label, children, className }: { label: string; children: ReactNo
     </div>
   );
 }
-
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
 /**
  * What the Lab Operator needs to run the test: who, when, sample stage, handling flags, the user's
@@ -178,9 +174,6 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
             )}
           </Fact>
         )}
-        {!isFabrication && booking.sample_collection_deadline_at && booking.status.toUpperCase() === "COMPLETED" ? (
-          <Fact label="Sample collection by">{formatDate(booking.sample_collection_deadline_at)}</Fact>
-        ) : null}
         {results && resultsDeadlineApplies(booking.status) && sampleAcceptedForResults(booking.status, booking.sample_trace) ? (
           <Fact label={results.overdue ? "Results overdue" : "Results due"}>
             <span

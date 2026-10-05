@@ -34,7 +34,8 @@ export const LOGIN_TIPS: readonly LoginTip[] = [
     title: "Submit your sample before the deadline",
     body:
       "Please submit your sample to the laboratory before the sample deadline of your booking, which is set for each equipment ahead of the slot start time, " +
-      "and request the Lab Operator to record its receipt in the portal. If receipt is not recorded, the booking is treated as Not Utilized and the charges are not refunded.",
+      "and request the Lab Operator to record its receipt in the portal. If receipt is not recorded, the booking is treated as Not Utilized and the charges are not refunded. " +
+      "The time for results counts only from the receipt (or from the end of the slot, if the sample was received before it).",
     samplePolicy: true,
     appliesTo: isIitrStudentUser,
   },

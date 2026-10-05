@@ -9,7 +9,7 @@ afterEach(cleanup);
 const deadline = (over: Partial<BookingResultsDeadline> = {}): BookingResultsDeadline => ({
   value: 2,
   unit: "WORKING_DAYS",
-  label: "within 2 working days after the slot",
+  label: "within 2 working days after the slot or sample receipt, whichever is later",
   due_at: "2026-10-13T18:29:59Z",
   due_display: "Tue 13 Oct",
   extended: false,
@@ -45,7 +45,31 @@ describe("ResultsDeadlineNotice", () => {
     render(<ResultsDeadlineNotice deadline={deadline({ visible_to_user: true })} status="BOOKED" staffView={false} now={before} />);
     const box = screen.getByTestId("results-deadline-user");
     expect(box.textContent).toContain("Results expected by Tue 13 Oct");
-    expect(box.textContent).toContain("within 2 working days after the slot");
+    expect(box.textContent).toContain("within 2 working days after the slot or sample receipt, whichever is later");
+    expect(box.textContent).not.toContain("your sample was received on");
+  });
+
+  it("says the deadline counts from receipt when the sample came after the slot", () => {
+    const late = deadline({
+      visible_to_user: true,
+      counted_from_receipt: true,
+      sample_received_at: "2026-10-08T06:00:00Z",
+      receipt_source: "sample_accepted",
+    });
+    render(<ResultsDeadlineNotice deadline={late} status="BOOKED" staffView={false} now={before} />);
+    expect(screen.getByTestId("results-deadline-user").textContent).toContain("your sample was received on Thu 8 Oct");
+    cleanup();
+
+    render(<ResultsDeadlineNotice deadline={late} status="BOOKED" staffView now={before} />);
+    expect(screen.getByTestId("results-deadline-staff").textContent).toContain("Counted from sample receipt on Thu 8 Oct");
+  });
+
+  it("shows nothing before the sample is received (the server sends no deadline)", () => {
+    for (const staffView of [true, false]) {
+      const { container } = render(<ResultsDeadlineNotice deadline={null} status="BOOKED" staffView={staffView} now={after} />);
+      expect(container.textContent).toBe("");
+      cleanup();
+    }
   });
 
   it("tells the user the lab is working on it once the date has passed", () => {

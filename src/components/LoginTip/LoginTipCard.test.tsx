@@ -224,7 +224,11 @@ describe("LoginTipCard", () => {
   });
 
   it("lists results deadlines only for equipment whose OIC shows them, with a worked example", async () => {
-    const wd = (value: number) => ({ value, unit: "WORKING_DAYS" as const, label: `within ${value} working days after the slot` });
+    const wd = (value: number) => ({
+      value,
+      unit: "WORKING_DAYS" as const,
+      label: `within ${value} working days after the slot or sample receipt, whichever is later`,
+    });
     catalog.rows = [
       ...ROWS.filter((r) => r.equipment_id !== 1 && r.equipment_id !== 7),
       { ...eq(1, "Powder X-Ray Diffractometer (PXRD) [A]", 24), results_deadline_public: wd(2) },
@@ -235,13 +239,16 @@ describe("LoginTipCard", () => {
     const dialog = await openPolicy();
     const section = await within(dialog).findByTestId("results-times-section");
     expect(within(section).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "Nuclear Magnetic Resonance (NMR)Results within 2 working days after the slot",
-      "Powder X-Ray Diffractometer (PXRD) [A]Results within 2 working days after the slot",
-      "X-Ray Photoelectron Spectroscopy (XPS)Results within 8 working days after the slot",
+      "Nuclear Magnetic Resonance (NMR)Results within 2 working days after the slot or sample receipt, whichever is later",
+      "Powder X-Ray Diffractometer (PXRD) [A]Results within 2 working days after the slot or sample receipt, whichever is later",
+      "X-Ray Photoelectron Spectroscopy (XPS)Results within 8 working days after the slot or sample receipt, whichever is later",
     ]);
     expect(within(section).getByTestId("results-times-example").textContent).toBe(
-      "Example: a slot ending on Friday, 5:00 PM on an instrument with results within 2 working days after the slot: results expected by the end of Tuesday (the weekend is not counted). Your booking details show the exact date."
+      "Example: a slot ending on Friday, 5:00 PM, with the sample received before the slot, on an instrument with results within 2 working days after the slot or sample receipt, whichever is later: results expected by the end of Tuesday (the weekend is not counted). Your booking details show the exact date."
     );
+    expect(section.textContent).toContain("from the time the Lab Operator records its receipt");
+    expect(section.textContent).toContain("No results date applies until the receipt is recorded");
+    expect(dialog.textContent).toContain("The time counts only once the Lab Operator has recorded receipt of your sample");
     expect(dialog.textContent).toContain("Where the laboratory publishes this time, it is listed below");
   });
 

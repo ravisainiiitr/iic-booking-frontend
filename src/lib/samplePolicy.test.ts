@@ -82,7 +82,11 @@ describe("sample policy from equipment configuration", () => {
 });
 
 describe("published results deadlines", () => {
-  const wd = (value: number) => ({ value, unit: "WORKING_DAYS" as const, label: `within ${value} working days after the slot` });
+  const wd = (value: number) => ({
+    value,
+    unit: "WORKING_DAYS" as const,
+    label: `within ${value} working days after the slot or sample receipt, whichever is later`,
+  });
   const rows: SamplePolicyEquipment[] = [
     { ...eq(1, "PXRD", 24), results_deadline_public: wd(2) },
     { ...eq(7, "NMR", 24), results_deadline_public: wd(2) },

@@ -122,7 +122,7 @@ export function samplesSection(g: Gate): GuideSection {
       },
       {
         title: "Have the receipt recorded",
-        body: "When you hand over the sample, request the Lab Operator to record its receipt in the portal. Follow it under Sample Lifecycle in the booking details.",
+        body: "When you hand over the sample, request the Lab Operator to record its receipt in the portal. Follow it under Sample Lifecycle in the booking details. The time for results starts only once receipt is recorded.",
       },
       {
         title: "Collect after analysis",
@@ -136,7 +136,7 @@ export function samplesSection(g: Gate): GuideSection {
       "You are welcome to submit your sample before the deadline, provided it is not atmosphere-sensitive. Early submission does not lead to earlier analysis or earlier results; the sample is analysed in your booked slot.",
       "Where the equipment permits, choose Atmosphere-sensitive sample (submit at slot start) while booking to submit at the start of the slot.",
       "Once the lab has accepted your sample, the booking can no longer be rescheduled or cancelled.",
-      "Each instrument has a target time within which the lab shares results after analysis, and in most cases results arrive within it; you are emailed and notified when they are available. Where the lab publishes this time, the sample submission policy lists it and your booking details show Results expected by with the date (working days exclude Saturdays, Sundays and institute holidays). In rare circumstances, such as a medical emergency or other unforeseen events, results may be delayed; the lab will inform you if this happens.",
+      "Each instrument has a target time within which the lab shares results after analysis, and in most cases results arrive within it; you are emailed and notified when they are available. The time counts from the end of your slot, or from the sample receipt if the lab receives the sample after the slot; no results date applies before receipt is recorded. Where the lab publishes this time, the sample submission policy lists it and your booking details show Results expected by with the date (working days exclude Saturdays, Sundays and institute holidays). In rare circumstances, such as a medical emergency or other unforeseen events, results may be delayed; the lab will inform you if this happens.",
       "Uncollected samples may be discarded after the deadline; ask the lab before it if you need longer.",
       "Walk-in equipment has no sample deadlines: bring the sample to the slot and take it back yourself.",
     ],

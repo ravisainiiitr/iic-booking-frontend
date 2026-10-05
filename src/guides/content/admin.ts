@@ -43,7 +43,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Results deadline",
-            body: "In the equipment form (or the Django admin), set Results deadline in working days (default 2) or hours after the slot, and whether to Show results deadline to users (off by default). The Officer In Charge can set the same in their configuration page. It replaces the Auto Operator Unavailable and Auto Operator Absent Disruption hours, which are kept only as deprecated fields.",
+            body: "In the equipment form (or the Django admin), set Results deadline in working days (default 2) or hours after the slot or sample receipt, whichever is later, and whether to Show results deadline to users (off by default). A booking has no results deadline until its sample is marked Sample Accepted (walk-in equipment counts from the slot). The Officer In Charge can set the same in their configuration page. It replaces the Auto Operator Unavailable and Auto Operator Absent Disruption hours, which are kept only as deprecated fields.",
           },
           {
             title: "Advanced tables",

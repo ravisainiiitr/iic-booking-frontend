@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { resultsDeadlineAnchor } from "@/lib/bookingDeadlines";
 import type { NextSampleReminder } from "@/lib/loginTips";
 import {
   bookingSampleDeadline,
@@ -53,7 +54,7 @@ function policyPoints(
     {
       title: "Recording of receipt",
       text:
-        "When you hand over the sample, request the Lab Operator to record its receipt in the portal. You can follow its progress under Sample Lifecycle in the booking details.",
+        "When you hand over the sample, request the Lab Operator to record its receipt in the portal. You can follow its progress under Sample Lifecycle in the booking details. The time for results starts only once receipt is recorded.",
     },
     {
       title: "Checking your deadline",
@@ -78,7 +79,7 @@ function policyPoints(
     {
       title: "Results",
       text:
-        "Each instrument has a target time within which the laboratory shares results after analysis, and in most cases you will receive your results within this time. You receive an email and a notification when your results are available in the portal." +
+        "Each instrument has a target time within which the laboratory shares results after analysis, and in most cases you will receive your results within this time. The time counts only once the Lab Operator has recorded receipt of your sample: from the end of your slot, or from the receipt if the sample is received after the slot. You receive an email and a notification when your results are available in the portal." +
         (publishesResultsTimes
           ? " Where the laboratory publishes this time, it is listed below and the booking details show the date by which results are expected."
           : ""),
@@ -197,7 +198,9 @@ function ResultsTimesSection({ rows }: { rows: SamplePolicyEquipment[] }) {
   const typical = typicalResultsDeadline(rows);
   const fridaySlotEnd = nextWeekdayAt10(new Date(), 5);
   fridaySlotEnd.setHours(17, 0, 0, 0);
-  const due = typical ? estimateResultsDue(fridaySlotEnd, typical) : null;
+  const receivedBeforeSlot = new Date(fridaySlotEnd.getTime() - 24 * 3_600_000);
+  const anchor = resultsDeadlineAnchor(fridaySlotEnd, { received: true, receivedAt: receivedBeforeSlot });
+  const due = typical && anchor ? estimateResultsDue(anchor, typical) : null;
   return (
     <section
       aria-labelledby="results-times-heading"
@@ -209,8 +212,10 @@ function ResultsTimesSection({ rows }: { rows: SamplePolicyEquipment[] }) {
         When to expect results
       </h3>
       <p className="text-sm leading-relaxed text-muted-foreground">
-        For these instruments the laboratory shares results within the time shown, counted from the end of your slot.
-        Working days do not include Saturdays, Sundays or institute holidays.
+        For these instruments the laboratory shares results within the time shown, counted from the end of your slot
+        or, if your sample is received after the slot, from the time the Lab Operator records its receipt. No results
+        date applies until the receipt is recorded. Working days do not include Saturdays, Sundays or institute
+        holidays.
       </p>
       <ul className="grid gap-1.5 sm:grid-cols-2" data-testid="results-times-list">
         {list.map((eq) => (
@@ -225,8 +230,8 @@ function ResultsTimesSection({ rows }: { rows: SamplePolicyEquipment[] }) {
       </ul>
       {typical && due ? (
         <p className="text-sm text-muted-foreground" data-testid="results-times-example">
-          Example: a slot ending on <span className="font-medium text-foreground">{dayAndTime(fridaySlotEnd)}</span> on
-          an instrument with results {typical.label}: results expected by{" "}
+          Example: a slot ending on <span className="font-medium text-foreground">{dayAndTime(fridaySlotEnd)}</span>,
+          with the sample received before the slot, on an instrument with results {typical.label}: results expected by{" "}
           <span className="font-medium text-foreground">
             {typical.unit === "HOURS" ? dayAndTime(due) : `the end of ${format(due, "EEEE")}`}
           </span>

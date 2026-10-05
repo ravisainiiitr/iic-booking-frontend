@@ -47,7 +47,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       }),
       g.only(["oic", "admin", "operator"], {
         title: "Results overdue",
-        body: "Bookings still open after the equipment's results deadline show a red Results overdue badge in the list and on the job sheet, and the Results overdue card on the dashboard lists them. Choose Results overdue in Status to see only those. Share the results and complete the booking; for a genuine delay, send the user the Results delayed reminder, and the Officer In Charge or Admin can use Extend results deadline in the booking details.",
+        body: "The results deadline starts once the sample is marked Sample Accepted: it counts from the slot end, or from the receipt if the sample came later, and bookings without a received sample have none. Bookings still open after it show a red Results overdue badge in the list and on the job sheet, and the Results overdue card on the dashboard lists them. Choose Results overdue in Status to see only those. Share the results and complete the booking; for a genuine delay, send the user the Results delayed reminder, and the Officer In Charge or Admin can use Extend results deadline in the booking details.",
       }),
       g.only(["oic", "admin"], {
         title: "See why a booking attempt failed",
@@ -69,7 +69,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),
     ]),
     tips: compact([
-      g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over but not completed, with the date results are due; a reminder email goes out daily at 9:00 AM until they are, marking results that are overdue."),
+      g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over and whose sample has been marked Sample Accepted (received), but are not completed, with when the sample was received and the date results are due; a reminder email goes out daily at 9:00 AM until they are, marking results that are overdue. Overdue by and Results due count from the slot end, or from the receipt if it came later. A booking whose sample was never received is not listed: it follows the Booking Not Utilized rule."),
       g.only(["operator"], "Booking lists show the number of sample sets and samples under each booking ID, for example 3 sets · 12 samples."),
     ]),
   };
@@ -194,7 +194,7 @@ export function oicConfigSection(g: Gate): GuideSection {
       },
       {
         title: "Results deadline",
-        body: "Under Booking and operator timings, set Results deadline (after the slot): a number of working days (default 2) or hours, counted from the end of the slot. Working days skip Saturdays, Sundays and institute holidays; 0 means no deadline. Tick Show results deadline to users if users should see Results expected by on their bookings and the list in the sample submission policy; it is off by default, and the deadline still works for staff when it is off.",
+        body: "Under Booking and operator timings, set Results deadline (after the slot or sample receipt): a number of working days (default 2) or hours, counted from the end of the slot, or from the Sample Accepted time if the sample was received after the slot. Bookings whose sample has not been received have no results deadline. Working days skip Saturdays, Sundays and institute holidays; 0 means no deadline. Tick Show results deadline to users if users should see Results expected by on their bookings and the list in the sample submission policy; it is off by default, and the deadline still works for staff when it is off.",
       },
       {
         title: "Accessories",
@@ -213,7 +213,7 @@ export function oicConfigSection(g: Gate): GuideSection {
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",
       "You can only add an instrument as a mode if you are its Officer In Charge and it is in the same department as the base. A mode that still has upcoming bookings or current or future schedules cannot be removed; clear those first.",
       "When a waitlist or urgent limit is reached, new users are told the waitlist is full or the urgent limit has been reached. Nobody already in the queue, and no request awaiting a decision, is removed. The weekly Type A and Type B limits count this week's (Monday–Sunday) approved requests plus the pending ones.",
-      "Only you (as primary or temporary Officer In Charge) and the Main Administrator can change the results deadline. It replaces the old Auto Operator Unavailable and Auto Operator Absent Disruption hours: when results are still not shared after the deadline, the booking is marked Operator Unavailable with a full refund if the sample was received but never taken up by the lab, or goes to Operator Absent (the user chooses refund or reschedule) if the sample is with the lab, as before. Use Extend results deadline in the booking details for a genuine delay.",
+      "Only you (as primary or temporary Officer In Charge) and the Main Administrator can change the results deadline. It replaces the old Auto Operator Unavailable and Auto Operator Absent Disruption hours: when results are still not shared after the deadline, the booking goes to Operator Absent (the user chooses refund or reschedule) if the sample is with the lab, as before. A sample forwarded to the lab but never accepted is marked Operator Unavailable with a full refund after the same period counted from the slot end, and a sample whose receipt was never recorded is treated as Booking Not Utilized, as before. Use Extend results deadline in the booking details for a genuine delay.",
     ],
   };
 }

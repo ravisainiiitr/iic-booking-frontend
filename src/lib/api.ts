@@ -1211,7 +1211,17 @@ export interface BookingResultsDeadline {
   extended: boolean;
   overdue: boolean;
   visible_to_user: boolean;
+  /** max(last slot end, sample receipt): the deadline counts from here. */
+  anchor_at?: string;
+  /** Latest Sample Accepted time; null for walk-in equipment or when no receipt time was recorded. */
+  sample_received_at?: string | null;
+  receipt_source?: SampleReceiptSource | null;
+  /** True when the sample was received after the slot ended, so the deadline counts from receipt. */
+  counted_from_receipt?: boolean;
 }
+
+/** sample_accepted: Sample Accepted time; walk_in: brought to the slot; no_timestamp: later stage recorded without Sample Accepted. */
+export type SampleReceiptSource = "sample_accepted" | "walk_in" | "no_timestamp";
 
 export interface BookingAwaitingCompletion {
   booking_id: number;
@@ -1223,10 +1233,15 @@ export interface BookingAwaitingCompletion {
   status: string;
   ended_at: string;
   ended_display: string;
+  /** Time since the later of slot end and sample receipt. */
   overdue: string;
   link: string;
   results_due_display?: string;
   results_overdue?: boolean;
+  sample_received_at?: string | null;
+  sample_received_display?: string;
+  receipt_source?: SampleReceiptSource | null;
+  anchor_at?: string;
 }
 
 export interface ResultsOverdueBooking {

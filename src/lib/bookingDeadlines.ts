@@ -104,6 +104,74 @@ function timeWindow(booking: DeadlineBookingFields, now: Date): CancelReschedule
   return { kind: open ? "open" : "passed", deadline, rescheduleOnly };
 }
 
+/** Sample-trace stages that mean the lab has received the sample (backend `SAMPLE_ACCEPTED_OR_LATER_STATUSES`). */
+export const RECEIVED_SAMPLE_STATUSES: ReadonlySet<string> = new Set([
+  "SAMPLE_ACCEPTED",
+  "PROCESSING",
+  "COMPLETED",
+  "RETURNED",
+  "ARCHIVED",
+  "DISPOSED",
+]);
+
+export interface SampleReceipt {
+  received: boolean;
+  /** Latest Sample Accepted time; null when the sample came to the slot or no receipt time was recorded. */
+  receivedAt: Date | null;
+}
+
+/**
+ * Mirrors backend `booking_sample_receipt`: received once a Sample Accepted (or later) stage exists or the
+ * booking is Processing; walk-in equipment never records receipt, so its sample counts as received at the slot.
+ */
+export function sampleReceipt(
+  trace: ReadonlyArray<{ status?: string | null; created_at?: string | null }> | null | undefined,
+  { walkIn = false, bookingStatus }: { walkIn?: boolean; bookingStatus?: string | null } = {}
+): SampleReceipt {
+  const events = trace ?? [];
+  const received = events.some((e) => RECEIVED_SAMPLE_STATUSES.has(String(e.status || "").toUpperCase()));
+  const processing = String(bookingStatus || "").toUpperCase() === "PROCESSING";
+  if (!received) return { received: walkIn || processing, receivedAt: null };
+  const acceptedAt = events
+    .filter((e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED")
+    .map((e) => parseDate(e.created_at))
+    .filter((d): d is Date => d != null)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  return { received: true, receivedAt: acceptedAt ?? null };
+}
+
+/**
+ * Results deadline anchor (backend `results_deadline_anchor`): none before receipt, otherwise the later of
+ * the slot end and the receipt time (the slot end when no receipt time is known).
+ */
+export function resultsDeadlineAnchor(slotEnd: Date | null, receipt: SampleReceipt): Date | null {
+  if (!slotEnd || !receipt.received) return null;
+  if (receipt.receivedAt && receipt.receivedAt.getTime() > slotEnd.getTime()) return receipt.receivedAt;
+  return slotEnd;
+}
+
+export type LifecycleCountdownPhase = "submit_sample" | "booking" | "collect_sample" | string;
+
+export interface CountdownViewer {
+  /** The booking user (a staff member's own booking counts as theirs). */
+  isOwner: boolean;
+  /** Officer in Charge, temporary OIC, Admin or Department Admin (the shared staff view of booking details). */
+  isOicOrAdmin: boolean;
+  /** Lab Operator / Lab in-charge. */
+  isLabOperator: boolean;
+}
+
+/**
+ * Booking-details countdowns are for the booking user (and faculty owner): the submit-sample countdown is
+ * hidden from the OIC / Admin staff view, and the collect / discard countdown from that view and Lab Operators.
+ */
+export function lifecycleCountdownVisible(phase: LifecycleCountdownPhase | null | undefined, viewer: CountdownViewer): boolean {
+  if (viewer.isOwner) return true;
+  if (phase === "submit_sample") return !viewer.isOicOrAdmin;
+  if (phase === "collect_sample") return !viewer.isOicOrAdmin && !viewer.isLabOperator;
+  return true;
+}
+
 /** e.g. "Tue 7 Oct, 9:00 pm" (local time). */
 export function formatDeadlineDateTime(date: Date): string {
   return format(date, "EEE d MMM, h:mm aaa");

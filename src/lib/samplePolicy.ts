@@ -46,12 +46,13 @@ export function typicalResultsDeadline(rows: readonly SamplePolicyEquipment[]): 
 }
 
 /**
- * Results due: end of the N-th working day after the slot day (Saturdays and Sundays skipped; institute
- * holidays are only known to the server), or N clock hours after the slot end.
+ * Results due: end of the N-th working day after the anchor day (Saturdays and Sundays skipped; institute
+ * holidays are only known to the server), or N clock hours after the anchor. The anchor is the later of the
+ * slot end and the sample receipt (`resultsDeadlineAnchor` in bookingDeadlines).
  */
-export function estimateResultsDue(slotEnd: Date, deadline: Pick<PublicResultsDeadline, "value" | "unit">): Date {
-  if (deadline.unit === "HOURS") return new Date(slotEnd.getTime() + deadline.value * 3_600_000);
-  const d = new Date(slotEnd);
+export function estimateResultsDue(anchor: Date, deadline: Pick<PublicResultsDeadline, "value" | "unit">): Date {
+  if (deadline.unit === "HOURS") return new Date(anchor.getTime() + deadline.value * 3_600_000);
+  const d = new Date(anchor);
   let remaining = Math.max(0, Math.floor(deadline.value));
   while (remaining > 0) {
     d.setDate(d.getDate() + 1);

@@ -12,7 +12,10 @@ export const BOOKINGS_AWAITING_COMPLETION_ANCHOR = "bookings-awaiting-completion
 /** Pending-actions item key for the same list (iic_booking/equipment/pending_actions.py). */
 export const BOOKINGS_AWAITING_COMPLETION_KEY = "bookings_awaiting_completion";
 
-/** OIC / Lab in-charge dashboard: every booking of their equipment whose slot time is over but not marked Completed. */
+/**
+ * OIC / Lab in-charge dashboard: bookings of their equipment whose slot time is over and whose sample the lab
+ * has received, but which are not marked Completed. "Overdue by" counts from the later of slot end and receipt.
+ */
 export default function BookingsAwaitingCompletionCard({ className = "" }: { className?: string }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,9 +56,10 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
           <Badge className="bg-amber-500 hover:bg-amber-500">{rows.length}</Badge>
         </CardTitle>
         <CardDescription>
-          The booking time of these bookings is over but they are not marked as completed yet. Open each booking to
-          complete it (or take the appropriate action). A reminder email is sent every day at 9:00 AM until they are
-          completed.
+          The booking time of these bookings is over and the lab has received the sample, but they are not marked as
+          completed yet. Overdue by and Results due count from the slot end, or from the sample receipt if that was
+          later. Open each booking to complete it (or take the appropriate action). A reminder email is sent every day
+          at 9:00 AM until they are completed.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0">
@@ -67,6 +71,7 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                 <TableHead>Equipment</TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Booking ended</TableHead>
+                <TableHead>Sample received</TableHead>
                 <TableHead>Overdue by</TableHead>
                 <TableHead>Results due</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -79,6 +84,7 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                   <TableCell>{row.equipment_name}</TableCell>
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.ended_display}</TableCell>
+                  <TableCell className="whitespace-nowrap">{row.sample_received_display || "—"}</TableCell>
                   <TableCell className="whitespace-nowrap text-amber-700 dark:text-amber-300">{row.overdue}</TableCell>
                   <TableCell
                     className={`whitespace-nowrap ${row.results_overdue ? "font-medium text-red-700 dark:text-red-300" : ""}`}

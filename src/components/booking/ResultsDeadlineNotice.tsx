@@ -1,3 +1,4 @@
+import { format } from "date-fns";
 import { AlertTriangle, CalendarCheck } from "lucide-react";
 import type { BookingResultsDeadline } from "@/lib/api";
 
@@ -17,9 +18,16 @@ export function sampleAcceptedForResults(
   return (sampleTrace ?? []).some((e) => String(e.status || "").toUpperCase() === "SAMPLE_ACCEPTED");
 }
 
+const receivedOn = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : format(d, "EEE d MMM, h:mm a");
+};
+
 /**
  * Booking details: staff see "Results due" (and an overdue warning); the booking user sees
- * "Results expected by" only when the OIC shows the results deadline to users.
+ * "Results expected by" only when the OIC shows the results deadline to users. The server sends no
+ * deadline until the lab has received the sample, so nothing shows before receipt.
  */
 export function ResultsDeadlineNotice({
   deadline,
@@ -34,6 +42,7 @@ export function ResultsDeadlineNotice({
 }) {
   if (!deadline || !resultsDeadlineApplies(status)) return null;
   if (!staffView && !deadline.visible_to_user) return null;
+  const fromReceipt = deadline.counted_from_receipt ? receivedOn(deadline.sample_received_at) : null;
 
   if (staffView) {
     return (
@@ -57,6 +66,7 @@ export function ResultsDeadlineNotice({
           <p className={deadline.overdue ? "text-xs" : "text-xs text-muted-foreground"}>
             Results deadline: {deadline.label}
             {deadline.extended ? " (extended for this booking)" : ""}.{" "}
+            {fromReceipt ? `Counted from sample receipt on ${fromReceipt}, after the slot ended. ` : ""}
             {deadline.visible_to_user ? "The user can see this date." : "Not shown to the user."}
           </p>
         </div>
@@ -75,7 +85,9 @@ export function ResultsDeadlineNotice({
         <p className="text-xs text-muted-foreground">
           {passed
             ? "The laboratory is working on your results and will update you. You can use Message the lab for any question."
-            : `The laboratory shares results ${deadline.label}. You receive an email and a notification when they are available.`}
+            : `The laboratory shares results ${deadline.label}${
+                fromReceipt ? ` (your sample was received on ${fromReceipt})` : ""
+              }. You receive an email and a notification when they are available.`}
         </p>
       </div>
     </div>

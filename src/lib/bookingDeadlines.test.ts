@@ -5,9 +5,85 @@ import {
   cancelRescheduleDeadline,
   formatDeadlineText,
   isSampleAcceptedLocked,
+  lifecycleCountdownVisible,
+  resultsDeadlineAnchor,
+  sampleReceipt,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
+  type CountdownViewer,
 } from "./bookingDeadlines";
+
+describe("results deadline anchor (mirrors the backend)", () => {
+  const slotEnd = new Date(2026, 9, 2, 15, 0, 0);
+  const iso = (d: Date) => d.toISOString();
+
+  it("has no anchor before the sample is received", () => {
+    for (const trace of [[], [{ status: "SAMPLE_SENT" }], [{ status: "FORWARDED_TO_LAB" }], [{ status: "SAMPLE_REJECTED" }]]) {
+      const receipt = sampleReceipt(trace);
+      expect(receipt.received).toBe(false);
+      expect(resultsDeadlineAnchor(slotEnd, receipt)).toBeNull();
+    }
+  });
+
+  it("counts from the slot end when the sample was received before it", () => {
+    const receipt = sampleReceipt([{ status: "SAMPLE_ACCEPTED", created_at: iso(new Date(2026, 9, 1, 10, 0)) }]);
+    expect(resultsDeadlineAnchor(slotEnd, receipt)).toEqual(slotEnd);
+  });
+
+  it("counts from the latest Sample Accepted when the sample came after the slot", () => {
+    const late = new Date(2026, 9, 6, 11, 30);
+    const receipt = sampleReceipt([
+      { status: "SAMPLE_ACCEPTED", created_at: iso(new Date(2026, 9, 1, 10, 0)) },
+      { status: "SAMPLE_REJECTED", created_at: iso(new Date(2026, 9, 1, 12, 0)) },
+      { status: "SAMPLE_ACCEPTED", created_at: iso(late) },
+    ]);
+    expect(resultsDeadlineAnchor(slotEnd, receipt)).toEqual(late);
+  });
+
+  it("falls back to the slot end without a receipt time, and for walk-in equipment", () => {
+    expect(resultsDeadlineAnchor(slotEnd, sampleReceipt([{ status: "PROCESSING", created_at: iso(new Date(2026, 9, 9)) }]))).toEqual(slotEnd);
+    expect(resultsDeadlineAnchor(slotEnd, sampleReceipt([], { walkIn: true }))).toEqual(slotEnd);
+    expect(resultsDeadlineAnchor(slotEnd, sampleReceipt([{ status: "FORWARDED_TO_LAB" }], { bookingStatus: "PROCESSING" }))).toEqual(slotEnd);
+  });
+});
+
+describe("lifecycle countdown visibility by role", () => {
+  const viewer = (over: Partial<CountdownViewer> = {}): CountdownViewer => ({
+    isOwner: false,
+    isOicOrAdmin: false,
+    isLabOperator: false,
+    ...over,
+  });
+  const owner = viewer({ isOwner: true });
+  const facultyOwner = viewer();
+  const oic = viewer({ isOicOrAdmin: true });
+  const operator = viewer({ isLabOperator: true });
+
+  it("shows both sample countdowns to the booking user and the faculty owner", () => {
+    for (const v of [owner, facultyOwner]) {
+      expect(lifecycleCountdownVisible("submit_sample", v)).toBe(true);
+      expect(lifecycleCountdownVisible("collect_sample", v)).toBe(true);
+    }
+  });
+
+  it("hides the submission countdown from the Officer in Charge (and the shared Admin view)", () => {
+    expect(lifecycleCountdownVisible("submit_sample", oic)).toBe(false);
+    expect(lifecycleCountdownVisible("submit_sample", operator)).toBe(true);
+  });
+
+  it("hides the discard countdown from the Officer in Charge and the Lab Operator", () => {
+    expect(lifecycleCountdownVisible("collect_sample", oic)).toBe(false);
+    expect(lifecycleCountdownVisible("collect_sample", operator)).toBe(false);
+    expect(lifecycleCountdownVisible("collect_sample", viewer({ isOicOrAdmin: true, isLabOperator: true }))).toBe(false);
+  });
+
+  it("keeps staff's own bookings and the slot countdown visible", () => {
+    const oicOwnBooking = viewer({ isOwner: true, isOicOrAdmin: true });
+    expect(lifecycleCountdownVisible("submit_sample", oicOwnBooking)).toBe(true);
+    expect(lifecycleCountdownVisible("collect_sample", viewer({ isOwner: true, isLabOperator: true }))).toBe(true);
+    for (const v of [oic, operator]) expect(lifecycleCountdownVisible("booking", v)).toBe(true);
+  });
+});
 
 // Local-time constructors keep these tests independent of the machine time zone.
 const NOW = new Date(2026, 9, 2, 12, 0, 0);

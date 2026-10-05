@@ -708,7 +708,7 @@ export default function OICEquipmentSettings() {
                       <CardContent className="space-y-4">
                         {renderIntFields("booking")}
                         <div className="space-y-1.5" data-testid="oic-results-deadline">
-                          <Label htmlFor="oic-setting-results-deadline">Results deadline (after the slot)</Label>
+                          <Label htmlFor="oic-setting-results-deadline">Results deadline (after the slot or sample receipt)</Label>
                           <div className="flex gap-2">
                             <Input
                               id="oic-setting-results-deadline"
@@ -736,7 +736,9 @@ export default function OICEquipmentSettings() {
                             </Select>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Time within which the laboratory shares results after the slot ends. Working days skip
+                            Time within which the laboratory shares results, counted from the slot end, or from the
+                            Sample Accepted time if the sample is received after the slot. No deadline applies until the
+                            sample is received. Working days skip
                             Saturdays, Sundays and institute holidays (results are due by the end of the last working
                             day); use hours for fast instruments. Bookings still open after it appear as Results overdue
                             for you and the Lab Operators. If the sample is still with the lab and no results are

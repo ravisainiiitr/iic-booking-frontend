@@ -3086,7 +3086,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           </p>
         </div>
         <div className="space-y-2" data-testid="equipment-results-deadline">
-          <Label htmlFor="results-deadline-value">Results deadline (after the slot)</Label>
+          <Label htmlFor="results-deadline-value">Results deadline (after the slot or sample receipt)</Label>
           <div className="flex gap-2">
             <Input
               id="results-deadline-value"
@@ -3126,7 +3126,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             Show results deadline to users
           </label>
           <p className="text-muted-foreground text-xs">
-            Results are due this long after the last slot ends (working days skip weekends and institute holidays; up to
+            Results are due this long after the last slot ends, or after the sample is received (Sample Accepted) if that
+            is later; no deadline applies before receipt (working days skip weekends and institute holidays; up to
             60 working days or 720 hours; 0 = none). Lab Operators and the OIC see bookings past it as Results overdue;
             it also replaces the old Auto Operator Unavailable / Absent Disruption timers. Users see it only when
             &quot;Show results deadline to users&quot; is on.

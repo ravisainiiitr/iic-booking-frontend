@@ -72,8 +72,10 @@ import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
   cancelRescheduleDeadline,
+  lifecycleCountdownVisible,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
+  type CountdownViewer,
 } from "@/lib/bookingDeadlines";
 import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
@@ -1543,6 +1545,11 @@ export function BookingDetailCard({
     !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
   const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
   const isOwnBooking = currentUserId != null && Number(booking.user) === Number(currentUserId);
+  const countdownViewer: CountdownViewer = {
+    isOwner: isOwnBooking,
+    isOicOrAdmin: Boolean(isManagerOrAdmin),
+    isLabOperator: Boolean(isOperator) || isLabInchargeType,
+  };
   const deadlineNow = new Date();
   /** Owner cancel/reschedule cutoff (same window as My Bookings); none for staff roles or external self-service. */
   /** A booking rejected by the lab can be cancelled by its owner for a full refund at any time. */
@@ -1838,7 +1845,11 @@ export function BookingDetailCard({
           {!isLabOperatorViewer &&
             !isFabrication &&
             (booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
-            (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) && (
+            (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) &&
+            lifecycleCountdownVisible(
+              (booking.lifecycle_countdown || booking.completion_countdown)?.phase,
+              countdownViewer
+            ) && (
             <BookingLifecycleCountdown
               countdown={(booking.lifecycle_countdown || booking.completion_countdown)!}
             />
@@ -1852,7 +1863,11 @@ export function BookingDetailCard({
             />
           )}
 
-          {isCompleted && booking.sample_collection_deadline_at && !isJobSheetView && !isFabrication && (
+          {isCompleted &&
+            booking.sample_collection_deadline_at &&
+            !isJobSheetView &&
+            !isFabrication &&
+            lifecycleCountdownVisible("collect_sample", countdownViewer) && (
             <div className="mb-4 rounded-lg border bg-muted/20 px-3 py-3 space-y-1">
               <div className="text-base font-semibold text-foreground">Sample Collection Deadline</div>
               <p className="text-base font-medium text-foreground">
