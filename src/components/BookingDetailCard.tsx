@@ -3480,14 +3480,11 @@ export function BookingDetailCard({
           {!isFinanceUser && isFabricationProfile(booking.equipment_profile_type) && Array.isArray(booking.fabrication_parts) ? (
             <FabricationBookingParts
               booking={booking}
-              onUpdated={(updated) => {
-                if (updated && typeof updated === "object" && "booking_id" in updated) {
-                  setBooking(updated as unknown as BookingDetailCardBooking);
-                } else if (bookingPk != null) {
-                  void apiClient.getBooking(bookingPk).then((res) => {
-                    if (res.data) setBooking(res.data as BookingDetailCardBooking);
-                  });
-                }
+              onUpdated={() => {
+                if (bookingPk == null) return;
+                void apiClient.getBooking(bookingPk).then((res) => {
+                  if (res.data) setBooking(res.data as BookingDetailCardBooking);
+                });
               }}
             />
           ) : !isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&

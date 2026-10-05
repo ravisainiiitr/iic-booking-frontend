@@ -10,6 +10,7 @@ import {
   type LaserSheetMaterial,
 } from "@/lib/api";
 import { DXF_UNIT_LABELS } from "@/lib/dxfGeometry";
+import { getRealBookingId } from "@/lib/bookingRef";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +23,7 @@ import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Pri
 
 export interface FabricationBookingFields {
   booking_id: number | string;
+  real_booking_id?: number | null;
   equipment: number;
   equipment_profile_type?: string;
   user_type_snapshot?: string;
@@ -252,11 +254,17 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
   const [printValues, setPrintValues] = useState<Print3DBookingValues | null>(null);
   const [uploadBusy, setUploadBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const bookingPk = getRealBookingId(booking);
 
   useEffect(() => {
     let cancelled = false;
+    if (bookingPk == null) {
+      toast.error("Could not load the booking files.");
+      onOpenChange(false);
+      return;
+    }
     setLoading(true);
-    void apiClient.getBookingFabricationFiles(booking.booking_id).then((res) => {
+    void apiClient.getBookingFabricationFiles(bookingPk).then((res) => {
       if (cancelled) return;
       setLoading(false);
       if (res.error || !res.data) {
@@ -285,7 +293,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
     return () => {
       cancelled = true;
     };
-  }, [booking.booking_id, booking.equipment, booking.user_type_snapshot, isLaser, onOpenChange]);
+  }, [bookingPk, booking.equipment, booking.user_type_snapshot, isLaser, onOpenChange]);
 
   const partUpdates = useMemo(() => {
     if (!state) return [];
@@ -324,7 +332,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
     (mode === "replace" ? replacementReady : !qtyError && (partUpdates.length > 0 || ownChanged));
 
   const submit = async () => {
-    if (!state) return;
+    if (!state || bookingPk == null) return;
     const body: Parameters<typeof apiClient.replaceBookingFabricationFiles>[1] = {};
     if (mode === "replace") {
       if (isLaser && laserValues?.batchId) body.laser_cut_batch_id = laserValues.batchId;
@@ -335,7 +343,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
     }
     if (state.own_material_available || ownChanged) body.own_material = ownMaterial;
     setSaving(true);
-    const res = await apiClient.replaceBookingFabricationFiles(booking.booking_id, body);
+    const res = await apiClient.replaceBookingFabricationFiles(bookingPk, body);
     setSaving(false);
     if (res.error || !res.data) {
       toast.error(res.error || "Could not update the files.");

@@ -131,6 +131,22 @@ describe("FabricationBookingParts", () => {
     await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(updated));
   });
 
+  it("uses the numeric booking id when the booking shows its display id", async () => {
+    api.getBookingFabricationFiles.mockResolvedValue({ data: filesState });
+    api.replaceBookingFabricationFiles.mockResolvedValue({
+      data: { message: "Files updated.", booking: {}, charge_recalculation_summary: {}, fabrication: filesState },
+    });
+    render(<FabricationBookingParts booking={booking({ booking_id: "IICTEST-LASER-01202600001", real_booking_id: 673 })} />);
+
+    fireEvent.click(screen.getByTestId("replace-files-button"));
+    const qty = await screen.findByLabelText("Quantity of bracket.dxf");
+    expect(api.getBookingFabricationFiles).toHaveBeenCalledWith(673);
+    fireEvent.change(qty, { target: { value: "2" } });
+    fireEvent.click(screen.getByTestId("fabrication-replace-submit"));
+
+    await waitFor(() => expect(api.replaceBookingFabricationFiles).toHaveBeenCalledWith(673, expect.any(Object)));
+  });
+
   it("blocks a quantity below one", async () => {
     api.getBookingFabricationFiles.mockResolvedValue({ data: filesState });
     render(<FabricationBookingParts booking={booking()} />);
