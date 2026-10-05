@@ -38,7 +38,10 @@ import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFie
 import { AllowSampleSetsField, canEditSampleSetsSwitch } from "@/components/admin/AllowSampleSetsField";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
+  DEFAULT_REPLACE_WINDOW_HOURS,
   LaserSheetMaterialsEditor,
+  MAX_REPLACE_WINDOW_HOURS,
+  MIN_REPLACE_WINDOW_HOURS,
   PrintMaterialsEditor,
   emailListError,
   laserRowPayload,
@@ -49,6 +52,7 @@ import {
   parseEmailList,
   printMaterialRowsError,
   printRowPayload,
+  replaceWindowHoursError,
   type LaserSheetRow,
   type PrintMaterialRow,
 } from "@/components/admin/FabricationMaterialEditors";
@@ -165,6 +169,8 @@ export type EquipmentFormData = {
   fabrication_notification_emails_text?: string;
   /** 3D print / laser: fixed charge when the user brings their own material; empty hides the option. */
   own_material_fixed_charge?: string | number | null;
+  /** 3D print / laser: hours the user has to upload new files after the lab rejects the booking (1–168). */
+  fabrication_replace_window_hours?: string | number;
   laser_sheet_materials?: LaserSheetRow[];
   istem_portal_url?: string | null;
   istem_fbr_status_url?: string | null;
@@ -529,6 +535,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     fabrication_notification_emails: [],
     fabrication_notification_emails_text: "",
     own_material_fixed_charge: "",
+    fabrication_replace_window_hours: String(DEFAULT_REPLACE_WINDOW_HOURS),
     laser_sheet_materials: [],
     istem_portal_url: "",
     istem_fbr_status_url: "",
@@ -825,6 +832,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           d.own_material_fixed_charge === null || d.own_material_fixed_charge === undefined
             ? ""
             : String(d.own_material_fixed_charge),
+        fabrication_replace_window_hours: String(d.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS),
         istem_portal_url: (d.istem_portal_url as string) ?? "",
         istem_fbr_status_url: (d.istem_fbr_status_url as string) ?? "",
         status: (d.status as string) ?? "ACTIVE",
@@ -1043,10 +1051,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     }
     const notificationEmails = parseEmailList(formData.fabrication_notification_emails_text ?? "");
     const ownChargeText = String(formData.own_material_fixed_charge ?? "").trim();
+    const replaceHoursText = String(formData.fabrication_replace_window_hours ?? "").trim();
     if (usesPrint3d || usesLaserCut) {
       const fabricationError =
         emailListError(notificationEmails) ||
         ownChargeError(ownChargeText) ||
+        replaceWindowHoursError(replaceHoursText) ||
         (usesPrint3d ? printMaterialRowsError(formData.print_materials ?? []) : null) ||
         (usesLaserCut ? laserSheetRowsError(formData.laser_sheet_materials ?? []) : null);
       if (fabricationError) {
@@ -1067,6 +1077,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       completion_email_extra_text: formData.completion_email_extra_text?.trim() || "",
       fabrication_notification_emails: notificationEmails,
       own_material_fixed_charge: ownChargeText === "" ? null : ownChargeText,
+      ...(usesPrint3d || usesLaserCut ? { fabrication_replace_window_hours: replaceHoursText } : {}),
       istem_portal_url: formData.istem_portal_url?.trim() || "",
       istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
       status: formData.status || "ACTIVE",
@@ -2139,6 +2150,23 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               <p className="text-xs text-muted-foreground">
                 Charged once instead of the material cost when the user brings their own material. Leave empty to hide
                 the option.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fabrication-replace-window-hours">Time to replace files after rejection (hours)</Label>
+              <Input
+                id="fabrication-replace-window-hours"
+                type="number"
+                min={MIN_REPLACE_WINDOW_HOURS}
+                max={MAX_REPLACE_WINDOW_HOURS}
+                step="1"
+                value={String(formData.fabrication_replace_window_hours ?? "")}
+                onChange={(e) => setFormData((p) => ({ ...p, fabrication_replace_window_hours: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                When the lab rejects a booking as not feasible, the user has this long to upload new files
+                ({MIN_REPLACE_WINDOW_HOURS}–{MAX_REPLACE_WINDOW_HOURS} hours). After that the booking is cancelled and
+                fully refunded.
               </p>
             </div>
           </div>

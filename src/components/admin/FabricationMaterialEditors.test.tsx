@@ -14,6 +14,7 @@ import {
   parseEmailList,
   printMaterialRowsError,
   printRowPayload,
+  replaceWindowHoursError,
 } from "@/components/admin/FabricationMaterialEditors";
 
 afterEach(cleanup);
@@ -66,6 +67,15 @@ describe("notification emails and own-material charge", () => {
     expect(ownChargeError("250")).toBeNull();
     expect(ownChargeError("-1")).not.toBeNull();
     expect(ownChargeError("abc")).not.toBeNull();
+  });
+
+  it("accepts a replace window of 1 to 168 whole hours", () => {
+    expect(replaceWindowHoursError("1")).toBeNull();
+    expect(replaceWindowHoursError("24")).toBeNull();
+    expect(replaceWindowHoursError("168")).toBeNull();
+    for (const bad of ["", "0", "169", "2.5", "abc"]) {
+      expect(replaceWindowHoursError(bad), bad).not.toBeNull();
+    }
   });
 });
 

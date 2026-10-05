@@ -103,6 +103,33 @@ describe("FabricationBookingParts", () => {
     expect(screen.getByText("Files can only be replaced before the booked slot starts.")).toBeTruthy();
   });
 
+  it("offers Replace files while the lab's rejection is open, and nothing after booking otherwise", () => {
+    const { unmount } = render(
+      <FabricationBookingParts booking={booking({ fabrication_workflow: { rejected: true } })} />,
+    );
+    expect(screen.getByTestId("replace-files-button").textContent).toContain("Replace files");
+    unmount();
+
+    render(
+      <FabricationBookingParts
+        booking={booking({
+          fabrication_workflow: { rejected: false },
+          fabrication_files_replaceable: {
+            allowed: false,
+            reason: "Files cannot be changed after booking. If the lab finds a problem with your files, you will be asked to upload new ones.",
+          },
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("replace-files-button")).toBeNull();
+    expect(screen.getByText(/Files cannot be changed after booking/)).toBeTruthy();
+  });
+
+  it("keeps the Change files label for lab staff before the slot starts", () => {
+    render(<FabricationBookingParts booking={booking({ fabrication_workflow: { rejected: false } })} />);
+    expect(screen.getByTestId("replace-files-button").textContent).toContain("Change files");
+  });
+
   it("sends part edits and the own-material choice through the recalculation endpoint", async () => {
     api.getBookingFabricationFiles.mockResolvedValue({ data: filesState });
     const updated = { booking_id: 41, total_charge: "131.00" };

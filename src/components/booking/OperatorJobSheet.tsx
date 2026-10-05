@@ -9,6 +9,7 @@ import type { BookingInputFieldDef } from "@/lib/bookingInputDisplay";
 import { formatDurationMinutes, groupSlotsByDay, latestSampleStage, telHref, type JobSheetSlot } from "@/lib/jobSheet";
 import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/SampleRequirementsTable";
 import { resultsDeadlineApplies, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
+import { isFabricationProfile } from "@/lib/fabricationProfiles";
 import type { BookingResultsDeadline } from "@/lib/api";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
@@ -40,6 +41,7 @@ export type JobSheetBooking = {
   source_booking_id?: number | null;
   sample_collection_deadline_at?: string | null;
   results_deadline?: BookingResultsDeadline | null;
+  equipment_profile_type?: string | null;
 };
 
 type OperatorJobSheetProps = {
@@ -75,7 +77,9 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const days = groupSlotsByDay(booking.daily_slots, { hideTimes });
   const slotCount = days.reduce((n, d) => n + d.slotCount, 0);
   const duration = formatDurationMinutes(booking.total_time_minutes);
-  const stage = latestSampleStage(booking.sample_trace);
+  /** Fabrication jobs (3D printing / laser cutting) have no sample to track. */
+  const isFabrication = isFabricationProfile(booking.equipment_profile_type);
+  const stage = isFabrication ? null : latestSampleStage(booking.sample_trace);
   const userType = booking.user_type_snapshot_display || getUserTypeDisplayName(booking.user_type_snapshot);
   const userName = applyFacultyNamePrefix(booking.user_name, booking.user_type_snapshot) || booking.user_name;
   const phoneHref = telHref(booking.user_phone);
@@ -83,16 +87,16 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const commentsKey = Object.keys(values).find((k) => isCommentsInputFieldKey(k));
   const comments = commentsKey ? String(values[commentsKey] ?? "").trim() : "";
   const notes = String(booking.notes || "").trim();
-  const results = booking.results_deadline;
+  const results = isFabrication ? null : booking.results_deadline;
   const flags: Array<{ key: string; icon: ReactNode; text: string }> = [];
-  if (booking.atmosphere_sensitive_sample) {
+  if (booking.atmosphere_sensitive_sample && !isFabrication) {
     flags.push({
       key: "atmosphere",
       icon: <Wind className="h-4 w-4 shrink-0" aria-hidden />,
       text: "Atmosphere-sensitive sample — brought at slot start. Do not mark Booking Not Utilized before the slot begins.",
     });
   }
-  if (booking.sample_return_after_analysis) {
+  if (booking.sample_return_after_analysis && !isFabrication) {
     flags.push({
       key: "return",
       icon: <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />,
@@ -174,7 +178,7 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
             )}
           </Fact>
         )}
-        {booking.sample_collection_deadline_at && booking.status.toUpperCase() === "COMPLETED" ? (
+        {!isFabrication && booking.sample_collection_deadline_at && booking.status.toUpperCase() === "COMPLETED" ? (
           <Fact label="Sample collection by">{formatDate(booking.sample_collection_deadline_at)}</Fact>
         ) : null}
         {results && resultsDeadlineApplies(booking.status) && sampleAcceptedForResults(booking.status, booking.sample_trace) ? (

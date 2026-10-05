@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 import {
   LaserSheetMaterialsEditor,
   PrintMaterialsEditor,
+  DEFAULT_REPLACE_WINDOW_HOURS,
+  MAX_REPLACE_WINDOW_HOURS,
+  MIN_REPLACE_WINDOW_HOURS,
   derivedPricePerGram,
   emailListError,
   laserRowPayload,
@@ -28,6 +31,7 @@ import {
   parseEmailList,
   printMaterialRowsError,
   printRowPayload,
+  replaceWindowHoursError,
   type LaserSheetRow,
   type PrintMaterialRow,
   type UserTypeChoice,
@@ -124,6 +128,7 @@ export default function OICPrintMaterials() {
   const [laserRows, setLaserRows] = useState<LaserSheetRow[]>([]);
   const [emailsText, setEmailsText] = useState("");
   const [ownCharge, setOwnCharge] = useState("");
+  const [replaceHours, setReplaceHours] = useState(String(DEFAULT_REPLACE_WINDOW_HOURS));
   const [busy, setBusy] = useState<null | "materials" | "settings" | "delete">(null);
 
   const byTab = useMemo(
@@ -186,6 +191,7 @@ export default function OICPrintMaterials() {
     const emails = selected?.fabrication_notification_emails ?? [];
     setEmailsText(emails.join("\n"));
     setOwnCharge(selected?.own_material_fixed_charge ?? "");
+    setReplaceHours(String(selected?.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.equipment_id, loadVersion]);
 
@@ -205,14 +211,17 @@ export default function OICPrintMaterials() {
       : laserPayloads.some((p) => p.id == null || originalLaserByKey.get(rowKey(p)) !== JSON.stringify(p));
 
   const savedEmails = (selected?.fabrication_notification_emails ?? []).join("\n");
+  const savedReplaceHours = String(selected?.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS);
   const settingsDirty =
     !!selected &&
-    (parseEmailList(emailsText).join("\n") !== savedEmails || ownCharge.trim() !== (selected.own_material_fixed_charge ?? ""));
+    (parseEmailList(emailsText).join("\n") !== savedEmails ||
+      ownCharge.trim() !== (selected.own_material_fixed_charge ?? "") ||
+      replaceHours.trim() !== savedReplaceHours);
 
   const onSaveSettings = async () => {
     if (!selected) return;
     const emails = parseEmailList(emailsText);
-    const error = emailListError(emails) || ownChargeError(ownCharge);
+    const error = emailListError(emails) || ownChargeError(ownCharge) || replaceWindowHoursError(replaceHours);
     if (error) {
       toast.error(error);
       return;
@@ -222,6 +231,7 @@ export default function OICPrintMaterials() {
       equipment_id: selected.equipment_id,
       fabrication_notification_emails: emails,
       own_material_fixed_charge: ownCharge.trim() === "" ? null : ownCharge.trim(),
+      fabrication_replace_window_hours: Number(replaceHours.trim()),
     });
     setBusy(null);
     if (res.error) {
@@ -235,6 +245,7 @@ export default function OICPrintMaterials() {
       );
       setEmailsText(updated.fabrication_notification_emails.join("\n"));
       setOwnCharge(updated.own_material_fixed_charge ?? "");
+      setReplaceHours(String(updated.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS));
     }
     toast.success("Settings saved.");
   };
@@ -376,7 +387,10 @@ export default function OICPrintMaterials() {
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Settings2 className="h-5 w-5" /> Lab settings
                 </CardTitle>
-                <CardDescription>Who receives uploaded files, and the bring-your-own-material charge.</CardDescription>
+                <CardDescription>
+                  Who receives uploaded files, the bring-your-own-material charge, and how long users have to replace
+                  rejected files.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -409,6 +423,24 @@ export default function OICPrintMaterials() {
                     />
                     <p className="text-xs text-muted-foreground">
                       Charged once instead of the material cost when the user brings their own material.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fabrication-replace-hours">Time to replace files after rejection (hours)</Label>
+                    <Input
+                      id="fabrication-replace-hours"
+                      type="number"
+                      min={MIN_REPLACE_WINDOW_HOURS}
+                      max={MAX_REPLACE_WINDOW_HOURS}
+                      step="1"
+                      value={replaceHours}
+                      disabled={disabled}
+                      onChange={(e) => setReplaceHours(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      When the lab rejects a booking as not feasible, the user has this long to upload new files
+                      ({MIN_REPLACE_WINDOW_HOURS}–{MAX_REPLACE_WINDOW_HOURS} hours). After that the booking is cancelled
+                      and fully refunded.
                     </p>
                   </div>
                 </div>

@@ -61,7 +61,7 @@ import {
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
-import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 
@@ -190,6 +190,9 @@ interface Booking extends BookingRef {
   cancel_block_message?: string | null;
   equipment_profile_type?: string | null;
   equipment_profile_type_display?: string | null;
+  /** 3D print / laser: set while the lab's "not feasible" rejection waits for new files. */
+  fabrication_rejected_at?: string | null;
+  fabrication_replace_deadline?: string | null;
   print_analyses?: Array<{
     id: string;
     stl_filename?: string;
@@ -880,6 +883,9 @@ const MyBookings = () => {
   const canCancelBooking = (booking: Booking) =>
     isWaitlistedEntry(booking) || canCancelOrReschedule(booking.status);
 
+  /** Rejected by the lab and waiting for new files: the owner may cancel for a full refund at any time. */
+  const isFabricationRejected = (booking: Booking) => bookingBadgeStatus(booking) === "FABRICATION_REJECTED";
+
   const isRepeatBooking = (booking: Booking): boolean =>
     (booking.source_booking_id != null && booking.source_booking_id !== undefined) ||
     (typeof booking.virtual_booking_id === "string" && booking.virtual_booking_id.endsWith("R"));
@@ -1001,7 +1007,7 @@ const MyBookings = () => {
     return (
       serverAllowsOwnerCancel(booking) &&
       canCancelBooking(booking) &&
-      (!!booking.maintenance_disruption_flag || isWithinThresholdWindow(booking))
+      (!!booking.maintenance_disruption_flag || isFabricationRejected(booking) || isWithinThresholdWindow(booking))
     );
   };
 
@@ -1076,6 +1082,7 @@ const MyBookings = () => {
     if (
       !isStaffCancelingOtherUser(booking) &&
       !booking.maintenance_disruption_flag &&
+      !isFabricationRejected(booking) &&
       !isWithinThresholdWindow(booking)
     ) {
       if (booking.start_time) {
@@ -1353,6 +1360,7 @@ const MyBookings = () => {
     }
     if (restrictedExternalUserType) return null;
     if (user?.id == null || Number(booking.user) !== Number(user.id)) return null;
+    if (isFabricationRejected(booking)) return null;
     return cancelRescheduleDeadline(booking, now);
   };
 
@@ -1692,7 +1700,7 @@ const MyBookings = () => {
                           ₹{Number(booking.total_charge).toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(booking.status)}>
+                          <Badge className={getStatusColor(bookingBadgeStatus(booking))}>
                             {booking.status_display}
                           </Badge>
                         </TableCell>
@@ -1727,7 +1735,7 @@ const MyBookings = () => {
                         <li key={booking.booking_id} className="space-y-2 p-4">
                           <div className="flex items-start justify-between gap-2">
                             {renderBookingIdButton(booking, true)}
-                            <Badge className={`mt-2 shrink-0 ${getStatusColor(booking.status)}`}>
+                            <Badge className={`mt-2 shrink-0 ${getStatusColor(bookingBadgeStatus(booking))}`}>
                               {booking.status_display}
                             </Badge>
                           </div>

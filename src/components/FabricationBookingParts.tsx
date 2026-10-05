@@ -32,6 +32,7 @@ export interface FabricationBookingFields {
   fabrication_parts?: FabricationPart[];
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
+  fabrication_workflow?: { rejected?: boolean } | null;
 }
 
 function absoluteApiUrl(url: string): string {
@@ -143,7 +144,7 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
           )}
           {!printable && replaceable?.allowed && (
             <Button type="button" size="sm" variant="outline" onClick={() => setDialogOpen(true)} data-testid="replace-files-button">
-              <FileCog className="mr-1 h-4 w-4" /> Change files
+              <FileCog className="mr-1 h-4 w-4" /> {booking.fabrication_workflow?.rejected ? "Replace files" : "Change files"}
             </Button>
           )}
         </div>

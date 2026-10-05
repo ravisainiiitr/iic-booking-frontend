@@ -326,6 +326,20 @@ export interface FabricationFilesState {
   changes: FabricationFileChange[];
 }
 
+/** Rejection state of a fabrication booking (null for other equipment). */
+export interface FabricationWorkflow {
+  rejected: boolean;
+  rejected_at: string | null;
+  rejected_by_name: string;
+  reason: string;
+  replace_deadline: string | null;
+  replace_deadline_display: string;
+  replace_deadline_passed: boolean;
+  replace_window_hours: number;
+  can_reject: boolean;
+  reason_min_length: number;
+}
+
 export interface FabricationEquipmentRow {
   equipment_id: number;
   equipment_code: string;
@@ -334,6 +348,7 @@ export interface FabricationEquipmentRow {
   internal_department_name?: string | null;
   fabrication_notification_emails: string[];
   own_material_fixed_charge: string | null;
+  fabrication_replace_window_hours?: number;
   print_materials?: PrintMaterial[];
   laser_sheet_materials?: LaserSheetMaterial[];
 }
@@ -4268,6 +4283,14 @@ class ApiClient {
 
   async getBookingFabricationFiles(bookingId: number | string) {
     return this.request<FabricationFilesState>(`/bookings/${bookingId}/fabrication-files/`);
+  }
+
+  /** Lab staff: reject a booked 3D print / laser cutting job as not feasible. `bookingId` must be the real booking id. */
+  async rejectFabricationBooking(bookingId: number | string, reason: string) {
+    return this.request<{ message: string; booking: Record<string, unknown> }>(
+      `/bookings/${bookingId}/fabrication-reject/`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    );
   }
 
   /** Replace the STL / DXF files, edit parts or change the own-material choice of a booked fabrication job. */
@@ -9994,6 +10017,7 @@ class ApiClient {
     equipment_id: number;
     fabrication_notification_emails?: string[];
     own_material_fixed_charge?: string | null;
+    fabrication_replace_window_hours?: number;
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",

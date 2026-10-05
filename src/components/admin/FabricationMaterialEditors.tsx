@@ -492,3 +492,15 @@ export function ownChargeError(value: string): string | null {
   if (!Number.isFinite(n) || n < 0) return "The own-material charge must be a number of 0 or more, or empty.";
   return null;
 }
+
+export const DEFAULT_REPLACE_WINDOW_HOURS = 24;
+export const MIN_REPLACE_WINDOW_HOURS = 1;
+export const MAX_REPLACE_WINDOW_HOURS = 168;
+
+export function replaceWindowHoursError(value: string): string | null {
+  const n = Number(value.trim());
+  if (value.trim() === "" || !Number.isInteger(n) || n < MIN_REPLACE_WINDOW_HOURS || n > MAX_REPLACE_WINDOW_HOURS) {
+    return `The time to replace files must be a whole number of hours from ${MIN_REPLACE_WINDOW_HOURS} to ${MAX_REPLACE_WINDOW_HOURS}.`;
+  }
+  return null;
+}
