@@ -68,7 +68,7 @@ const PeriodicTable = () => {
         className={cn(
           "w-12 h-12 md:w-14 md:h-14 border-2 rounded flex flex-col items-center justify-center text-xs transition-all relative group",
           getCategoryColor(element.category),
-          isSelected && "ring-2 ring-primary ring-offset-2 scale-105"
+          isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background scale-105"
         )}
         title={element.name}
       >

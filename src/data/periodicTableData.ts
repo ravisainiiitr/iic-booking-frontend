@@ -141,20 +141,37 @@ export const periodicTableElements: Element[] = [
   { symbol: "Og", name: "Oganesson", atomicNumber: 118, row: 7, col: 18, category: "noble-gas" },
 ];
 
+/**
+ * Tile colours per category. The text colour is set explicitly for both themes: in dark mode the page
+ * foreground is near-white, so a pastel tile without its own text colour would be unreadable.
+ */
 export const getCategoryColor = (category: string): string => {
   const colors: Record<string, string> = {
-    "alkali-metal": "bg-red-100 hover:bg-red-200 border-red-300",
-    "alkaline-earth": "bg-orange-100 hover:bg-orange-200 border-orange-300",
-    "transition-metal": "bg-yellow-100 hover:bg-yellow-200 border-yellow-300",
-    "post-transition": "bg-green-100 hover:bg-green-200 border-green-300",
-    "metalloid": "bg-teal-100 hover:bg-teal-200 border-teal-300",
-    "nonmetal": "bg-blue-100 hover:bg-blue-200 border-blue-300",
-    "halogen": "bg-purple-100 hover:bg-purple-200 border-purple-300",
-    "noble-gas": "bg-pink-100 hover:bg-pink-200 border-pink-300",
-    "lanthanide": "bg-cyan-100 hover:bg-cyan-200 border-cyan-300",
-    "actinide": "bg-indigo-100 hover:bg-indigo-200 border-indigo-300",
+    "alkali-metal":
+      "bg-red-100 hover:bg-red-200 border-red-300 text-red-950 dark:bg-red-500/20 dark:hover:bg-red-500/35 dark:border-red-400/70 dark:text-red-50",
+    "alkaline-earth":
+      "bg-orange-100 hover:bg-orange-200 border-orange-300 text-orange-950 dark:bg-orange-500/20 dark:hover:bg-orange-500/35 dark:border-orange-400/70 dark:text-orange-50",
+    "transition-metal":
+      "bg-yellow-100 hover:bg-yellow-200 border-yellow-300 text-yellow-950 dark:bg-yellow-500/20 dark:hover:bg-yellow-500/35 dark:border-yellow-400/70 dark:text-yellow-50",
+    "post-transition":
+      "bg-green-100 hover:bg-green-200 border-green-300 text-green-950 dark:bg-green-500/20 dark:hover:bg-green-500/35 dark:border-green-400/70 dark:text-green-50",
+    "metalloid":
+      "bg-teal-100 hover:bg-teal-200 border-teal-300 text-teal-950 dark:bg-teal-500/20 dark:hover:bg-teal-500/35 dark:border-teal-400/70 dark:text-teal-50",
+    "nonmetal":
+      "bg-blue-100 hover:bg-blue-200 border-blue-300 text-blue-950 dark:bg-blue-500/20 dark:hover:bg-blue-500/35 dark:border-blue-400/70 dark:text-blue-50",
+    "halogen":
+      "bg-purple-100 hover:bg-purple-200 border-purple-300 text-purple-950 dark:bg-purple-500/20 dark:hover:bg-purple-500/35 dark:border-purple-400/70 dark:text-purple-50",
+    "noble-gas":
+      "bg-pink-100 hover:bg-pink-200 border-pink-300 text-pink-950 dark:bg-pink-500/20 dark:hover:bg-pink-500/35 dark:border-pink-400/70 dark:text-pink-50",
+    "lanthanide":
+      "bg-cyan-100 hover:bg-cyan-200 border-cyan-300 text-cyan-950 dark:bg-cyan-500/20 dark:hover:bg-cyan-500/35 dark:border-cyan-400/70 dark:text-cyan-50",
+    "actinide":
+      "bg-indigo-100 hover:bg-indigo-200 border-indigo-300 text-indigo-950 dark:bg-indigo-500/20 dark:hover:bg-indigo-500/35 dark:border-indigo-400/70 dark:text-indigo-50",
   };
-  return colors[category] || "bg-gray-100 hover:bg-gray-200 border-gray-300";
+  return (
+    colors[category] ||
+    "bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-950 dark:bg-gray-500/20 dark:hover:bg-gray-500/35 dark:border-gray-400/70 dark:text-gray-50"
+  );
 };
 
 /** Parse help_text (one element per line) into a Set of symbols to disable in the periodic selector. */
