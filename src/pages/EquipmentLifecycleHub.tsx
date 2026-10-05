@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
+import { localDateStamp } from "@/lib/localDate";
 import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ export default function EquipmentLifecycleHub() {
   const [exType, setExType] = useState("OTHER");
   const [exClass, setExClass] = useState("");
   const [exAmount, setExAmount] = useState("");
-  const [exDate, setExDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exDate, setExDate] = useState(() => localDateStamp());
   const [exDesc, setExDesc] = useState("");
   const [exBusy, setExBusy] = useState(false);
 

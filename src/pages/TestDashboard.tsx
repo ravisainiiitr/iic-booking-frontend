@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { localDateTimeStamp } from "@/lib/localDate";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -131,7 +132,7 @@ export default function TestDashboardPage() {
     try {
       await apiClient.seedTestingCatalog();
       const run = await apiClient.startTestingRun({
-        name: `Lab SAT ${new Date().toISOString().slice(0, 16)}`,
+        name: `Lab SAT ${localDateTimeStamp()}`,
         lab_context: {
           building: labBuilding || undefined,
           floor: labFloor || undefined,

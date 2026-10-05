@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import { localDateStamp } from "@/lib/localDate";
 import { formatINR, formatRupees } from "@/lib/money";
 import { formatBookingInputValue, formattedValueText } from "@/lib/bookingInputDisplay";
 import { getUserTypeDisplayName } from "@/lib/userTypes";
@@ -491,7 +492,7 @@ export default function ProformaInvoice() {
                           const url = URL.createObjectURL(res.blob);
                           const a = document.createElement("a");
                           a.href = url;
-                          a.download = `proforma_invoice_${new Date().toISOString().slice(0, 10)}.pdf`;
+                          a.download = `proforma_invoice_${localDateStamp()}.pdf`;
                           a.click();
                           URL.revokeObjectURL(url);
                           toast.success("Proforma invoice downloaded.");

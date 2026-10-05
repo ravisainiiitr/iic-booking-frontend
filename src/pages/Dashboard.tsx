@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState, useCallback, useMemo, useRef } fro
 import { format, parseISO } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
+import { localDateStamp } from "@/lib/localDate";
 import { getUserTypeDisplayName, isEndUserBookingType, isExternalBookingUserType } from "@/lib/userTypes";
 import { hasRbacPermission } from "@/lib/rbac";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
@@ -1226,9 +1227,7 @@ const Dashboard = () => {
   const fetchUpcomingBookings = async () => {
     try {
       setLoadingBookings(true);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = localDateStamp();
       
       // Fetch bookings starting from today onwards; limit to reduce payload
       const response = await apiClient.getBookings({

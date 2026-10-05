@@ -31,6 +31,7 @@ import {
   type PreferredSlotDraft,
 } from "@/lib/templatePreferredSlot";
 import { buildWeeklySlotRows, preferredSlotDraftProblem, slotsRequiredForMinutes } from "@/lib/weeklySlotTemplate";
+import { localDateStamp } from "@/lib/localDate";
 import {
   fallbackForMode,
   flagsForFallback,
@@ -4217,7 +4218,7 @@ const BookEquipment = () => {
         const a = document.createElement("a");
         a.href = url;
         const code = equipmentDetail.code || `equipment_${selectedEquipment.id}`;
-        a.download = `charge_estimate_${code}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        a.download = `charge_estimate_${code}_${localDateStamp()}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
         toast.success("Charge estimate downloaded.");
