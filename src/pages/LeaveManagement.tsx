@@ -226,7 +226,7 @@ export default function LeaveManagement() {
               <Input
                 aria-label="Year"
                 type="number"
-                className="w-28 bg-white/95 text-foreground"
+                className="w-28 bg-white/95 text-slate-900"
                 value={String(year)}
                 onChange={(e) => setYear(Number(e.target.value || currentYear))}
                 min={2000}

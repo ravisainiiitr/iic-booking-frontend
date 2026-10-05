@@ -581,7 +581,7 @@ export default function LegacyEquipmentMapping() {
       </div>
 
       {schemaPending ? (
-        <Card className="border-amber-400 bg-amber-50">
+        <Card className="border-amber-400 bg-amber-50 dark:border-amber-700/70 dark:bg-amber-950/40">
           <CardHeader>
             <CardTitle className="text-base">SCHEMA_PENDING — equipment mapping unavailable</CardTitle>
             <CardDescription>
@@ -628,7 +628,7 @@ export default function LegacyEquipmentMapping() {
       ) : null}
 
       {datetimeContract && !schemaPending ? (
-        <Card className="border-amber-300 bg-amber-50/50">
+        <Card className="border-amber-300 bg-amber-50/50 dark:border-amber-700/70 dark:bg-amber-950/40">
           <CardHeader>
             <CardTitle className="text-base">Booking datetime contract</CardTitle>
             <CardDescription>
