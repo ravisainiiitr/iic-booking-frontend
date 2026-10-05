@@ -23,6 +23,13 @@ import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type {
+  ModeAvailability,
+  MultiModeFamilyDetail,
+  MultiModeOverview,
+  MultiModeSchedule,
+  MultiModeSchedulePayload,
+} from "@/lib/multiMode";
+import type {
   EmailDecisionItem,
   EmailDecisionResult,
   FacultyApprovalsOverview,
@@ -9747,67 +9754,34 @@ class ApiClient {
     });
   }
 
-  /** OIC/Admin: multi-mode families (parent + children + schedules). */
-  async getOicMultiMode() {
-    return this.request<{
-      families: Array<{
-        parent_equipment_id: number;
-        parent_code: string;
-        parent_name: string;
-        parent_status?: string;
-        children: Array<{ equipment_id: number; code: string; name: string; status?: string }>;
-        schedules: Array<{
-          id: number;
-          parent_equipment_id: number;
-          mode_equipment_id: number;
-          mode_equipment_code?: string;
-          mode_equipment_name?: string;
-          start_date: string;
-          end_date: string;
-          behavior: string;
-          behavior_display?: string;
-        }>;
-      }>;
-      linkable_equipment: Array<{ equipment_id: number; code: string; name: string }>;
-      behaviors: Array<{ value: string; label: string }>;
-    }>("/oic/multi-mode/");
+  /** OIC / Main Admin: multi-mode families (base + modes + schedules), optionally for one department. */
+  async getOicMultiMode(departmentId?: number | null) {
+    const qs = departmentId ? `?department_id=${encodeURIComponent(String(departmentId))}` : "";
+    return this.request<MultiModeOverview>(`/oic/multi-mode/${qs}`);
   }
 
-  async createOicMultiModeSchedule(payload: {
-    parent_equipment_id: number;
-    mode_equipment_id: number;
-    start_date: string;
-    end_date: string;
-    behavior: "PARALLEL" | "EXCLUSIVE";
-    start_time?: string | null;
-    end_time?: string | null;
-    unavailable_label?: string;
-    unavailable_color?: string;
-    exclusive_blocked_label?: string;
-    exclusive_blocked_color?: string;
-  }) {
-    return this.request<{ schedule: Record<string, unknown> }>("/oic/multi-mode/schedules/", {
+  /** The family of one base instrument and the equipment that can be ticked as its modes. */
+  async getMultiModeFamily(baseId: number) {
+    return this.request<MultiModeFamilyDetail>(`/oic/multi-mode/families/${baseId}/`);
+  }
+
+  /** Replace the modes of a base instrument (flags are set by the server). */
+  async saveMultiModeFamily(baseId: number, modes: Array<{ equipment_id: number; mode_availability: ModeAvailability }>) {
+    return this.request<MultiModeFamilyDetail>(`/oic/multi-mode/families/${baseId}/`, {
+      method: "PUT",
+      body: JSON.stringify({ modes }),
+    });
+  }
+
+  async createOicMultiModeSchedule(payload: MultiModeSchedulePayload & { parent_equipment_id: number }) {
+    return this.request<{ schedule: MultiModeSchedule }>("/oic/multi-mode/schedules/", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   }
 
-  async updateOicMultiModeSchedule(
-    scheduleId: number,
-    payload: Partial<{
-      mode_equipment_id: number;
-      start_date: string;
-      end_date: string;
-      start_time: string | null;
-      end_time: string | null;
-      behavior: "PARALLEL" | "EXCLUSIVE";
-      unavailable_label: string;
-      unavailable_color: string;
-      exclusive_blocked_label: string;
-      exclusive_blocked_color: string;
-    }>
-  ) {
-    return this.request<{ schedule: Record<string, unknown> }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
+  async updateOicMultiModeSchedule(scheduleId: number, payload: Partial<MultiModeSchedulePayload>) {
+    return this.request<{ schedule: MultiModeSchedule }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });

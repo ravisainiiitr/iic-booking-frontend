@@ -159,10 +159,10 @@ const EQUIPMENT_SUB_CARDS: SubCard[] = [
   },
   {
     key: "equipmentModeSchedules",
-    label: "Equipment Mode Schedule",
-    description: "Date-ranged activation of child modes under multi-mode parent instruments",
+    label: "Multi-mode equipment",
+    description: "Set up an instrument's modes and when each mode can be booked",
     icon: <Layers3 className="h-6 w-6" />,
-    path: "/admin-settings/equipment/mode-schedules",
+    path: "/multi-mode-equipment",
     moduleKey: "admin_settings.equipment.mode_schedules",
   },
   {

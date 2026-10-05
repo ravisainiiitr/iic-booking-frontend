@@ -36,7 +36,7 @@ export const adminGuide: RoleGuide = {
         steps: [
           { title: "Admin Panel Access", body: "Choose which user types and departments may open Admin Settings modules." },
           { title: "Department Administration", body: "Oversee staff roles and permission caps across departments." },
-          { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers, charges and mode schedules." },
+          { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers and charges. Multi-mode equipment (one page for all departments, with a department filter) is where you link modes to a base instrument, choose whether each mode is always available or only on scheduled days, and plan mode days on a month calendar." },
           {
             title: "Equipment form",
             body: "Pick a title (Mr., Mrs., Ms., Miss, Dr. or Prof.) for each Officer In Charge and Lab Operator; the preview shows how the name appears. Untick Allow samples with different parameters to stop users adding extra sample sets on that equipment.",

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import EquipmentImage from "@/components/EquipmentImage";
@@ -157,7 +158,7 @@ export type EquipmentFormData = {
   category?: number | null;
   equipment_group?: number | null;
   parent_equipment?: number | null;
-  /** When true, this base instrument can have child modes and mode schedules. Default false. */
+  /** Read only here: the server sets it (and parent_equipment) from the Multi-mode equipment page. */
   enable_multi_mode?: boolean;
   internal_department?: number | null;
   visibility_group?: number | null;
@@ -411,6 +412,12 @@ type EquipmentFormChoices = {
   categories: Array<{ id: number; name: string; code?: string | null }>;
   equipment_groups: Array<{ equipment_group_id: number; name: string }>;
   parent_equipment_choices?: Array<{ equipment_id: number; code: string; name: string }>;
+  mode_families?: Array<{
+    base_equipment_id: number;
+    base_code: string;
+    base_name: string;
+    modes: Array<{ equipment_id: number; code: string; name: string }>;
+  }>;
   internal_departments: Array<{ id: number; name: string; code: string; department_type?: string }>;
   user_groups: Array<{ id: number; name: string; code: string }>;
   managers: StaffUserChoice[];
@@ -435,6 +442,37 @@ type Props = {
   onCancel: () => void;
   saving: boolean;
 };
+
+function MultiModeSummary({
+  equipmentId,
+  families,
+}: {
+  equipmentId?: number | null;
+  families?: EquipmentFormChoices["mode_families"];
+}) {
+  const asBase = equipmentId != null ? families?.find((f) => f.base_equipment_id === equipmentId) : undefined;
+  const asMode =
+    equipmentId != null && !asBase
+      ? families?.find((f) => f.modes.some((m) => m.equipment_id === equipmentId))
+      : undefined;
+  return (
+    <div className="space-y-1 sm:col-span-2 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm">
+      <p className="font-medium">Multi-mode</p>
+      <p className="text-muted-foreground">
+        {asBase
+          ? `Base instrument with modes: ${asBase.modes.map((m) => m.code).join(", ")}.`
+          : asMode
+            ? `A mode of ${asMode.base_code}${asMode.base_name && asMode.base_name !== asMode.base_code ? ` (${asMode.base_name})` : ""}.`
+            : "Standalone instrument (no modes)."}{" "}
+        Modes and their schedules are set up on the{" "}
+        <Link to="/multi-mode-equipment" className="text-primary underline underline-offset-2">
+          Multi-mode equipment
+        </Link>{" "}
+        page.
+      </p>
+    </div>
+  );
+}
 
 export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, saving }: Props) {
   const { user } = useAuth();
@@ -983,8 +1021,6 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         || null,
       category: formData.category ?? null,
       equipment_group: formData.equipment_group ?? null,
-      parent_equipment: formData.parent_equipment ?? null,
-      enable_multi_mode: formData.enable_multi_mode === true,
       internal_department: formData.internal_department ?? null,
       visibility_group: formData.visibility_group ?? null,
       slot_duration_minutes: formData.slot_duration_minutes,
@@ -1701,56 +1737,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 sm:col-span-2 rounded-lg border border-border/60 bg-muted/20 p-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="enable-multi-mode"
-              checked={formData.enable_multi_mode === true}
-              disabled={formData.parent_equipment != null}
-              onCheckedChange={(checked) =>
-                setFormData((p) => ({
-                  ...p,
-                  enable_multi_mode: !!checked,
-                  // Multi-mode bases cannot also be child modes
-                  parent_equipment: checked ? null : p.parent_equipment,
-                }))
-              }
-            />
-            <Label htmlFor="enable-multi-mode">Enable Multi-Mode Equipment</Label>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Default is off. When enabled, this instrument can have alternate operating modes and
-            date-based mode schedules (configured under Multi-Mode Equipment). Only enabled
-            equipment appear for multi-mode configuration.
-          </p>
-        </div>
-        <div className="space-y-2">
-          <Label>Parent Equipment (multi-mode)</Label>
-          <Select
-            value={formData.parent_equipment != null ? String(formData.parent_equipment) : "none"}
-            disabled={formData.enable_multi_mode === true}
-            onValueChange={(v) =>
-              setFormData((p) => ({ ...p, parent_equipment: v === "none" ? null : parseInt(v, 10) }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select parent (base mode)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">— None (standalone / base) —</SelectItem>
-              {(choices.parent_equipment_choices || [])
-                .filter((e) => equipmentId == null || e.equipment_id !== equipmentId)
-                .map((e) => (
-                  <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
-                    {e.name || e.code}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Set when this equipment is an alternate operating mode of a Multi-Mode-enabled base instrument.
-          </p>
-        </div>
+        <MultiModeSummary equipmentId={equipmentId} families={choices.mode_families} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
