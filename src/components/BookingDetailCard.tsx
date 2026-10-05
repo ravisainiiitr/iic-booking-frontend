@@ -72,7 +72,7 @@ import {
 } from "@/lib/bookingDeadlines";
 import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
-import { ResultsDeadlineNotice } from "@/components/booking/ResultsDeadlineNotice";
+import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -1542,6 +1542,10 @@ export function BookingDetailCard({
     (normalizedCurrentUserType === "operator" || isLabInchargeType) &&
     !isWaitlistedEntry &&
     !isOwnBooking;
+  /** Lifecycle "Time remaining" countdowns are for the booking user; Lab Operators only track the results deadline after Sample Accepted. */
+  const isLabOperatorViewer = isOperator && !isManagerOrAdmin && !isOwnBooking;
+  const showResultsDeadlineNotice =
+    !isJobSheetView && (!isLabOperatorViewer || sampleAcceptedForResults(booking.status, booking.sample_trace));
 
   const hasInputValues = Boolean(booking.input_values && Object.keys(booking.input_values).length > 0);
   const bookingUserInputsProps: ComponentProps<typeof BookingUserInputs> = {
@@ -1799,14 +1803,15 @@ export function BookingDetailCard({
               </div>
             )}
 
-          {(booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
+          {!isLabOperatorViewer &&
+            (booking.lifecycle_countdown?.enabled || booking.completion_countdown?.enabled) &&
             (booking.lifecycle_countdown?.deadline_at || booking.completion_countdown?.deadline_at) && (
             <BookingLifecycleCountdown
               countdown={(booking.lifecycle_countdown || booking.completion_countdown)!}
             />
           )}
 
-          {!isJobSheetView && (
+          {showResultsDeadlineNotice && (
             <ResultsDeadlineNotice
               deadline={booking.results_deadline}
               status={booking.status}

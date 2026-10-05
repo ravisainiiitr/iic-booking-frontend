@@ -8,7 +8,7 @@ import { isCommentsInputFieldKey } from "@/lib/bookingInputValues";
 import type { BookingInputFieldDef } from "@/lib/bookingInputDisplay";
 import { formatDurationMinutes, groupSlotsByDay, latestSampleStage, telHref, type JobSheetSlot } from "@/lib/jobSheet";
 import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/SampleRequirementsTable";
-import { resultsDeadlineApplies } from "@/components/booking/ResultsDeadlineNotice";
+import { resultsDeadlineApplies, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import type { BookingResultsDeadline } from "@/lib/api";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
@@ -177,7 +177,7 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
         {booking.sample_collection_deadline_at && booking.status.toUpperCase() === "COMPLETED" ? (
           <Fact label="Sample collection by">{formatDate(booking.sample_collection_deadline_at)}</Fact>
         ) : null}
-        {results && resultsDeadlineApplies(booking.status) ? (
+        {results && resultsDeadlineApplies(booking.status) && sampleAcceptedForResults(booking.status, booking.sample_trace) ? (
           <Fact label={results.overdue ? "Results overdue" : "Results due"}>
             <span
               className={results.overdue ? "text-red-700 dark:text-red-300" : undefined}

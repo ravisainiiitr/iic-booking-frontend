@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { BookingResultsDeadline } from "@/lib/api";
-import { ResultsDeadlineNotice, resultsDeadlineApplies } from "./ResultsDeadlineNotice";
+import { ResultsDeadlineNotice, resultsDeadlineApplies, sampleAcceptedForResults } from "./ResultsDeadlineNotice";
 
 afterEach(cleanup);
 
@@ -27,6 +27,13 @@ describe("ResultsDeadlineNotice", () => {
     expect(resultsDeadlineApplies("processing")).toBe(true);
     expect(resultsDeadlineApplies("ANALYSED")).toBe(false);
     expect(resultsDeadlineApplies("CANCELLED")).toBe(false);
+  });
+
+  it("treats the sample as accepted after Sample Accepted or once the booking is processing", () => {
+    expect(sampleAcceptedForResults("BOOKED", [])).toBe(false);
+    expect(sampleAcceptedForResults("BOOKED", [{ status: "SAMPLE_SUBMITTED" }])).toBe(false);
+    expect(sampleAcceptedForResults("BOOKED", [{ status: "SAMPLE_SUBMITTED" }, { status: "sample_accepted" }])).toBe(true);
+    expect(sampleAcceptedForResults("PROCESSING", null)).toBe(true);
   });
 
   it("shows nothing to the user while the OIC keeps the deadline hidden (the default)", () => {
