@@ -155,6 +155,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { periodicTableElements, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText } from "@/data/periodicTableData";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
+import RecurringBlockRules from "@/components/slot-status/RecurringBlockRules";
 import { cn } from "@/lib/utils";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
@@ -7751,6 +7752,18 @@ const BookEquipment = () => {
 
             </CardContent>
           </Card>
+        )}
+
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow &&
+          !equipmentCatalogOnly && (isAdminUser() || String(userType).toLowerCase() === 'manager') && (
+          <RecurringBlockRules
+            equipmentId={selectedEquipment.id}
+            onChanged={async () => {
+              setLastFetchedWeek(null);
+              await fetchSlotsForWeek(true, statusChangePopupWeekStart ?? undefined);
+              if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+            }}
+          />
         )}
 
         {/* Inline week view (pick by time) */}
