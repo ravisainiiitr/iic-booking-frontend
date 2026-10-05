@@ -155,6 +155,7 @@ const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
 const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
 const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
 const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
+const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
 function RouteFallback() {
@@ -371,6 +372,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/quality-improvement" element={<AdminSettingsQualityImprovement />} />
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
+          <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />

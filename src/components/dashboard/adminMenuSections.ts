@@ -126,7 +126,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: "sec_system",
     name: "System",
     icon: Settings,
-    items: ["admin_settings", "acceptance_test_dashboard"],
+    items: ["admin_settings", "department_modules", "acceptance_test_dashboard"],
   },
   {
     id: "sec_more",

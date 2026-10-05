@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import type { DepartmentModulesAvailability } from "@/lib/departmentModulesApi";
 import { appEntryPath, isNativeApp } from "@/lib/nativeApp";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
@@ -61,6 +62,8 @@ export interface User {
   admin_panel_enabled?: boolean;
   /** Expanded Admin Settings module keys the user may access. */
   admin_panel_modules?: string[];
+  /** Effective per-department module availability (DSA, Remote Analysis, Training, Procurement). */
+  department_modules?: DepartmentModulesAvailability | null;
 }
 
 interface AuthContextType {

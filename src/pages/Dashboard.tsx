@@ -25,7 +25,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight } from "lucide-react";
+import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
 import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceiptFollowUpAlert";
@@ -523,6 +524,7 @@ const Dashboard = () => {
     !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
   const { available: showProcurementAssets } = useProcurementAvailability(Boolean(user));
+  const remoteAnalysisAvailable = moduleAvailable(user?.department_modules, "remote_analysis");
   /** Main / Department Administrator: sectioned sidebar and the administration overview on the home page. */
   const usesAdminMenuSections = isAdmin || isDeptAdmin;
   const isExternalRelations = userTypeStr === 'external_relations';
@@ -3196,7 +3198,9 @@ const Dashboard = () => {
       id: "remote_analysis",
       label: "Remote analysis",
       path: "/remote-analysis",
-      visible: Boolean((isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage"))),
+      visible:
+        Boolean(isAdmin || isDeptAdmin || isOicUser || hasRbacPermission(user, "remote_analysis.view") || hasRbacPermission(user, "remote_analysis.manage")) &&
+        (isAdmin || remoteAnalysisAvailable),
       render: () => (
           <Card
               className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
@@ -3499,6 +3503,36 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "department_modules",
+      label: "Department modules",
+      path: "/admin/department-modules",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="overflow-hidden border-0 shadow-md cursor-pointer transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/30 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/admin/department-modules")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-primary text-white shadow-lg">
+                    <ToggleRight className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Department modules</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      DSA, Remote Analysis, Training and Procurement per department: on, off or test users only
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-primary/50 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open department modules</Button>
               </CardContent>
             </Card>
       ),
