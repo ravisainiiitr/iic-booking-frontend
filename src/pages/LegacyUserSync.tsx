@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import UserProfile from "@/components/UserProfile";
+import FacultyWalletSyncDeadlineCard from "@/components/admin/FacultyWalletSyncDeadlineCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import {
@@ -344,6 +345,8 @@ const LegacyUserSync = () => {
             </div>
           </div>
         )}
+
+        <FacultyWalletSyncDeadlineCard />
 
         <Card>
           <CardHeader>
