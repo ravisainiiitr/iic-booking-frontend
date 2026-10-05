@@ -1,20 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
-import { apiClient, type PrintMaterial } from "@/lib/api";
-import { useAuth } from "@/contexts/AuthContext";
+import { apiClient, type FabricationEquipmentRow, type LaserSheetMaterial, type PrintMaterial } from "@/lib/api";
 import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Plus, Trash2, Printer, Table2 } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Printer, Scissors, Settings2, Table2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  LaserSheetMaterialsEditor,
+  PrintMaterialsEditor,
+  derivedPricePerGram,
+  emailListError,
+  laserRowPayload,
+  laserSheetRowsError,
+  newLaserSheetRow,
+  newPrintMaterialRow,
+  ownChargeError,
+  parseEmailList,
+  printMaterialRowsError,
+  printRowPayload,
+  type LaserSheetRow,
+  type PrintMaterialRow,
+  type UserTypeChoice,
+} from "@/components/admin/FabricationMaterialEditors";
 
 type ChargeProfileRow = {
   user_type: string;
@@ -23,56 +40,44 @@ type ChargeProfileRow = {
   is_active: boolean;
 };
 
-type EquipmentMaterialsBundle = {
-  equipment_id: number;
-  equipment_code: string;
-  equipment_name: string;
-  materials: PrintMaterial[];
-  charge_profiles?: ChargeProfileRow[];
-};
+type FabricationTab = "print" | "laser";
 
-type MaterialDraft = {
-  code: string;
-  name: string;
-  density_g_per_cm3: string;
-  price_per_gram: string;
-  user_type: string;
-  display_order: string;
-};
+const TAB_PROFILE: Record<FabricationTab, string> = { print: "PRINT_3D", laser: "LASER_CUT_2D" };
 
-type MaterialView = {
-  id: number;
-  code: string;
-  name: string;
-  price_per_gram: string;
-  user_type: string;
-  is_active: boolean;
-  display_order: number;
-};
-
-const EMPTY_DRAFT: MaterialDraft = {
-  code: "",
-  name: "",
-  density_g_per_cm3: "1.240",
-  price_per_gram: "",
-  user_type: "",
-  display_order: "0",
-};
-
-const USER_TYPE_OPTIONS = Object.entries(USER_TYPE_DISPLAY_NAMES)
+const USER_TYPE_CHOICES: UserTypeChoice[] = Object.entries(USER_TYPE_DISPLAY_NAMES)
   .filter(([code]) =>
     ["student", "faculty", "individual_student", "external", "rnd", "industry", "other", "startup_incubated_iitr", "external_startup_msme"].includes(code)
   )
-  .map(([code, label]) => ({ code, label }));
+  .map(([value, label]) => ({ value, label }));
 
-function materialToDraft(m: PrintMaterial): MaterialDraft {
+function printRowFromMaterial(m: PrintMaterial): PrintMaterialRow {
   return {
+    id: m.id,
     code: m.code ?? "",
     name: m.name ?? "",
-    density_g_per_cm3: String(m.density_g_per_cm3 ?? "1.240"),
+    density_g_per_cm3: String(m.density_g_per_cm3 ?? "1.24"),
     price_per_gram: String(m.price_per_gram ?? ""),
-    user_type: m.user_type ?? "",
-    display_order: String(m.display_order ?? 0),
+    source_rate: m.source_rate == null ? "" : String(m.source_rate),
+    source_unit: m.source_rate == null ? "PER_KG" : m.source_unit || "PER_KG",
+    user_type: m.user_type ?? null,
+    is_active: m.is_active !== false,
+    display_order: Number(m.display_order ?? 0),
+  };
+}
+
+function laserRowFromMaterial(m: LaserSheetMaterial): LaserSheetRow {
+  return {
+    id: m.id,
+    code: m.code ?? "",
+    name: m.name ?? "",
+    material_family: m.material_family ?? "OTHER",
+    thickness_mm: String(m.thickness_mm ?? ""),
+    sheet_width_mm: String(m.sheet_width_mm ?? ""),
+    sheet_height_mm: String(m.sheet_height_mm ?? ""),
+    sheet_rate: String(m.sheet_rate ?? ""),
+    user_type: m.user_type ?? null,
+    is_active: m.is_active !== false,
+    display_order: Number(m.display_order ?? 0),
   };
 }
 
@@ -83,251 +88,465 @@ function formatMoney(value: string | number | null | undefined): string {
   return n.toFixed(2);
 }
 
-/** Effective ₹/g for a category, matching booking material resolution. */
-function resolveMaterialPriceForCategory(
-  materials: MaterialView[],
-  materialCode: string,
-  userType: string
-): string | null {
-  const code = materialCode.trim().toLowerCase();
+function effectivePricePerGram(row: PrintMaterialRow): number | null {
+  const derived = derivedPricePerGram(row.source_rate, row.source_unit, row.density_g_per_cm3 ?? "1.24");
+  if (derived !== null) return derived;
+  const n = Number(row.price_per_gram);
+  return row.price_per_gram === "" || row.price_per_gram == null || !Number.isFinite(n) ? null : n;
+}
+
+/** Effective ₹/g for a category, matching booking material resolution (typed row first, then the shared row). */
+function resolveMaterialPriceForCategory(rows: PrintMaterialRow[], code: string, userType: string): number | null {
+  const wanted = code.trim().toLowerCase();
   const ut = userType.trim().toLowerCase();
-  const candidates = materials.filter(
-    (m) => m.is_active && m.code.trim().toLowerCase() === code
-  );
-  if (candidates.length === 0) return null;
-  const typed = candidates.find((m) => (m.user_type || "").trim().toLowerCase() === ut);
-  if (typed) return typed.price_per_gram;
-  const shared = candidates.find((m) => !(m.user_type || "").trim());
-  if (shared) return shared.price_per_gram;
-  return null;
+  const candidates = rows.filter((r) => r.is_active !== false && r.code.trim().toLowerCase() === wanted);
+  const typed = candidates.find((r) => (r.user_type || "").trim().toLowerCase() === ut);
+  if (typed) return effectivePricePerGram(typed);
+  const shared = candidates.find((r) => !(r.user_type || "").trim());
+  return shared ? effectivePricePerGram(shared) : null;
+}
+
+function rowKey(payload: { id: number | null }): string {
+  return payload.id == null ? "" : String(payload.id);
 }
 
 export default function OICPrintMaterials() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const userType = String(user?.user_type ?? "").toLowerCase();
-  const canManage = userType === "admin" || userType === "manager";
 
   const [loading, setLoading] = useState(true);
-  const [equipments, setEquipments] = useState<EquipmentMaterialsBundle[]>([]);
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState("");
-  const [drafts, setDrafts] = useState<Record<number, MaterialDraft>>({});
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [addDraft, setAddDraft] = useState<MaterialDraft>({ ...EMPTY_DRAFT });
-  const [adding, setAdding] = useState(false);
+  const [equipments, setEquipments] = useState<FabricationEquipmentRow[]>([]);
+  const [chargeProfiles, setChargeProfiles] = useState<Record<number, ChargeProfileRow[]>>({});
+  const [tab, setTab] = useState<FabricationTab>("print");
+  const [selectedIds, setSelectedIds] = useState<Record<FabricationTab, string>>({ print: "", laser: "" });
+  const [loadVersion, setLoadVersion] = useState(0);
 
+  const [printRows, setPrintRows] = useState<PrintMaterialRow[]>([]);
+  const [laserRows, setLaserRows] = useState<LaserSheetRow[]>([]);
+  const [emailsText, setEmailsText] = useState("");
+  const [ownCharge, setOwnCharge] = useState("");
+  const [busy, setBusy] = useState<null | "materials" | "settings" | "delete">(null);
+
+  const byTab = useMemo(
+    () => ({
+      print: equipments.filter((e) => e.profile_type === TAB_PROFILE.print),
+      laser: equipments.filter((e) => e.profile_type === TAB_PROFILE.laser),
+    }),
+    [equipments]
+  );
   const selected = useMemo(
-    () => equipments.find((e) => String(e.equipment_id) === selectedEquipmentId) ?? null,
-    [equipments, selectedEquipmentId]
+    () => byTab[tab].find((e) => String(e.equipment_id) === selectedIds[tab]) ?? null,
+    [byTab, tab, selectedIds]
   );
 
-  /** Live material view: merges saved rows with unsaved draft edits for the charges table. */
-  const liveMaterials: MaterialView[] = useMemo(() => {
-    if (!selected) return [];
-    return selected.materials
-      .map((m) => {
-        const draft = drafts[m.id];
-        return {
-          id: m.id,
-          code: (draft?.code ?? m.code ?? "").trim(),
-          name: (draft?.name ?? m.name ?? "").trim(),
-          price_per_gram: (draft?.price_per_gram ?? String(m.price_per_gram ?? "")).trim(),
-          user_type: (draft?.user_type ?? m.user_type ?? "").trim(),
-          is_active: m.is_active,
-          display_order: Number(draft?.display_order ?? m.display_order ?? 0) || 0,
-        };
-      })
-      .sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
-  }, [selected, drafts]);
-
-  const materialColumns = useMemo(() => {
-    const byCode = new Map<string, { code: string; name: string }>();
-    for (const m of liveMaterials) {
-      if (!m.code) continue;
-      const key = m.code.toLowerCase();
-      if (!byCode.has(key)) {
-        byCode.set(key, { code: m.code, name: m.name || m.code });
-      }
-    }
-    return Array.from(byCode.values());
-  }, [liveMaterials]);
-
-  const chargeProfiles = useMemo(() => {
-    const rows = selected?.charge_profiles ?? [];
-    return [...rows].sort((a, b) =>
-      String(a.user_type_display || a.user_type).localeCompare(String(b.user_type_display || b.user_type))
-    );
-  }, [selected]);
-
-  const load = async (preferEquipmentId?: string) => {
+  const load = useCallback(async () => {
     setLoading(true);
-    const res = await apiClient.getOicPrintMaterials();
+    const [res, printRes] = await Promise.all([
+      apiClient.getFabricationMaterialEquipment(),
+      apiClient.getOicPrintMaterials(),
+    ]);
     setLoading(false);
     if (res.error) {
       toast.error(res.error);
-      return;
-    }
-    const list = (res.data?.equipments || []) as EquipmentMaterialsBundle[];
-    setEquipments(list);
-    const nextDrafts: Record<number, MaterialDraft> = {};
-    list.forEach((eq) => {
-      eq.materials.forEach((m) => {
-        nextDrafts[m.id] = materialToDraft(m);
-      });
-    });
-    setDrafts(nextDrafts);
-    const nextId =
-      preferEquipmentId && list.some((e) => String(e.equipment_id) === preferEquipmentId)
-        ? preferEquipmentId
-        : list.length > 0
-          ? String(list[0].equipment_id)
-          : "";
-    setSelectedEquipmentId(nextId);
-  };
-
-  useEffect(() => {
-    if (!canManage) {
-      toast.error("Only Admin or Officer In Charge can manage 3D print materials.");
       navigate("/dashboard");
       return;
     }
+    const list = res.data?.equipments ?? [];
+    setEquipments(list);
+    const profiles: Record<number, ChargeProfileRow[]> = {};
+    for (const eq of printRes.data?.equipments ?? []) profiles[eq.equipment_id] = eq.charge_profiles ?? [];
+    setChargeProfiles(profiles);
+    setSelectedIds((prev) => {
+      const pick = (t: FabricationTab) => {
+        const rows = list.filter((e) => e.profile_type === TAB_PROFILE[t]);
+        return rows.some((e) => String(e.equipment_id) === prev[t]) ? prev[t] : rows[0] ? String(rows[0].equipment_id) : "";
+      };
+      return { print: pick("print"), laser: pick("laser") };
+    });
+    setTab((prev) => {
+      const hasPrint = list.some((e) => e.profile_type === TAB_PROFILE.print);
+      const hasLaser = list.some((e) => e.profile_type === TAB_PROFILE.laser);
+      if (prev === "print" && !hasPrint && hasLaser) return "laser";
+      if (prev === "laser" && !hasLaser && hasPrint) return "print";
+      return prev;
+    });
+    setLoadVersion((v) => v + 1);
+  }, [navigate]);
+
+  useEffect(() => {
     void load();
-  }, [canManage, navigate]);
+  }, [load]);
 
-  const updateLocalMaterial = (material: PrintMaterial) => {
-    setEquipments((prev) =>
-      prev.map((eq) => ({
-        ...eq,
-        materials: eq.materials.map((m) => (m.id === material.id ? material : m)),
-      }))
-    );
-    setDrafts((prev) => ({ ...prev, [material.id]: materialToDraft(material) }));
-  };
+  const originalPrint = useMemo(() => (selected?.print_materials ?? []).map(printRowFromMaterial), [selected]);
+  const originalLaser = useMemo(() => (selected?.laser_sheet_materials ?? []).map(laserRowFromMaterial), [selected]);
 
-  const removeLocalMaterial = (materialId: number) => {
-    setEquipments((prev) =>
-      prev.map((eq) => ({
-        ...eq,
-        materials: eq.materials.filter((m) => m.id !== materialId),
-      }))
-    );
-    setDrafts((prev) => {
-      const next = { ...prev };
-      delete next[materialId];
-      return next;
+  // Reset drafts only when the equipment changes or fresh data is loaded, so local deletes keep other edits.
+  useEffect(() => {
+    setPrintRows(originalPrint);
+    setLaserRows(originalLaser);
+    const emails = selected?.fabrication_notification_emails ?? [];
+    setEmailsText(emails.join("\n"));
+    setOwnCharge(selected?.own_material_fixed_charge ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.equipment_id, loadVersion]);
+
+  const printPayloads = useMemo(() => printRows.map(printRowPayload), [printRows]);
+  const laserPayloads = useMemo(() => laserRows.map(laserRowPayload), [laserRows]);
+  const originalPrintByKey = useMemo(
+    () => new Map(originalPrint.map((r) => { const p = printRowPayload(r); return [rowKey(p), JSON.stringify(p)]; })),
+    [originalPrint]
+  );
+  const originalLaserByKey = useMemo(
+    () => new Map(originalLaser.map((r) => { const p = laserRowPayload(r); return [rowKey(p), JSON.stringify(p)]; })),
+    [originalLaser]
+  );
+  const materialsDirty =
+    tab === "print"
+      ? printPayloads.some((p) => p.id == null || originalPrintByKey.get(rowKey(p)) !== JSON.stringify(p))
+      : laserPayloads.some((p) => p.id == null || originalLaserByKey.get(rowKey(p)) !== JSON.stringify(p));
+
+  const savedEmails = (selected?.fabrication_notification_emails ?? []).join("\n");
+  const settingsDirty =
+    !!selected &&
+    (parseEmailList(emailsText).join("\n") !== savedEmails || ownCharge.trim() !== (selected.own_material_fixed_charge ?? ""));
+
+  const onSaveSettings = async () => {
+    if (!selected) return;
+    const emails = parseEmailList(emailsText);
+    const error = emailListError(emails) || ownChargeError(ownCharge);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setBusy("settings");
+    const res = await apiClient.updateFabricationMaterialEquipment({
+      equipment_id: selected.equipment_id,
+      fabrication_notification_emails: emails,
+      own_material_fixed_charge: ownCharge.trim() === "" ? null : ownCharge.trim(),
     });
-  };
-
-  const onToggleActive = async (row: PrintMaterial, isActive: boolean) => {
-    const key = `toggle-${row.id}`;
-    setBusyId(key);
-    const res = await apiClient.updateOicPrintMaterial(row.id, { is_active: isActive });
-    setBusyId(null);
+    setBusy(null);
     if (res.error) {
       toast.error(res.error);
       return;
     }
-    if (res.data?.material) updateLocalMaterial(res.data.material);
-    toast.success(isActive ? "Material enabled." : "Material disabled.");
+    const updated = res.data?.equipment;
+    if (updated) {
+      setEquipments((prev) =>
+        prev.map((e) => (e.equipment_id === updated.equipment_id ? { ...e, ...updated, print_materials: e.print_materials, laser_sheet_materials: e.laser_sheet_materials } : e))
+      );
+      setEmailsText(updated.fabrication_notification_emails.join("\n"));
+      setOwnCharge(updated.own_material_fixed_charge ?? "");
+    }
+    toast.success("Settings saved.");
   };
 
-  const onSaveMaterial = async (row: PrintMaterial) => {
-    const draft = drafts[row.id] ?? materialToDraft(row);
-    if (!draft.code.trim() || !draft.name.trim()) {
-      toast.error("Code and name are required.");
+  const onSaveMaterials = async () => {
+    if (!selected) return;
+    const error = tab === "print" ? printMaterialRowsError(printRows) : laserSheetRowsError(laserRows);
+    if (error) {
+      toast.error(error);
       return;
     }
-    if (!draft.price_per_gram.trim()) {
-      toast.error("Price per gram is required.");
+    setBusy("materials");
+    let failed: string | null = null;
+    let saved = 0;
+    if (tab === "print") {
+      for (const p of printPayloads) {
+        const { id, ...body } = p;
+        if (id != null && originalPrintByKey.get(rowKey(p)) === JSON.stringify(p)) continue;
+        const res =
+          id == null
+            ? await apiClient.createOicPrintMaterial({ ...body, equipment_id: selected.equipment_id })
+            : await apiClient.updateOicPrintMaterial(id, body);
+        if (res.error) {
+          failed = `${p.name || p.code}: ${res.error}`;
+          break;
+        }
+        saved += 1;
+      }
+    } else {
+      for (const p of laserPayloads) {
+        const { id, ...body } = p;
+        if (id != null && originalLaserByKey.get(rowKey(p)) === JSON.stringify(p)) continue;
+        const res =
+          id == null
+            ? await apiClient.createOicLaserSheetMaterial({ ...body, equipment_id: selected.equipment_id })
+            : await apiClient.updateOicLaserSheetMaterial(id, body);
+        if (res.error) {
+          failed = `${p.name || p.code}: ${res.error}`;
+          break;
+        }
+        saved += 1;
+      }
+    }
+    setBusy(null);
+    if (failed) {
+      toast.error(saved > 0 ? `${failed} (${saved} earlier change(s) were saved.)` : failed);
+    } else {
+      toast.success(saved === 1 ? "1 material saved." : `${saved} materials saved.`);
+    }
+    await load();
+  };
+
+  const removeRow = async <T extends { id?: number | null; name: string; code: string }>(
+    row: T,
+    index: number,
+    setRows: React.Dispatch<React.SetStateAction<T[]>>,
+    remove: (id: number) => Promise<{ error?: string }>
+  ) => {
+    if (row.id == null) {
+      setRows((prev) => prev.filter((_, i) => i !== index));
       return;
     }
-    const key = `save-${row.id}`;
-    setBusyId(key);
-    const res = await apiClient.updateOicPrintMaterial(row.id, {
-      code: draft.code.trim(),
-      name: draft.name.trim(),
-      density_g_per_cm3: draft.density_g_per_cm3 || "1.240",
-      price_per_gram: draft.price_per_gram,
-      user_type: draft.user_type.trim() || null,
-      display_order: Number(draft.display_order) || 0,
-    });
-    setBusyId(null);
+    const label = row.name || row.code || "this material";
+    if (!window.confirm(`Delete "${label}"? This cannot be undone. Materials already used by bookings can only be disabled.`)) return;
+    setBusy("delete");
+    const res = await remove(row.id);
+    setBusy(null);
     if (res.error) {
       toast.error(res.error);
       return;
     }
-    if (res.data?.material) updateLocalMaterial(res.data.material);
-    toast.success("Material updated.");
-  };
-
-  const onDeleteMaterial = async (row: PrintMaterial) => {
-    if (!window.confirm(`Delete material "${row.name}" (${row.code})? This cannot be undone.`)) return;
-    const key = `del-${row.id}`;
-    setBusyId(key);
-    const res = await apiClient.deleteOicPrintMaterial(row.id);
-    setBusyId(null);
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    removeLocalMaterial(row.id);
+    setRows((prev) => prev.filter((r) => r.id !== row.id));
+    setEquipments((prev) =>
+      prev.map((e) =>
+        e.equipment_id !== selected?.equipment_id
+          ? e
+          : {
+              ...e,
+              print_materials: e.print_materials?.filter((m) => m.id !== row.id),
+              laser_sheet_materials: e.laser_sheet_materials?.filter((m) => m.id !== row.id),
+            }
+      )
+    );
     toast.success("Material deleted.");
   };
 
-  const onAddMaterial = async () => {
-    if (!selected) return;
-    if (!addDraft.code.trim() || !addDraft.name.trim()) {
-      toast.error("Code and name are required.");
-      return;
+  const priceColumns = useMemo(() => {
+    const byCode = new Map<string, { code: string; name: string }>();
+    for (const r of printRows) {
+      const code = r.code.trim();
+      if (code && !byCode.has(code.toLowerCase())) byCode.set(code.toLowerCase(), { code, name: r.name.trim() || code });
     }
-    if (!addDraft.price_per_gram.trim()) {
-      toast.error("Price per gram is required.");
-      return;
-    }
-    setAdding(true);
-    const res = await apiClient.createOicPrintMaterial({
-      equipment_id: selected.equipment_id,
-      code: addDraft.code.trim(),
-      name: addDraft.name.trim(),
-      density_g_per_cm3: addDraft.density_g_per_cm3 || "1.240",
-      price_per_gram: addDraft.price_per_gram,
-      user_type: addDraft.user_type.trim() || null,
-      is_active: true,
-      display_order: Number(addDraft.display_order) || 0,
-    });
-    setAdding(false);
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    const material = res.data?.material;
-    if (material) {
-      setEquipments((prev) =>
-        prev.map((eq) =>
-          eq.equipment_id === selected.equipment_id
-            ? {
-                ...eq,
-                materials: [...eq.materials, material].sort(
-                  (a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name)
-                ),
-              }
-            : eq
-        )
-      );
-      setDrafts((prev) => ({ ...prev, [material.id]: materialToDraft(material) }));
-    }
-    setAddDraft({
-      ...EMPTY_DRAFT,
-      display_order: String(selected.materials.length || 0),
-    });
-    toast.success("Material added.");
+    return Array.from(byCode.values());
+  }, [printRows]);
+  const selectedProfiles = useMemo(
+    () =>
+      [...(selected ? chargeProfiles[selected.equipment_id] ?? [] : [])].sort((a, b) =>
+        String(a.user_type_display || a.user_type).localeCompare(String(b.user_type_display || b.user_type))
+      ),
+    [chargeProfiles, selected]
+  );
+
+  const disabled = busy !== null;
+  const tabInfo: Record<FabricationTab, { label: string; icon: typeof Printer; empty: string }> = {
+    print: { label: "3D print materials", icon: Printer, empty: "No 3D printers in your managed equipment." },
+    laser: { label: "Laser sheets", icon: Scissors, empty: "No laser cutters in your managed equipment." },
   };
 
-  const setDraftField = (id: number, field: keyof MaterialDraft, value: string) => {
-    setDrafts((prev) => ({
-      ...prev,
-      [id]: { ...(prev[id] ?? EMPTY_DRAFT), [field]: value },
-    }));
+  const renderTab = (t: FabricationTab) => {
+    const list = byTab[t];
+    if (list.length === 0) return <p className="text-sm text-muted-foreground">{tabInfo[t].empty}</p>;
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2 max-w-md">
+          <Label htmlFor={`fabrication-equipment-${t}`}>Equipment</Label>
+          <Select
+            value={selectedIds[t]}
+            onValueChange={(v) => setSelectedIds((prev) => ({ ...prev, [t]: v }))}
+            disabled={disabled}
+          >
+            <SelectTrigger id={`fabrication-equipment-${t}`} aria-label="Equipment">
+              <SelectValue placeholder="Select equipment" />
+            </SelectTrigger>
+            <SelectContent>
+              {list.map((eq) => (
+                <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
+                  {eq.equipment_name || eq.equipment_code}
+                  {eq.internal_department_name ? ` · ${eq.internal_department_name}` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {selected && t === tab && (
+          <>
+            <Card data-testid="fabrication-lab-settings">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings2 className="h-5 w-5" /> Lab settings
+                </CardTitle>
+                <CardDescription>Who receives uploaded files, and the bring-your-own-material charge.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="fabrication-emails">Notification emails</Label>
+                    <Textarea
+                      id="fabrication-emails"
+                      rows={3}
+                      value={emailsText}
+                      disabled={disabled}
+                      onChange={(e) => setEmailsText(e.target.value)}
+                      placeholder={"lab@example.com\noperator@example.com"}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      One per line, up to 10. They get the {t === "laser" ? "DXF" : "STL"} files and booking details
+                      when a booking is confirmed or its files are replaced.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="fabrication-own-charge">Own material fixed charge (₹)</Label>
+                    <Input
+                      id="fabrication-own-charge"
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={ownCharge}
+                      disabled={disabled}
+                      onChange={(e) => setOwnCharge(e.target.value)}
+                      placeholder="Leave empty to hide the option"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Charged once instead of the material cost when the user brings their own material.
+                    </p>
+                  </div>
+                </div>
+                <Button type="button" onClick={() => void onSaveSettings()} disabled={disabled || !settingsDirty}>
+                  {busy === "settings" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save settings
+                </Button>
+              </CardContent>
+            </Card>
+
+            {t === "print" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Table2 className="h-5 w-5" /> Charges by category &amp; material
+                  </CardTitle>
+                  <CardDescription>
+                    Booking charge ≈ (print weight in g × ₹/g) + (print hours × machine ₹/h), per part × quantity.
+                    Updates live as you edit below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/40 border-b">
+                          <th className="p-3 text-left font-semibold whitespace-nowrap">User category</th>
+                          <th className="p-3 text-right font-semibold whitespace-nowrap">Machine ₹/h</th>
+                          {priceColumns.map((col) => (
+                            <th key={col.code} className="p-3 text-right font-semibold whitespace-nowrap">
+                              <div className="leading-tight">
+                                <div>{col.name}</div>
+                                <div className="text-[11px] font-normal text-muted-foreground">{col.code} · ₹/g</div>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedProfiles.length === 0 ? (
+                          <tr>
+                            <td colSpan={2 + priceColumns.length} className="p-4 text-muted-foreground">
+                              No charge profiles configured for this equipment.
+                            </td>
+                          </tr>
+                        ) : (
+                          selectedProfiles.map((cp) => (
+                            <tr key={cp.user_type} className={cn("border-b last:border-0", !cp.is_active && "opacity-50 bg-muted/20")}>
+                              <td className="p-3">
+                                <span className="font-medium">{cp.user_type_display || getUserTypeDisplayName(cp.user_type)}</span>
+                                {!cp.is_active && (
+                                  <Badge variant="secondary" className="ml-2 text-[10px]">Inactive profile</Badge>
+                                )}
+                              </td>
+                              <td className="p-3 text-right tabular-nums font-medium">₹{formatMoney(cp.primary_unit_charge)}</td>
+                              {priceColumns.map((col) => {
+                                const price = resolveMaterialPriceForCategory(printRows, col.code, String(cp.user_type || ""));
+                                return (
+                                  <td key={`${cp.user_type}-${col.code}`} className="p-3 text-right tabular-nums">
+                                    {price != null ? `₹${formatMoney(price)}` : <span className="text-muted-foreground">—</span>}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                <div className="space-y-1.5">
+                  <CardTitle className="text-lg">{tabInfo[t].label}</CardTitle>
+                  <CardDescription>
+                    {t === "print"
+                      ? "Enter the supplier rate (per kg / litre / gram) or a direct price per gram."
+                      : "Charge per part = (part area × quantity ÷ sheet area) × sheet rate."}{" "}
+                    Disable a material to hide it from new bookings without affecting existing ones.
+                  </CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={disabled}
+                  onClick={() =>
+                    t === "print"
+                      ? setPrintRows((prev) => [...prev, newPrintMaterialRow(prev.length)])
+                      : setLaserRows((prev) => [...prev, newLaserSheetRow(prev.length)])
+                  }
+                >
+                  <Plus className="mr-1 h-4 w-4" /> {t === "print" ? "Add material" : "Add sheet"}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {t === "print" ? (
+                  <PrintMaterialsEditor
+                    rows={printRows}
+                    onChange={setPrintRows}
+                    userTypeChoices={USER_TYPE_CHOICES}
+                    disabled={disabled}
+                    onRemove={(row, idx) =>
+                      void removeRow(row, idx, setPrintRows, (id) => apiClient.deleteOicPrintMaterial(id))
+                    }
+                  />
+                ) : (
+                  <LaserSheetMaterialsEditor
+                    rows={laserRows}
+                    onChange={setLaserRows}
+                    userTypeChoices={USER_TYPE_CHOICES}
+                    disabled={disabled}
+                    onRemove={(row, idx) =>
+                      void removeRow(row, idx, setLaserRows, (id) => apiClient.deleteOicLaserSheetMaterial(id))
+                    }
+                  />
+                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => void onSaveMaterials()}
+                    disabled={disabled || !materialsDirty}
+                    data-testid="save-materials"
+                  >
+                    {busy === "materials" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save materials
+                  </Button>
+                  {materialsDirty && <span className="text-xs text-muted-foreground">You have unsaved changes.</span>}
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -346,408 +565,40 @@ export default function OICPrintMaterials() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Dashboard
             </Button>
-            <h1 className="text-2xl font-semibold tracking-tight">3D Print Materials</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Fabrication Materials</h1>
             <p className="mt-2 text-sm text-white/85 max-w-2xl">
-              Add, edit, enable, disable, or delete filament materials for PRINT_3D equipment you manage.
-              Charge preview updates as you change material prices.
+              Manage 3D print materials and laser cutting sheets for the equipment you look after, and who is emailed
+              the uploaded files.
             </p>
           </div>
         </StandaloneOnly>
 
-        <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
-          <CardHeader>
-            <CardTitle className="text-lg">Equipment</CardTitle>
-            <CardDescription>Select a 3D printer to manage its materials catalog.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-              </div>
-            ) : equipments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No PRINT_3D equipment found in your managed set.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                <Label>Equipment</Label>
-                <Select value={selectedEquipmentId} onValueChange={setSelectedEquipmentId}>
-                  <SelectTrigger aria-label="Equipment">
-                    <SelectValue placeholder="Select equipment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {equipments.map((eq) => (
-                      <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                        {eq.equipment_name || eq.equipment_code}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {selected && (
-          <>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Table2 className="h-5 w-5" /> Charges by category &amp; material
-                </CardTitle>
-                <CardDescription>
-                  Booking charge ≈ (print weight in g × ₹/g) + (print hours × machine ₹/h).
-                  Material cells use the same user-type resolution as booking. Values update live as you edit below.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/40 border-b">
-                        <th className="p-3 text-left font-semibold whitespace-nowrap">User category</th>
-                        <th className="p-3 text-right font-semibold whitespace-nowrap">Machine ₹/h</th>
-                        {materialColumns.length === 0 ? (
-                          <th className="p-3 text-left font-semibold text-muted-foreground">No materials</th>
-                        ) : (
-                          materialColumns.map((col) => (
-                            <th key={col.code} className="p-3 text-right font-semibold whitespace-nowrap">
-                              <div className="leading-tight">
-                                <div>{col.name}</div>
-                                <div className="text-[11px] font-normal text-muted-foreground">{col.code} · ₹/g</div>
-                              </div>
-                            </th>
-                          ))
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {chargeProfiles.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={Math.max(2, 2 + materialColumns.length)}
-                            className="p-4 text-muted-foreground"
-                          >
-                            No charge profiles configured for this equipment. Machine rates come from Admin charge
-                            profiles.
-                          </td>
-                        </tr>
-                      ) : (
-                        chargeProfiles.map((cp) => {
-                          const ut = String(cp.user_type || "").toLowerCase();
-                          return (
-                            <tr
-                              key={cp.user_type}
-                              className={cn(
-                                "border-b last:border-0",
-                                !cp.is_active && "opacity-50 bg-muted/20"
-                              )}
-                            >
-                              <td className="p-3 align-middle">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-medium">
-                                    {cp.user_type_display || getUserTypeDisplayName(cp.user_type)}
-                                  </span>
-                                  {!cp.is_active ? (
-                                    <Badge variant="secondary" className="text-[10px]">
-                                      Inactive profile
-                                    </Badge>
-                                  ) : null}
-                                </div>
-                              </td>
-                              <td className="p-3 text-right tabular-nums font-medium">
-                                ₹{formatMoney(cp.primary_unit_charge)}
-                              </td>
-                              {materialColumns.map((col) => {
-                                const price = resolveMaterialPriceForCategory(liveMaterials, col.code, ut);
-                                return (
-                                  <td key={`${cp.user_type}-${col.code}`} className="p-3 text-right tabular-nums">
-                                    {price != null && price !== "" ? (
-                                      `₹${formatMoney(price)}`
-                                    ) : (
-                                      <span className="text-muted-foreground">—</span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/40 border-b">
-                        <th className="p-3 text-left font-semibold">Material</th>
-                        <th className="p-3 text-left font-semibold">Code</th>
-                        <th className="p-3 text-right font-semibold">₹/g</th>
-                        <th className="p-3 text-left font-semibold">Applies to</th>
-                        <th className="p-3 text-left font-semibold">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {liveMaterials.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="p-4 text-muted-foreground">
-                            No materials yet. Add materials below to populate this table.
-                          </td>
-                        </tr>
-                      ) : (
-                        liveMaterials.map((m) => (
-                          <tr
-                            key={m.id}
-                            className={cn("border-b last:border-0", !m.is_active && "opacity-50")}
-                          >
-                            <td className="p-3 font-medium">{m.name || "—"}</td>
-                            <td className="p-3 font-mono text-xs">{m.code || "—"}</td>
-                            <td className="p-3 text-right tabular-nums">₹{formatMoney(m.price_per_gram)}</td>
-                            <td className="p-3 text-muted-foreground">
-                              {m.user_type
-                                ? getUserTypeDisplayName(m.user_type) || m.user_type
-                                : "All user types"}
-                            </td>
-                            <td className="p-3">
-                              {m.is_active ? (
-                                <Badge className="bg-primary text-white hover:bg-primary/90">Active</Badge>
-                              ) : (
-                                <Badge variant="secondary">Inactive</Badge>
-                              )}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  GST (where applicable) is added at booking time for external categories and is not shown here.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Printer className="h-5 w-5" /> Materials
-                </CardTitle>
-                <CardDescription>
-                  Catalog for {selected.equipment_name || selected.equipment_code}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {selected.materials.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No materials configured yet.</p>
-                ) : (
-                  selected.materials.map((m) => {
-                    const draft = drafts[m.id] ?? materialToDraft(m);
-                    const saving = busyId === `save-${m.id}`;
-                    const toggling = busyId === `toggle-${m.id}`;
-                    const deleting = busyId === `del-${m.id}`;
-                    return (
-                      <div key={m.id} className="rounded-xl border border-border/70 p-4 space-y-3 bg-muted/10">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Code</Label>
-                            <Input
-                              aria-label="Code"
-                              value={draft.code}
-                              onChange={(e) => setDraftField(m.id, "code", e.target.value)}
-                              placeholder="pla_white"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Name</Label>
-                            <Input
-                              aria-label="Name"
-                              value={draft.name}
-                              onChange={(e) => setDraftField(m.id, "name", e.target.value)}
-                              placeholder="PLA White"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Density (g/cm³)</Label>
-                            <Input
-                              aria-label="Density (g/cm³)"
-                              type="number"
-                              step="0.001"
-                              value={draft.density_g_per_cm3}
-                              onChange={(e) => setDraftField(m.id, "density_g_per_cm3", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Price per gram (₹)</Label>
-                            <Input
-                              aria-label="Price per gram (₹)"
-                              type="number"
-                              step="0.01"
-                              value={draft.price_per_gram}
-                              onChange={(e) => setDraftField(m.id, "price_per_gram", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">User type (blank = all)</Label>
-                            <Select
-                              value={draft.user_type || "__all__"}
-                              onValueChange={(v) => setDraftField(m.id, "user_type", v === "__all__" ? "" : v)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="All user types" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__all__">All user types</SelectItem>
-                                {USER_TYPE_OPTIONS.map((o) => (
-                                  <SelectItem key={o.code} value={o.code}>
-                                    {o.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Display order</Label>
-                            <Input
-                              aria-label="Display order"
-                              type="number"
-                              min={0}
-                              value={draft.display_order}
-                              onChange={(e) => setDraftField(m.id, "display_order", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">
-                              {m.is_active ? "Active" : "Inactive"}
-                            </span>
-                            <Switch
-                              checked={m.is_active}
-                              disabled={toggling || deleting}
-                              onCheckedChange={(v) => void onToggleActive(m, v)}
-                            />
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="secondary"
-                              disabled={saving || deleting}
-                              onClick={() => void onSaveMaterial(m)}
-                            >
-                              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
-                            </Button>
-                            <Button
-                              aria-label="Delete material"
-                              title="Delete material"
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              disabled={deleting || saving}
-                              onClick={() => void onDeleteMaterial(m)}
-                            >
-                              {deleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Plus className="h-5 w-5" /> Add material
-                </CardTitle>
-                <CardDescription>Create a new filament entry for this printer.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Code</Label>
-                    <Input
-                      aria-label="Code"
-                      value={addDraft.code}
-                      onChange={(e) => setAddDraft((p) => ({ ...p, code: e.target.value }))}
-                      placeholder="pla_white"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Name</Label>
-                    <Input
-                      aria-label="Name"
-                      value={addDraft.name}
-                      onChange={(e) => setAddDraft((p) => ({ ...p, name: e.target.value }))}
-                      placeholder="PLA White"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Density (g/cm³)</Label>
-                    <Input
-                      aria-label="Density (g/cm³)"
-                      type="number"
-                      step="0.001"
-                      value={addDraft.density_g_per_cm3}
-                      onChange={(e) => setAddDraft((p) => ({ ...p, density_g_per_cm3: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Price per gram (₹)</Label>
-                    <Input
-                      aria-label="Price per gram (₹)"
-                      type="number"
-                      step="0.01"
-                      value={addDraft.price_per_gram}
-                      onChange={(e) => setAddDraft((p) => ({ ...p, price_per_gram: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">User type (blank = all)</Label>
-                    <Select
-                      value={addDraft.user_type || "__all__"}
-                      onValueChange={(v) => setAddDraft((p) => ({ ...p, user_type: v === "__all__" ? "" : v }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All user types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All user types</SelectItem>
-                        {USER_TYPE_OPTIONS.map((o) => (
-                          <SelectItem key={o.code} value={o.code}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Display order</Label>
-                    <Input
-                      aria-label="Display order"
-                      type="number"
-                      min={0}
-                      value={addDraft.display_order}
-                      onChange={(e) => setAddDraft((p) => ({ ...p, display_order: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  className="bg-primary hover:bg-primary/90 text-white"
-                  disabled={adding}
-                  onClick={() => void onAddMaterial()}
-                >
-                  {adding ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
-                  Add material
-                </Button>
-              </CardContent>
-            </Card>
-          </>
+        {loading && equipments.length === 0 ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : equipments.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground">
+              You don&apos;t manage any 3D printing or laser cutting equipment.
+            </CardContent>
+          </Card>
+        ) : (
+          <Tabs value={tab} onValueChange={(v) => setTab(v as FabricationTab)}>
+            <TabsList>
+              {(["print", "laser"] as FabricationTab[]).map((t) => {
+                const Icon = tabInfo[t].icon;
+                return (
+                  <TabsTrigger key={t} value={t} disabled={disabled || byTab[t].length === 0} className="gap-2">
+                    <Icon className="h-4 w-4" /> {tabInfo[t].label}
+                    <Badge variant="secondary" className="text-[10px]">{byTab[t].length}</Badge>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+            <TabsContent value="print" className="pt-4">{renderTab("print")}</TabsContent>
+            <TabsContent value="laser" className="pt-4">{renderTab("laser")}</TabsContent>
+          </Tabs>
         )}
       </main>
     </div>

@@ -227,6 +227,11 @@ function isPrint3dProfile(booking: Booking | null): boolean {
   return String(booking?.equipment_profile_type || "").toUpperCase() === "PRINT_3D";
 }
 
+/** Laser jobs are cut in one go, so only whole-booking cancellation is offered. */
+function isLaserCutProfile(booking: Booking | null): boolean {
+  return String(booking?.equipment_profile_type || "").toUpperCase() === "LASER_CUT_2D";
+}
+
 function getActivePrintFiles(booking: Booking | null) {
   if (!booking) return [];
   const fromList = (booking.print_analyses ?? []).filter((f) => !f.cancelled_at && f.status === "COMPLETED");
@@ -2053,7 +2058,9 @@ const MyBookings = () => {
                 const { key, label } = getReductionFieldMeta(selectedBooking);
                 const currentReduction = getCurrentReductionValue(selectedBooking, key);
                 const printFiles = getActivePrintFiles(selectedBooking);
-                const canOfferPartialCancel = isPrint3dProfile(selectedBooking)
+                const canOfferPartialCancel = isLaserCutProfile(selectedBooking)
+                  ? false
+                  : isPrint3dProfile(selectedBooking)
                   ? printFiles.length > 1
                   : (inputReduction
                     ? currentReduction > 1 || slotCount > 1

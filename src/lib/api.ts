@@ -197,10 +197,148 @@ export interface PrintMaterial {
   name: string;
   density_g_per_cm3: string;
   price_per_gram: string;
+  /** Supplier rate the price per gram was derived from (with source_unit). */
+  source_rate?: string | null;
+  source_unit?: "" | "PER_KG" | "PER_LITRE" | "PER_GRAM" | null;
   user_type?: string | null;
   is_active: boolean;
   display_order: number;
 }
+
+export type LaserMaterialFamily = "MS" | "SS" | "ACRYLIC" | "MDF" | "OTHER";
+
+export interface LaserSheetMaterial {
+  id: number;
+  code: string;
+  name: string;
+  material_family: LaserMaterialFamily;
+  thickness_mm: string;
+  sheet_width_mm: string;
+  sheet_height_mm: string;
+  sheet_rate: string;
+  user_type?: string | null;
+  is_active: boolean;
+  display_order: number;
+}
+
+export interface LaserSheetMaterialWrite {
+  code: string;
+  name: string;
+  material_family: LaserMaterialFamily | string;
+  thickness_mm: string | number;
+  sheet_width_mm: string | number;
+  sheet_height_mm: string | number;
+  sheet_rate: string | number;
+  user_type?: string | null;
+  is_active?: boolean;
+  display_order?: number;
+}
+
+export type DxfUnit = "mm" | "cm" | "m" | "in" | "ft";
+
+export interface LaserCutAnalysis {
+  id: string;
+  batch_id?: string | null;
+  sequence?: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  part_name: string;
+  display_part_name?: string;
+  quantity: number;
+  material_id: number | null;
+  material_name?: string;
+  material_code_snapshot?: string;
+  detected_units?: string;
+  units?: DxfUnit | string;
+  units_assumed?: boolean;
+  bbox_drawing_units?: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
+  width_mm?: string | null;
+  height_mm?: string | null;
+  area_mm2?: string | null;
+  entity_count?: number;
+  warnings?: string[];
+  error_message?: string;
+  dxf_filename?: string;
+  dxf_download_url?: string;
+  fit_error?: string | null;
+  estimated_material_cost?: string | null;
+  cancelled_at?: string | null;
+  superseded_at?: string | null;
+}
+
+export interface LaserCutBatch {
+  id: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "PARTIAL";
+  original_filename?: string;
+  error_message?: string;
+  booking_id?: number | null;
+  items: LaserCutAnalysis[];
+}
+
+/** One part of a fabrication booking (3D print STL or laser DXF) as shown on booking pages and job sheets. */
+export interface FabricationPart {
+  kind: "print" | "laser";
+  analysis_id: string;
+  name: string;
+  filename?: string;
+  quantity: number;
+  weight_g_each?: number | string | null;
+  time_min_each?: number | string | null;
+  weight_g_total?: number | string | null;
+  time_min_total?: number | string | null;
+  material_id?: number | null;
+  material_code?: string;
+  material_name?: string;
+  units?: string;
+  units_assumed?: boolean;
+  width_mm?: string | null;
+  height_mm?: string | null;
+  area_mm2?: string | null;
+  thickness_mm?: string | null;
+  sheet_rate?: string | null;
+  sheet_width_mm?: string | null;
+  sheet_height_mm?: string | null;
+  /** 3D print: staff-entered actual weight / time (totals for all copies). */
+  actual_weight?: boolean;
+  actual_time?: boolean;
+}
+
+export interface FabricationFileChange {
+  id: number;
+  changed_at: string | null;
+  changed_by_name: string;
+  previous_files: Array<{ part_name?: string; filename?: string; quantity?: number; material?: string }>;
+  new_files: Array<{ part_name?: string; filename?: string; quantity?: number; material?: string }>;
+  previous_own_material?: boolean;
+  new_own_material?: boolean;
+  charge_before: string | null;
+  charge_after: string | null;
+  reverted_at: string | null;
+}
+
+export interface FabricationFilesState {
+  profile_type: string;
+  can_replace: boolean;
+  blocked_reason: string | null;
+  own_material: boolean;
+  own_material_available: boolean;
+  own_material_fixed_charge: string | null;
+  parts: FabricationPart[];
+  changes: FabricationFileChange[];
+}
+
+export interface FabricationEquipmentRow {
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  profile_type: "PRINT_3D" | "LASER_CUT_2D" | string;
+  internal_department_name?: string | null;
+  fabrication_notification_emails: string[];
+  own_material_fixed_charge: string | null;
+  print_materials?: PrintMaterial[];
+  laser_sheet_materials?: LaserSheetMaterial[];
+}
+
+export { FABRICATION_PROFILE_TYPES, isFabricationProfile } from "@/lib/fabricationProfiles";
 
 export interface PrintAnalysisResult {
   id: string;
@@ -221,7 +359,12 @@ export interface PrintAnalysisResult {
   material_name?: string;
   stl_filename?: string;
   stl_download_url?: string | null;
+  part_name?: string;
+  display_part_name?: string;
+  /** Number of copies to print (weight and time are per copy). */
+  quantity?: number;
   cancelled_at?: string | null;
+  superseded_at?: string | null;
   slicer_settings?: {
     layer_height_mm?: number;
     infill_percent?: number;
@@ -3908,6 +4051,10 @@ class ApiClient {
       sample_return_after_analysis?: boolean;
       print_analysis_id?: string;
       print_analysis_batch_id?: string;
+      /** 2D laser cutting: DXF upload id from analyze-dxf. */
+      laser_cut_batch_id?: string;
+      /** 3D print / laser: the user brings their own material (fixed charge instead of material cost). */
+      own_material?: boolean;
       /** Estimate charges for this user type (standard charge profile). */
       user_type?: string;
       /** Urgent hold flow: apply 50% surcharge on category normal charge. */
@@ -3952,6 +4099,12 @@ class ApiClient {
     if (options?.print_analysis_batch_id) {
       params.append('print_analysis_batch_id', options.print_analysis_batch_id);
     }
+    if (options?.laser_cut_batch_id) {
+      params.append('laser_cut_batch_id', options.laser_cut_batch_id);
+    }
+    if (options?.own_material) {
+      params.append('own_material', 'true');
+    }
     if (options?.user_type) {
       params.append('user_type', String(options.user_type));
     }
@@ -3990,6 +4143,8 @@ class ApiClient {
       charge_breakdown: Array<{
         description: string;
         amount: number;
+        /** Laser part lines: the part cost to the paisa (the booking total is rounded to rupees). */
+        exact_amount?: string;
       }>;
       show_charge_breakdown?: boolean;
       reward?: {
@@ -4047,6 +4202,108 @@ class ApiClient {
 
   async getPrintAnalysisBatch(batchId: string) {
     return this.request<PrintAnalysisBatchResult>(`/print-analysis-batches/${batchId}/`);
+  }
+
+  /** Part name and number of copies of an uploaded STL (before it is booked). */
+  async updatePrintAnalysisPart(analysisId: string, data: { part_name?: string; quantity?: number }) {
+    return this.request<PrintAnalysisResult>(`/print-analyses/${analysisId}/part/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEquipmentLaserSheetMaterials(equipmentId: number | string, options?: { user_type?: string }) {
+    const qs = options?.user_type ? `?user_type=${encodeURIComponent(options.user_type)}` : "";
+    return this.request<{ materials: LaserSheetMaterial[]; own_material_fixed_charge: string | null }>(
+      `/equipments/${equipmentId}/laser-sheet-materials/${qs}`,
+    );
+  }
+
+  /** Upload a .dxf or a .zip of DXFs. Pass batch_id to add files to an upload that is not booked yet. */
+  async analyzeEquipmentDxf(
+    equipmentId: number | string,
+    params: { file: File; batch_id?: string | null; material_id?: number | string | null },
+  ): Promise<{ data?: LaserCutBatch; error?: string }> {
+    const formData = new FormData();
+    formData.append("file", params.file);
+    if (params.batch_id) formData.append("batch_id", params.batch_id);
+    if (params.material_id != null && params.material_id !== "") formData.append("material_id", String(params.material_id));
+    const url = `${this.baseURL.replace(/\/$/, "")}/equipments/${equipmentId}/analyze-dxf/`;
+    const headers: HeadersInit = {
+      ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
+    };
+    try {
+      const res = await fetch(url, { method: "POST", headers, body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+      }
+      return { data: data as LaserCutBatch };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Upload failed" };
+    }
+  }
+
+  async getLaserCutBatch(batchId: string) {
+    return this.request<LaserCutBatch>(`/laser-cut-batches/${batchId}/`);
+  }
+
+  async updateLaserCutAnalysis(
+    analysisId: string,
+    data: { part_name?: string; quantity?: number; material_id?: number | null; units?: string },
+  ) {
+    return this.request<LaserCutAnalysis>(`/laser-cut-analyses/${analysisId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLaserCutAnalysis(analysisId: string) {
+    return this.request<void>(`/laser-cut-analyses/${analysisId}/`, { method: "DELETE" });
+  }
+
+  async getLaserCutDxfPresign(analysisId: string) {
+    return this.request<{ url: string }>(`/laser-cut-analyses/${analysisId}/dxf-presign/`);
+  }
+
+  async getBookingFabricationFiles(bookingId: number | string) {
+    return this.request<FabricationFilesState>(`/bookings/${bookingId}/fabrication-files/`);
+  }
+
+  /** Replace the STL / DXF files, edit parts or change the own-material choice of a booked fabrication job. */
+  async replaceBookingFabricationFiles(
+    bookingId: number | string,
+    data: {
+      print_analysis_id?: string;
+      print_analysis_batch_id?: string;
+      laser_cut_batch_id?: string;
+      part_updates?: Array<{
+        analysis_id: string;
+        part_name?: string;
+        quantity?: number;
+        material_id?: number | null;
+        units?: string;
+      }>;
+      own_material?: boolean;
+    },
+  ) {
+    return this.request<{
+      message: string;
+      booking: Record<string, unknown>;
+      charge_recalculation_summary: {
+        previous_charge?: string;
+        new_charge?: string;
+        refund_amount?: string | null;
+        refund_status?: string | null;
+        extra_amount?: string | null;
+        pay_deadline?: string | null;
+        pay_window_seconds?: number | null;
+      };
+      fabrication: FabricationFilesState;
+    }>(`/bookings/${bookingId}/fabrication-files/`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   async recalculatePrintAnalysisBatch(
@@ -8362,6 +8619,10 @@ class ApiClient {
     print_analysis_id?: string;
     /** 3D print: ZIP batch id when multiple STL files were uploaded */
     print_analysis_batch_id?: string;
+    /** 2D laser cutting: DXF upload id from analyze-dxf */
+    laser_cut_batch_id?: string;
+    /** 3D print / laser: the user brings their own material (fixed charge replaces the material cost) */
+    own_material?: boolean;
     /** Ask the backend to offer same-group alternative equipment before waitlisting (feature-flagged). */
     offer_group_alternatives?: boolean;
     /** "Automatically search and allocate alternate equipment": true books the first alternative, false asks first. */
@@ -9680,7 +9941,9 @@ class ApiClient {
     code: string;
     name: string;
     density_g_per_cm3?: string | number;
-    price_per_gram: string | number;
+    price_per_gram?: string | number | null;
+    source_rate?: string | number | null;
+    source_unit?: string;
     user_type?: string | null;
     is_active?: boolean;
     display_order?: number;
@@ -9697,7 +9960,9 @@ class ApiClient {
       code: string;
       name: string;
       density_g_per_cm3: string | number;
-      price_per_gram: string | number;
+      price_per_gram: string | number | null;
+      source_rate: string | number | null;
+      source_unit: string;
       user_type: string | null;
       is_active: boolean;
       display_order: number;
@@ -9713,6 +9978,45 @@ class ApiClient {
     return this.request<{ ok: boolean }>(`/oic/print-materials/${materialId}/`, {
       method: "DELETE",
     });
+  }
+
+  /** Admin / OIC / Department Admin: fabrication equipment they manage, with materials and lab settings. */
+  async getFabricationMaterialEquipment() {
+    return this.request<{
+      equipments: FabricationEquipmentRow[];
+      has_fabrication_equipment: boolean;
+      has_print_3d_equipment: boolean;
+      has_laser_cut_equipment: boolean;
+    }>("/oic/fabrication-materials/equipment/");
+  }
+
+  async updateFabricationMaterialEquipment(payload: {
+    equipment_id: number;
+    fabrication_notification_emails?: string[];
+    own_material_fixed_charge?: string | null;
+  }) {
+    return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createOicLaserSheetMaterial(payload: LaserSheetMaterialWrite & { equipment_id: number }) {
+    return this.request<{ material: LaserSheetMaterial }>("/oic/laser-sheet-materials/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateOicLaserSheetMaterial(materialId: number, payload: Partial<LaserSheetMaterialWrite>) {
+    return this.request<{ material: LaserSheetMaterial }>(`/oic/laser-sheet-materials/${materialId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteOicLaserSheetMaterial(materialId: number) {
+    return this.request<{ ok: boolean }>(`/oic/laser-sheet-materials/${materialId}/`, { method: "DELETE" });
   }
 
   /** OIC/Admin: list equipment groups (with quotas) for managed equipment. */

@@ -38,6 +38,21 @@ import { EquipmentLocationFields } from "@/components/admin/EquipmentLocationFie
 import { AllowSampleSetsField, canEditSampleSetsSwitch } from "@/components/admin/AllowSampleSetsField";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
+  LaserSheetMaterialsEditor,
+  PrintMaterialsEditor,
+  emailListError,
+  laserRowPayload,
+  laserSheetRowsError,
+  newLaserSheetRow,
+  newPrintMaterialRow,
+  ownChargeError,
+  parseEmailList,
+  printMaterialRowsError,
+  printRowPayload,
+  type LaserSheetRow,
+  type PrintMaterialRow,
+} from "@/components/admin/FabricationMaterialEditors";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -144,7 +159,13 @@ export type EquipmentFormData = {
   show_model_on_card?: boolean;
   booking_email_extra_text?: string | null;
   completion_email_extra_text?: string | null;
-  print_3d_stl_notification_email?: string | null;
+  /** 3D print / laser: addresses sent the uploaded files when a booking is confirmed or its files change. */
+  fabrication_notification_emails?: string[];
+  /** Form-only draft of the list above (one address per line or comma separated). */
+  fabrication_notification_emails_text?: string;
+  /** 3D print / laser: fixed charge when the user brings their own material; empty hides the option. */
+  own_material_fixed_charge?: string | number | null;
+  laser_sheet_materials?: LaserSheetRow[];
   istem_portal_url?: string | null;
   istem_fbr_status_url?: string | null;
   status?: string | null;
@@ -295,7 +316,7 @@ export type EquipmentFormData = {
     /** Advanced table (TYPED_TABLE) columns and row rules. */
     table_config?: unknown;
   }>;
-  print_materials?: Array<{ code: string; name: string; density_g_per_cm3?: string | number; price_per_gram: string | number; user_type?: string | null; is_active?: boolean; display_order?: number }>;
+  print_materials?: PrintMaterialRow[];
   /** MULTI_PARAM slot options (Django MultiParamDefinition / slot_options). */
   param_definitions?: Array<{
     user_type?: string | null;
@@ -310,7 +331,7 @@ export type EquipmentFormData = {
 
 /** Legacy profile types kept for existing rows only; new picks use GENERIC. */
 const LEGACY_CHARGE_PROFILE_TYPES = new Set(["SAMPLE", "HOUR", "SAMPLE_ELEMENT"]);
-const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D"]);
+const NEW_CHARGE_PROFILE_TYPES = new Set(["GENERIC", "MULTI_PARAM", "PRINT_3D", "LASER_CUT_2D"]);
 
 /** Per-equipment contact details of an Officer In Charge / Lab Operator (shown in Contact us). */
 type AssignmentContact = { honorific?: string; office_address?: string; alternate_phone_number?: string };
@@ -505,7 +526,10 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     show_model_on_card: false,
     booking_email_extra_text: "",
     completion_email_extra_text: "",
-    print_3d_stl_notification_email: "",
+    fabrication_notification_emails: [],
+    fabrication_notification_emails_text: "",
+    own_material_fixed_charge: "",
+    laser_sheet_materials: [],
     istem_portal_url: "",
     istem_fbr_status_url: "",
     status: "ACTIVE",
@@ -578,6 +602,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     param_definitions: [],
     ...initialData,
   });
+  const usesPrint3d = (formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D");
+  const usesLaserCut = (formData.charge_profiles ?? []).some((cp) => cp.profile_type === "LASER_CUT_2D");
+  const fabricationUserTypeChoices = (choices?.user_type_choices ?? []).filter(
+    (ut) => String(ut.value ?? "").trim() !== "",
+  );
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [clearImage, setClearImage] = useState(false);
@@ -784,7 +813,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         show_model_on_card: Boolean(d.show_model_on_card),
         booking_email_extra_text: (d.booking_email_extra_text as string) ?? "",
         completion_email_extra_text: (d.completion_email_extra_text as string) ?? "",
-        print_3d_stl_notification_email: (d.print_3d_stl_notification_email as string) ?? "",
+        ...(() => {
+          const emails = Array.isArray(d.fabrication_notification_emails)
+            ? (d.fabrication_notification_emails as unknown[]).map((e) => String(e ?? "").trim()).filter(Boolean)
+            : String(d.print_3d_stl_notification_email ?? "").trim()
+              ? [String(d.print_3d_stl_notification_email).trim()]
+              : [];
+          return { fabrication_notification_emails: emails, fabrication_notification_emails_text: emails.join("\n") };
+        })(),
+        own_material_fixed_charge:
+          d.own_material_fixed_charge === null || d.own_material_fixed_charge === undefined
+            ? ""
+            : String(d.own_material_fixed_charge),
         istem_portal_url: (d.istem_portal_url as string) ?? "",
         istem_fbr_status_url: (d.istem_fbr_status_url as string) ?? "",
         status: (d.status as string) ?? "ACTIVE",
@@ -918,15 +958,33 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         }) : prev.input_fields ?? [],
         print_materials: Array.isArray(d.print_materials)
           ? (d.print_materials as Array<Record<string, unknown>>).map((m) => ({
+              id: typeof m.id === "number" ? m.id : null,
               code: String(m.code ?? ""),
               name: String(m.name ?? ""),
-              density_g_per_cm3: m.density_g_per_cm3 ?? "1.24",
-              price_per_gram: m.price_per_gram ?? "0",
+              density_g_per_cm3: (m.density_g_per_cm3 as string | number | undefined) ?? "1.24",
+              price_per_gram: (m.price_per_gram as string | number | undefined) ?? "0",
+              source_rate: m.source_rate == null ? "" : String(m.source_rate),
+              source_unit: m.source_rate == null ? "PER_KG" : String(m.source_unit || "PER_KG"),
               user_type: (m.user_type as string | null) ?? null,
               is_active: m.is_active !== false,
               display_order: Number(m.display_order ?? 0),
             }))
           : prev.print_materials ?? [],
+        laser_sheet_materials: Array.isArray(d.laser_sheet_materials)
+          ? (d.laser_sheet_materials as Array<Record<string, unknown>>).map((m) => ({
+              id: typeof m.id === "number" ? m.id : null,
+              code: String(m.code ?? ""),
+              name: String(m.name ?? ""),
+              material_family: String(m.material_family ?? "OTHER"),
+              thickness_mm: String(m.thickness_mm ?? ""),
+              sheet_width_mm: String(m.sheet_width_mm ?? ""),
+              sheet_height_mm: String(m.sheet_height_mm ?? ""),
+              sheet_rate: String(m.sheet_rate ?? ""),
+              user_type: (m.user_type as string | null) ?? null,
+              is_active: m.is_active !== false,
+              display_order: Number(m.display_order ?? 0),
+            }))
+          : prev.laser_sheet_materials ?? [],
         param_definitions: Array.isArray(d.slot_options || d.param_definitions)
           ? ((d.slot_options || d.param_definitions) as Array<Record<string, unknown>>).map((row) => ({
               user_type: (row.user_type as string | null) ?? null,
@@ -983,6 +1041,19 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         }
       }
     }
+    const notificationEmails = parseEmailList(formData.fabrication_notification_emails_text ?? "");
+    const ownChargeText = String(formData.own_material_fixed_charge ?? "").trim();
+    if (usesPrint3d || usesLaserCut) {
+      const fabricationError =
+        emailListError(notificationEmails) ||
+        ownChargeError(ownChargeText) ||
+        (usesPrint3d ? printMaterialRowsError(formData.print_materials ?? []) : null) ||
+        (usesLaserCut ? laserSheetRowsError(formData.laser_sheet_materials ?? []) : null);
+      if (fabricationError) {
+        toast.error(fabricationError);
+        return;
+      }
+    }
     const payload: EquipmentFormData = {
       name: formData.name || undefined,
       code: formData.code || undefined,
@@ -994,7 +1065,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       show_model_on_card: Boolean(formData.show_model_on_card),
       booking_email_extra_text: formData.booking_email_extra_text?.trim() || "",
       completion_email_extra_text: formData.completion_email_extra_text?.trim() || "",
-      print_3d_stl_notification_email: formData.print_3d_stl_notification_email?.trim() || "",
+      fabrication_notification_emails: notificationEmails,
+      own_material_fixed_charge: ownChargeText === "" ? null : ownChargeText,
       istem_portal_url: formData.istem_portal_url?.trim() || "",
       istem_fbr_status_url: formData.istem_fbr_status_url?.trim() || "",
       status: formData.status || "ACTIVE",
@@ -1175,7 +1247,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           table_config: {},
         };
       }),
-      print_materials: formData.print_materials ?? [],
+      print_materials: (formData.print_materials ?? []).map(printRowPayload),
+      laser_sheet_materials: (formData.laser_sheet_materials ?? []).map(laserRowPayload),
       param_definitions: (formData.param_definitions ?? []).map((row) => ({
         user_type: row.user_type || null,
         param_name: row.param_name,
@@ -2028,141 +2101,110 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         </div>
       )}
 
-      {((formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")
-        || (formData.charge_profiles ?? []).some((cp) => cp.profile_type === "PRINT_3D")) && (
-        <div className="rounded-lg border p-4 space-y-4">
-          <div className="space-y-2 max-w-xl">
-            <Label htmlFor="print-3d-stl-notification-email">STL notification email</Label>
-            <Input
-              id="print-3d-stl-notification-email"
-              type="email"
-              value={formData.print_3d_stl_notification_email ?? ""}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, print_3d_stl_notification_email: e.target.value }))
-              }
-              placeholder="lab@example.com"
-            />
-            <p className="text-xs text-muted-foreground">
-              When a booking is confirmed, the user&apos;s STL file(s) and booking details are sent to this address.
-              Leave empty to disable.
+      {(usesPrint3d || usesLaserCut) && (
+        <div className="rounded-lg border p-4 space-y-5" data-testid="fabrication-settings">
+          <div>
+            <h3 className="text-base font-semibold">{usesLaserCut && !usesPrint3d ? "Laser cutting settings" : usesPrint3d && !usesLaserCut ? "3D print settings" : "Fabrication settings"}</h3>
+            <p className="text-sm text-muted-foreground">
+              Materials, the bring-your-own-material charge and who receives the uploaded files.
             </p>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-semibold">3D print materials</h3>
-              <p className="text-sm text-muted-foreground">Filament catalog with dynamic price per gram.</p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="fabrication-notification-emails">Notification emails</Label>
+              <Textarea
+                id="fabrication-notification-emails"
+                rows={3}
+                value={formData.fabrication_notification_emails_text ?? ""}
+                onChange={(e) => setFormData((p) => ({ ...p, fabrication_notification_emails_text: e.target.value }))}
+                placeholder={"lab@example.com\noperator@example.com"}
+              />
+              <p className="text-xs text-muted-foreground">
+                One address per line (or comma separated), up to 10. When a booking is confirmed or its files are
+                replaced, the user&apos;s {usesLaserCut && !usesPrint3d ? "DXF" : usesPrint3d && !usesLaserCut ? "STL" : "STL/DXF"} file(s)
+                and booking details are sent here. Large files are sent as download links. Leave empty to disable.
+              </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setFormData((p) => ({
-                  ...p,
-                  print_materials: [
-                    ...(p.print_materials ?? []),
-                    { code: "", name: "", density_g_per_cm3: "1.24", price_per_gram: "2.5", user_type: null, is_active: true, display_order: (p.print_materials?.length ?? 0) },
-                  ],
-                }))
-              }
-            >
-              Add material
-            </Button>
+            <div className="space-y-2">
+              <Label htmlFor="own-material-fixed-charge">Own material fixed charge (₹)</Label>
+              <Input
+                id="own-material-fixed-charge"
+                type="number"
+                min="0"
+                step="1"
+                value={String(formData.own_material_fixed_charge ?? "")}
+                onChange={(e) => setFormData((p) => ({ ...p, own_material_fixed_charge: e.target.value }))}
+                placeholder="e.g. 250"
+              />
+              <p className="text-xs text-muted-foreground">
+                Charged once instead of the material cost when the user brings their own material. Leave empty to hide
+                the option.
+              </p>
+            </div>
           </div>
-          {(formData.print_materials ?? []).length > 0 && (
-            <div className="hidden sm:grid gap-3 sm:grid-cols-8 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <span>Code</span>
-              <span>Name</span>
-              <span>Density (g/cm³)</span>
-              <span>₹ / gram</span>
-              <span>Order</span>
-              <span>User type</span>
-              <span>Status</span>
-              <span className="sr-only">Actions</span>
+          {usesPrint3d && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-semibold">3D print materials</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Enter the supplier rate (per kg / litre / gram) or a direct price per gram.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      print_materials: [...(p.print_materials ?? []), newPrintMaterialRow(p.print_materials?.length ?? 0)],
+                    }))
+                  }
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Add material
+                </Button>
+              </div>
+              <PrintMaterialsEditor
+                rows={formData.print_materials ?? []}
+                onChange={(rows) => setFormData((p) => ({ ...p, print_materials: rows }))}
+                userTypeChoices={fabricationUserTypeChoices}
+              />
             </div>
           )}
-          {(formData.print_materials ?? []).map((mat, idx) => (
-            <div key={idx} className="grid gap-3 sm:grid-cols-8 border rounded-md p-3 items-center">
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">Code</Label>
-                <Input placeholder="Code" value={mat.code} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], code: e.target.value }; return { ...p, print_materials: rows }; })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">Name</Label>
-                <Input placeholder="Name" value={mat.name} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], name: e.target.value }; return { ...p, print_materials: rows }; })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">Density (g/cm³)</Label>
-                <Input placeholder="Density" type="number" step="0.001" value={String(mat.density_g_per_cm3 ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], density_g_per_cm3: e.target.value }; return { ...p, print_materials: rows }; })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">₹ / gram</Label>
-                <Input placeholder="₹/gram" type="number" step="0.01" value={String(mat.price_per_gram ?? "")} onChange={(e) => setFormData((p) => { const rows = [...(p.print_materials ?? [])]; rows[idx] = { ...rows[idx], price_per_gram: e.target.value }; return { ...p, print_materials: rows }; })} />
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">Order</Label>
-                <Input
-                placeholder="Order"
-                type="number"
-                step="1"
-                value={String(mat.display_order ?? 0)}
-                onChange={(e) =>
-                  setFormData((p) => {
-                    const rows = [...(p.print_materials ?? [])];
-                    const n = e.target.value === "" ? 0 : parseInt(e.target.value, 10);
-                    rows[idx] = { ...rows[idx], display_order: Number.isFinite(n) ? n : 0 };
-                    return { ...p, print_materials: rows };
-                  })
-                }
-              />
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">User type</Label>
-              <Select
-                value={mat.user_type ? String(mat.user_type) : "__all__"}
-                onValueChange={(value) =>
-                  setFormData((p) => {
-                    const rows = [...(p.print_materials ?? [])];
-                    rows[idx] = { ...rows[idx], user_type: value === "__all__" ? null : value };
-                    return { ...p, print_materials: rows };
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="User type (all)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All user types</SelectItem>
-                  {(choices?.user_type_choices ?? [])
-                    .filter((ut) => String(ut.value ?? "").trim() !== "")
-                    .map((ut) => (
-                    <SelectItem key={ut.value} value={String(ut.value)}>
-                      {ut.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="sm:hidden text-xs text-muted-foreground">Status</Label>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={mat.is_active !== false}
-                  onCheckedChange={(checked) =>
-                    setFormData((p) => {
-                      const rows = [...(p.print_materials ?? [])];
-                      rows[idx] = { ...rows[idx], is_active: checked === true };
-                      return { ...p, print_materials: rows };
-                    })
+          {usesLaserCut && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-sm font-semibold">Laser sheet materials</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Charge per part = (part area × quantity ÷ sheet area) × sheet rate.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      laser_sheet_materials: [
+                        ...(p.laser_sheet_materials ?? []),
+                        newLaserSheetRow(p.laser_sheet_materials?.length ?? 0),
+                      ],
+                    }))
                   }
-                  aria-label="Enable material"
-                />
-                <span className="text-xs text-muted-foreground">Enabled</span>
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Add sheet
+                </Button>
               </div>
-              </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setFormData((p) => ({ ...p, print_materials: (p.print_materials ?? []).filter((_, i) => i !== idx) }))}>Remove</Button>
+              <LaserSheetMaterialsEditor
+                rows={formData.laser_sheet_materials ?? []}
+                onChange={(rows) => setFormData((p) => ({ ...p, laser_sheet_materials: rows }))}
+                userTypeChoices={fabricationUserTypeChoices}
+              />
             </div>
-          ))}
+          )}
         </div>
       )}
 

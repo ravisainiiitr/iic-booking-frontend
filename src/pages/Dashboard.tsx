@@ -141,7 +141,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   },
   "/reports": { title: "Reports & Statistics" },
   "/oic/accessories": { title: "Accessories" },
-  "/oic/print-materials": { title: "Print Materials" },
+  "/oic/print-materials": { title: "Fabrication Materials" },
   "/publication-claims": { title: "Publication Claims" },
   "/ta-assignments": { title: "TA Duty Assignments" },
   "/ta-nomination-call": { title: "TA Nomination Call" },
@@ -1432,7 +1432,7 @@ const Dashboard = () => {
 
   const canCustomizeDashboardMenu = isOicUser || isAdmin;
   const [dashboardMenuLayout, setDashboardMenuLayout] = useState<DashboardMenuLayout | null>(null);
-  const [oicHasPrint3dEquipment, setOicHasPrint3dEquipment] = useState(false);
+  const [hasFabricationEquipment, setHasFabricationEquipment] = useState(false);
 
   useEffect(() => {
     if (!user?.id || !canCustomizeDashboardMenu) {
@@ -1449,18 +1449,18 @@ const Dashboard = () => {
   }, [user?.id, canCustomizeDashboardMenu]);
 
   useEffect(() => {
-    if (!user?.id || !isOicUser) {
-      setOicHasPrint3dEquipment(false);
+    if (!user?.id || !(isOicUser || isDeptAdmin)) {
+      setHasFabricationEquipment(false);
       return;
     }
     let cancelled = false;
-    void apiClient.getOicEquipmentSettings().then((res) => {
-      if (!cancelled) setOicHasPrint3dEquipment(Boolean(res.data?.has_print_3d_equipment));
+    void apiClient.getFabricationMaterialEquipment().then((res) => {
+      if (!cancelled) setHasFabricationEquipment(Boolean(res.data?.has_fabrication_equipment));
     });
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isOicUser]);
+  }, [user?.id, isOicUser, isDeptAdmin]);
 
   const saveDashboardMenuLayout = useCallback(async (layout: DashboardMenuLayout) => {
     const res = await apiClient.saveDashboardMenuLayout(layout);
@@ -2761,9 +2761,9 @@ const Dashboard = () => {
     },
     {
       id: "3d_print_materials",
-      label: "3D print materials",
+      label: "Fabrication materials",
       path: "/oic/print-materials",
-      visible: Boolean(isAdmin || (isOicUser && oicHasPrint3dEquipment)),
+      visible: Boolean(isAdmin || ((isOicUser || isDeptAdmin) && hasFabricationEquipment)),
       render: () => (
           <Card
               className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
@@ -2775,9 +2775,9 @@ const Dashboard = () => {
                     <PackageOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">3D print materials</CardTitle>
+                    <CardTitle className="text-lg">Fabrication materials</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Add, edit, enable, or disable filament materials for 3D printers
+                      3D print materials, laser cutting sheets, own-material charges and lab notification emails
                     </CardDescription>
                   </div>
                 </div>

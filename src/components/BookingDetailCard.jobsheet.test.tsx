@@ -80,6 +80,39 @@ describe("BookingDetailCard job sheet", () => {
     }
   });
 
+  it("shows Lab Operators the laser parts, the own-material flag and DXF downloads", () => {
+    const laser = {
+      ...booking,
+      equipment_profile_type: "LASER_CUT_2D",
+      own_material: true,
+      fabrication_parts: [
+        {
+          kind: "laser",
+          analysis_id: "a1",
+          name: "Bracket",
+          filename: "bracket.dxf",
+          quantity: 5,
+          material_name: "Acrylic sheet 3 mm",
+          width_mm: "200.00",
+          height_mm: "100.00",
+          area_mm2: "20000.00",
+        },
+      ],
+      fabrication_file_changes: [],
+      fabrication_files_replaceable: { allowed: false, reason: null },
+    } as unknown as BookingDetailCardBooking;
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <BookingDetailCard booking={laser} onClose={() => {}} onUpdated={() => {}} isOperator currentUserType="operator" currentUserId={99} />
+      </MemoryRouter>,
+    );
+    expect(html).toContain("Job sheet");
+    expect(html).toContain("Laser cutting parts");
+    expect(html).toContain("Acrylic sheet 3 mm · 200 × 100 mm (0.0200 m² each)");
+    expect(html).toContain("User brings own material");
+    expect(html).toContain("Download bracket.dxf");
+  });
+
   it("leaves the booking owner's view unchanged", () => {
     const html = renderCard({ isOperator: false, currentUserType: "faculty", currentUserId: 7 });
     expect(html).not.toContain("Job sheet");

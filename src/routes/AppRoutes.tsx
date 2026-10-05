@@ -373,7 +373,8 @@ export default function AppRoutes() {
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
           <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
-          <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="3D Print Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
+          <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="Fabrication Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
+          <Route path="/oic/fabrication-materials" element={<Navigate to="/oic/print-materials" replace />} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
           <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Equipment Booking Configuration" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
           <Route path="/oic/multi-mode" element={<Navigate to="/multi-mode-equipment" replace />} />

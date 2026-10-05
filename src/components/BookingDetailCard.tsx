@@ -4,9 +4,13 @@ import {
   apiClient,
   type BookingLabMessageThread,
   type BookingResultsDeadline,
+  type FabricationFileChange,
+  type FabricationPart,
   type LabOutreachKind,
   type PrintAnalysisResult,
 } from "@/lib/api";
+import { FabricationBookingParts } from "@/components/FabricationBookingParts";
+import { isFabricationProfile } from "@/lib/fabricationProfiles";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
@@ -288,6 +292,11 @@ export interface BookingDetailCardBooking extends BookingRef {
   equipment_profile_type?: string;
   print_analysis?: PrintAnalysisResult | null;
   print_analyses?: PrintAnalysisResult[];
+  own_material?: boolean;
+  own_material_fixed_charge?: string | null;
+  fabrication_parts?: FabricationPart[];
+  fabrication_file_changes?: FabricationFileChange[];
+  fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
 }
 
 type ActionType =
@@ -3468,7 +3477,20 @@ export function BookingDetailCard({
             </DialogContent>
           </Dialog>
 
-          {!isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&
+          {!isFinanceUser && isFabricationProfile(booking.equipment_profile_type) && Array.isArray(booking.fabrication_parts) ? (
+            <FabricationBookingParts
+              booking={booking}
+              onUpdated={(updated) => {
+                if (updated && typeof updated === "object" && "booking_id" in updated) {
+                  setBooking(updated as unknown as BookingDetailCardBooking);
+                } else if (bookingPk != null) {
+                  void apiClient.getBooking(bookingPk).then((res) => {
+                    if (res.data) setBooking(res.data as BookingDetailCardBooking);
+                  });
+                }
+              }}
+            />
+          ) : !isFinanceUser && booking.equipment_profile_type === "PRINT_3D" &&
             (booking.print_analyses?.length || booking.print_analysis) && (
             <div className="rounded-lg border p-4 space-y-2">
               <p className="text-sm font-medium">Print files</p>

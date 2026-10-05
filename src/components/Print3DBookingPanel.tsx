@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
@@ -49,6 +51,12 @@ export function formatPrintWeightGrams(value: number | string | null | undefined
 export interface Print3DFileItem {
   id: string;
   filename: string;
+  partName: string;
+  quantity: number;
+  /** One copy. */
+  weightGramsEach: number;
+  timeMinutesEach: number;
+  /** All copies (each × quantity). */
   weightGrams: number;
   timeMinutes: number;
   status: PrintAnalysisResult["status"];
@@ -57,10 +65,14 @@ export interface Print3DFileItem {
 export interface Print3DBookingValues {
   analysisId?: string;
   batchId?: string;
+  /** Totals for all files and copies. */
   weightGrams: number;
   materialCode: string;
   timeMinutes: number;
   items: Print3DFileItem[];
+  /** Changes whenever quantities, material or the own-material choice change. */
+  partsKey: string;
+  ownMaterial: boolean;
 }
 
 interface Print3DBookingPanelProps {
@@ -69,9 +81,29 @@ interface Print3DBookingPanelProps {
   bedSize?: { x: number; y: number; z: number };
   /** When set (charge estimate), load materials for this user type without login. */
   estimateUserType?: string;
+  /** Equipment's fixed own-material charge; null/undefined hides the option. */
+  ownMaterialCharge?: string | number | null;
   onReady: (values: Print3DBookingValues | null) => void;
   onAnalyzingChange?: (analyzing: boolean) => void;
   disabled?: boolean;
+}
+
+export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename?: string): Print3DFileItem {
+  const filename = a.stl_filename || fallbackFilename || "model.stl";
+  const quantity = Math.max(1, Math.floor(Number(a.quantity) || 1));
+  const weightEach = ceilPrintWeightGrams(a.weight_grams);
+  const timeEach = Number(a.estimated_time_minutes ?? 0);
+  return {
+    id: a.id,
+    filename,
+    partName: a.part_name || a.display_part_name || filename.replace(/\.stl$/i, ""),
+    quantity,
+    weightGramsEach: weightEach,
+    timeMinutesEach: timeEach,
+    weightGrams: weightEach * quantity,
+    timeMinutes: timeEach * quantity,
+    status: a.status,
+  };
 }
 
 function isBatchResult(
@@ -169,15 +201,7 @@ function pollBatchUntilComplete(
 }
 
 function buildItemsFromBatch(batch: PrintAnalysisBatchResult): Print3DFileItem[] {
-  return batch.items
-    .filter((i) => i.status === "COMPLETED")
-    .map((i) => ({
-      id: i.id,
-      filename: i.stl_filename || i.id,
-      weightGrams: ceilPrintWeightGrams(i.weight_grams),
-      timeMinutes: Number(i.estimated_time_minutes ?? 0),
-      status: i.status,
-    }));
+  return batch.items.filter((i) => i.status === "COMPLETED").map((i) => print3DItemFromAnalysis(i, i.id));
 }
 
 export function Print3DBookingPanel({
@@ -185,6 +209,7 @@ export function Print3DBookingPanel({
   materials: materialsProp,
   bedSize = { x: 220, y: 220, z: 250 },
   estimateUserType,
+  ownMaterialCharge,
   onReady,
   onAnalyzingChange,
   disabled,
@@ -210,8 +235,17 @@ export function Print3DBookingPanel({
   const [analysis, setAnalysis] = useState<PrintAnalysisResult | null>(null);
   const [batch, setBatch] = useState<PrintAnalysisBatchResult | null>(null);
   const [progress, setProgress] = useState(0);
+  const [ownMaterial, setOwnMaterial] = useState(false);
+  const [savingPartIds, setSavingPartIds] = useState<Set<string>>(new Set());
+  const [partDrafts, setPartDrafts] = useState<Record<string, { name: string; qty: string }>>({});
+  const ownMaterialRef = useRef(false);
+  ownMaterialRef.current = ownMaterial;
+  const lastReadyRef = useRef<{ items: Print3DFileItem[]; code: string } | null>(null);
 
-  const busy = analyzingStl || recalculating;
+  const ownMaterialAvailable =
+    ownMaterialCharge !== null && ownMaterialCharge !== undefined && String(ownMaterialCharge) !== "";
+
+  const busy = analyzingStl || recalculating || savingPartIds.size > 0;
 
   useEffect(() => {
     onAnalyzingChange?.(busy);
@@ -288,28 +322,25 @@ export function Print3DBookingPanel({
 
   const completedItems = useMemo(() => {
     if (batch) return buildItemsFromBatch(batch);
-    if (analysis?.status === "COMPLETED") {
-      return [
-        {
-          id: analysis.id,
-          filename: analysis.stl_filename || file?.name || "model.stl",
-          weightGrams: ceilPrintWeightGrams(analysis.weight_grams),
-          timeMinutes: Number(analysis.estimated_time_minutes ?? 0),
-          status: analysis.status,
-        },
-      ];
-    }
+    if (analysis?.status === "COMPLETED") return [print3DItemFromAnalysis(analysis, file?.name)];
     return [];
   }, [analysis, batch, file?.name]);
+
+  const clearReady = useCallback(() => {
+    lastReadyRef.current = null;
+    onReady(null);
+  }, [onReady]);
 
   const applyReadyValues = useCallback(
     (items: Print3DFileItem[], materialCode: string) => {
       if (!items.length || !materialCode) {
-        onReady(null);
+        clearReady();
         return;
       }
+      lastReadyRef.current = { items, code: materialCode };
       const totalWeight = items.reduce((sum, i) => sum + i.weightGrams, 0);
       const totalTime = items.reduce((sum, i) => sum + i.timeMinutes, 0);
+      const own = ownMaterialRef.current;
       onReady({
         analysisId: items.length === 1 ? items[0].id : analysisIdRef.current ?? undefined,
         batchId: batchIdRef.current ?? undefined,
@@ -317,40 +348,42 @@ export function Print3DBookingPanel({
         materialCode,
         timeMinutes: totalTime,
         items,
+        partsKey: JSON.stringify([own, materialCode, items.map((i) => [i.id, i.quantity, i.weightGramsEach, i.timeMinutesEach])]),
+        ownMaterial: own,
       });
     },
-    [onReady],
+    [clearReady, onReady],
   );
+
+  useEffect(() => {
+    if (!ownMaterialAvailable && ownMaterial) setOwnMaterial(false);
+  }, [ownMaterialAvailable, ownMaterial]);
+
+  useEffect(() => {
+    const last = lastReadyRef.current;
+    if (last) applyReadyValues(last.items, last.code);
+    // Only the own-material choice re-emits here; file and material changes emit from their own handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownMaterial]);
 
   const applySingleAnalysis = useCallback(
     (data: PrintAnalysisResult) => {
       setAnalysis(data);
       setBatch(null);
       if (data.status !== "COMPLETED") {
-        onReady(null);
+        clearReady();
         return;
       }
       analysisIdRef.current = data.id;
       batchIdRef.current = null;
       const code = data.material_code_snapshot || selectedMaterial?.code;
       if (!code) {
-        onReady(null);
+        clearReady();
         return;
       }
-      applyReadyValues(
-        [
-          {
-            id: data.id,
-            filename: data.stl_filename || file?.name || "model.stl",
-            weightGrams: ceilPrintWeightGrams(data.weight_grams),
-            timeMinutes: Number(data.estimated_time_minutes ?? 0),
-            status: data.status,
-          },
-        ],
-        code,
-      );
+      applyReadyValues([print3DItemFromAnalysis(data, file?.name)], code);
     },
-    [applyReadyValues, file?.name, onReady, selectedMaterial?.code],
+    [applyReadyValues, clearReady, file?.name, selectedMaterial?.code],
   );
 
   const applyBatchAnalysis = useCallback(
@@ -362,13 +395,71 @@ export function Print3DBookingPanel({
       const items = buildItemsFromBatch(data);
       const code = data.material_code_snapshot || selectedMaterial?.code || "";
       if (!items.length || !code) {
-        onReady(null);
+        clearReady();
         return;
       }
       applyReadyValues(items, code);
     },
-    [applyReadyValues, onReady, selectedMaterial?.code],
+    [applyReadyValues, clearReady, selectedMaterial?.code],
   );
+
+  const savePart = useCallback(
+    async (itemId: string, data: { part_name?: string; quantity?: number }) => {
+      setSavingPartIds((s) => new Set(s).add(itemId));
+      try {
+        const res = await apiClient.updatePrintAnalysisPart(itemId, data);
+        if (res.error || !res.data) {
+          toast.error(res.error || "Could not update the part.");
+          return false;
+        }
+        const updated = res.data;
+        const merge = (a: PrintAnalysisResult): PrintAnalysisResult =>
+          a.id === updated.id
+            ? { ...a, part_name: updated.part_name, display_part_name: updated.display_part_name, quantity: updated.quantity }
+            : a;
+        const code = lastReadyRef.current?.code;
+        if (batch) {
+          const nextBatch = { ...batch, items: batch.items.map(merge) };
+          setBatch(nextBatch);
+          if (code) applyReadyValues(buildItemsFromBatch(nextBatch), code);
+        } else if (analysis) {
+          const next = merge(analysis);
+          setAnalysis(next);
+          if (code) applyReadyValues([print3DItemFromAnalysis(next, file?.name)], code);
+        }
+        return true;
+      } finally {
+        setSavingPartIds((s) => {
+          const next = new Set(s);
+          next.delete(itemId);
+          return next;
+        });
+      }
+    },
+    [analysis, applyReadyValues, batch, file?.name],
+  );
+
+  const partDraft = (item: Print3DFileItem) => partDrafts[item.id] ?? { name: item.partName, qty: String(item.quantity) };
+
+  const commitPartName = async (item: Print3DFileItem) => {
+    const draft = partDrafts[item.id];
+    if (!draft || draft.name.trim() === item.partName) return;
+    await savePart(item.id, { part_name: draft.name.trim() });
+  };
+
+  const commitPartQty = async (item: Print3DFileItem) => {
+    const draft = partDrafts[item.id];
+    if (!draft) return;
+    const qty = Number(draft.qty);
+    const reset = () => setPartDrafts((d) => ({ ...d, [item.id]: { ...draft, qty: String(item.quantity) } }));
+    if (!Number.isInteger(qty) || qty < 1) {
+      toast.error("Number of copies must be a whole number of at least 1.");
+      reset();
+      return;
+    }
+    if (qty === item.quantity) return;
+    if (!(await savePart(item.id, { quantity: qty }))) reset();
+  };
 
   const runFullAnalysis = useCallback(
     async (selectedFile: File) => {
@@ -383,9 +474,8 @@ export function Print3DBookingPanel({
       setBatch(null);
       analysisIdRef.current = null;
       batchIdRef.current = null;
-      onReady(null);
-
-      const zip = selectedFile.name.toLowerCase().endsWith(".zip");
+      setPartDrafts({});
+      clearReady();
 
       try {
         const res = await apiClient.analyzeEquipmentStl(equipmentId, {
@@ -457,7 +547,7 @@ export function Print3DBookingPanel({
         setAnalyzingStl(false);
       }
     },
-    [applyBatchAnalysis, applySingleAnalysis, density, equipmentId, materialId, onReady],
+    [applyBatchAnalysis, applySingleAnalysis, clearReady, density, equipmentId, materialId],
   );
 
   const recalculateFromSettings = useCallback(async () => {
@@ -573,7 +663,8 @@ export function Print3DBookingPanel({
     setAnalysis(null);
     setBatch(null);
     setProgress(0);
-    onReady(null);
+    setPartDrafts({});
+    clearReady();
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -757,84 +848,127 @@ export function Print3DBookingPanel({
           </div>
         )}
 
-        {completedItems.length > 0 && !busy && (
+        {completedItems.length > 0 && !analyzingStl && !recalculating && (
           <>
             <Separator />
-            {completedItems.length > 1 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Files ({completedItems.length})</p>
-                <div className="rounded-md border divide-y max-h-48 overflow-y-auto">
-                  {completedItems.map((item, idx) => {
-                    const zipIdx = zipStlEntries.findIndex(
-                      (e) => e.filename === item.filename || e.filename.toLowerCase() === item.filename.toLowerCase(),
-                    );
-                    const previewIdx = zipIdx >= 0 ? zipIdx : idx;
-                    const isActive = isZipUpload && previewEntries.length > 1 && previewIdx === previewIndex;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={cn(
-                          "flex w-full justify-between gap-2 p-3 text-sm text-left transition-colors",
-                          isZipUpload && zipStlEntries.length > 0 && "hover:bg-muted/60 cursor-pointer",
-                          isActive && "bg-primary/10",
-                        )}
-                        onClick={() => {
-                          if (isZipUpload && zipStlEntries.length > 0) goToPreview(previewIdx);
-                        }}
-                      >
-                        <span className="truncate font-medium">{item.filename}</span>
-                        <span className="text-muted-foreground shrink-0">
-                          {formatPrintWeightGrams(item.weightGrams)} · {item.timeMinutes} min
+            <div className="space-y-2" data-testid="print-parts">
+              <p className="text-sm font-medium">
+                {completedItems.length > 1 ? `Parts (${completedItems.length})` : "Part"}
+              </p>
+              <div className="divide-y rounded-md border">
+                {completedItems.map((item, idx) => {
+                  const draft = partDraft(item);
+                  const zipIdx = zipStlEntries.findIndex((e) => e.filename.toLowerCase() === item.filename.toLowerCase());
+                  const previewIdx = zipIdx >= 0 ? zipIdx : idx;
+                  const canPreview = isZipUpload && zipStlEntries.length > 1;
+                  const isActive = canPreview && previewIdx === previewIndex;
+                  return (
+                    <div
+                      key={item.id}
+                      data-testid={`print-part-${item.id}`}
+                      className={cn("space-y-2 p-3", isActive && "bg-primary/10")}
+                    >
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem]">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground" htmlFor={`print-part-name-${item.id}`}>
+                            Part name
+                          </Label>
+                          <Input
+                            id={`print-part-name-${item.id}`}
+                            value={draft.name}
+                            maxLength={255}
+                            disabled={disabled}
+                            onFocus={() => canPreview && goToPreview(previewIdx)}
+                            onChange={(e) =>
+                              setPartDrafts((d) => ({ ...d, [item.id]: { ...partDraft(item), name: e.target.value } }))
+                            }
+                            onBlur={() => void commitPartName(item)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground" htmlFor={`print-part-qty-${item.id}`}>
+                            Copies
+                          </Label>
+                          <Input
+                            id={`print-part-qty-${item.id}`}
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            step={1}
+                            value={draft.qty}
+                            disabled={disabled}
+                            onFocus={() => canPreview && goToPreview(previewIdx)}
+                            onChange={(e) =>
+                              setPartDrafts((d) => ({ ...d, [item.id]: { ...partDraft(item), qty: e.target.value } }))
+                            }
+                            onBlur={() => void commitPartQty(item)}
+                          />
+                        </div>
+                      </div>
+                      <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                        <span className="truncate">{item.filename}</span>
+                        <span>
+                          {formatPrintWeightGrams(item.weightGramsEach)} · {item.timeMinutesEach} min each
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <dl className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground">Total weight</dt>
-                    <dd className="font-medium">{formatPrintWeightGrams(totals.weight)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Total print time</dt>
-                    <dd className="font-medium">{totals.time} min</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Density</dt>
-                    <dd className="font-medium">{density}%</dd>
-                  </div>
-                </dl>
+                        {item.quantity > 1 && (
+                          <span className="font-medium text-foreground" data-testid="print-part-total">
+                            × {item.quantity} = {formatPrintWeightGrams(item.weightGrams)} · {item.timeMinutes} min
+                          </span>
+                        )}
+                        {savingPartIds.has(item.id) && <span>Saving…</span>}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
-            ) : (
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div>
-                  <dt className="text-muted-foreground">Weight</dt>
-                  <dd className="font-medium">{formatPrintWeightGrams(totals.weight)}</dd>
+                  <dt className="text-muted-foreground">Total weight</dt>
+                  <dd className="font-medium" data-testid="print-total-weight">
+                    {formatPrintWeightGrams(totals.weight)}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Print time</dt>
-                  <dd className="font-medium">{totals.time} min</dd>
+                  <dt className="text-muted-foreground">Total print time</dt>
+                  <dd className="font-medium" data-testid="print-total-time">
+                    {totals.time} min
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Density</dt>
                   <dd className="font-medium">{density}%</dd>
                 </div>
-                {analysis?.analysis_method ? (
+                {completedItems.length === 1 && analysis?.analysis_method ? (
                   <div>
                     <dt className="text-muted-foreground">Method</dt>
                     <dd className="font-medium">{analysis.analysis_method}</dd>
                   </div>
                 ) : null}
-                {analysis?.volume_cm3 != null ? (
+                {completedItems.length === 1 && analysis?.volume_cm3 != null ? (
                   <div>
-                    <dt className="text-muted-foreground">Volume</dt>
+                    <dt className="text-muted-foreground">Volume (one copy)</dt>
                     <dd className="font-medium">{Number(analysis.volume_cm3).toFixed(2)} cm³</dd>
                   </div>
                 ) : null}
               </dl>
-            )}
+            </div>
           </>
+        )}
+        {ownMaterialAvailable && (
+          <label className="flex cursor-pointer items-start gap-2 rounded-md border p-3 text-sm">
+            <Checkbox
+              checked={ownMaterial}
+              onCheckedChange={(v) => setOwnMaterial(v === true)}
+              disabled={disabled}
+              aria-label="I will bring my own printing material"
+            />
+            <span>
+              I will bring my own printing material.
+              <span className="block text-xs text-muted-foreground">
+                A fixed charge of ₹{Number(ownMaterialCharge).toFixed(2)} replaces the material cost.
+              </span>
+            </span>
+          </label>
         )}
         {(analysis?.status === "FAILED" || batch?.status === "FAILED") && (
           <p className="text-sm text-destructive">
