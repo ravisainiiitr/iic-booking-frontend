@@ -135,7 +135,7 @@ export default function OICAccessories() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-4xl space-y-6">
         <StandaloneOnly>
-          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
             <Button
               type="button"
               variant="ghost"

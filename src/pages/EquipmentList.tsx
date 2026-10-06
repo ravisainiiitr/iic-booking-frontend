@@ -454,7 +454,7 @@ const EquipmentList = () => {
       <DashboardHeader />
       <main className={embedded ? "container mx-auto px-3 py-4" : "container mx-auto px-4 py-8"}>
         {!embedded && (
-          <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
+          <div className="mb-5 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-5 text-white shadow-lg">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
                 <Package className="h-5 w-5" />
@@ -556,7 +556,7 @@ const EquipmentList = () => {
 
         {showCatalogLoading ? (
           <div className="flex flex-col items-center justify-center py-24">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-lg mb-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand text-white shadow-lg mb-6">
               <Loader2 className="h-7 w-7 animate-spin" />
             </div>
             <p className="text-lg font-medium text-foreground">Loading equipment...</p>

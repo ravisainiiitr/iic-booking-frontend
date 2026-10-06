@@ -686,7 +686,7 @@ export default function OICLeaveManagement() {
             </Button>
           </div>
         ) : (
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <Button
@@ -720,7 +720,7 @@ export default function OICLeaveManagement() {
           <Card className="border-0 shadow-md">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                   <Calendar className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -835,7 +835,7 @@ export default function OICLeaveManagement() {
           <Card className="border-0 shadow-md">
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                   <Calendar className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -1049,7 +1049,7 @@ export default function OICLeaveManagement() {
               </div>
 
               <Button
-                className="h-11 w-full bg-primary text-white hover:bg-primary/90"
+                className="h-11 w-full bg-brand text-white hover:bg-brand/90"
                 disabled={!canSubmit || submitting}
                 onClick={async () => {
                   if (startDate === endDate && startSession === "AN" && endSession === "FN") {

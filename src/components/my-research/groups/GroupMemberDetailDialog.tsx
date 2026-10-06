@@ -91,7 +91,7 @@ export function GroupMemberDetailDialog({ groupId, memberId, onOpenChange, categ
 
   return (
     <Dialog open={memberId != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>{detail?.user.name ?? "Member"}</DialogTitle>
           <DialogDescription>

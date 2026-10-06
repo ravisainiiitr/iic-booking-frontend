@@ -79,7 +79,7 @@ export default function WalletFundReceiptFollowUpAlert({ onReview }: { onReview:
               the fund receipt.
             </DialogDescription>
           </DialogHeader>
-          <div className="max-h-[50vh] overflow-auto rounded-md border">
+          <div className="max-h-[50dvh] overflow-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
                 <tr>

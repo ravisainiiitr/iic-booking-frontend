@@ -862,6 +862,7 @@ export default function RescheduleSlotPicker({
                       onClick={() => slot && toggleSlot(slot)}
                       className={`
                         p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
+                        ${baseStyle ? "calendar-color-cell" : ""}
                         ${!slot && !holidayColorReschedule ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
                         ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
                         ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold pointer-events-none" : ""}

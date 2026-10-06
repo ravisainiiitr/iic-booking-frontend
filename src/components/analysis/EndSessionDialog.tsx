@@ -265,7 +265,7 @@ export function EndSessionDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl" data-testid="end-session-dialog">
+      <DialogContent className="flex max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-2xl" data-testid="end-session-dialog">
         <DialogHeader className="border-b px-6 pb-4 pt-6">
           <DialogTitle className="flex items-center gap-2 text-lg">
             {browsing ? (

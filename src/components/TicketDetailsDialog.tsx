@@ -334,7 +334,7 @@ export default function TicketDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden p-0 gap-0">
+      <DialogContent className="max-w-4xl max-h-[92dvh] overflow-hidden p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b bg-gradient-to-r from-primary/5 to-background dark:from-primary/15">
           <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
             <div className="min-w-0 space-y-1">
@@ -352,8 +352,8 @@ export default function TicketDetailsDialog({
           </div>
         </DialogHeader>
 
-        <div className="grid lg:grid-cols-[1fr_240px] max-h-[calc(92vh-5.5rem)] overflow-hidden">
-          <ScrollArea className="max-h-[calc(92vh-5.5rem)]">
+        <div className="grid lg:grid-cols-[1fr_240px] max-h-[calc(92dvh-5.5rem)] overflow-hidden">
+          <ScrollArea className="max-h-[calc(92dvh-5.5rem)]">
             <div className="px-6 py-5 space-y-5">
               {loading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -725,7 +725,7 @@ export default function TicketDetailsDialog({
           </ScrollArea>
 
           {/* Timeline */}
-          <aside className="border-t lg:border-t-0 lg:border-l bg-muted/20 max-h-[calc(92vh-5.5rem)] overflow-auto p-4 space-y-3">
+          <aside className="border-t lg:border-t-0 lg:border-l bg-muted/20 max-h-[calc(92dvh-5.5rem)] overflow-auto p-4 space-y-3">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Clock3 className="h-4 w-4" />
               Timeline

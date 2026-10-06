@@ -95,7 +95,7 @@ function Reports() {
         <Field label="To"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       </div>
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
-      <div className="max-h-[60vh] overflow-auto">
+      <div className="max-h-[60dvh] overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>{(q.data?.headers ?? []).map((h) => <TableHead key={h} className="whitespace-nowrap">{h}</TableHead>)}</TableRow>

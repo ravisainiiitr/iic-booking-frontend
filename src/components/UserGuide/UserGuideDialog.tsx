@@ -183,7 +183,7 @@ export default function UserGuideDialog({
             "fixed z-50 flex flex-col overflow-hidden border-0 bg-background shadow-2xl outline-none",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             mode === "maximized" && "inset-2 rounded-xl sm:inset-4",
-            mode === "normal" && "h-[min(92vh,40rem)] w-[min(100vw-1rem,56rem)] rounded-xl",
+            mode === "normal" && "h-[min(92dvh,40rem)] w-[min(100vw-1rem,56rem)] rounded-xl",
             mode === "minimized" && "w-[min(100vw-2rem,22rem)] rounded-lg shadow-xl"
           )}
           style={mode === "maximized" ? undefined : { left: pos.x, top: pos.y, right: "auto", bottom: "auto", transform: "none" }}
@@ -198,7 +198,7 @@ export default function UserGuideDialog({
         >
           <div
             className={cn(
-              "relative shrink-0 select-none bg-gradient-to-br from-primary via-primary to-accent text-white",
+              "relative shrink-0 select-none bg-gradient-to-br from-brand via-brand to-brand-accent text-white",
               mode === "minimized" ? "px-3 py-2" : "px-4 py-3 sm:px-5",
               mode !== "maximized" && "cursor-grab active:cursor-grabbing"
             )}

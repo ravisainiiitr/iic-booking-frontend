@@ -105,7 +105,7 @@ export function NewBookingTemplateDialog({ open, onOpenChange, initialDepartment
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-2xl">
         <DialogHeader className="border-b border-border/60 px-6 pb-4 pt-6">
           <DialogTitle>New booking template</DialogTitle>
           <DialogDescription>
@@ -171,7 +171,7 @@ export function NewBookingTemplateDialog({ open, onOpenChange, initialDepartment
                   : "No equipment matches your search."}
               </div>
             ) : (
-              <ScrollArea className="h-[min(22rem,45vh)]">
+              <ScrollArea className="h-[min(22rem,45dvh)]">
                 <ul className="divide-y divide-border/60" role="listbox" aria-label="Equipment">
                   {visibleRows.map(({ equipment: eq, parentName }) => {
                     const id = Number(eq.equipment_id);

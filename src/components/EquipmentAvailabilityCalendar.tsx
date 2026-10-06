@@ -307,7 +307,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     return (
       <div
         key={dateStr}
-        className="flex min-h-[48px] w-full items-center justify-center rounded-md border-2 border-white/50 p-2 text-center text-xs font-medium leading-tight shadow-sm sm:text-sm"
+        className="calendar-color-cell flex min-h-[48px] w-full items-center justify-center rounded-md border-2 border-white/50 p-2 text-center text-xs font-medium leading-tight shadow-sm sm:text-sm"
         style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
         title={restrictedToStaff ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to) : hover}
       >
@@ -424,7 +424,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
         {legend.map((item) => (
           <span key={item.label} className="inline-flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-sm border border-black/10" style={{ backgroundColor: item.color }} />
+            <span className="calendar-color-cell h-3 w-3 rounded-sm border border-black/10 dark:border-white/20" style={{ backgroundColor: item.color }} />
             {item.label}
           </span>
         ))}

@@ -548,7 +548,7 @@ export function LabOperatorWeekCalendarGrid({
                       }}
                       disabled={!canOpenBooking}
                       className={`
-                          group relative p-2 sm:p-2.5 rounded-lg text-sm transition-all min-h-[52px] sm:min-h-[58px] flex items-center justify-center border border-white/40 shadow-sm
+                          calendar-color-cell group relative p-2 sm:p-2.5 rounded-lg text-sm transition-all min-h-[52px] sm:min-h-[58px] flex items-center justify-center border border-white/40 shadow-sm
                           ${!slotExists ? "cursor-default" : ""}
                           ${canOpenBooking ? "cursor-pointer hover:shadow-md hover:ring-2 hover:ring-primary/35 hover:-translate-y-px" : ""}
                           ${!canOpenBooking && slotExists ? "cursor-default" : ""}

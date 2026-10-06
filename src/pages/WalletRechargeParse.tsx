@@ -2084,7 +2084,7 @@ const WalletRechargeParsePage = () => {
             }
           }}
         >
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto border-border/60 bg-card/95 shadow-xl">
+          <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto border-border/60 bg-card/95 shadow-xl">
             <DialogHeader>
               <DialogTitle>Edit wallet recharge row</DialogTitle>
               <DialogDescription>
@@ -2334,7 +2334,7 @@ const WalletRechargeParsePage = () => {
             }
           }}
         >
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto border-border/60 bg-card/95 shadow-xl">
+          <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto border-border/60 bg-card/95 shadow-xl">
             <DialogHeader>
               <DialogTitle>Faculty recharge request (unmatched row)</DialogTitle>
               <DialogDescription>

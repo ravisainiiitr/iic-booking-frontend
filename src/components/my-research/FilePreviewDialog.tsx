@@ -87,7 +87,7 @@ export function FilePreviewDialog({ file, onOpenChange, onDownload }: Props) {
 
   return (
     <Dialog open={file != null} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] flex-col gap-3 sm:max-w-5xl">
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-3 sm:max-w-5xl">
         <DialogHeader className="flex-row items-start justify-between gap-4 space-y-0 pr-8">
           <div className="min-w-0">
             <DialogTitle className="truncate">{file?.name}</DialogTitle>
@@ -99,20 +99,20 @@ export function FilePreviewDialog({ file, onOpenChange, onDownload }: Props) {
             </Button>
           ) : null}
         </DialogHeader>
-        <div className="min-h-[50vh] flex-1 overflow-auto rounded-md border bg-muted/30">
+        <div className="min-h-[50dvh] flex-1 overflow-auto rounded-md border bg-muted/30">
           {loading ? (
-            <div className="flex h-full min-h-[50vh] items-center justify-center">
+            <div className="flex h-full min-h-[50dvh] items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <p className="flex h-full min-h-[50vh] items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            <p className="flex h-full min-h-[50dvh] items-center justify-center px-6 text-center text-sm text-muted-foreground">
               {error}
             </p>
           ) : url && file?.preview_kind === "pdf" ? (
-            <iframe title={file.name} src={url} className="h-[75vh] w-full bg-white" />
+            <iframe title={file.name} src={url} className="h-[75dvh] w-full bg-white" />
           ) : url && file?.preview_kind === "image" ? (
-            <div className="flex min-h-[50vh] items-center justify-center p-4">
-              <img src={url} alt={file.name} className="max-h-[75vh] max-w-full object-contain" />
+            <div className="flex min-h-[50dvh] items-center justify-center p-4">
+              <img src={url} alt={file.name} className="max-h-[75dvh] max-w-full object-contain" />
             </div>
           ) : csvRows ? (
             <table className="w-full border-collapse text-xs">

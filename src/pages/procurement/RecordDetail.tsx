@@ -502,7 +502,7 @@ function BillDialog({ open, onOpenChange, recordId, onSaved }: { open: boolean; 
   const { busy, run } = useRunner();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add bill</DialogTitle>
           <DialogDescription>Attach every page of the bill.</DialogDescription>
@@ -603,7 +603,7 @@ export function AssetRegisterDialog({
   const serials = f.serials.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Register asset(s)</DialogTitle>
           <DialogDescription>

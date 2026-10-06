@@ -57,7 +57,7 @@ export function BookingActionBar({ summary, children, className }: Props) {
       ref={ref}
       data-testid="booking-action-bar"
       className={cn(
-        "sticky bottom-0 z-30 -mx-4 mt-3 border-t border-border/80 bg-background/95 px-4 py-2 shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:-mx-6 md:px-6",
+        "sticky bottom-0 z-30 -mx-4 mt-3 border-t border-border/80 bg-background/95 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-6px_16px_-10px_rgba(0,0,0,0.25)] backdrop-blur supports-[backdrop-filter]:bg-background/85 md:-mx-6 md:px-6",
         className,
       )}
     >

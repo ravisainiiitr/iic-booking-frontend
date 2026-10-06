@@ -2033,7 +2033,7 @@ const MyBookings = () => {
             }
           }}
         >
-          <AlertDialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <AlertDialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
             <AlertDialogHeader>
               <AlertDialogTitle>{selectedBooking && isWaitlistedEntry(selectedBooking) ? "Cancel Waitlisted Booking" : "Cancel Booking"}</AlertDialogTitle>
               <AlertDialogDescription>
@@ -2367,7 +2367,7 @@ const MyBookings = () => {
 
         {/* Reschedule Booking Dialog */}
         <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
-          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Reschedule Booking</DialogTitle>
               <DialogDescription>

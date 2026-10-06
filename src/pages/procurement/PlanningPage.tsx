@@ -346,7 +346,7 @@ function DecideDialog({ proposal, onClose, hod, offline, onSaved }: { proposal: 
   const ok = (decision === "APPROVE" || comments.trim()) && (!isOffline || (approver.name.trim() && approver.designation.trim() && files.length === 1));
   return (
     <Dialog open={!!proposal} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Decide {proposal?.number}</DialogTitle>
           <DialogDescription>Approve all, approve partial amounts per requirement, or reject with a reason.</DialogDescription>

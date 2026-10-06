@@ -90,7 +90,7 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
             className="pl-9"
           />
         </div>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+        <div className="max-h-[50dvh] overflow-y-auto rounded-md border">
           {loading && results.length === 0 ? (
             <Loader2 className="mx-auto my-6 h-5 w-5 animate-spin text-muted-foreground" />
           ) : results.length === 0 ? (

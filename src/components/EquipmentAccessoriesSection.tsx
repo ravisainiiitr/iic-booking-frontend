@@ -192,7 +192,7 @@ export function EquipmentAccessoriesSection({
         {hasAccessories && (
           <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 via-background to-background p-4 dark:border-accent/40 dark:from-accent/15">
             <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white shadow-sm">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-accent text-white shadow-sm">
                 <Wrench className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
@@ -234,7 +234,7 @@ export function EquipmentAccessoriesSection({
           <div className="h-1.5 w-full bg-gradient-to-r from-accent via-primary to-emerald-500" />
           <CardHeader className="pb-2">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-accent to-brand text-white shadow-md">
                 <Wrench className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
@@ -259,7 +259,7 @@ export function EquipmentAccessoriesSection({
           <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary" />
           <CardHeader className="pb-2">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-md">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-md">
                 <Briefcase className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">

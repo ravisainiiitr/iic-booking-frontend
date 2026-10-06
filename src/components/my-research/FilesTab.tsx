@@ -573,7 +573,7 @@ export function FilesTab({
             <DialogTitle>Move “{moveTarget?.kind === "folder" ? moveTarget.folder.name : moveTarget?.file.name}”</DialogTitle>
             <DialogDescription>Choose the destination folder.</DialogDescription>
           </DialogHeader>
-          <div className="max-h-[45vh] overflow-y-auto rounded-md border p-2">
+          <div className="max-h-[45dvh] overflow-y-auto rounded-md border p-2">
             {moveTarget ? (
               <FolderTree
                 workspaceId={workspaceId}

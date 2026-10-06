@@ -574,7 +574,7 @@ export default function AnalysisLaunchPage() {
       )}
 
       {phase === "prepare" && (
-        <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
+        <div className="mx-auto flex min-h-[calc(100dvh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
           <div className="flex items-center justify-between gap-3">
             <p className="min-w-0 text-sm font-medium text-slate-600 dark:text-muted-foreground">
               {equipment} · Booking {virtualId}

@@ -322,12 +322,14 @@ const DashboardHeader = () => {
   return (
     <>
     <SkipToContent />
-    <header className="border-b border-border/70 bg-card/80 backdrop-blur-md sticky top-0 z-20 shadow-sm shadow-primary/5">
+    <header className="sticky top-0 z-20 border-b border-border/70 bg-card/95 pt-safe px-safe shadow-sm shadow-primary/5 backdrop-blur-md supports-[backdrop-filter]:bg-card/80">
       <div
         className={cn(
-          isAuthenticated ? "mx-auto w-full max-w-none px-4 py-4 sm:px-6 lg:px-8" : "container mx-auto px-4 py-4",
+          isAuthenticated
+            ? "mx-auto w-full max-w-none px-3 py-2 sm:px-6 sm:py-4 lg:px-8"
+            : "container mx-auto px-3 py-2 sm:px-4 sm:py-4",
           showServerClock
-            ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 lg:grid-cols-[minmax(0,auto)_minmax(10rem,1fr)_auto]"
+            ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:gap-3 lg:grid-cols-[minmax(0,auto)_minmax(10rem,1fr)_auto]"
             : "flex items-center justify-between",
         )}
       >
@@ -360,10 +362,11 @@ const DashboardHeader = () => {
           {showDashboardButton && (
             <BackToDashboardButton className={dashboardInClockRow ? "hidden lg:inline-flex" : undefined} />
           )}
+          {/* Phones reach Home through the banner link, which leaves room for the institute name. */}
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-2.5 sm:px-3 py-2 rounded-md hover:bg-accent transition-colors text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="hidden sm:flex items-center gap-2 px-2.5 sm:px-3 py-2 min-h-10 rounded-md hover:bg-muted hover:text-foreground transition-colors text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="Home"
             aria-label="Home"
           >

@@ -412,7 +412,7 @@ export default function TeamCalendar() {
       <TooltipProvider delayDuration={200}>
         <div className="mx-auto max-w-[min(1600px,98vw)] px-4 py-6 sm:px-6 sm:py-8">
           {/* Header */}
-          <div className="mb-5 rounded-2xl border border-border/50 bg-gradient-to-br from-primary via-primary to-accent p-4 text-white shadow-lg sm:p-5">
+          <div className="mb-5 rounded-2xl border border-border/50 bg-gradient-to-br from-brand via-brand to-brand-accent p-4 text-white shadow-lg sm:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <StandaloneOnly>

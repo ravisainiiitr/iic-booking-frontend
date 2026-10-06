@@ -408,7 +408,7 @@ export default function MultiModeEquipment() {
       <DashboardHeader />
       <main className="container mx-auto max-w-5xl space-y-6 px-4 py-5">
         <StandaloneOnly>
-          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
             <Button
               variant="ghost"
               size="sm"
@@ -752,7 +752,7 @@ export default function MultiModeEquipment() {
       </Dialog>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Change schedule" : "Add schedule"}</DialogTitle>
             <DialogDescription>{family ? `For ${family.parent_code}` : ""}</DialogDescription>

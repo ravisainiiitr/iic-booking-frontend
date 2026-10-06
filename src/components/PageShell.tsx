@@ -65,7 +65,7 @@ export function PageHero({
     return (
       <header
         className={cn(
-          "rounded-xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-5",
+          "rounded-xl bg-gradient-to-br from-brand via-[hsl(215_62%_22%)] to-slate-950 px-4 py-4 text-white shadow-md shadow-primary/15 sm:px-5",
           className
         )}
       >
@@ -94,7 +94,7 @@ export function PageHero({
   return (
     <div
       className={cn(
-        "mb-6 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 sm:p-8 text-white shadow-xl shadow-primary/25",
+        "mb-6 rounded-2xl bg-gradient-to-br from-brand via-[hsl(215_62%_22%)] to-slate-950 p-6 sm:p-8 text-white shadow-xl shadow-primary/25",
         className
       )}
     >

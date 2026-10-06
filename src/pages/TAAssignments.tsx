@@ -549,7 +549,7 @@ export default function TAAssignments() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 space-y-6">
         <StandaloneOnly>
-          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
             <h1 className="text-2xl font-semibold tracking-tight">TA duty assignments</h1>
             <p className="mt-2 text-sm text-white/85">
               Allocate duty, respond as TA, and submit/verify duty logs linked to reward points.
@@ -812,7 +812,7 @@ export default function TAAssignments() {
                                     }}
                                     disabled={!canSelectTa}
                                     className={`
-                                      p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
+                                      calendar-color-cell p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                       ${!slotData ? "cursor-default" : ""}
                                       ${canSelectTa ? "cursor-pointer hover:opacity-90" : "cursor-not-allowed"}
                                       ${taDutyLocked ? "opacity-100" : !canSelectTa && slotData ? "opacity-90" : ""}
@@ -1095,7 +1095,7 @@ export default function TAAssignments() {
         </Card>
 
         <Dialog open={!!dutyLogReview} onOpenChange={(open) => !open && setDutyLogReview(null)}>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Review TA duty log</DialogTitle>
               <DialogDescription>

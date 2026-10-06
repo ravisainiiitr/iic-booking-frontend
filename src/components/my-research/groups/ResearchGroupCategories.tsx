@@ -94,7 +94,7 @@ export function ResearchGroupCategories({ groupId, open, onOpenChange, categorie
         {items.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">No categories yet.</p>
         ) : (
-          <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
+          <ul className="max-h-[50dvh] divide-y overflow-y-auto rounded-md border">
             {items.map((c, i) => (
               <li key={c.id} className="flex items-center gap-2 px-2 py-1.5">
                 <div className="flex flex-col">

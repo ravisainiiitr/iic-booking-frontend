@@ -61,7 +61,7 @@ export function ResearchUpdateDetailDialog({ request, onOpenChange, onChanged, o
 
   return (
     <Dialog open={Boolean(request)} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="break-words">{request?.title}</DialogTitle>
           <DialogDescription asChild>

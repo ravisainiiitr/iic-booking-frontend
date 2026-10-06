@@ -7836,7 +7836,7 @@ const BookEquipment = () => {
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
           <div className="w-full max-w-none mx-auto mb-3 rounded-xl overflow-hidden border border-border/60 shadow-md">
             {/* Compact week header */}
-            <div className="sticky top-0 z-20 bg-gradient-to-r from-primary via-primary to-accent px-3 py-2 text-white">
+            <div className="sticky top-0 z-20 bg-gradient-to-r from-brand via-brand to-brand-accent px-3 py-2 text-white">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div className="flex items-center gap-2">
                   <Button
@@ -8037,7 +8037,7 @@ const BookEquipment = () => {
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[min(70vh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
+            <div className="overflow-auto max-h-[min(70dvh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
               <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
                 Swipe sideways to view the full week calendar
               </p>
@@ -8245,8 +8245,9 @@ const BookEquipment = () => {
                                         className={cn(
                                           "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
                                           !slotSelectable && "cursor-not-allowed opacity-70",
+                                          !isSelected && "calendar-color-cell",
                                           slotSelectable && !isSelected && "hover:brightness-[0.97]",
-                                          isSelected && "ring-2 ring-primary ring-offset-1 bg-primary text-white hover:bg-primary/90"
+                                          isSelected && "ring-2 ring-primary ring-offset-1 bg-brand text-white hover:bg-brand/90"
                                         )}
                                         style={
                                           !isSelected && slot
@@ -8326,7 +8327,10 @@ const BookEquipment = () => {
                                 })()
                               ) : (
                                 <div
-                                  className="w-full min-h-[28px] px-1 py-0.5 rounded text-[10px] font-medium flex items-center justify-center truncate"
+                                  className={cn(
+                                    "w-full min-h-[28px] px-1 py-0.5 rounded text-[10px] font-medium flex items-center justify-center truncate",
+                                    emptyCellBg && "calendar-color-cell",
+                                  )}
                                   title={holidayName ? holidayHoverText(holidayName) : undefined}
                                   style={
                                     emptyCellBg
@@ -8335,7 +8339,7 @@ const BookEquipment = () => {
                                           backgroundColor: emptyCellBg,
                                           color: getContrastTextColor(emptyCellBg),
                                         }
-                                      : { ...cell3dStyle, color: "var(--muted-foreground)" }
+                                      : { ...cell3dStyle, color: "hsl(var(--muted-foreground))" }
                                   }
                                 >
                                   {calendarDayLabel}
@@ -8501,7 +8505,7 @@ const BookEquipment = () => {
                                 {newSlotStatus !== BULK_EMAIL_OPERATION_VALUE && (
                                 <Button
                                   size="default"
-                                  className="h-9 px-5 text-sm font-semibold bg-primary hover:bg-primary/90 text-white shadow-sm"
+                                  className="h-9 px-5 text-sm font-semibold bg-brand hover:bg-brand/90 text-white shadow-sm"
                                   disabled={
                                     (selectedSlotIdsForStatus.length === 0 && getEffectiveDatesForStatus().length === 0) ||
                                     updatingSlotStatus ||
@@ -8829,7 +8833,7 @@ const BookEquipment = () => {
             if (!open) setStatusChangeRescheduleBooking(null);
           }}
         >
-          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto z-[100]">
+          <DialogContent className="sm:max-w-[90vw] max-w-4xl max-h-[90dvh] overflow-y-auto z-[100]">
             <DialogHeader>
               <DialogTitle>Reschedule Booking</DialogTitle>
               <DialogDescription>
@@ -8906,7 +8910,7 @@ const BookEquipment = () => {
 
         {/* Bulk email popup: selected user emails + write subject and text */}
         <Dialog open={bulkEmailOpen} onOpenChange={setBulkEmailOpen}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-xl max-h-[90dvh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>Bulk Email</DialogTitle>
               <DialogDescription>
@@ -9798,7 +9802,7 @@ const BookEquipment = () => {
                                         if (!open) setSelectedIcpmsStandardIds([]);
                                       }}
                                     >
-                                      <DialogContent className="max-w-[min(96vw,1200px)] w-full max-h-[90vh] overflow-y-auto flex flex-col">
+                                      <DialogContent className="max-w-[min(96vw,1200px)] w-full max-h-[90dvh] overflow-y-auto flex flex-col">
                                         <DialogHeader>
                                           <DialogTitle>ICPMS standards (database)</DialogTitle>
                                           <DialogDescription>
@@ -10505,7 +10509,7 @@ const BookEquipment = () => {
                 )}
                 {/* Week nav + grid: full overlay until API data matches visible week (avoids misleading stale grid when changing weeks, e.g. urgent extension). */}
                 <TooltipProvider delayDuration={200}>
-                <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-3 sm:p-4 min-h-[min(520px,70vh)]">
+                <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-3 sm:p-4 min-h-[min(520px,70dvh)]">
                   {isSlotsWeekViewLoading && (
                     <div
                       className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 rounded-lg bg-background/95 dark:bg-background/95 backdrop-blur-sm px-6 py-10"
@@ -11233,7 +11237,7 @@ const BookEquipment = () => {
                               aria-pressed={isSelected}
                               aria-label={staffStatusLines.length > 0 ? `${accessibleLabel}. ${hoverLines.join(". ")}` : accessibleLabel}
                               className={`
-                                w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
+                                calendar-color-cell w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
                                 ${!slotExists ? 'cursor-help' : ''}
                                 ${considerBooked ? 'cursor-help' : ''}
@@ -11694,7 +11698,7 @@ const BookEquipment = () => {
             setUrgentReviewerComment("");
           }
         }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col text-base">
+          <DialogContent className="max-w-2xl max-h-[90dvh] flex flex-col text-base">
             {(() => {
               const noSlotNoAttempts = urgentRequestType === 'NO_SLOT' && !myUnsuccessfulAttemptsLoading && myUnsuccessfulAttempts.length < RUSH_RELIEF_MIN_PEAK_ATTEMPTS;
               return (
@@ -12023,7 +12027,7 @@ const BookEquipment = () => {
         />
 
         <Dialog open={bookingResultDialog.open} onOpenChange={(open) => !open && setBookingResultDialog((p) => ({ ...p, open: false }))}>
-          <DialogContent className="max-w-md sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-md sm:max-w-lg max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle
                 className={
@@ -12111,7 +12115,7 @@ const BookEquipment = () => {
                 bookingResultDialog.variant === "success" &&
                 bookingResultDialog.bookingViewQuery && (
                   <Button
-                    className="w-full gap-2 bg-primary text-white hover:bg-primary/90"
+                    className="w-full gap-2 bg-brand text-white hover:bg-brand/90"
                     onClick={() => {
                       const q = bookingResultDialog.bookingViewQuery!;
                       setBookingResultDialog((p) => ({ ...p, open: false }));
@@ -12212,7 +12216,7 @@ const BookEquipment = () => {
         </Dialog>
 
         <Dialog open={userTransactionHistoryDialog.open} onOpenChange={(open) => !open && setUserTransactionHistoryDialog((p) => ({ ...p, open: false }))}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[90dvh] overflow-hidden flex flex-col">
             <DialogHeader>
               <div className="flex flex-wrap items-start justify-between gap-2 pr-8">
                 <div className="space-y-1.5 min-w-0">

@@ -158,7 +158,7 @@ export default function OrganizationUsersManagement() {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5 space-y-6">
-        <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-700 to-primary p-6 text-white shadow-xl">
+        <div className="rounded-2xl bg-gradient-to-r from-slate-800 via-slate-700 to-brand p-6 text-white shadow-xl">
           <StandaloneOnly>
             <Button
               variant="ghost"

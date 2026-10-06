@@ -399,7 +399,7 @@ function BookingLifecycleCountdown({
   const tone = overdue
     ? "from-rose-600/90 to-rose-700/90 border-rose-500/40 text-white"
     : phase === "submit_sample"
-      ? "from-primary/10 to-accent/10 border-primary/30 text-primary dark:text-primary-foreground"
+      ? "from-primary/10 to-accent/10 border-primary/30 text-primary dark:text-sky-100"
       : phase === "collect_sample"
         ? "from-accent/10 to-primary/10 border-accent/30 text-accent dark:text-sky-50"
         : ringProgress > 0.85
@@ -3768,7 +3768,7 @@ export function BookingDetailCard({
       </Card>
 
       <Dialog open={actionDialog.open} onOpenChange={(open) => !open && closeActionDialog()}>
-        <DialogContent className={actionDialog.type === "reschedule" ? "sm:max-w-[90vw] max-w-4xl max-h-[90vh] overflow-y-auto" : ""}>
+        <DialogContent className={actionDialog.type === "reschedule" ? "sm:max-w-[90vw] max-w-4xl max-h-[90dvh] overflow-y-auto" : ""}>
           <DialogHeader>
             <DialogTitle>
               {actionDialog.type === "complete" && "Complete Booking"}

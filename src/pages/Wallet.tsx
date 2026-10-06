@@ -3398,7 +3398,7 @@ const Wallet = () => {
           }
         }}
       >
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Avail Credit Facility</DialogTitle>
             <DialogDescription>

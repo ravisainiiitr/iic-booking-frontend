@@ -14,7 +14,7 @@ const StaffMore = lazy(() => import("./StaffMore"));
 
 function Spinner() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center" role="status" aria-live="polite">
+    <div className="flex min-h-[60dvh] items-center justify-center" role="status" aria-live="polite">
       <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden />
       <span className="sr-only">Loading…</span>
     </div>

@@ -128,7 +128,7 @@ const ReportBookingsList = () => {
           </div>
         </StandaloneOnly>
 
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">Booking details</h1>
           <p className="mt-2 text-sm text-white/85">{subtitle}</p>
         </div>

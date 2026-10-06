@@ -245,7 +245,7 @@ function HistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? onClose() : undefined)}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Change history</DialogTitle>
           <DialogDescription>Every change to a department switch, with who made it and why. Entries are never deleted.</DialogDescription>

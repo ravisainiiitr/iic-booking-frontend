@@ -150,7 +150,7 @@ export default function TANominationsLog() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-6">
-          <div className="rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+          <div className="rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
             <StandaloneOnly>
               <Button
                 variant="ghost"
@@ -172,7 +172,7 @@ export default function TANominationsLog() {
             <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div>

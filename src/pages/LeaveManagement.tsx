@@ -202,7 +202,7 @@ export default function LeaveManagement() {
             />
           </div>
         ) : (
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <Button
@@ -402,7 +402,7 @@ export default function LeaveManagement() {
               </div>
 
               <Button
-                className="h-11 w-full bg-primary text-white hover:bg-primary/90"
+                className="h-11 w-full bg-brand text-white hover:bg-brand/90"
                 disabled={!canSubmit || submitting}
                 onClick={async () => {
                   if (startDate === endDate && startSession === "AN" && endSession === "FN") {

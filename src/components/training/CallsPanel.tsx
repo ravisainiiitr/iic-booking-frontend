@@ -90,7 +90,7 @@ function OpenCallDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
 
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Open a nomination call</DialogTitle>
           <DialogDescription>Creates a hands-on training event; faculty nominate students until the deadline.</DialogDescription>

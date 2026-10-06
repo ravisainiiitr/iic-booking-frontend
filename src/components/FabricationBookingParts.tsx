@@ -356,7 +356,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
 
   return (
     <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="fabrication-replace-dialog">
+      <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto" data-testid="fabrication-replace-dialog">
         <DialogHeader>
           <DialogTitle>Change {isLaser ? "DXF" : "STL"} files</DialogTitle>
           <DialogDescription>

@@ -125,7 +125,7 @@ function ContractDialog({ open, onOpenChange, renew, onSaved }: { open: boolean;
   const ok = (renew || f.equipment_id) && f.start_date && f.end_date && f.end_date >= f.start_date && f.contract_value !== "";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{renew ? `Renew ${renew.number}` : "New AMC / service contract"}</DialogTitle>
           <DialogDescription>{renew ? `${renew.equipment.name} · current period ends ${fmtDate(renew.end_date)}.` : "The department is taken from the equipment."}</DialogDescription>

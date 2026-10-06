@@ -862,7 +862,7 @@ export function BookingUserInputs({
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent
           className={cn(
-            "max-h-[90vh] overflow-y-auto text-base",
+            "max-h-[90dvh] overflow-y-auto text-base",
             hasPeriodicTableField || hasTableField ? "sm:max-w-4xl" : "sm:max-w-2xl"
           )}
         >

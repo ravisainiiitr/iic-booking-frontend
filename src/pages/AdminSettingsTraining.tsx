@@ -335,7 +335,7 @@ function OverrideDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !busy && onOpenChange(v)}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>New policy override</DialogTitle>
           <DialogDescription>Only the fields you fill in override the institute-wide policy. Publishing creates a new version.</DialogDescription>

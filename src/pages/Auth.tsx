@@ -1046,7 +1046,7 @@ const Auth = () => {
       )}
     >
       {/* Brand panel (desktop): the gradient fills the whole column; the content stays pinned beside the long Create account form */}
-      <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-primary to-[hsl(200_65%_30%)] text-white lg:block">
+      <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-brand to-[hsl(200_65%_30%)] text-white lg:block">
         <div className="relative overflow-hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-2xl" aria-hidden />
         <div className="pointer-events-none absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-sky-300/10 blur-3xl" aria-hidden />
@@ -1308,7 +1308,7 @@ const Auth = () => {
                       <Button
                         onClick={handleOmniportLogin}
                         disabled={loading}
-                        className="h-12 w-full rounded-xl bg-primary text-base font-medium text-white shadow-lg shadow-primary/20 hover:bg-primary/90"
+                        className="h-12 w-full rounded-xl bg-brand text-base font-medium text-white shadow-lg shadow-primary/20 hover:bg-brand/90"
                         size="lg"
                       >
                         <span className="flex items-center justify-center gap-2.5">

@@ -383,7 +383,7 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="flex max-h-[92vh] flex-col gap-0 p-0 sm:max-w-2xl" data-testid="analysis-setup-dialog">
+      <DialogContent className="flex max-h-[92dvh] flex-col gap-0 p-0 sm:max-w-2xl" data-testid="analysis-setup-dialog">
         <DialogHeader className="border-b px-6 pb-4 pt-6">
           <DialogTitle className="flex items-center gap-2 text-lg">
             <MonitorSmartphone className="h-5 w-5 text-[#0b3d91] dark:text-sky-300" aria-hidden />
