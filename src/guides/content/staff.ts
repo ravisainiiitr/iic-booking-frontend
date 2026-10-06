@@ -161,6 +161,10 @@ export function slotStatusSection(g: Gate): GuideSection {
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
       g.only(["oic", "admin"], {
+        title: "Read the week",
+        body: "Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by the multi-mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
+      }),
+      g.only(["oic", "admin"], {
         title: "Repeat block",
         body: "To block the same slots every week (say every Mon and Thu at 10:00), click Repeat block…, pick the weekdays, slot times, date range (Rest of this month, Next 12 months or custom dates) and an optional label, then Preview and Confirm and block. Slots created later in the range are blocked too. Remove a repeat block from the list below it to open its future slots again.",
       }),
@@ -206,7 +210,7 @@ export function oicConfigSection(g: Gate): GuideSection {
       },
       {
         title: "Multi-mode equipment",
-        body: "When one instrument runs in several modes (for example XPS with UPS and Depth Profile), open Multi-mode equipment, pick the base instrument and tick its modes. For each mode choose Always available (bookable any day) or Only on scheduled days. Then click a day in the calendar to add a schedule: the mode, From and To dates, optional Repeat on days (for example Mon and Thu), optional hours, and whether other modes and the base can be booked at the same time. Answer No to run that mode on its own; the base and the other modes are then closed for those hours. Use Slot status beside each mode to open its slots.",
+        body: "When one instrument runs in several modes (for example XPS with UPS and Depth Profile), open Multi-mode equipment and pick the base instrument. Click a day in the calendar (or Add schedule) and choose the mode; picking other equipment of your department makes it a mode. Leave From and To blank to make the mode always available, or enter dates (DD-MM-YYYY) to allow it only on those days. Add optional Repeat on days (for example Mon and Thu), optional hours, and whether other modes and the base can be booked at the same time. Answer No to run that mode on its own; the base and the other modes are then closed for those hours. A mode with no current schedule cannot be booked by users; Remove mode makes it a standalone instrument again. Use Slot status beside each mode to open its slots.",
       },
       {
         title: "Cover your leave",

@@ -40,7 +40,7 @@ export const adminGuide: RoleGuide = {
             title: "OIC Substitute",
             body: "Under Users & access, OIC Substitute lists every substitution an Officer In Charge has given to another OIC of their department, with the reason, period and history, grouped by substitute. Use Revoke (or Cancel, if it has not started) with a reason to end one, or tick several and end them together; the substitute, the Lab Operators and the OIC are notified.",
           },
-          { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers and charges. Multi-mode equipment (one page for all departments, with a department filter) is where you link modes to a base instrument, choose whether each mode is always available or only on scheduled days, and plan mode days on a month calendar." },
+          { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers and charges. Multi-mode equipment (one page for all departments, with a department filter) is where you plan mode days on a month calendar: choosing equipment in a schedule makes it a mode of the base instrument, and a schedule with blank dates keeps that mode always available." },
           {
             title: "Equipment form",
             body: "Pick a title (Mr., Mrs., Ms., Miss, Dr. or Prof.) for each Officer In Charge and Lab Operator; the preview shows how the name appears. Untick Allow samples with different parameters to stop users adding extra sample sets on that equipment.",
