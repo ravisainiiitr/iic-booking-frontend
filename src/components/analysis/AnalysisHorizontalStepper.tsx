@@ -22,7 +22,7 @@ export function AnalysisHorizontalStepper({ steps }: { steps: StepperStep[] }) {
                 <div
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold shadow-sm xl:h-10 xl:w-10",
-                    done && "border-emerald-500 bg-emerald-500 text-white",
+                    done && "border-emerald-500 bg-emerald-700 text-white",
                     active && "border-primary bg-primary text-primary-foreground ring-4 ring-primary/20",
                     !done && !active && "border-muted-foreground/25 bg-background text-muted-foreground"
                   )}

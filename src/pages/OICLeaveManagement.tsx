@@ -417,10 +417,10 @@ export default function OICLeaveManagement() {
 
   const statusBadgeVariant = (s: string): { label: string; className: string } => {
     const u = String(s || "").toUpperCase();
-    if (u === "APPROVED") return { label: "Approved", className: "bg-emerald-600 hover:bg-emerald-600 text-white" };
+    if (u === "APPROVED") return { label: "Approved", className: "bg-emerald-700 hover:bg-emerald-800 text-white" };
     if (u === "REJECTED") return { label: "Rejected", className: "bg-rose-600 hover:bg-rose-600 text-white" };
     if (u === "CANCELLED") return { label: "Cancelled", className: "bg-slate-600 hover:bg-slate-600 text-white" };
-    return { label: "Pending", className: "bg-amber-600 hover:bg-amber-600 text-white" };
+    return { label: "Pending", className: "bg-amber-700 hover:bg-amber-800 text-white" };
   };
 
   const isTodayWithinLeave = (r: { start_date: string; end_date: string }): boolean => {
@@ -638,7 +638,7 @@ export default function OICLeaveManagement() {
                 Cancel
               </Button>
               <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white"
                 disabled={coverageSubmitting || coverageDialogLeaveId == null || coverageEquipments.length === 0}
                 onClick={async () => {
                   if (coverageDialogLeaveId == null) return;
@@ -794,7 +794,7 @@ export default function OICLeaveManagement() {
                                   <div className="flex items-center gap-2">
                                     <Button
                                       size="sm"
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                      className="bg-emerald-700 hover:bg-emerald-800 text-white"
                                       onClick={() => approve(r.id)}
                                       disabled={isBusy}
                                     >
@@ -877,7 +877,7 @@ export default function OICLeaveManagement() {
                             </div>
                           </TableCell>
                           <TableCell className="align-top">
-                            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Approved</Badge>
+                            <Badge className="bg-emerald-700 hover:bg-emerald-800 text-white">Approved</Badge>
                           </TableCell>
                           <TableCell className="align-top whitespace-nowrap text-sm text-muted-foreground">
                             <div className="flex items-center justify-between gap-2">

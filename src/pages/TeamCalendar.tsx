@@ -129,7 +129,7 @@ function MemberIdentity({
         ) : null}
         <div className="truncate text-[11px] text-muted-foreground/90">{member.email}</div>
         {showDepartment && member.department_name ? (
-          <div className="truncate text-[10px] text-muted-foreground/80">
+          <div className="truncate text-[10px] text-muted-foreground">
             {member.department_name}
           </div>
         ) : null}
@@ -432,7 +432,7 @@ export default function TeamCalendar() {
                   <p className="mt-1 max-w-xl text-sm text-white/85">
                     Spot leave and other absences quickly — empty cells mean available.
                   </p>
-                  <p className="mt-1 text-xs text-white/70">{departmentLabel}</p>
+                  <p className="mt-1 text-xs text-white/85">{departmentLabel}</p>
                 </div>
               </div>
 
@@ -454,7 +454,7 @@ export default function TeamCalendar() {
                           "rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition",
                           viewMode === mode
                             ? "bg-white text-primary shadow-sm"
-                            : "text-white/85 hover:bg-white/10",
+                            : "text-white hover:bg-white/10",
                         )}
                       >
                         {mode}
@@ -663,7 +663,7 @@ export default function TeamCalendar() {
                 {ABSENCE_META[key].label}
               </span>
             ))}
-            <span className="text-muted-foreground/80">Empty cell = Available</span>
+            <span className="text-muted-foreground">Empty cell = Available</span>
           </div>
 
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-md">
@@ -717,7 +717,7 @@ export default function TeamCalendar() {
               ) : (
                 <>
                   {/* Desktop / tablet grid */}
-                  <div className="hidden overflow-auto md:block" style={{ maxHeight: "min(70vh, 820px)" }}>
+                  <div className="relative hidden overflow-auto md:block" style={{ maxHeight: "min(70vh, 820px)" }}>
                     <div
                       className="min-w-max"
                       style={{

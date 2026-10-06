@@ -373,7 +373,7 @@ const NoticeBoard = () => {
                             </span>
                           )}
                           {isNew(notice) && (
-                            <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                            <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                               New
                             </span>
                           )}
@@ -436,7 +436,7 @@ const NoticeBoard = () => {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <KindPill notice={selectedNotice} />
                       {isNew(selectedNotice) && (
-                        <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                        <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                           New
                         </span>
                       )}

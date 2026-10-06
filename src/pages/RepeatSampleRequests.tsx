@@ -48,9 +48,9 @@ type StatusFilter = "APPROVED" | "REJECTED" | "ALL";
 const REPEAT_TABLE_MIN_WIDTH = 680;
 
 function statusBadge(status: RepeatRow["status"]) {
-  if (status === "APPROVED") return <Badge className="bg-emerald-600 hover:bg-emerald-600">Arranged</Badge>;
+  if (status === "APPROVED") return <Badge className="bg-emerald-700 hover:bg-emerald-700">Arranged</Badge>;
   if (status === "REJECTED") return <Badge variant="secondary">Closed</Badge>;
-  return <Badge className="bg-amber-500 hover:bg-amber-500">Pending</Badge>;
+  return <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">Pending</Badge>;
 }
 
 export default function RepeatSampleRequests() {

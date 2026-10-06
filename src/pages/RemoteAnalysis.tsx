@@ -499,7 +499,7 @@ export default function RemoteAnalysis() {
               Guacamole and browser sessions are not part of this milestone.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => navigate("/remote-analysis/software-catalog")}>
               Software Catalog
             </Button>

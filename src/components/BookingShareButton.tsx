@@ -299,7 +299,7 @@ export function BookingShareButton({ bookingId, bookingLabel }: BookingShareButt
                   <ArrowLeft className="h-4 w-4 mr-1" />
                   Back
                 </Button>
-                <Button className="bg-green-600 hover:bg-green-700" disabled={submitting} onClick={confirmShare}>
+                <Button className="bg-green-700 hover:bg-green-800" disabled={submitting} onClick={confirmShare}>
                   {submitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Share2 className="h-4 w-4 mr-1" />}
                   Confirm &amp; share
                 </Button>

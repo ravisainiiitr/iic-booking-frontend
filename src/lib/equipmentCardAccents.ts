@@ -7,9 +7,9 @@ export type EquipmentCardAccent = {
 
 /** Navy Ocean accent for equipment catalog cards (white cards + navy actions). */
 export const EQUIPMENT_CARD_NAVY_ACCENT: EquipmentCardAccent = {
-  gradient: "from-primary to-[hsl(215_62%_22%)]",
-  bar: "from-primary to-[hsl(215_62%_22%)]",
-  button: "bg-primary hover:bg-primary/90 shadow-md shadow-primary/25",
+  gradient: "from-brand to-[hsl(215_62%_22%)]",
+  bar: "from-brand to-[hsl(215_62%_22%)]",
+  button: "bg-brand hover:bg-brand/90 shadow-md shadow-brand/25",
   border: "border-border/70",
 };
 

@@ -193,7 +193,7 @@ export default function DeploymentCenterPage() {
                 <Card key={product.key} className="overflow-hidden border shadow-sm">
                   <CardHeader className="pb-3">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal-700 text-white">
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">

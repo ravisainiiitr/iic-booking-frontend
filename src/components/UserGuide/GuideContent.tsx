@@ -110,7 +110,7 @@ export function GuideToc({
       {!query.trim() ? item(WHATS_NEW_ID, "What's New", "new") : null}
       {groupSections(visible).map(({ group, sections }) => (
         <div key={group} className="space-y-0.5">
-          <p className="px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">{group}</p>
+          <p className="px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group}</p>
           {sections.map((s) => item(s.id, s.title, s.icon))}
         </div>
       ))}

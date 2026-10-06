@@ -525,6 +525,9 @@
   :root .text-destructive {
     color: hsl(0 84% 71%);
   }
+  :root .\!text-destructive {
+    color: hsl(0 84% 71%) !important;
+  }
 }
 
 /* <Table stickyFirstColumn> / <Table stackOnMobile> (components/ui/table.tsx) — phones only */
@@ -809,8 +812,8 @@
   --card-accent-hover: hsl(215 70% 22%);
 }
 
-.dashboard-uniform-cards .cursor-pointer button.w-full,
-.dashboard-uniform-cards .cursor-pointer a.w-full,
+.dashboard-uniform-cards .cursor-pointer button.w-full:not([data-row-link]),
+.dashboard-uniform-cards .cursor-pointer a.w-full:not([data-row-link]),
 .dashboard-uniform-cards .cursor-pointer [data-dashboard-card-action].w-full {
   border-radius: 0.65rem !important;
   font-weight: 600 !important;
@@ -820,8 +823,8 @@
   transition: background-color 0.2s ease;
 }
 
-.dashboard-uniform-cards .cursor-pointer button.w-full:hover,
-.dashboard-uniform-cards .cursor-pointer a.w-full:hover,
+.dashboard-uniform-cards .cursor-pointer button.w-full:not([data-row-link]):hover,
+.dashboard-uniform-cards .cursor-pointer a.w-full:not([data-row-link]):hover,
 .dashboard-uniform-cards .cursor-pointer [data-dashboard-card-action].w-full:hover {
   background-color: var(--card-accent-hover) !important;
   color: hsl(0 0% 100%) !important;
@@ -994,6 +997,23 @@
   }
   [role="tablist"] {
     height: auto;
+  }
+  /* Small toggles keep their look but get an invisible ~44px hit area. */
+  button[role="checkbox"],
+  button[role="radio"],
+  button[role="switch"] {
+    position: relative;
+  }
+  button[role="checkbox"]::after,
+  button[role="radio"]::after {
+    content: "";
+    position: absolute;
+    inset: -14px;
+  }
+  button[role="switch"]::after {
+    content: "";
+    position: absolute;
+    inset: -10px -4px;
   }
 }
 

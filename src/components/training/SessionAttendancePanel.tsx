@@ -12,8 +12,8 @@ import { EmptyState, LoadingBlock, SectionCard, StatusChip } from "./trainingUi"
 import { invalidateTrainingBadges } from "./useTrainingBadges";
 
 const STATUSES: Array<{ value: AttendanceStatus; label: string; short: string; tone: string }> = [
-  { value: "PRESENT", label: "Present", short: "P", tone: "bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-600" },
-  { value: "LATE", label: "Late", short: "L", tone: "bg-amber-500 text-white hover:bg-amber-600 border-amber-500" },
+  { value: "PRESENT", label: "Present", short: "P", tone: "bg-emerald-700 text-white hover:bg-emerald-800 border-emerald-600" },
+  { value: "LATE", label: "Late", short: "L", tone: "bg-amber-700 text-white hover:bg-amber-800 border-amber-500" },
   { value: "ABSENT", label: "Absent", short: "A", tone: "bg-rose-600 text-white hover:bg-rose-700 border-rose-600" },
   { value: "EXCUSED", label: "Excused", short: "E", tone: "bg-slate-500 text-white hover:bg-slate-600 border-slate-500" },
 ];
@@ -134,7 +134,7 @@ function Roster({
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 p-2">
-            <Button type="button" size="sm" className="h-8 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setAll("PRESENT")}>
+            <Button type="button" size="sm" className="h-8 bg-emerald-700 text-white hover:bg-emerald-800" onClick={() => setAll("PRESENT")}>
               <CheckCheck className="mr-1.5 h-4 w-4" aria-hidden /> Mark all present
             </Button>
             <span className="text-xs text-muted-foreground">Set all:</span>

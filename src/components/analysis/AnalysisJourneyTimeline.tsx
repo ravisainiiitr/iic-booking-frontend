@@ -46,7 +46,7 @@ export function AnalysisJourneyTimeline({ stages }: { stages: JourneyStage[] }) 
             <div
               className={cn(
                 "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border",
-                done && "border-emerald-500 bg-emerald-500 text-white",
+                done && "border-emerald-500 bg-emerald-700 text-white",
                 active && "border-sky-500 bg-sky-500/15 text-sky-600 dark:text-sky-400",
                 !done && !active && "border-muted-foreground/30 bg-background text-muted-foreground"
               )}

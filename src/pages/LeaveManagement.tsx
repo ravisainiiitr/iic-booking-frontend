@@ -173,10 +173,10 @@ export default function LeaveManagement() {
     if (u === "APPROVED" && r.self_intimated) {
       return { label: "Submitted", className: "bg-sky-600 hover:bg-sky-600 text-white" };
     }
-    if (u === "APPROVED") return { label: "Approved", className: "bg-emerald-600 hover:bg-emerald-600 text-white" };
+    if (u === "APPROVED") return { label: "Approved", className: "bg-emerald-700 hover:bg-emerald-800 text-white" };
     if (u === "REJECTED") return { label: "Rejected", className: "bg-rose-600 hover:bg-rose-600 text-white" };
     if (u === "CANCELLED") return { label: "Cancelled", className: "bg-slate-600 hover:bg-slate-600 text-white" };
-    return { label: "Pending", className: "bg-amber-600 hover:bg-amber-600 text-white" };
+    return { label: "Pending", className: "bg-amber-700 hover:bg-amber-800 text-white" };
   };
 
   const isTodayWithinLeave = (r: LeaveRow): boolean => {

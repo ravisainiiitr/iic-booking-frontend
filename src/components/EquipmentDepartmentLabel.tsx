@@ -35,7 +35,7 @@ export default function EquipmentDepartmentLabel({
       <div className="min-w-0">
         <p
           className={cn(
-            "font-medium uppercase tracking-[0.14em] text-muted-foreground/75",
+            "font-medium uppercase tracking-[0.14em] text-muted-foreground",
             isCompact ? "text-[10px]" : "text-[11px]",
           )}
         >

@@ -24,8 +24,8 @@ const MODULES = [
     description: "Create, map, edit, and activate/deactivate Lab Operator users in your department.",
     path: "/manage/department-administration/lab",
     icon: FlaskConical,
-    gradient: "from-primary/50 to-accent",
-    button: "bg-primary hover:bg-primary/90",
+    gradient: "from-brand/50 to-brand-accent",
+    button: "bg-brand hover:bg-brand/90",
   },
   {
     key: "accounts",
@@ -35,7 +35,7 @@ const MODULES = [
     path: "/manage/department-administration/accounts",
     icon: Wallet,
     gradient: "from-emerald-500 to-green-700",
-    button: "bg-emerald-600 hover:bg-emerald-700",
+    button: "bg-emerald-700 hover:bg-emerald-800",
   },
   {
     key: "faculty-credit",

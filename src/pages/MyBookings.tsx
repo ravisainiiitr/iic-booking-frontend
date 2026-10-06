@@ -1396,7 +1396,7 @@ const MyBookings = () => {
           touch ? "min-h-10 text-left " : ""
         }${
           booking.status.toUpperCase() === "COMPLETED"
-            ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
+            ? "text-green-700 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
             : "text-primary hover:text-primary/80"
         }`}
       >
@@ -1920,7 +1920,7 @@ const MyBookings = () => {
             <div className="flex flex-col gap-3">
               {resultsDialogBookingId != null && (
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className="w-full bg-green-700 hover:bg-green-800"
                   disabled={zipDownloadInProgress}
                   onClick={async () => {
                     setZipDownloadInProgress(true);

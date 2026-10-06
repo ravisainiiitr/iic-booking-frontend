@@ -1274,9 +1274,9 @@ const Dashboard = () => {
     const statusLower = status.toLowerCase();
     const colors: Record<string, string> = {
       pending: "bg-amber-700",
-      booked: "bg-primary",
-      confirmed: "bg-primary",
-      approved: "bg-primary",
+      booked: "bg-brand",
+      confirmed: "bg-brand",
+      approved: "bg-brand",
       in_progress: "bg-green-700",
       completed: "bg-gray-600",
       cancelled: "bg-red-600",
@@ -1676,7 +1676,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  className="w-full bg-amber-700 hover:bg-amber-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/admin-settings/wallet-recharge-requests");
@@ -1714,7 +1714,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/admin-settings/wallet-payment-modes");
@@ -1857,7 +1857,7 @@ const Dashboard = () => {
                     {newResultsCount} new result{newResultsCount !== 1 ? "s" : ""} available
                   </p>
                 ) : null}
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">View results</Button>
+                <Button className="w-full bg-green-700 hover:bg-green-800 text-white">View results</Button>
               </CardContent>
             </Card>
       ),
@@ -1947,7 +1947,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open My Trainings</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open My Trainings</Button>
               </CardContent>
             </Card>
       ),
@@ -2021,7 +2021,7 @@ const Dashboard = () => {
                     {myUrgentRequestsCount} request{myUrgentRequestsCount !== 1 ? "s" : ""} submitted
                   </p>
                 ) : null}
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white" onClick={(e) => { e.stopPropagation(); openWorkspace("/my-urgent-requests"); }}>
                   Open urgent booking request
                 </Button>
               </CardContent>
@@ -2083,7 +2083,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">
                   {hasWallet ? "Open Wallet" : "Wallet"}
                 </Button>
               </CardContent>
@@ -2153,7 +2153,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View reward points</Button>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">View reward points</Button>
               </CardContent>
             </Card>
       ),
@@ -2213,7 +2213,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open training workspace</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open training workspace</Button>
               </CardContent>
             </Card>
       ),
@@ -2243,7 +2243,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Mark attendance</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Mark attendance</Button>
               </CardContent>
             </Card>
       ),
@@ -2310,7 +2310,7 @@ const Dashboard = () => {
             <CardContent>
               <span
                 data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-700 hover:bg-emerald-800 text-white ring-offset-background transition-colors"
               >
                 View Reports
               </span>
@@ -2417,7 +2417,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
                   onClick={(e) => { e.stopPropagation(); openWorkspace("/training/nominations"); }}
                 >
                   Nominations
@@ -2623,7 +2623,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Manage notice requests</Button>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">Manage notice requests</Button>
               </CardContent>
             </Card>
       ),
@@ -2876,7 +2876,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View log</Button>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">View log</Button>
               </CardContent>
             </Card>
       ),
@@ -2938,7 +2938,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">
                   Open verification
                 </Button>
               </CardContent>
@@ -2970,7 +2970,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">
                   Open verification
                 </Button>
               </CardContent>
@@ -3073,7 +3073,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">View waitlist</Button>
+                <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">View waitlist</Button>
               </CardContent>
             </Card>
       ),
@@ -3133,7 +3133,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">Open procurement flow</Button>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">Open procurement flow</Button>
               </CardContent>
             </Card>
       ),
@@ -3163,7 +3163,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-emerald-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open Procurement &amp; Assets</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open Procurement &amp; Assets</Button>
               </CardContent>
             </Card>
       ),
@@ -3277,7 +3277,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">Open department sync</Button>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open department sync</Button>
               </CardContent>
             </Card>
       ),
@@ -3308,7 +3308,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/laboratory-infrastructure");
@@ -3346,7 +3346,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                  className="w-full bg-amber-700 hover:bg-amber-800 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/test-dashboard");
@@ -3476,7 +3476,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">View ratings</Button>
+                <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">View ratings</Button>
               </CardContent>
             </Card>
       ),
@@ -3737,7 +3737,7 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white">
+              <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">
                 Review &amp; verify
               </Button>
             </CardContent>
@@ -3797,7 +3797,7 @@ const Dashboard = () => {
             <CardContent>
               <span
                 data-dashboard-card-action
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white ring-offset-background transition-colors"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-emerald-700 hover:bg-emerald-800 text-white ring-offset-background transition-colors"
               >
                 View Reports
               </span>
@@ -4208,7 +4208,7 @@ const Dashboard = () => {
                     </div>
                   )}
                   <Button
-                    className="shrink-0 bg-primary text-white hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90"
+                    className="shrink-0 bg-brand text-brand-foreground hover:bg-brand/90"
                     size="sm"
                     onClick={() => navigate("/booking-management")}
                   >
@@ -4894,6 +4894,7 @@ const Dashboard = () => {
                                   {/* Stretched over the row so the whole row stays clickable with one tab stop. */}
                                   <button
                                     type="button"
+                                    data-row-link
                                     className="block w-full truncate text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -4963,7 +4964,7 @@ const Dashboard = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/reports")}
-                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 shrink-0"
+                      className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-500/10 dark:text-emerald-300 dark:hover:text-emerald-200 shrink-0"
                     >
                       View Report
                       <ArrowRight className="h-4 w-4 ml-1" />

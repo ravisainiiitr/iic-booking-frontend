@@ -88,7 +88,7 @@ export function WhatHappensNext({
                 <div
                   className={cn(
                     "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-sm",
-                    done && "border-emerald-500 bg-emerald-500 text-white",
+                    done && "border-emerald-500 bg-emerald-700 text-white",
                     active && "border-primary bg-primary text-primary-foreground ring-4 ring-primary/15",
                     !done && !active && "border-slate-200 bg-white text-slate-400 dark:border-border dark:bg-card"
                   )}

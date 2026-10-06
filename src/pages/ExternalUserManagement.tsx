@@ -128,7 +128,7 @@ const ExternalUserManagement = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-primary/50 mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">Open verification</Button>
+              <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">Open verification</Button>
             </CardContent>
           </Card>
         </div>

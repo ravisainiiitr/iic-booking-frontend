@@ -113,7 +113,7 @@ export function WorkspaceStatusStrip({
               className={cn(
                 "mt-2",
                 environmentReady && "bg-emerald-500 hover:bg-emerald-500",
-                queued && !environmentReady && "bg-amber-500 hover:bg-amber-500",
+                queued && !environmentReady && "bg-amber-500 text-amber-950 hover:bg-amber-500",
                 !environmentReady && !queued && "bg-muted text-muted-foreground hover:bg-muted"
               )}
             >

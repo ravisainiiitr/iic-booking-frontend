@@ -1240,7 +1240,7 @@ const EquipmentProfile = () => {
                       <Badge
                         className={cn(
                           equipment.status === "ACTIVE"
-                            ? "bg-emerald-600 hover:bg-emerald-600"
+                            ? "bg-emerald-700 hover:bg-emerald-700"
                             : "bg-slate-500 hover:bg-slate-500"
                         )}
                       >
