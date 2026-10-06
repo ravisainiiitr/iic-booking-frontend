@@ -52,7 +52,7 @@ const toEquipmentOption = (e: EquipmentOption): EquipmentOption => ({
 
 const statusBadge = (status: string) => {
   const s = status.toLowerCase();
-  if (s === "approved") return <Badge className="bg-emerald-600">Approved</Badge>;
+  if (s === "approved") return <Badge className="bg-emerald-700">Approved</Badge>;
   if (s === "rejected") return <Badge variant="destructive">Rejected</Badge>;
   return <Badge variant="secondary">Pending review</Badge>;
 };

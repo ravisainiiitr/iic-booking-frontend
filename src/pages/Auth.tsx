@@ -1084,7 +1084,7 @@ const Auth = () => {
           </div>
 
           <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-sm">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/70">How to sign in</p>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/85">How to sign in</p>
             <dl className="space-y-3 text-sm">
               <div className="flex items-start gap-3">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" aria-hidden />

@@ -228,7 +228,7 @@ function InviteStatusBadge({ invite }: { invite: SupervisorInvite }) {
       );
     case "accepted":
       return (
-        <Badge className="flex items-center gap-1 bg-green-600 hover:bg-green-600">
+        <Badge className="flex items-center gap-1 bg-green-700 hover:bg-green-700">
           <CheckCircle className="h-3 w-3" aria-hidden />
           Supervisor signed in
         </Badge>

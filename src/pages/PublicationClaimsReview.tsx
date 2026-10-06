@@ -194,7 +194,7 @@ export default function PublicationClaimsReview() {
                   <Button
                     onClick={() => approve(c.id)}
                     disabled={actingId === c.id}
-                    className="bg-emerald-600 hover:bg-emerald-700"
+                    className="bg-emerald-700 hover:bg-emerald-800"
                   >
                     {actingId === c.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     Approve

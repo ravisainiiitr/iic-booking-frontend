@@ -633,7 +633,7 @@ const ExternalDepartmentAdditionVerification = () => {
                                 <Button
                                   size="sm"
                                   variant="default"
-                                  className="h-8 gap-1 bg-green-600 hover:bg-green-700"
+                                  className="h-8 gap-1 bg-green-700 hover:bg-green-800"
                                   onClick={() => handleApprove(row.id)}
                                   disabled={actionId !== null}
                                   title="Approve"

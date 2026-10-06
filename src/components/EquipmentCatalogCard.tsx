@@ -258,7 +258,7 @@ export default function EquipmentCatalogCard({
             <button
               type="button"
               onClick={openCitations}
-              className="absolute bottom-3 left-3 z-[3] inline-flex items-center gap-1.5 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm underline-offset-2 hover:underline hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="absolute bottom-3 left-3 z-[3] inline-flex min-h-8 items-center gap-1.5 rounded-md bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-primary shadow-sm underline-offset-2 hover:underline hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label={`${citationLabel} — view details`}
             >
               <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />

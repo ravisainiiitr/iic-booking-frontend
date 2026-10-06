@@ -80,7 +80,7 @@ function StatusChip({ status }: { status?: string }) {
   const s = String(status || "UNKNOWN").toUpperCase();
   if (s === "PASS" || s === "OK") {
     return (
-      <Badge className="bg-emerald-600 hover:bg-emerald-600">
+      <Badge className="bg-emerald-700 hover:bg-emerald-700">
         <CheckCircle2 className="mr-1 h-3 w-3" /> PASS
       </Badge>
     );

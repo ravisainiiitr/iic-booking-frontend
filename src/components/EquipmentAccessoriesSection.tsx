@@ -23,7 +23,7 @@ type EquipmentAccessoriesSectionProps = {
 
 function AvailableBadge() {
   return (
-    <Badge className="shrink-0 border-0 bg-emerald-600 text-white hover:bg-emerald-600 text-[10px] sm:text-xs font-semibold uppercase tracking-wide">
+    <Badge className="shrink-0 border-0 bg-emerald-700 text-white hover:bg-emerald-800 text-[10px] sm:text-xs font-semibold uppercase tracking-wide">
       Available
     </Badge>
   );

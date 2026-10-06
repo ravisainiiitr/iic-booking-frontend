@@ -27,7 +27,7 @@ export function BookingStepIndicator({ current, className }: Props) {
             <span
               className={cn(
                 "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold",
-                done && "border-emerald-600 bg-emerald-600 text-white",
+                done && "border-emerald-600 bg-emerald-700 text-white",
                 active && "border-primary bg-primary text-primary-foreground",
                 !done && !active && "border-muted-foreground/40 text-muted-foreground",
               )}

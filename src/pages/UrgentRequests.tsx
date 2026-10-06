@@ -301,7 +301,7 @@ const UrgentRequests = () => {
             : "—";
     const badge =
       row.status === "APPROVED" ? (
-        <Badge className="whitespace-nowrap bg-green-600 hover:bg-green-600">Approved</Badge>
+        <Badge className="whitespace-nowrap bg-green-700 hover:bg-green-700">Approved</Badge>
       ) : row.status === "REJECTED" ? (
         <Badge className="whitespace-nowrap bg-red-600 hover:bg-red-600">Rejected</Badge>
       ) : expired ? (
@@ -311,7 +311,7 @@ const UrgentRequests = () => {
           Awaiting supervisor
         </Badge>
       ) : (
-        <Badge className="whitespace-nowrap bg-amber-500 hover:bg-amber-500">Needs your decision</Badge>
+        <Badge className="whitespace-nowrap bg-amber-500 text-amber-950 hover:bg-amber-500">Needs your decision</Badge>
       );
     return {
       timeLeft,
@@ -473,7 +473,7 @@ const UrgentRequests = () => {
                         Change
                       </Button>
                     ) : (
-                      <span className="text-muted-foreground/80">(set by the Main Administrator for all departments)</span>
+                      <span className="text-muted-foreground">(set by the Main Administrator for all departments)</span>
                     )}
                   </>
                 )}
