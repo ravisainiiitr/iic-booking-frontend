@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { FabricationEquipmentRow } from "@/lib/api";
+import type { FabricationEquipmentRow, MasterPrintMaterial } from "@/lib/api";
 
 const row: FabricationEquipmentRow = {
   equipment_id: 21,
@@ -75,5 +75,83 @@ describe("OICPrintMaterials lab settings", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("from 1 to 168")));
     expect(api.updateFabricationMaterialEquipment).not.toHaveBeenCalled();
+  });
+});
+
+function master(id: number, code: string, name: string, extra: Partial<MasterPrintMaterial> = {}): MasterPrintMaterial {
+  return {
+    id,
+    code,
+    name,
+    density_g_per_cm3: "1.24",
+    price_per_gram: "5",
+    user_type: null,
+    is_active: true,
+    display_order: id,
+    home_equipment_id: 21,
+    home_equipment_code: "TEST-3DP-01",
+    home_equipment_name: "Sample 3D Printer (TEST)",
+    can_edit: true,
+    supported_equipment_count: 1,
+    ...extra,
+  };
+}
+
+function renderWithMaster(materials: MasterPrintMaterial[], supported: number[]) {
+  api.getFabricationMaterialEquipment.mockResolvedValue({
+    data: { equipments: [{ ...row, supported_material_ids: supported }], master_print_materials: materials },
+  });
+  return render(
+    <MemoryRouter>
+      <OICPrintMaterials />
+    </MemoryRouter>,
+  );
+}
+
+describe("OICPrintMaterials supported materials", () => {
+  const pla = master(1, "PLA", "PLA white");
+  const abs = master(2, "ABS", "ABS black", {
+    home_equipment_id: 99,
+    home_equipment_code: "TEST-3DP-02",
+    home_equipment_name: "Other printer (TEST)",
+    can_edit: false,
+  });
+  const petg = master(3, "PETG", "PETG clear", { is_active: false });
+
+  it("lists the category master list with enabled state and saves the ticked ones", async () => {
+    api.updateFabricationMaterialEquipment.mockResolvedValue({
+      data: { equipment: { ...row, supported_material_ids: [1, 2] } },
+    });
+    renderWithMaster([pla, abs, petg], [1]);
+
+    const card = await screen.findByTestId("supported-materials");
+    expect(card.textContent).toContain("Added for Other printer (TEST)");
+    expect(card.textContent).toContain("Disabled");
+    expect(screen.getByLabelText(/PLA white/).getAttribute("data-state")).toBe("checked");
+
+    fireEvent.click(screen.getByLabelText(/ABS black/));
+    fireEvent.click(screen.getByTestId("save-supported-materials"));
+
+    await waitFor(() =>
+      expect(api.updateFabricationMaterialEquipment).toHaveBeenCalledWith({ equipment_id: 21, supported_material_ids: [1, 2] }),
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Supported materials saved."));
+  });
+
+  it("warns the OIC when users would see no material", async () => {
+    renderWithMaster([pla, petg], [3]);
+    const warning = await screen.findByTestId("supported-materials-warning");
+    expect(warning.textContent).toContain("All supported materials are disabled");
+
+    fireEvent.click(screen.getByLabelText(/PETG clear/));
+    await waitFor(() => expect(screen.getByTestId("supported-materials-warning").textContent).toContain("No materials are supported"));
+  });
+
+  it("blocks saving two materials with the same code", async () => {
+    const otherPla = master(4, "pla", "PLA from other lab", { home_equipment_id: 99, home_equipment_code: "TEST-3DP-02" });
+    renderWithMaster([pla, otherPla], [1]);
+    fireEvent.click(await screen.findByLabelText(/PLA from other lab/));
+    expect(await screen.findByText(/share the code/)).toBeTruthy();
+    expect((screen.getByTestId("save-supported-materials") as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -57,6 +57,10 @@ export const adminGuide: RoleGuide = {
             title: "Peak booking window",
             body: "In Admin Settings → Session / Auto-logout, set the minutes before and after the weekly slot opening and choose Pause external users. Internal users then go straight to booking from the catalog.",
           },
+          {
+            title: "Fabrication materials",
+            body: "Fabrication Materials is the master list of 3D print materials and laser cutting sheets. For each 3D printer or laser cutter, tick its Supported materials from the master list of the same kind and save; users see a material only when it is supported and enabled, otherwise No materials configured — contact the OIC. Disabling a material hides it everywhere but keeps it supported; bookings already made keep their price.",
+          },
           { title: "Communications and CMS", body: "Keep Communication templates and Home Page content accurate." },
           { title: "Legacy user sync", body: "Map a user to their old-portal ID, run a test sync, then sync wallet balance and legacy bookings." },
         ],

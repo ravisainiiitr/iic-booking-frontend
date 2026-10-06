@@ -369,9 +369,24 @@ export interface FabricationEquipmentRow {
   fabrication_notification_emails: string[];
   own_material_fixed_charge: string | null;
   fabrication_replace_window_hours?: number;
+  /** Materials added for this equipment (it may edit them). */
   print_materials?: PrintMaterial[];
   laser_sheet_materials?: LaserSheetMaterial[];
+  /** Master-list materials of its category this equipment offers to users (when enabled). */
+  supported_material_ids?: number[];
 }
+
+/** A Fabrication Materials master-list entry, with the equipment it was added for. */
+export type MasterMaterialMeta = {
+  home_equipment_id: number;
+  home_equipment_code: string;
+  home_equipment_name: string;
+  /** The viewer manages the equipment it was added for, so may edit its price and details. */
+  can_edit: boolean;
+  supported_equipment_count: number;
+};
+export type MasterPrintMaterial = PrintMaterial & MasterMaterialMeta;
+export type MasterLaserSheetMaterial = LaserSheetMaterial & MasterMaterialMeta;
 
 export { FABRICATION_PROFILE_TYPES, isFabricationProfile } from "@/lib/fabricationProfiles";
 
@@ -4266,7 +4281,7 @@ class ApiClient {
     const endpoint = qs
       ? `/equipments/${equipmentId}/print-materials/?${qs}`
       : `/equipments/${equipmentId}/print-materials/`;
-    return this.request<{ materials: PrintMaterial[] }>(endpoint);
+    return this.request<{ materials: PrintMaterial[]; no_materials_message?: string }>(endpoint);
   }
 
   async analyzeEquipmentStl(
@@ -4313,7 +4328,11 @@ class ApiClient {
 
   async getEquipmentLaserSheetMaterials(equipmentId: number | string, options?: { user_type?: string }) {
     const qs = options?.user_type ? `?user_type=${encodeURIComponent(options.user_type)}` : "";
-    return this.request<{ materials: LaserSheetMaterial[]; own_material_fixed_charge: string | null }>(
+    return this.request<{
+      materials: LaserSheetMaterial[];
+      own_material_fixed_charge: string | null;
+      no_materials_message?: string;
+    }>(
       `/equipments/${equipmentId}/laser-sheet-materials/${qs}`,
     );
   }
@@ -10133,6 +10152,8 @@ class ApiClient {
       has_fabrication_equipment: boolean;
       has_print_3d_equipment: boolean;
       has_laser_cut_equipment: boolean;
+      master_print_materials?: MasterPrintMaterial[];
+      master_laser_sheet_materials?: MasterLaserSheetMaterial[];
     }>("/oic/fabrication-materials/equipment/");
   }
 
@@ -10141,6 +10162,7 @@ class ApiClient {
     fabrication_notification_emails?: string[];
     own_material_fixed_charge?: string | null;
     fabrication_replace_window_hours?: number;
+    supported_material_ids?: number[];
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",

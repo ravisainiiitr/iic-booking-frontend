@@ -510,6 +510,11 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                                 <SelectValue placeholder={p.material_name || "Choose a sheet"} />
                               </SelectTrigger>
                               <SelectContent>
+                                {p.material_id && !sheets.some((m) => m.id === p.material_id) && (
+                                  <SelectItem value={String(p.material_id)}>
+                                    {p.material_name || p.material_code} (no longer offered for new choices)
+                                  </SelectItem>
+                                )}
                                 {sheets.map((m) => (
                                   <SelectItem key={m.id} value={String(m.id)}>
                                     {materialLabel(m)}

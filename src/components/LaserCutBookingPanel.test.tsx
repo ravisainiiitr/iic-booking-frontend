@@ -117,6 +117,17 @@ describe("LaserCutBookingPanel", () => {
     expect(screen.queryByLabelText("I will bring my own sheet material")).toBeNull();
   });
 
+  it("tells the user to contact the OIC when no sheet is configured", async () => {
+    render(<LaserCutBookingPanel equipmentId={12} materials={[]} onReady={vi.fn()} />);
+    const note = await screen.findByTestId("laser-no-materials");
+    expect(note.textContent).toBe("No materials configured — contact the OIC.");
+  });
+
+  it("does not show the no-materials note when sheets exist", () => {
+    render(<LaserCutBookingPanel equipmentId={12} materials={[acrylic]} onReady={vi.fn()} />);
+    expect(screen.queryByTestId("laser-no-materials")).toBeNull();
+  });
+
   it("rejects files that are not DXF or ZIP", async () => {
     render(<LaserCutBookingPanel equipmentId={12} materials={[acrylic]} onReady={vi.fn()} />);
     fireEvent.change(screen.getByTestId("laser-dxf-input"), { target: { files: [new File(["x"], "part.stl")] } });

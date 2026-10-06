@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
-import { apiClient, type FabricationEquipmentRow, type LaserSheetMaterial, type PrintMaterial } from "@/lib/api";
+import {
+  apiClient,
+  type FabricationEquipmentRow,
+  type LaserSheetMaterial,
+  type MasterLaserSheetMaterial,
+  type MasterPrintMaterial,
+  type PrintMaterial,
+} from "@/lib/api";
+import { SupportedMaterialsCard } from "@/components/admin/SupportedMaterialsCard";
 import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,6 +127,8 @@ export default function OICPrintMaterials() {
 
   const [loading, setLoading] = useState(true);
   const [equipments, setEquipments] = useState<FabricationEquipmentRow[]>([]);
+  const [masterPrint, setMasterPrint] = useState<MasterPrintMaterial[]>([]);
+  const [masterLaser, setMasterLaser] = useState<MasterLaserSheetMaterial[]>([]);
   const [chargeProfiles, setChargeProfiles] = useState<Record<number, ChargeProfileRow[]>>({});
   const [tab, setTab] = useState<FabricationTab>("print");
   const [selectedIds, setSelectedIds] = useState<Record<FabricationTab, string>>({ print: "", laser: "" });
@@ -157,6 +167,8 @@ export default function OICPrintMaterials() {
     }
     const list = res.data?.equipments ?? [];
     setEquipments(list);
+    setMasterPrint(res.data?.master_print_materials ?? []);
+    setMasterLaser(res.data?.master_laser_sheet_materials ?? []);
     const profiles: Record<number, ChargeProfileRow[]> = {};
     for (const eq of printRes.data?.equipments ?? []) profiles[eq.equipment_id] = eq.charge_profiles ?? [];
     setChargeProfiles(profiles);
@@ -250,6 +262,26 @@ export default function OICPrintMaterials() {
     toast.success("Settings saved.");
   };
 
+  const onSaveSupported = async (ids: number[]): Promise<boolean> => {
+    if (!selected) return false;
+    const res = await apiClient.updateFabricationMaterialEquipment({
+      equipment_id: selected.equipment_id,
+      supported_material_ids: ids,
+    });
+    const updated = res.data?.equipment;
+    if (res.error || !updated) {
+      toast.error(res.error || "Could not save the supported materials.");
+      return false;
+    }
+    setEquipments((prev) =>
+      prev.map((e) =>
+        e.equipment_id === updated.equipment_id ? { ...e, supported_material_ids: updated.supported_material_ids ?? [] } : e
+      )
+    );
+    toast.success("Supported materials saved.");
+    return true;
+  };
+
   const onSaveMaterials = async () => {
     if (!selected) return;
     const error = tab === "print" ? printMaterialRowsError(printRows) : laserSheetRowsError(laserRows);
@@ -318,28 +350,41 @@ export default function OICPrintMaterials() {
       return;
     }
     setRows((prev) => prev.filter((r) => r.id !== row.id));
+    const profile = TAB_PROFILE[tab];
+    if (tab === "print") setMasterPrint((prev) => prev.filter((m) => m.id !== row.id));
+    else setMasterLaser((prev) => prev.filter((m) => m.id !== row.id));
     setEquipments((prev) =>
-      prev.map((e) =>
-        e.equipment_id !== selected?.equipment_id
-          ? e
-          : {
-              ...e,
-              print_materials: e.print_materials?.filter((m) => m.id !== row.id),
-              laser_sheet_materials: e.laser_sheet_materials?.filter((m) => m.id !== row.id),
-            }
-      )
+      prev.map((e) => {
+        if (e.profile_type !== profile) return e;
+        const next = { ...e, supported_material_ids: e.supported_material_ids?.filter((id) => id !== row.id) };
+        if (e.equipment_id !== selected?.equipment_id) return next;
+        return {
+          ...next,
+          print_materials: e.print_materials?.filter((m) => m.id !== row.id),
+          laser_sheet_materials: e.laser_sheet_materials?.filter((m) => m.id !== row.id),
+        };
+      })
     );
     toast.success("Material deleted.");
   };
 
+  /** Supported print materials, using this page's unsaved edits for the ones added for this equipment. */
+  const supportedPrintRows = useMemo(() => {
+    const supported = new Set(selected?.supported_material_ids ?? []);
+    const own = printRows.filter((r) => r.id != null && supported.has(r.id));
+    const ownIds = new Set(own.map((r) => r.id));
+    const others = masterPrint.filter((m) => supported.has(m.id) && !ownIds.has(m.id)).map(printRowFromMaterial);
+    return [...own, ...others];
+  }, [selected?.supported_material_ids, printRows, masterPrint]);
   const priceColumns = useMemo(() => {
     const byCode = new Map<string, { code: string; name: string }>();
-    for (const r of printRows) {
+    for (const r of supportedPrintRows) {
       const code = r.code.trim();
-      if (code && !byCode.has(code.toLowerCase())) byCode.set(code.toLowerCase(), { code, name: r.name.trim() || code });
+      if (r.is_active === false || !code) continue;
+      if (!byCode.has(code.toLowerCase())) byCode.set(code.toLowerCase(), { code, name: r.name.trim() || code });
     }
     return Array.from(byCode.values());
-  }, [printRows]);
+  }, [supportedPrintRows]);
   const selectedProfiles = useMemo(
     () =>
       [...(selected ? chargeProfiles[selected.equipment_id] ?? [] : [])].sort((a, b) =>
@@ -451,6 +496,16 @@ export default function OICPrintMaterials() {
               </CardContent>
             </Card>
 
+            <SupportedMaterialsCard
+              kind={t}
+              equipmentId={selected.equipment_id}
+              equipmentLabel={selected.equipment_name || selected.equipment_code}
+              master={t === "print" ? masterPrint : masterLaser}
+              savedIds={selected.supported_material_ids ?? []}
+              disabled={disabled}
+              onSave={onSaveSupported}
+            />
+
             {t === "print" && (
               <Card>
                 <CardHeader>
@@ -459,7 +514,7 @@ export default function OICPrintMaterials() {
                   </CardTitle>
                   <CardDescription>
                     Booking charge ≈ (print weight in g × ₹/g) + (print hours × machine ₹/h), per part × quantity.
-                    Updates live as you edit below.
+                    Shows the enabled supported materials and updates live as you edit below.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -497,7 +552,7 @@ export default function OICPrintMaterials() {
                               </td>
                               <td className="p-3 text-right tabular-nums font-medium">₹{formatMoney(cp.primary_unit_charge)}</td>
                               {priceColumns.map((col) => {
-                                const price = resolveMaterialPriceForCategory(printRows, col.code, String(cp.user_type || ""));
+                                const price = resolveMaterialPriceForCategory(supportedPrintRows, col.code, String(cp.user_type || ""));
                                 return (
                                   <td key={`${cp.user_type}-${col.code}`} className="p-3 text-right tabular-nums">
                                     {price != null ? `₹${formatMoney(price)}` : <span className="text-muted-foreground">—</span>}
@@ -517,12 +572,14 @@ export default function OICPrintMaterials() {
             <Card>
               <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                 <div className="space-y-1.5">
-                  <CardTitle className="text-lg">{tabInfo[t].label}</CardTitle>
+                  <CardTitle className="text-lg">Materials added for this equipment</CardTitle>
                   <CardDescription>
+                    These are your entries in the master list. Their prices apply on every equipment that supports
+                    them, and a new material is supported here automatically.{" "}
                     {t === "print"
                       ? "Enter the supplier rate (per kg / litre / gram) or a direct price per gram."
                       : "Charge per part = (part area × quantity ÷ sheet area) × sheet rate."}{" "}
-                    Disable a material to hide it from new bookings without affecting existing ones.
+                    Disable a material to hide it from new bookings everywhere without affecting existing ones.
                   </CardDescription>
                 </div>
                 <Button
@@ -599,8 +656,8 @@ export default function OICPrintMaterials() {
             </Button>
             <h1 className="text-2xl font-semibold tracking-tight">Fabrication Materials</h1>
             <p className="mt-2 text-sm text-white/85 max-w-2xl">
-              Manage 3D print materials and laser cutting sheets for the equipment you look after, and who is emailed
-              the uploaded files.
+              Manage the master list of 3D print materials and laser cutting sheets, choose which ones each of your
+              equipment supports, and who is emailed the uploaded files.
             </p>
           </div>
         </StandaloneOnly>

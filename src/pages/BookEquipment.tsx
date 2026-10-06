@@ -9414,7 +9414,7 @@ const BookEquipment = () => {
                     materials={
                       isCalculateChargesFlow
                         ? undefined
-                        : (equipmentDetail as { print_materials?: PrintMaterial[] }).print_materials
+                        : (equipmentDetail as { bookable_print_materials?: PrintMaterial[] }).bookable_print_materials
                     }
                     estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
                     ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}

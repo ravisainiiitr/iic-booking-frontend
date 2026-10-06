@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { apiClient, type LaserCutAnalysis, type LaserCutBatch, type LaserSheetMaterial } from "@/lib/api";
 import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry, type DxfUnitKey } from "@/lib/dxfGeometry";
 import { extractDxfFilesFromZip } from "@/lib/extractZipDxfFiles";
+import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import { AlertTriangle, Eye, Trash2, Upload } from "lucide-react";
 import { DxfPreviewNavigator, laserPartMetrics, type DxfPreviewItem } from "@/components/DxfPreviewNavigator";
 
@@ -89,6 +90,7 @@ export function LaserCutBookingPanel({
 }: LaserCutBookingPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [materials, setMaterials] = useState<LaserSheetMaterial[]>(materialsProp ?? []);
+  const [materialsLoaded, setMaterialsLoaded] = useState(Boolean(materialsProp?.length));
   const [fetchedOwnCharge, setFetchedOwnCharge] = useState<string | null>(null);
   const [defaultMaterialId, setDefaultMaterialId] = useState<string>("");
   const [batch, setBatch] = useState<LaserCutBatch | null>(null);
@@ -108,6 +110,7 @@ export function LaserCutBookingPanel({
   useEffect(() => {
     if (materialsProp?.length) {
       setMaterials(materialsProp);
+      setMaterialsLoaded(true);
       return;
     }
     let cancelled = false;
@@ -117,6 +120,7 @@ export function LaserCutBookingPanel({
         if (cancelled) return;
         setMaterials(res.data?.materials ?? []);
         setFetchedOwnCharge(res.data?.own_material_fixed_charge ?? null);
+        setMaterialsLoaded(!res.error);
       });
     return () => {
       cancelled = true;
@@ -357,7 +361,11 @@ export function LaserCutBookingPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         {materials.length === 0 ? (
-          <p className="text-sm text-destructive">No sheet materials are set up for this machine yet.</p>
+          materialsLoaded && (
+            <p className="text-sm text-destructive" role="alert" data-testid="laser-no-materials">
+              {NO_FABRICATION_MATERIALS_MESSAGE}
+            </p>
+          )
         ) : (
           <div className="space-y-2">
             <Label htmlFor="laser-default-material">Sheet material for new uploads</Label>

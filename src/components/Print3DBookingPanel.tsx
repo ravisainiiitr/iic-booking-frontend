@@ -23,6 +23,7 @@ import {
   type PrintMaterial,
 } from "@/lib/api";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
+import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import { ChevronLeft, ChevronRight, FileUp, Upload, X } from "lucide-react";
 
 // three.js viewer: loaded only when a model is previewed (this module is also imported for helpers).
@@ -228,6 +229,7 @@ export function Print3DBookingPanel({
   const [zipStlEntries, setZipStlEntries] = useState<ZipStlEntry[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [materials, setMaterials] = useState<PrintMaterial[]>(materialsProp ?? []);
+  const [materialsLoaded, setMaterialsLoaded] = useState(Boolean(materialsProp?.length));
   const [materialId, setMaterialId] = useState<string>("");
   const [density, setDensity] = useState(DEFAULT_DENSITY);
   const [analyzingStl, setAnalyzingStl] = useState(false);
@@ -287,6 +289,7 @@ export function Print3DBookingPanel({
   useEffect(() => {
     if (materialsProp?.length) {
       setMaterials(materialsProp);
+      setMaterialsLoaded(true);
       if (!materialId && materialsProp[0]) {
         setMaterialId(String(materialsProp[0].id));
       }
@@ -304,6 +307,7 @@ export function Print3DBookingPanel({
         setMaterials([]);
         setMaterialId("");
       }
+      setMaterialsLoaded(!res.error);
     });
   }, [equipmentId, materialsProp, estimateUserType]);
 
@@ -738,6 +742,11 @@ export function Print3DBookingPanel({
               ))}
             </SelectContent>
           </Select>
+          {materialsLoaded && materials.length === 0 && (
+            <p className="text-sm text-destructive" role="alert" data-testid="print-no-materials">
+              {NO_FABRICATION_MATERIALS_MESSAGE}
+            </p>
+          )}
         </div>
 
         <div className="space-y-3">
