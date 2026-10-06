@@ -1112,6 +1112,20 @@ export interface SupportNotificationSettings {
   updated_by_name: string | null;
 }
 
+/** GET /slot-window/opening/ — read-only; `applies` is false when no weekly opening rule is set. */
+export interface SlotWindowOpening {
+  equipment_id: number | null;
+  applies: boolean;
+  /** 0 = Monday … 6 = Sunday */
+  weekday: number | null;
+  /** "HH:MM" server time */
+  time: string | null;
+  source: "equipment" | "global" | null;
+  next_opens_at: string | null;
+  server_time: string;
+  utc_offset_minutes: number;
+}
+
 export interface PeakWindowSettings {
   enabled: boolean;
   lead_minutes: number;
@@ -7118,6 +7132,12 @@ class ApiClient {
       timezone: string;
       utc_offset_minutes: number;
     }>(`/server-time/`, { cache: "no-store" });
+  }
+
+  /** When next week's slots open for users: the equipment's own rule, else the global one. */
+  async getSlotWindowOpening(equipmentId?: number | string | null) {
+    const q = equipmentId != null && equipmentId !== "" ? `?equipment_id=${encodeURIComponent(String(equipmentId))}` : "";
+    return this.request<SlotWindowOpening>(`/slot-window/opening/${q}`, { cache: "no-store" });
   }
 
   async listBookingTemplates(equipmentId?: number, opts?: { health?: boolean }) {

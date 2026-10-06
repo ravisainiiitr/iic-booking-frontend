@@ -3,6 +3,7 @@ import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Loader2, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { apiClient } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isCompletedSlot } from "@/lib/slotDisplayStatus";
@@ -375,6 +376,12 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
           </Button>
         </div>
       </div>
+
+      <NextWeekOpeningCountdown
+        equipmentId={equipmentId}
+        onOpen={() => void loadWeek(weekStart, true)}
+        className="mx-auto flex w-fit"
+      />
 
       {!error && ((payload?.slots ?? []) as CalendarSlot[]).some((s) => isOutsideVisibilityWindow(s)) ? (
         <RestrictedSlotLegend from={payload?.weekly_view_time_from} to={payload?.weekly_view_time_to} />

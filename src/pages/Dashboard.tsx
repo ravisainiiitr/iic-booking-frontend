@@ -48,6 +48,7 @@ import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
 import { formatUserDisplayName, formatWelcomeGreeting } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import {
   LabCalendarColorConfig,
   DEFAULT_LAB_BOOKING_COLORS,
@@ -4301,7 +4302,12 @@ const Dashboard = () => {
                                   slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
                                   onBookedSlotClick={selectLabBookingForDetail}
                                   bookedSlotsOnly={labCalendarBookedOnly}
-                                  headerActions={index === 0 ? labWeekCalendarControls : undefined}
+                                  headerActions={
+                                    <>
+                                      <NextWeekOpeningCountdown equipmentId={eq.equipment_id} audience="staff" />
+                                      {index === 0 ? labWeekCalendarControls : null}
+                                    </>
+                                  }
                                 />
                               ))
                             )}

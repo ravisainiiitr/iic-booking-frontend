@@ -7,6 +7,7 @@ import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -711,6 +712,8 @@ export default function RescheduleSlotPicker({
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <NextWeekOpeningCountdown equipmentId={targetEquipmentId} className="mx-auto flex w-fit" />
 
       {!loadingSlots && slots.some((s) => isOutsideVisibilityWindow(s)) && (
         <RestrictedSlotLegend from={viewWindow.from} to={viewWindow.to} />
