@@ -202,13 +202,13 @@ describe("BookingDetailCard job sheet", () => {
       expect(late).toContain("Results overdue");
     });
 
-    it("still shows the countdown to the booking user and the Officer In Charge", () => {
+    it("still shows the countdown to the booking user, not to the Officer In Charge", () => {
       expect(render(withDeadlines(), { isOperator: false, currentUserType: "faculty", currentUserId: 7 })).toContain(
         "Time remaining to submit sample",
       );
       expect(
         render(withDeadlines(), { isOperator: false, isManagerOrAdmin: true, currentUserType: "manager", currentUserId: 50 }),
-      ).toContain("Time remaining to submit sample");
+      ).not.toContain("Time remaining to submit sample");
     });
   });
 

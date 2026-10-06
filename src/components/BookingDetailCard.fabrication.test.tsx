@@ -165,6 +165,7 @@ describe("BookingDetailCard for fabrication bookings", () => {
     expect(html).toContain("Sample Accepted");
     expect(html).toContain("Booking Not Utilized");
     expect(html).toContain("Extend results deadline");
-    expect(html).toContain("Time remaining");
+    expect(html).not.toContain("Time remaining to submit sample");
+    expect(renderCard({ ...base } as unknown as BookingDetailCardBooking, owner)).toContain("Time remaining");
   });
 });

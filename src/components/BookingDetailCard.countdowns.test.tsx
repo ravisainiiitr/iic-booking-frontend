@@ -90,10 +90,10 @@ const COLLECT = "Time remaining to collect sample";
 const COLLECTION_BOX = "Sample Collection Deadline";
 
 describe("BookingDetailCard sample countdowns by role", () => {
-  it("shows the submission countdown to the booking user, faculty owner and Lab Operator only", () => {
+  it("shows the submission countdown to the booking user and faculty owner only", () => {
     expect(render(submitBooking, OWNER)).toContain(SUBMIT);
     expect(render(submitBooking, FACULTY_OWNER)).toContain(SUBMIT);
-    expect(render(submitBooking, OPERATOR)).toContain(SUBMIT);
+    expect(render(submitBooking, OPERATOR)).not.toContain(SUBMIT);
     expect(render(submitBooking, OIC)).not.toContain(SUBMIT);
     expect(render(submitBooking, ADMIN)).not.toContain(SUBMIT);
   });
