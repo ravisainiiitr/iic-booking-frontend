@@ -218,7 +218,7 @@ export default function AgentInstallerPage() {
                   <Info label="Supported Windows" value={latest.supported_windows || "—"} />
                   <Info
                     label="Minimum hardware"
-                    value={`RAM ${latest.min_ram_gb ?? 8} GB · Disk ${latest.min_disk_gb ?? 20} GB`}
+                    value={`RAM ${latest.min_ram_gb ?? 4} GB · Disk ${latest.min_disk_gb ?? 20} GB`}
                   />
                   <Info label="Digital signature" value={latest.signature_status_display || "Unsigned"} />
                   <Info label="SHA256" value={latest.sha256 || "—"} mono />
