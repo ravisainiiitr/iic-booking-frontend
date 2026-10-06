@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { appEntryPath, isNativeApp } from "@/lib/nativeApp";
+import { setPostLoginRedirect } from "@/lib/authRedirect";
+import { currentOpenWorkspace } from "@/lib/workspaceResume";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
@@ -164,6 +166,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("user");
       setUser(null);
       const signInPath = isNativeApp() ? appEntryPath(false) : "/auth";
+      if (!isNativeApp()) {
+        const { pathname, search, hash } = window.location;
+        const returnTo = currentOpenWorkspace()?.path ?? `${pathname}${search}${hash}`;
+        if (pathname !== "/" && !/^\/(auth|login)(?:[/?#]|$)/.test(pathname)) {
+          setPostLoginRedirect(returnTo);
+        }
+      }
       if (window.location.pathname !== signInPath) {
         window.location.replace(signInPath);
       }

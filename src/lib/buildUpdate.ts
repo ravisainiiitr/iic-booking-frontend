@@ -1,3 +1,5 @@
+import { rememberWorkspaceForReload } from "@/lib/workspaceResume";
+
 const ENTRY_SCRIPT_RE = /<script\b[^>]*\bsrc="([^"]*\/assets\/index-[\w-]+\.js)"/i;
 const CHUNK_RELOAD_KEY = "iic-chunk-reload-at";
 const CHUNK_RELOAD_GAP_MS = 60_000;
@@ -39,6 +41,7 @@ export function installChunkReloadHandler(): void {
       return;
     }
     event.preventDefault();
+    rememberWorkspaceForReload();
     window.location.reload();
   });
 }
