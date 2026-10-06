@@ -8,7 +8,6 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ProfileCompletionProvider } from "@/components/ProfileCompletion/ProfileCompletionProvider";
-import { ThemeProvider } from "next-themes";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
 import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
@@ -39,33 +38,32 @@ function EmbedChrome() {
   );
 }
 
+// Light/dark follows the OS purely through CSS (prefers-color-scheme); there is no theme provider.
 const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-    <TooltipProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <ProfileCompletionProvider>
-          <UserGuideProvider>
-          <NotificationProvider>
-            <Toaster />
-            <Sonner />
-            <BuildUpdateNotifier />
-            <PeakWindowGate>
-              <EmbedChrome />
-              <GlobalBackButton />
-              <AssistantLauncher />
-              <PendingActionsPrompt />
-              <AppRoutes />
-              <StaffAppChrome />
-              <QuotaBreakdownHost />
-            </PeakWindowGate>
-          </NotificationProvider>
-          </UserGuideProvider>
-          </ProfileCompletionProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </ThemeProvider>
+  <TooltipProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ProfileCompletionProvider>
+        <UserGuideProvider>
+        <NotificationProvider>
+          <Toaster />
+          <Sonner />
+          <BuildUpdateNotifier />
+          <PeakWindowGate>
+            <EmbedChrome />
+            <GlobalBackButton />
+            <AssistantLauncher />
+            <PendingActionsPrompt />
+            <AppRoutes />
+            <StaffAppChrome />
+            <QuotaBreakdownHost />
+          </PeakWindowGate>
+        </NotificationProvider>
+        </UserGuideProvider>
+        </ProfileCompletionProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  </TooltipProvider>
 );
 
 export default App;

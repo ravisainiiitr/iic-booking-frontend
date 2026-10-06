@@ -3,11 +3,22 @@
 @tailwind utilities;
 
 /* Navy Ocean design system — IIT Roorkee Equipment Booking Portal.
-   All colors MUST be HSL. White surfaces + navy headers/actions.
+   All colors MUST be HSL channels. White surfaces + navy headers/actions in light mode,
+   navy/slate surfaces in dark mode.
+
+   Theme selection is automatic: light values are the default and the dark values apply under
+   @media (prefers-color-scheme: dark). There is deliberately no theme toggle or stored preference
+   (see docs/frontend/THEME-AND-RESPONSIVE.md). Tailwind `dark:` uses the same media query.
 */
 
 @layer base {
   :root {
+    color-scheme: light dark;
+    --viewport-h: 100vh;
+    --viewport-min-h: 100vh;
+    /* Fixed public header height incl. safe area; Header.tsx replaces this with the measured value. */
+    --site-header-h: calc(5.75rem + env(safe-area-inset-top));
+
     /* Navy Ocean — bright white surfaces, rich navy primary */
     --background: 210 40% 99%;
     --foreground: 215 45% 12%;
@@ -21,21 +32,58 @@
     --primary: 215 70% 28%;
     --primary-foreground: 0 0% 100%;
 
+    /* IITR navy for surfaces that stay navy in both themes (CTAs over hero photos, brand bars). */
+    --brand: 215 70% 28%;
+    --brand-foreground: 0 0% 100%;
+    --brand-accent: 205 72% 40%;
+
     --secondary: 214 32% 95%;
     --secondary-foreground: 215 40% 18%;
 
     --muted: 210 28% 96%;
-    --muted-foreground: 215 14% 42%;
+    --muted-foreground: 215 16% 38%;
 
     --accent: 205 72% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 46%;
     --destructive-foreground: 0 0% 100%;
+    --destructive-subtle: 0 86% 97%;
+    --destructive-subtle-foreground: 0 70% 33%;
+    --destructive-border: 0 75% 86%;
 
-    --border: 214 22% 90%;
-    --input: 214 22% 90%;
+    --success: 152 65% 28%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 145 62% 95%;
+    --success-subtle-foreground: 153 68% 21%;
+    --success-border: 148 45% 78%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 26 83% 14%;
+    --warning-subtle: 46 100% 94%;
+    --warning-subtle-foreground: 26 85% 26%;
+    --warning-border: 43 88% 70%;
+
+    --info: 205 82% 36%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 205 90% 96%;
+    --info-subtle-foreground: 210 78% 27%;
+    --info-border: 205 70% 82%;
+
+    /* Borders: decorative separators vs. form-control outlines (>= 3:1 on white). */
+    --border: 214 24% 86%;
+    --input: 215 16% 57%;
     --ring: 215 70% 28%;
+
+    /* Dialog / sheet backdrop */
+    --overlay: 222 47% 8%;
+
+    --chart-1: 215 70% 40%;
+    --chart-2: 173 58% 34%;
+    --chart-3: 38 92% 46%;
+    --chart-4: 262 52% 52%;
+    --chart-5: 350 70% 48%;
+    --chart-6: 199 80% 42%;
 
     --radius: 0.75rem;
 
@@ -70,48 +118,105 @@
     --feature-navy: 215 70% 28%;
   }
 
-  .dark {
-    --background: 215 40% 8%;
-    --foreground: 210 30% 96%;
+  @supports (height: 100dvh) {
+    :root {
+      --viewport-h: 100dvh;
+      --viewport-min-h: 100svh;
+    }
+  }
 
-    --card: 215 35% 11%;
-    --card-foreground: 210 30% 96%;
+  @media (min-width: 640px) {
+    :root {
+      --site-header-h: calc(6.25rem + env(safe-area-inset-top));
+    }
+  }
+  @media (min-width: 768px) {
+    :root {
+      --site-header-h: calc(7.1rem + env(safe-area-inset-top));
+    }
+  }
 
-    --popover: 215 35% 11%;
-    --popover-foreground: 210 30% 96%;
+  /* Dark: layered navy/slate surfaces (background < card < popover), brand blue lifted for contrast.
+     Screen only, so printing always uses the light palette.
+     --card must match DARK_CARD in tailwind/darkPaletteBridge.ts. */
+  @media screen and (prefers-color-scheme: dark) {
+    :root {
+      --background: 220 36% 7.5%;
+      --foreground: 210 40% 96%;
 
-    --primary: 210 70% 58%;
-    --primary-foreground: 215 45% 10%;
+      --card: 217 33% 12.5%;
+      --card-foreground: 210 40% 96%;
 
-    --secondary: 215 28% 16%;
-    --secondary-foreground: 210 30% 96%;
+      --popover: 217 32% 15%;
+      --popover-foreground: 210 40% 96%;
 
-    --muted: 215 28% 16%;
-    --muted-foreground: 214 15% 65%;
+      --primary: 211 88% 66%;
+      --primary-foreground: 222 50% 9%;
 
-    --accent: 205 65% 48%;
-    --accent-foreground: 215 45% 10%;
+      --brand: 214 66% 38%;
+      --brand-foreground: 0 0% 100%;
+      --brand-accent: 205 72% 36%;
 
-    --destructive: 0 63% 40%;
-    --destructive-foreground: 0 0% 98%;
+      --secondary: 217 27% 19%;
+      --secondary-foreground: 210 40% 96%;
 
-    --border: 215 22% 18%;
-    --input: 215 22% 18%;
-    --ring: 210 70% 58%;
+      --muted: 217 28% 17%;
+      --muted-foreground: 215 22% 72%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(218 55% 14%) 0%, hsl(215 45% 18%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(215 35% 11%) 0%, hsl(215 35% 13%) 100%);
-    --shadow-elegant: 0 16px 48px -16px hsl(0 0% 0% / 0.45);
-    --shadow-card: 0 4px 16px -4px hsl(0 0% 0% / 0.3);
+      --accent: 205 75% 55%;
+      --accent-foreground: 222 50% 9%;
 
-    --sidebar-background: 215 40% 8%;
-    --sidebar-foreground: 210 20% 92%;
-    --sidebar-primary: 210 70% 58%;
-    --sidebar-primary-foreground: 215 45% 10%;
-    --sidebar-accent: 215 28% 14%;
-    --sidebar-accent-foreground: 210 20% 92%;
-    --sidebar-border: 215 22% 16%;
-    --sidebar-ring: 210 70% 58%;
+      --destructive: 0 66% 44%;
+      --destructive-foreground: 0 0% 100%;
+      --destructive-subtle: 0 42% 16%;
+      --destructive-subtle-foreground: 0 92% 82%;
+      --destructive-border: 0 40% 34%;
+
+      --success: 150 58% 44%;
+      --success-foreground: 152 60% 8%;
+      --success-subtle: 152 38% 14%;
+      --success-subtle-foreground: 145 62% 74%;
+      --success-border: 150 34% 29%;
+
+      --warning: 40 94% 56%;
+      --warning-foreground: 28 70% 10%;
+      --warning-subtle: 36 44% 14%;
+      --warning-subtle-foreground: 44 96% 72%;
+      --warning-border: 37 45% 32%;
+
+      --info: 205 88% 62%;
+      --info-foreground: 215 55% 9%;
+      --info-subtle: 210 45% 16%;
+      --info-subtle-foreground: 204 92% 80%;
+      --info-border: 208 40% 33%;
+
+      --border: 216 24% 23%;
+      --input: 215 19% 40%;
+      --ring: 211 88% 66%;
+
+      --overlay: 224 50% 3%;
+
+      --chart-1: 211 88% 66%;
+      --chart-2: 168 60% 50%;
+      --chart-3: 42 95% 58%;
+      --chart-4: 262 78% 74%;
+      --chart-5: 350 86% 68%;
+      --chart-6: 195 85% 58%;
+
+      --gradient-hero: linear-gradient(135deg, hsl(218 58% 13%) 0%, hsl(215 50% 18%) 55%, hsl(205 55% 22%) 100%);
+      --gradient-card: linear-gradient(180deg, hsl(217 33% 12.5%) 0%, hsl(217 33% 14%) 100%);
+      --shadow-elegant: 0 16px 48px -16px hsl(0 0% 0% / 0.55);
+      --shadow-card: 0 4px 16px -4px hsl(0 0% 0% / 0.35);
+
+      --sidebar-background: 219 35% 9.5%;
+      --sidebar-foreground: 210 30% 92%;
+      --sidebar-primary: 211 88% 66%;
+      --sidebar-primary-foreground: 222 50% 9%;
+      --sidebar-accent: 217 28% 16%;
+      --sidebar-accent-foreground: 210 30% 94%;
+      --sidebar-border: 216 24% 19%;
+      --sidebar-ring: 211 88% 66%;
+    }
   }
 }
 
@@ -131,22 +236,59 @@
     }
   }
 
+  html {
+    background-color: hsl(var(--background));
+    /* Stop iOS/Android from inflating text after an orientation change. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: hsl(var(--primary) / 0.12);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "ss01" on, "cv02" on;
-    color-scheme: light;
     font-size: 1rem;
     line-height: 1.55;
-  }
-
-  .dark body,
-  html.dark {
-    color-scheme: dark;
+    /* viewport-fit=cover: keep content clear of the notch / rounded corners in landscape. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   /* Android app: keep page content clear of the staff bottom navigation. */
   html.iic-staff-nav body {
     padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  /* Phones/tablets: iOS zooms into inputs below 16px; keep controls at 16px on touch screens. */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: max(16px, 1em);
+    }
+  }
+
+  /* Native date/time pickers follow `color-scheme`, so their icons stay legible in both themes. */
+  ::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+  }
+
+  /* Fallback keyboard focus ring for elements without their own focus-visible styling
+     (component utilities such as focus-visible:outline-none / ring-* take precedence). */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *:not(.animate-spin),
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -162,6 +304,12 @@
   }
   .hero-navy-gradient {
     background-image: var(--gradient-hero);
+  }
+}
+
+@media print {
+  :root {
+    color-scheme: light;
   }
 }
 
@@ -364,15 +512,19 @@
   box-shadow: inset 3px 0 0 hsl(var(--primary)) !important;
 }
 
-.dark .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer[aria-current="page"] {
-  border-color: hsl(var(--ring)) !important;
-  background: hsl(var(--primary) / 0.25) !important;
-  box-shadow: inset 3px 0 0 hsl(var(--ring)) !important;
-}
+/* Dark-only overrides use `:root X` inside the media query so they keep the specificity the former
+   `.dark X` selectors had. */
+@media screen and (prefers-color-scheme: dark) {
+  :root .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer[aria-current="page"] {
+    border-color: hsl(var(--ring)) !important;
+    background: hsl(var(--primary) / 0.25) !important;
+    box-shadow: inset 3px 0 0 hsl(var(--ring)) !important;
+  }
 
-/* --destructive stays dark in dark mode for filled buttons; as text it needs a lighter red (>= 4.5:1 on cards). */
-.dark .text-destructive {
-  color: hsl(0 84% 71%);
+  /* --destructive stays dark in dark mode for filled buttons; as text it needs a lighter red (>= 4.5:1 on cards). */
+  :root .text-destructive {
+    color: hsl(0 84% 71%);
+  }
 }
 
 /* <Table stickyFirstColumn> / <Table stackOnMobile> (components/ui/table.tsx) — phones only */
@@ -556,7 +708,7 @@
 }
 
 .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"],
-.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
+:root .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
   border-color: transparent !important;
   background: hsl(var(--primary) / 0.1) !important;
   box-shadow: inset 2px 0 0 hsl(var(--primary)) !important;
@@ -572,18 +724,20 @@
   color: hsl(var(--primary-foreground)) !important;
 }
 
-.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer .h-12.w-12 {
-  background-color: hsl(var(--primary) / 0.35) !important;
-  color: hsl(210 40% 96%) !important;
-}
+@media screen and (prefers-color-scheme: dark) {
+  :root .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer .h-12.w-12 {
+    background-color: hsl(var(--primary) / 0.35) !important;
+    color: hsl(210 40% 96%) !important;
+  }
 
-.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
-  background: hsl(var(--primary) / 0.3) !important;
-  box-shadow: inset 2px 0 0 hsl(var(--ring)) !important;
-}
+  :root .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] {
+    background: hsl(var(--primary) / 0.3) !important;
+    box-shadow: inset 2px 0 0 hsl(var(--ring)) !important;
+  }
 
-.dark .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] .text-lg {
-  color: hsl(210 40% 98%);
+  :root .dashboard-menu-nav .dashboard-menu-section > .cursor-pointer[aria-current="page"] .text-lg {
+    color: hsl(210 40% 98%);
+  }
 }
 
 @media (max-width: 640px) {
@@ -693,10 +847,12 @@
   background-image: linear-gradient(to right, var(--card-accent-from), var(--card-accent-to)) !important;
 }
 
-.dark .dashboard-uniform-cards .cursor-pointer {
-  border-color: hsl(var(--border)) !important;
-  background-color: hsl(var(--card)) !important;
-  box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.55) !important;
+@media screen and (prefers-color-scheme: dark) {
+  :root .dashboard-uniform-cards .cursor-pointer {
+    border-color: hsl(var(--border)) !important;
+    background-color: hsl(var(--card)) !important;
+    box-shadow: 0 16px 30px -18px hsl(0 0% 0% / 0.55) !important;
+  }
 }
 
 /* Dashboard visual refresh — use full viewport width once logged in */
@@ -736,24 +892,26 @@
   background: linear-gradient(90deg, hsl(44 100% 92%), hsl(31 100% 92%)) !important;
 }
 
-.dark .dashboard-hero-card {
-  border-color: hsl(var(--primary) / 0.55);
-  box-shadow: 0 20px 36px -20px hsl(215 50% 20% / 0.6);
-}
+@media screen and (prefers-color-scheme: dark) {
+  :root .dashboard-hero-card {
+    border-color: hsl(var(--primary) / 0.55);
+    box-shadow: 0 20px 36px -20px hsl(215 50% 20% / 0.6);
+  }
 
-.dark .dashboard-notice-primary {
-  border-color: hsl(var(--primary) / 0.55) !important;
-  background: linear-gradient(90deg, hsl(215 30% 16%), hsl(205 28% 18%)) !important;
-}
+  :root .dashboard-notice-primary {
+    border-color: hsl(var(--primary) / 0.55) !important;
+    background: linear-gradient(90deg, hsl(215 30% 16%), hsl(205 28% 18%)) !important;
+  }
 
-.dark .dashboard-notice-info {
-  border-color: hsl(var(--accent) / 0.55) !important;
-  background: linear-gradient(90deg, hsl(210 28% 16%), hsl(205 26% 18%)) !important;
-}
+  :root .dashboard-notice-info {
+    border-color: hsl(var(--accent) / 0.55) !important;
+    background: linear-gradient(90deg, hsl(210 28% 16%), hsl(205 26% 18%)) !important;
+  }
 
-.dark .dashboard-notice-warning {
-  border-color: hsl(34 72% 44% / 0.8) !important;
-  background: linear-gradient(90deg, hsl(31 32% 21%), hsl(35 34% 23%)) !important;
+  :root .dashboard-notice-warning {
+    border-color: hsl(34 72% 44% / 0.8) !important;
+    background: linear-gradient(90deg, hsl(31 32% 21%), hsl(35 34% 23%)) !important;
+  }
 }
 
 /* Responsive helpers — prevent overflow on phones/tablets */
@@ -763,6 +921,39 @@
   }
   .safe-pad {
     @apply px-3 sm:px-4 md:px-6;
+  }
+  /* Safe-area aware spacing for fixed/sticky chrome (requires viewport-fit=cover). */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .px-safe {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Bottom action bars: 0.75rem breathing room plus the home-indicator inset. */
+  .pb-safe-3 {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+  /* Full dynamic-viewport height: follows the mobile address bar instead of the largest viewport. */
+  .h-screen-dvh {
+    height: 100vh;
+    height: 100dvh;
+  }
+  .min-h-screen-dvh {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .max-h-screen-dvh {
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+  /* Momentum scrolling containers that should not chain scroll to the page behind (dialogs, drawers). */
+  .scroll-contain {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -774,9 +965,51 @@
   .page-shell .container {
     max-width: 100%;
   }
-  [role="dialog"] {
-    max-height: min(92vh, 100%);
+  /* Centered dialogs stay clear of the notch / home indicator even when a page passes its own max-h-[9xdvh]. */
+  .app-dialog {
+    max-height: min(92vh, calc(var(--viewport-h, 100vh) - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
   }
+}
+
+/* Popovers, tooltips and menus never extend past a narrow phone viewport; long menus scroll instead. */
+[data-radix-popper-content-wrapper] > * {
+  max-width: calc(100vw - 1rem);
+}
+[data-radix-popper-content-wrapper] > [role="menu"] {
+  max-height: var(--radix-popper-available-height, none);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Touch screens: list rows in menus, selects and command palettes get a ~44px hit area. */
+@media (pointer: coarse) {
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  [role="option"] {
+    min-height: 2.75rem;
+  }
+  [role="tab"] {
+    min-height: 2.5rem;
+  }
+  [role="tablist"] {
+    height: auto;
+  }
+}
+
+/* Slot calendars paint admin-configured legend colours inline (/calendar-colors). Dark mode keeps the hues
+   (so cells still match the legend) but tones them down so a week grid is not a wall of pastel glare. */
+@media screen and (prefers-color-scheme: dark) {
+  .calendar-color-cell {
+    filter: brightness(0.78) saturate(1.15);
+  }
+}
+
+/* Floating launchers (Booking Assistant) step aside while a modal dialog or sheet is open, so they never
+   sit on top of a dialog's footer buttons on small screens. */
+body:has(:is([role="dialog"], [role="alertdialog"])[data-state="open"]:not([data-side])) .floating-launcher,
+body:has([data-vaul-drawer][data-state="open"]) .floating-launcher {
+  visibility: hidden;
 }
 
 /* When pages load with ?embed=1 inside the dashboard workspace iframe */
@@ -851,20 +1084,22 @@ body:has([data-embed-chrome]),
   --rt-font-courier: "Courier New", Courier, monospace;
   --rt-font-devanagari: "Nirmala UI", "Kohinoor Devanagari", Mangal, "Noto Sans Devanagari", sans-serif;
 }
-.dark {
-  --rt-red: hsl(0 91% 71%);
-  --rt-orange: hsl(27 96% 61%);
-  --rt-amber: hsl(46 97% 65%);
-  --rt-green: hsl(142 69% 58%);
-  --rt-blue: hsl(213 94% 68%);
-  --rt-purple: hsl(270 95% 75%);
-  --rt-pink: hsl(329 86% 70%);
-  --rt-gray: hsl(218 11% 65%);
-  --rt-hl-yellow: hsl(48 96% 53% / 0.35);
-  --rt-hl-orange: hsl(25 95% 53% / 0.35);
-  --rt-hl-green: hsl(142 71% 45% / 0.35);
-  --rt-hl-blue: hsl(217 91% 60% / 0.35);
-  --rt-hl-pink: hsl(330 81% 60% / 0.35);
+@media screen and (prefers-color-scheme: dark) {
+  :root {
+    --rt-red: hsl(0 91% 71%);
+    --rt-orange: hsl(27 96% 61%);
+    --rt-amber: hsl(46 97% 65%);
+    --rt-green: hsl(142 69% 58%);
+    --rt-blue: hsl(213 94% 68%);
+    --rt-purple: hsl(270 95% 75%);
+    --rt-pink: hsl(329 86% 70%);
+    --rt-gray: hsl(218 11% 65%);
+    --rt-hl-yellow: hsl(48 96% 53% / 0.35);
+    --rt-hl-orange: hsl(25 95% 53% / 0.35);
+    --rt-hl-green: hsl(142 71% 45% / 0.35);
+    --rt-hl-blue: hsl(217 91% 60% / 0.35);
+    --rt-hl-pink: hsl(330 81% 60% / 0.35);
+  }
 }
 @property --rt-base {
   syntax: "<length>";
