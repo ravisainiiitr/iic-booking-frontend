@@ -7,6 +7,7 @@ import { unlimitedQuotaConfigHint } from "@/lib/bookingQuota";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -39,6 +40,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { EquipmentForm, type EquipmentFormData } from "@/components/admin/EquipmentForm";
 import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
 import { StandaloneOnly } from "@/components/PageShell";
+import { formatDMY } from "@/lib/dateFormat";
 
 /** Staff roles Department Administrators may create or map. */
 const DEPT_ADMIN_STAFF_USER_TYPES: Array<{ value: string; label: string }> = [
@@ -1555,9 +1557,8 @@ export default function AdminSection() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Date</Label>
-                    <Input
+                    <DateInput
                       aria-label="Date"
-                      type="date"
                       value={dailySlotDateFilter}
                       onChange={(e) => setDailySlotDateFilter(e.target.value)}
                       className="w-[160px]"
@@ -1636,9 +1637,8 @@ export default function AdminSection() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">Created date</Label>
-                    <Input
+                    <DateInput
                       aria-label="Created date"
-                      type="date"
                       value={bookingDateFilter}
                       onChange={(e) => setBookingDateFilter(e.target.value)}
                       className="w-[160px]"
@@ -1717,9 +1717,8 @@ export default function AdminSection() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">From date</Label>
-                    <Input
+                    <DateInput
                       aria-label="From date"
-                      type="date"
                       value={repeatSampleDateFromFilter}
                       onChange={(e) => setRepeatSampleDateFromFilter(e.target.value)}
                       className="w-[140px]"
@@ -1727,9 +1726,8 @@ export default function AdminSection() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Label className="text-muted-foreground whitespace-nowrap text-xs">To date</Label>
-                    <Input
+                    <DateInput
                       aria-label="To date"
-                      type="date"
                       value={repeatSampleDateToFilter}
                       onChange={(e) => setRepeatSampleDateToFilter(e.target.value)}
                       className="w-[140px]"
@@ -2778,9 +2776,8 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="holiday-date">Date</Label>
                     <div className="col-span-3">
-                      <Input
+                      <DateInput
                         id="holiday-date"
-                        type="date"
                         value={formData.date != null && formData.date !== undefined ? String(formData.date).slice(0, 10) : ""}
                         onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value || "" }))}
                         required
@@ -3184,9 +3181,8 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="project-start">Start date</Label>
                     <div className="col-span-3">
-                      <Input
+                      <DateInput
                         id="project-start"
-                        type="date"
                         value={formData.start_date != null && formData.start_date !== "" ? String(formData.start_date).slice(0, 10) : ""}
                         onChange={(e) => setFormData((prev) => ({ ...prev, start_date: e.target.value || "" }))}
                       />
@@ -3195,9 +3191,8 @@ export default function AdminSection() {
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right" htmlFor="project-end">End date</Label>
                     <div className="col-span-3">
-                      <Input
+                      <DateInput
                         id="project-end"
-                        type="date"
                         value={formData.end_date != null && formData.end_date !== "" ? String(formData.end_date).slice(0, 10) : ""}
                         onChange={(e) => setFormData((prev) => ({ ...prev, end_date: e.target.value || "" }))}
                       />
@@ -3669,7 +3664,7 @@ export default function AdminSection() {
                           <li key={doc.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                             <span>
                               {doc.document_type || "Document"}
-                              {doc.uploaded_at ? ` · ${new Date(doc.uploaded_at).toLocaleDateString()}` : ""}
+                              {doc.uploaded_at ? ` · ${formatDMY(doc.uploaded_at)}` : ""}
                               {doc.description ? ` — ${doc.description}` : ""}
                             </span>
                             {doc.file_url ? (

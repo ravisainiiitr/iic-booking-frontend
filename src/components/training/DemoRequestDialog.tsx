@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -297,7 +298,7 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
           <Label htmlFor="decide-propose-start">
             Proposed start <span className="text-destructive">*</span>
           </Label>
-          <Input id="decide-propose-start" type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" />
+          <DateTimeInput id="decide-propose-start" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" />
           <FreeWindowFinder
             compact
             equipmentId={request.equipment.equipment_id}
@@ -384,7 +385,7 @@ function DecidePanel({ request, onDone }: { request: DemoRequest; onDone: () => 
           </label>
           {scheduleNow ? (
             <>
-              <Input type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" aria-label="Start time" />
+              <DateTimeInput value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" aria-label="Start time" />
               <FreeWindowFinder
                 compact
                 equipmentId={request.equipment.equipment_id}
@@ -445,7 +446,7 @@ function SchedulePanel({ request, onDone }: { request: DemoRequest; onDone: () =
         <CalendarClock className="h-4 w-4" aria-hidden /> {rescheduling ? "Reschedule" : "Schedule"} ({formatDuration(duration)})
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Input type="datetime-local" value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" aria-label="Start time" />
+        <DateTimeInput value={startLocal} onChange={(e) => setStartLocal(e.target.value)} className="sm:w-auto" aria-label="Start time" />
         <Button type="button" size="sm" onClick={() => void submit()} disabled={busy}>
           {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
           {rescheduling ? "Reschedule" : "Schedule & reserve slots"}

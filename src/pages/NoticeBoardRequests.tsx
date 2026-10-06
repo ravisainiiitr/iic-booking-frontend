@@ -8,6 +8,7 @@ import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -418,9 +419,8 @@ const NoticeBoardRequests = () => {
             {!form.expiry_unlimited ? (
               <div className="space-y-1.5">
                 <Label>Expiry date &amp; time</Label>
-                <Input
+                <DateTimeInput
                   aria-label="Expiry date & time"
-                  type="datetime-local"
                   value={form.expiry_date}
                   onChange={(e) => setForm((p) => ({ ...p, expiry_date: e.target.value }))}
                 />

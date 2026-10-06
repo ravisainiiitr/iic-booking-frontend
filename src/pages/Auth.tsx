@@ -8,6 +8,7 @@ import { isExternalBookingUserType } from "@/lib/userTypes";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -2076,9 +2077,8 @@ const Auth = () => {
                     hint={signupIsIitr ? "Access ends on this date; your supervisor can extend it later." : "You can request an extension later."}
                     error={fieldError("programEndDate")}
                   >
-                    <Input
+                    <DateInput
                       id="signup-program-end-date"
-                      type="date"
                       min={todayIso}
                       value={programEndDate}
                       onChange={(e) => setProgramEndDate(e.target.value)}

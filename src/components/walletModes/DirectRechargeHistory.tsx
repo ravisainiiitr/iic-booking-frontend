@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -128,13 +129,13 @@ export default function DirectRechargeHistory({
             <Label htmlFor="drh-from" className="sr-only">
               From date
             </Label>
-            <Input id="drh-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
+            <DateInput id="drh-from" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
           </div>
           <div className="flex items-center gap-1.5">
             <Label htmlFor="drh-to" className="sr-only">
               To date
             </Label>
-            <Input id="drh-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
+            <DateInput id="drh-to" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
           </div>
           {isAdmin ? (
             <Input

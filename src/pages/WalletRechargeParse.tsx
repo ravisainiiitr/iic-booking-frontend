@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef, Fragment } from "react";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { apiClient, type WalletRechargeParseRow } from "@/lib/api";
@@ -1440,9 +1441,8 @@ const WalletRechargeParsePage = () => {
               </div>
               <div>
                 <Label htmlFor="manual-date">Date (optional)</Label>
-                <Input
+                <DateInput
                   id="manual-date"
-                  type="date"
                   value={manualDate}
                   onChange={(e) => setManualDate(e.target.value)}
                   className="mt-1"
@@ -2207,9 +2207,8 @@ const WalletRechargeParsePage = () => {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-row-date">Date</Label>
-                  <Input
+                  <DateInput
                     id="edit-row-date"
-                    type="date"
                     value={
                       editRowForm.date && String(editRowForm.date).length >= 10
                         ? String(editRowForm.date).slice(0, 10)

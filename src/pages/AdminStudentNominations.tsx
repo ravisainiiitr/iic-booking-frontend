@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, GraduationCap, RotateCcw } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { formatDMY } from "@/lib/dateFormat";
 
 interface SemesterOption {
   id: number;
@@ -202,7 +203,7 @@ export default function AdminStudentNominations() {
                           <Badge className={statusBadgeClass(row.status)}>{row.status}</Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {row.nominated_at ? new Date(row.nominated_at).toLocaleDateString() : "—"}
+                          {row.nominated_at ? formatDMY(row.nominated_at) : "—"}
                         </TableCell>
                         <TableCell>{row.has_resume ? "Yes" : "No"}</TableCell>
                       </TableRow>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -161,9 +161,8 @@ export function NoticeExpiryDialog({
           {!unlimited ? (
             <div className="space-y-2">
               <Label htmlFor="notice-expiry-dt">Expiry date &amp; time</Label>
-              <Input
+              <DateTimeInput
                 id="notice-expiry-dt"
-                type="datetime-local"
                 value={expiryLocal}
                 onChange={(e) => setExpiryLocal(e.target.value)}
               />

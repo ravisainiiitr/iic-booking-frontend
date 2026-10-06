@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -199,9 +199,8 @@ const LabOutreachDialog = ({ open, onOpenChange, bookingId, kind, options, onSen
               <Label htmlFor={`outreach-reply-by-${bookingId}`} className="text-sm">
                 Reply needed by <span className="font-normal text-muted-foreground">(optional)</span>
               </Label>
-              <Input
+              <DateInput
                 id={`outreach-reply-by-${bookingId}`}
-                type="date"
                 value={replyBy}
                 min={minDate}
                 max={maxDate}

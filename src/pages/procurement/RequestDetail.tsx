@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, pmForm, pmGet, pmPost, type PmRecord, type PmRequest } from "@/lib/procurementApi";
@@ -367,7 +368,7 @@ function OfflineHodDialog({ open, onOpenChange, onSubmit }: { open: boolean; onO
             <NativeSelect value={decision} onChange={(e) => setDecision(e.target.value)} options={[{ value: "APPROVE", label: "Approved" }, { value: "REJECT", label: "Rejected" }]} />
           </Field>
           <Field label="Decision date">
-            <Input type="date" max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateInput max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Approver name">
             <Input value={name} onChange={(e) => setName(e.target.value)} />

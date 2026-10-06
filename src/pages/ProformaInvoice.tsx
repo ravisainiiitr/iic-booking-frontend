@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
+import { formatDMY } from "@/lib/dateFormat";
 
 function fieldMapFor(entry: ProformaLineItemStored | undefined): Record<string, ProformaLineItemField> {
   const map: Record<string, ProformaLineItemField> = {};
@@ -146,7 +147,7 @@ export default function ProformaInvoice() {
       toast.error("Add at least one equipment before saving.");
       return;
     }
-    const name = window.prompt("Name this proforma", `Proforma ${new Date().toLocaleDateString()}`);
+    const name = window.prompt("Name this proforma", `Proforma ${formatDMY(new Date())}`);
     if (name === null) return;
     try {
       setSavedDrafts(saveProformaDraft(name, lineItems));

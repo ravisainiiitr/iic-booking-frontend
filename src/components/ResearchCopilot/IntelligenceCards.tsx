@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BadgeCheck, CalendarClock, MapPin, UserRound } from "lucide-react";
+import { formatDMY } from "@/lib/dateFormat";
 
 /** Structured cards produced by the Copilot intelligence layer (metadata.intelligence === true). */
 
@@ -407,7 +408,7 @@ export function IntelligenceCard({
           {card.updated_at ? (
             <span className="text-muted-foreground">
               {" \u00b7 updated "}
-              {new Date(str(card.updated_at)).toLocaleDateString()}
+              {formatDMY(str(card.updated_at))}
             </span>
           ) : null}
         </div>

@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -371,7 +372,7 @@ function StepForm({ step, rec, onSave }: { step: string; rec: PmRecord; onSave: 
   for (const k of keys[step] ?? []) body[k] = val(k) || null;
   const date = (k: string, label: string, future = false) => (
     <Field label={label}>
-      <Input type="date" max={future ? undefined : todayIso()} value={val(k)} onChange={set(k)} />
+      <DateInput max={future ? undefined : todayIso()} value={val(k)} onChange={set(k)} />
     </Field>
   );
   const text = (k: string, label: string) => (
@@ -469,7 +470,7 @@ function PaymentDialog({ invoice, onClose, onSave }: { invoice: PmInvoice | null
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Amount (₹)"><Input inputMode="decimal" value={amount} placeholder={due.toFixed(2)} onChange={(e) => setAmount(e.target.value)} /></Field>
-          <Field label="Date"><Input type="date" max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+          <Field label="Date"><DateInput max={todayIso()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
           <Field label="Reference (UTR / cheque)"><Input value={reference} onChange={(e) => setReference(e.target.value)} /></Field>
         </div>
         <DialogFooter>
@@ -551,7 +552,7 @@ function QuotationDialog({ open, onOpenChange, onSave }: { open: boolean; onOpen
             <NativeSelect value={f.vendor_id} onChange={set("vendor_id")} placeholder="Choose vendor" options={vendors.map((v) => ({ value: String(v.id), label: v.name }))} />
           </Field>
           <Field label="Reference"><Input value={f.quotation_reference} onChange={set("quotation_reference")} /></Field>
-          <Field label="Date"><Input type="date" value={f.quotation_date} onChange={set("quotation_date")} /></Field>
+          <Field label="Date"><DateInput value={f.quotation_date} onChange={set("quotation_date")} /></Field>
           <Field label="Compliance">
             <NativeSelect value={f.compliance} onChange={set("compliance")} options={["COMPLIANT", "PARTIAL", "NON_COMPLIANT"].map((v) => ({ value: v, label: humanize(v) }))} />
           </Field>
@@ -618,7 +619,7 @@ export function AssetRegisterDialog({
                 <NativeSelect value={f.category_id} onChange={set("category_id")} placeholder="Choose" options={categories.map((c) => ({ value: String(c.id), label: c.name }))} />
               </Field>
               <Field label="Cost per unit (₹)"><Input inputMode="decimal" value={f.cost} onChange={set("cost")} /></Field>
-              <Field label="Purchase date"><Input type="date" max={todayIso()} value={f.purchase_date} onChange={set("purchase_date")} /></Field>
+              <Field label="Purchase date"><DateInput max={todayIso()} value={f.purchase_date} onChange={set("purchase_date")} /></Field>
             </>
           ) : null}
           <Field label="Number of units"><Input inputMode="numeric" value={f.count} onChange={set("count")} /></Field>
@@ -631,7 +632,7 @@ export function AssetRegisterDialog({
           <Field label="Status">
             <NativeSelect value={f.status} onChange={set("status")} options={["IN_STORE", "UNDER_INSTALLATION", "ACTIVE", "IN_USE"].map((v) => ({ value: v, label: humanize(v) }))} />
           </Field>
-          <Field label="Warranty until (optional)"><Input type="date" value={f.warranty_until} onChange={set("warranty_until")} /></Field>
+          <Field label="Warranty until (optional)"><DateInput value={f.warranty_until} onChange={set("warranty_until")} /></Field>
           <Field label="Serial numbers (one per line, optional)" className="sm:col-span-2" hint={serials.length ? `${serials.length} serial(s) — must match the number of units.` : undefined}>
             <Textarea rows={3} value={f.serials} onChange={set("serials")} />
           </Field>

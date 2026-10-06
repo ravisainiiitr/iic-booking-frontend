@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, payloadForm, pmForm, pmGet, type PmRecord, type PmRequest } from "@/lib/procurementApi";
 import { blankInvoice, InvoiceFields, invoicePayload, invoiceTotal, invoiceValid } from "./InvoiceForm";
@@ -122,7 +123,7 @@ export default function SmallPurchasePage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <Field label="Purchase date">
-            <Input type="date" max={todayIso()} value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
+            <DateInput max={todayIso()} value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
           </Field>
           <Field label="Purchased by (optional)">
             <Input value={purchasedBy} onChange={(e) => setPurchasedBy(e.target.value)} maxLength={255} />

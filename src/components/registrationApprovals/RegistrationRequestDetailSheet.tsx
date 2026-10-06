@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
@@ -462,7 +463,7 @@ export default function RegistrationRequestDetailSheet({ userId, onClose, onChan
               {action?.kind === "extend" || action?.kind === "ext-approve" ? (
                 <div className="space-y-1.5">
                   <Label htmlFor="reg-until">New validity date</Label>
-                  <Input id="reg-until" type="date" value={until} max={maxUntil} onChange={(e) => setUntil(e.target.value)} />
+                  <DateInput id="reg-until" value={until} max={maxUntil} onChange={(e) => setUntil(e.target.value)} />
                   <p className="text-xs text-muted-foreground">Latest date allowed: {formatDay(maxUntil)} (six months).</p>
                 </div>
               ) : null}

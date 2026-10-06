@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { pmGet, type Page, type PmVendor } from "@/lib/procurementApi";
 import { Field, money, NativeSelect, todayIso } from "./shared";
 
@@ -93,7 +94,7 @@ export function InvoiceFields({ deptId, value, onChange }: { deptId: number | nu
         <Input value={value.invoice_number} onChange={(e) => set({ invoice_number: e.target.value })} maxLength={80} />
       </Field>
       <Field label="Bill date">
-        <Input type="date" max={todayIso()} value={value.invoice_date} onChange={(e) => set({ invoice_date: e.target.value })} />
+        <DateInput max={todayIso()} value={value.invoice_date} onChange={(e) => set({ invoice_date: e.target.value })} />
       </Field>
       <Field label="Supply">
         <NativeSelect

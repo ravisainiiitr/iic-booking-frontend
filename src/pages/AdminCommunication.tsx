@@ -6,6 +6,8 @@ import { hasRbacPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -839,9 +841,8 @@ const AdminCommunication = () => {
                   </div>
                   <div>
                     <Label>Date from</Label>
-                    <Input
+                    <DateInput
                       aria-label="Date from"
-                      type="date"
                       value={logFilters.date_from}
                       onChange={(e) => setLogFilters((f) => ({ ...f, date_from: e.target.value }))}
                       className="mt-1"
@@ -849,9 +850,8 @@ const AdminCommunication = () => {
                   </div>
                   <div>
                     <Label>Date to</Label>
-                    <Input
+                    <DateInput
                       aria-label="Date to"
-                      type="date"
                       value={logFilters.date_to}
                       onChange={(e) => setLogFilters((f) => ({ ...f, date_to: e.target.value }))}
                       className="mt-1"
@@ -1546,9 +1546,8 @@ const AdminCommunication = () => {
                 </div>
                 <div>
                   <Label htmlFor="notice-expiry">Expiry date (optional)</Label>
-                  <Input
+                  <DateTimeInput
                     id="notice-expiry"
-                    type="datetime-local"
                     value={noticeFormData.expiry_date}
                     onChange={(e) => setNoticeFormData((f) => ({ ...f, expiry_date: e.target.value }))}
                   />

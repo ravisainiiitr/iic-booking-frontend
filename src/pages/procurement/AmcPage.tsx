@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, payloadForm, pmForm, pmGet, pmPost, type Page, type PmAmc } from "@/lib/procurementApi";
@@ -143,8 +144,8 @@ function ContractDialog({ open, onOpenChange, renew, onSaved }: { open: boolean;
             <NativeSelect value={f.vendor_id} onChange={set("vendor_id")} placeholder="—" options={vendors.map((v) => ({ value: String(v.id), label: v.name }))} />
           </Field>
           <Field label="Contract reference"><Input value={f.contract_reference} onChange={set("contract_reference")} /></Field>
-          <Field label="Start date"><Input type="date" value={f.start_date} onChange={set("start_date")} /></Field>
-          <Field label="End date"><Input type="date" value={f.end_date} onChange={set("end_date")} /></Field>
+          <Field label="Start date"><DateInput value={f.start_date} onChange={set("start_date")} /></Field>
+          <Field label="End date"><DateInput value={f.end_date} onChange={set("end_date")} /></Field>
           <Field label="Contract value (₹)"><Input inputMode="decimal" value={f.contract_value} onChange={set("contract_value")} /></Field>
           <Field label="GST (₹)"><Input inputMode="decimal" value={f.gst_amount} onChange={set("gst_amount")} /></Field>
         </div>

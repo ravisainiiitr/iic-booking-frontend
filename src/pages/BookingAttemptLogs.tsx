@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Table,
@@ -589,9 +590,8 @@ const BookingAttemptLogs = () => {
               </div>
               <div>
                 <Label htmlFor="date_from">Date from</Label>
-                <Input
+                <DateInput
                   id="date_from"
-                  type="date"
                   value={filters.date_from}
                   onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
                   className="mt-1"
@@ -599,9 +599,8 @@ const BookingAttemptLogs = () => {
               </div>
               <div>
                 <Label htmlFor="date_to">Date to</Label>
-                <Input
+                <DateInput
                   id="date_to"
-                  type="date"
                   value={filters.date_to}
                   onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
                   className="mt-1"

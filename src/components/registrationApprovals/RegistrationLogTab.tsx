@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -95,11 +96,11 @@ export default function RegistrationLogTab({ onOpenUser }: { onOpenUser: (userId
           </div>
           <div className="space-y-1">
             <Label htmlFor="reglog-from">From</Label>
-            <Input id="reglog-from" type="date" value={filters.date_from ?? ""} onChange={(e) => set({ date_from: e.target.value || undefined })} />
+            <DateInput id="reglog-from" value={filters.date_from ?? ""} onChange={(e) => set({ date_from: e.target.value || undefined })} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="reglog-to">To</Label>
-            <Input id="reglog-to" type="date" value={filters.date_to ?? ""} onChange={(e) => set({ date_to: e.target.value || undefined })} />
+            <DateInput id="reglog-to" value={filters.date_to ?? ""} onChange={(e) => set({ date_to: e.target.value || undefined })} />
           </div>
         </div>
 

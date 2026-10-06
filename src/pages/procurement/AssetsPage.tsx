@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -333,7 +334,7 @@ function TransferDialog({
             <NativeSelect value={f.transfer_type} onChange={set("transfer_type")} options={[{ value: "TEMPORARY", label: "Temporary" }, { value: "PERMANENT", label: "Permanent" }]} />
           </Field>
           {f.transfer_type === "TEMPORARY" ? (
-            <Field label="Expected return"><Input type="date" min={todayIso()} value={f.expected_return_date} onChange={set("expected_return_date")} /></Field>
+            <Field label="Expected return"><DateInput min={todayIso()} value={f.expected_return_date} onChange={set("expected_return_date")} /></Field>
           ) : <div />}
           <Field label="To equipment">
             <NativeSelect value={f.to_equipment_id} onChange={set("to_equipment_id")} placeholder="—" options={equipment.map((e) => ({ value: String(e.id), label: e.name }))} />

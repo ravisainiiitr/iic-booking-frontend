@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -187,7 +188,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="rg-act-due">Due date (optional)</Label>
-              <Input id="rg-act-due" type="date" value={dueDate} min={startDate || undefined} onChange={(e) => setDueDate(e.target.value)} />
+              <DateInput id="rg-act-due" value={dueDate} min={startDate || undefined} onChange={(e) => setDueDate(e.target.value)} />
             </div>
             {editing ? (
               <div className="space-y-1.5">
@@ -247,7 +248,7 @@ export function ResearchActivityDialog({ groupId, open, onOpenChange, activity, 
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="rg-act-start">Start date</Label>
-                <Input id="rg-act-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <DateInput id="rg-act-start" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
             </div>
 

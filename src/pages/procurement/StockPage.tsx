@@ -4,6 +4,7 @@ import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -161,7 +162,7 @@ function StockEntryDialog({ open, onOpenChange, onSaved }: { open: boolean; onOp
           </Field>
           <Field label="Quantity"><Input inputMode="decimal" value={f.quantity} onChange={set("quantity")} /></Field>
           <Field label="Unit cost (₹, optional)"><Input inputMode="decimal" value={f.unit_cost} onChange={set("unit_cost")} /></Field>
-          <Field label="Date"><Input type="date" max={todayIso()} value={f.transaction_date} onChange={set("transaction_date")} /></Field>
+          <Field label="Date"><DateInput max={todayIso()} value={f.transaction_date} onChange={set("transaction_date")} /></Field>
           <Field label="Reference (optional)" className="sm:col-span-2"><Input value={f.reference_number} onChange={set("reference_number")} /></Field>
         </div>
         <Field label={needsReason ? "Remarks (required)" : "Remarks (optional)"}><Textarea rows={2} value={f.remarks} onChange={set("remarks")} /></Field>

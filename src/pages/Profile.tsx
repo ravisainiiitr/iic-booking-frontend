@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,6 +19,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
+import { formatDMY } from "@/lib/dateFormat";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -744,7 +746,7 @@ const Profile = () => {
                   <Input
                     id="date_of_birth"
                     type="text"
-                    value={profileData.date_of_birth ? new Date(profileData.date_of_birth).toLocaleDateString() : ""}
+                    value={profileData.date_of_birth ? formatDMY(profileData.date_of_birth) : ""}
                     disabled
                   />
                   <p className="text-xs text-muted-foreground">Date of birth (read-only)</p>
@@ -796,7 +798,7 @@ const Profile = () => {
                   <Input
                     id="joining_date"
                     type="text"
-                    value={new Date(profileData.joining_date).toLocaleDateString()}
+                    value={formatDMY(profileData.joining_date)}
                     disabled
                   />
                   <p className="text-xs text-muted-foreground">Institute joining / programme start (from Channel i)</p>
@@ -809,7 +811,7 @@ const Profile = () => {
                   <Input
                     id="graduation_date"
                     type="text"
-                    value={new Date(profileData.graduation_date).toLocaleDateString()}
+                    value={formatDMY(profileData.graduation_date)}
                     disabled
                   />
                   <p className="text-xs text-muted-foreground">Programme end / graduation (from Channel i)</p>
@@ -1281,9 +1283,8 @@ const Profile = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="start_date">Start Date</Label>
-                            <Input
+                            <DateInput
                               id="start_date"
-                              type="date"
                               value={projectForm.start_date}
                               onChange={(e) => setProjectForm(prev => ({ ...prev, start_date: e.target.value }))}
                             />
@@ -1291,9 +1292,8 @@ const Profile = () => {
 
                           <div className="space-y-2">
                             <Label htmlFor="end_date">End Date</Label>
-                            <Input
+                            <DateInput
                               id="end_date"
-                              type="date"
                               value={projectForm.end_date}
                               onChange={(e) => setProjectForm(prev => ({ ...prev, end_date: e.target.value }))}
                               min={projectForm.start_date || undefined}
@@ -1379,18 +1379,18 @@ const Profile = () => {
                                     <p className="text-sm text-muted-foreground">Agency: {project.agency}</p>
                                     {project.start_date && (
                                       <p className="text-sm text-muted-foreground">
-                                        Start Date: {new Date(project.start_date).toLocaleDateString()}
+                                        Start Date: {formatDMY(project.start_date)}
                                       </p>
                                     )}
                                     {project.end_date && (
                                       <p className="text-sm text-muted-foreground">
-                                        End Date: {new Date(project.end_date).toLocaleDateString()}
+                                        End Date: {formatDMY(project.end_date)}
                                       </p>
                                     )}
                                   </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                  Created: {new Date(project.created_at).toLocaleDateString()}
+                                  Created: {formatDMY(project.created_at)}
                                 </p>
                               </div>
                               <div className="flex gap-1">

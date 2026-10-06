@@ -64,6 +64,7 @@ import {
 import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
+import { formatDMY } from "@/lib/dateFormat";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -2216,7 +2217,7 @@ const MyBookings = () => {
                                 const checked = cancelSlotIds.includes(slot.id);
                                 const slotLabel = shouldShowTimeDisplay(selectedBooking)
                                   ? `${new Date(slot.start_datetime).toLocaleString()} – ${new Date(slot.end_datetime).toLocaleTimeString()}`
-                                  : new Date(slot.start_datetime).toLocaleDateString();
+                                  : formatDMY(slot.start_datetime);
                                 return (
                                   <label
                                     key={slot.id}

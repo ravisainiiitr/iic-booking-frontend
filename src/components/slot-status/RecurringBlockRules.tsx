@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
@@ -460,26 +461,24 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                     <Label htmlFor="repeat-block-from" className="text-xs">
                       From
                     </Label>
-                    <Input
+                    <DateInput
                       id="repeat-block-from"
-                      type="date"
                       min={todayStr}
                       value={customStart}
                       onChange={(e) => setCustomStart(e.target.value)}
-                      className="h-8 w-[160px] text-sm"
+                      className="w-[160px]" inputClassName="h-8 text-sm"
                     />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="repeat-block-to" className="text-xs">
                       To
                     </Label>
-                    <Input
+                    <DateInput
                       id="repeat-block-to"
-                      type="date"
                       min={customStart || todayStr}
                       value={customEnd}
                       onChange={(e) => setCustomEnd(e.target.value)}
-                      className="h-8 w-[160px] text-sm"
+                      className="w-[160px]" inputClassName="h-8 text-sm"
                     />
                   </div>
                 </div>

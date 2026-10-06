@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { errorMessage, pmGet, pmPost, type Page, type PmBudgetSummary, type PmReport, type UserBrief } from "@/lib/procurementApi";
@@ -91,8 +92,8 @@ function Reports() {
         <Field label="Financial year">
           <Input placeholder="e.g. 2026-27" value={fy} onChange={(e) => setFy(e.target.value)} />
         </Field>
-        <Field label="From"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-        <Field label="To"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+        <Field label="From"><DateInput value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
+        <Field label="To"><DateInput value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       </div>
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
       <div className="max-h-[60dvh] overflow-auto">

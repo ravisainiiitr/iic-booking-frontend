@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -358,9 +359,8 @@ export default function TANominationCall() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="deadline">Nomination deadline *</Label>
-                  <Input
+                  <DateInput
                     id="deadline"
-                    type="date"
                     value={nominationDeadline}
                     onChange={(e) => setNominationDeadline(e.target.value)}
                     required

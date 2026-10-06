@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -242,7 +243,7 @@ export default function RequestWizard() {
             />
           </Field>
           <Field label="Required by (optional)">
-            <Input type="date" value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} />
+            <DateInput value={requiredBy} onChange={(e) => setRequiredBy(e.target.value)} />
           </Field>
         </div>
       ) : null}

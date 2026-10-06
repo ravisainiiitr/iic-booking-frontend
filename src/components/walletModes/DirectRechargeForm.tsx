@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -292,9 +293,8 @@ export default function DirectRechargeForm({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="dr-date">Transaction date</Label>
-            <Input
+            <DateInput
               id="dr-date"
-              type="date"
               max={todayIso()}
               value={transactionDate}
               onChange={(e) => setTransactionDate(e.target.value)}

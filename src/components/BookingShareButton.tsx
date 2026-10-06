@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowLeft, Loader2, Search, Share2, ShieldCheck, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
+import { formatDMY } from "@/lib/dateFormat";
 
 const MIN_SEARCH_CHARS = 3;
 
@@ -318,7 +319,7 @@ export function BookingShareButton({ bookingId, bookingLabel }: BookingShareButt
                       <p className="text-xs text-muted-foreground break-all">
                         {s.shared_with.email}
                         {s.shared_with.department ? ` · ${s.shared_with.department}` : ""} · since{" "}
-                        {new Date(s.created_at).toLocaleDateString()}
+                        {formatDMY(s.created_at)}
                       </p>
                     </div>
                     <Button

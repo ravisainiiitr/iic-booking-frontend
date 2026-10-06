@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1209,11 +1210,11 @@ export default function RemoteAnalysis() {
                     </div>
                     <div>
                       <Label className="text-xs">Start</Label>
-                      <Input aria-label="Start" type="datetime-local" value={manualStart} onChange={(e) => setManualStart(e.target.value)} />
+                      <DateTimeInput aria-label="Start" value={manualStart} onChange={(e) => setManualStart(e.target.value)} />
                     </div>
                     <div>
                       <Label className="text-xs">End</Label>
-                      <Input aria-label="End" type="datetime-local" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} />
+                      <DateTimeInput aria-label="End" value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} />
                     </div>
                     <Button
                       disabled={busyAction}

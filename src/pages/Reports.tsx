@@ -5,7 +5,7 @@ import { hasRbacPermission } from "@/lib/rbac";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import {
   Table,
   TableBody,
@@ -498,8 +498,7 @@ const Reports = () => {
               <div className="flex flex-wrap items-end gap-4">
                 <div className="space-y-2">
                   <Label>Date from</Label>
-                  <Input
-                    type="date"
+                  <DateInput
                     value={facultyDateFrom}
                     onChange={(e) => setFacultyDateFrom(e.target.value)}
                     className="w-40"
@@ -507,8 +506,7 @@ const Reports = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Date to</Label>
-                  <Input
-                    type="date"
+                  <DateInput
                     value={facultyDateTo}
                     onChange={(e) => setFacultyDateTo(e.target.value)}
                     className="w-40"
@@ -1088,11 +1086,11 @@ const Reports = () => {
               <CardContent className="flex flex-wrap items-end gap-4">
                 <div className="space-y-2">
                   <Label>Date from</Label>
-                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+                  <DateInput value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-2">
                   <Label>Date to</Label>
-                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+                  <DateInput value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-2">
                   <Label>Equipment</Label>

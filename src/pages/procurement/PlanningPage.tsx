@@ -5,6 +5,7 @@ import { Download, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -385,7 +386,7 @@ function DecideDialog({ proposal, onClose, hod, offline, onSaved }: { proposal: 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Approver name"><Input value={approver.name} onChange={(e) => setApprover({ ...approver, name: e.target.value })} /></Field>
             <Field label="Designation"><Input value={approver.designation} onChange={(e) => setApprover({ ...approver, designation: e.target.value })} /></Field>
-            <Field label="Decision date"><Input type="date" max={todayIso()} value={approver.date} onChange={(e) => setApprover({ ...approver, date: e.target.value })} /></Field>
+            <Field label="Decision date"><DateInput max={todayIso()} value={approver.date} onChange={(e) => setApprover({ ...approver, date: e.target.value })} /></Field>
             <Field label="Reference (optional)"><Input value={approver.reference} onChange={(e) => setApprover({ ...approver, reference: e.target.value })} /></Field>
             <Field label="Signed proposal" className="sm:col-span-2"><FilePicker files={files} onChange={setFiles} multiple={false} label="Choose signed copy" /></Field>
           </div>

@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -969,8 +970,7 @@ export default function TAAssignments() {
                         )}
                         {isTaStudent && a.status === "ACCEPTED" && !dutyLog && (
                           <div className="space-y-2 min-w-[280px]">
-                            <Input
-                              type="date"
+                            <DateInput
                               value={submitByAssignment[a.id]?.duty_date || ""}
                               onChange={(e) =>
                                 setSubmitByAssignment((p) => ({
@@ -1128,9 +1128,8 @@ export default function TAAssignments() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="review-duty-date">Duty date</Label>
-                  <Input
+                  <DateInput
                     id="review-duty-date"
-                    type="date"
                     value={dutyLogReviewForm.duty_date}
                     onChange={(e) => setDutyLogReviewForm((f) => ({ ...f, duty_date: e.target.value }))}
                   />
