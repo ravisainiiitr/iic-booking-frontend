@@ -38,7 +38,7 @@ export const adminGuide: RoleGuide = {
           { title: "Department Administration", body: "Oversee staff roles and permission caps across departments." },
           {
             title: "OIC Substitute",
-            body: "Under Users & access, OIC Substitute lists every substitution an Officer In Charge has given to another OIC of their department, with the reason, period and history. Use Revoke (or Cancel, if it has not started) with a reason to end one; the substitute, the Lab Operators and the OIC are notified.",
+            body: "Under Users & access, OIC Substitute lists every substitution an Officer In Charge has given to another OIC of their department, with the reason, period and history, grouped by substitute. Use Revoke (or Cancel, if it has not started) with a reason to end one, or tick several and end them together; the substitute, the Lab Operators and the OIC are notified.",
           },
           { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers, charges and mode schedules." },
           {
