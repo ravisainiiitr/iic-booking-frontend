@@ -4172,6 +4172,8 @@ class ApiClient {
         start_datetime: string;
         end_datetime: string;
         status: string;
+        /** What the slot is shown as: COMPLETED for a Booked slot whose booking is completed, else `status`. */
+        display_status?: string;
         status_display?: string;
         booking_id?: number | string | null;
         real_booking_id?: number | null;
