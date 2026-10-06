@@ -77,7 +77,24 @@ const CLASS_RE = new RegExp(
   "g",
 );
 
-const STRING_RE = /(["'`])((?:(?!\1)[^\\\n]|\\.)*?)\1/g;
+/** '…' and "…" cannot span lines, so pair them per line: a stray apostrophe in a comment then cannot
+ * shift the pairing for the rest of the file. Template literals may span lines (multi-line classNames). */
+const QUOTED_RE = /(["'])((?:(?!\1)[^\\\n]|\\.)*?)\1/g;
+const TEMPLATE_RE = /`((?:[^`\\]|\\.)*)`/g;
+
+function stringLiterals(source: string): string[] {
+  const out: string[] = [];
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const re = new RegExp(QUOTED_RE.source, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(lines[i])) !== null) out.push(m[2]);
+  }
+  const tre = new RegExp(TEMPLATE_RE.source, "g");
+  let t: RegExpExecArray | null;
+  while ((t = tre.exec(source)) !== null) out.push(t[1]);
+  return out;
+}
 const DARK_GROUP_RE: Record<string, RegExp> = {
   bg: /dark:bg-/,
   text: /dark:text-/,
@@ -94,7 +111,7 @@ function collectSourceClasses(srcDir: string): Set<string> {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(full);
       else if (/\.(tsx?|jsx?)$/.test(entry.name) && !/\.test\./.test(entry.name)) {
-        for (const [, , literal] of fs.readFileSync(full, "utf8").matchAll(STRING_RE)) {
+        for (const literal of stringLiterals(fs.readFileSync(full, "utf8"))) {
           for (const m of literal.matchAll(CLASS_RE)) {
             const darkRe = DARK_GROUP_RE[groupOf(m[2])];
             const scoped = m[1] ? new RegExp(darkRe.source.replace("dark:", "dark:hover:")) : darkRe;
@@ -129,9 +146,12 @@ interface Bridge {
   decl: Record<string, string>;
 }
 
+/** Non-global copy: exec() on the shared global regex would leave lastIndex set, and matchAll() copies
+ * lastIndex, so the next Tailwind context's scan would silently skip classes. */
+const TOKEN_RE = new RegExp(CLASS_RE.source);
+
 function resolve(token: string): Bridge | null {
-  CLASS_RE.lastIndex = 0;
-  const m = CLASS_RE.exec(token);
+  const m = TOKEN_RE.exec(token);
   if (!m) return null;
   const [, hover, prop, name, shade, alphaSuffix] = m;
   const alpha = alphaOf(alphaSuffix);
