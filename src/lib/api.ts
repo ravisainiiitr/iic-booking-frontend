@@ -2191,6 +2191,24 @@ export interface FacultyWalletSyncDeadline {
   max_cutoff: string;
   last_change: FacultyWalletSyncDeadlineChange | null;
   recent_changes: FacultyWalletSyncDeadlineChange[];
+  /** Daily automatic sync time (IST, HH:MM); runs only while the window is open. */
+  daily_sync_time_ist?: string;
+  last_batch_sync?: FacultyWalletBatchSyncRun | null;
+}
+
+/** Latest applied batch sync (daily run or admin command). User ids and amounts only. */
+export interface FacultyWalletBatchSyncRun {
+  ran_at: string | null;
+  trigger: 'daily' | 'manual';
+  status: 'completed' | 'window_closed' | 'legacy_mysql_not_configured' | string;
+  checked: number;
+  in_sync: number;
+  credits: { count: number; total: string };
+  debits: { count: number; total: string };
+  blocked_below_zero: Array<{ user_id: number; delta: string; iic_balance: string }>;
+  skipped: Record<string, number>;
+  failed: Array<{ user_id: number; reason: string }>;
+  ledger_rows_imported: number;
 }
 
 export interface WalletRechargeParseRow {

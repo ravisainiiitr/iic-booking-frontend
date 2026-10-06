@@ -87,6 +87,38 @@ describe("FacultyWalletSyncDeadlineCard", () => {
     expect(screen.getByText(/Main Admin/)).toBeTruthy();
   });
 
+  it("shows the last daily automatic run", async () => {
+    getDeadline.mockResolvedValue({
+      data: {
+        ...extended,
+        daily_sync_time_ist: "02:30",
+        last_batch_sync: {
+          ran_at: "2026-10-07T02:30:04+05:30",
+          trigger: "daily",
+          status: "completed",
+          checked: 120,
+          in_sync: 115,
+          credits: { count: 2, total: "3100.00" },
+          debits: { count: 2, total: "250.00" },
+          blocked_below_zero: [{ user_id: 77, delta: "-500.00", iic_balance: "100.00" }],
+          skipped: {},
+          failed: [],
+          ledger_rows_imported: 6,
+        },
+      },
+    });
+    render(<FacultyWalletSyncDeadlineCard />);
+    await screen.findByText(/Daily automatic sync · 02:30 IST/);
+    expect(screen.getByText(/120 faculty checked: 2 credited/)).toBeTruthy();
+    expect(screen.getByText(/held because the IIC wallet would go below zero \(user #77\)/)).toBeTruthy();
+  });
+
+  it("says when no automatic run has happened", async () => {
+    getDeadline.mockResolvedValue({ data: { ...extended, daily_sync_time_ist: "02:30", last_batch_sync: null } });
+    render(<FacultyWalletSyncDeadlineCard />);
+    await screen.findByText("No automatic run yet.");
+  });
+
   it("closes the sync now with an empty cutoff", async () => {
     getDeadline.mockResolvedValue({ data: extended });
     setDeadline.mockResolvedValue({ data: { ...extended, window_open: false } });

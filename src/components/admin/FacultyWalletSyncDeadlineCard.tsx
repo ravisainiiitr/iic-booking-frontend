@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiClient, type FacultyWalletSyncDeadline } from "@/lib/api";
+import { apiClient, type FacultyWalletBatchSyncRun, type FacultyWalletSyncDeadline } from "@/lib/api";
 import { formatIst, istInputToIso, istInputValue } from "@/lib/facultyWalletSyncDeadline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,51 @@ import { CalendarClock, Loader2, Lock, Save } from "lucide-react";
 import { toast } from "sonner";
 
 type PendingChange = { cutoff: string; label: string } | null;
+
+const inr = (value: string) =>
+  Number(value || 0).toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 });
+
+const STATUS_TEXT: Record<string, string> = {
+  window_closed: "Not run: the sync deadline had passed.",
+  legacy_mysql_not_configured: "Not run: the old portal database is not reachable from this server.",
+};
+
+const DailySyncSummary = ({ time, run }: { time?: string; run: FacultyWalletBatchSyncRun | null }) => (
+  <div className="space-y-1 rounded-lg border p-3 text-sm">
+    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      Daily automatic sync{time ? ` · ${time} IST` : ""}
+    </div>
+    {!run ? (
+      <p className="text-muted-foreground">No automatic run yet.</p>
+    ) : (
+      <>
+        <p>
+          Last run {formatIst(run.ran_at)} ({run.trigger === "daily" ? "scheduled" : "started by IIC"}).
+        </p>
+        {run.status !== "completed" ? (
+          <p className="text-muted-foreground">{STATUS_TEXT[run.status] ?? `Not run: ${run.status}.`}</p>
+        ) : (
+          <p className="text-muted-foreground">
+            {run.checked} faculty checked: {run.credits.count} credited ({inr(run.credits.total)}), {run.debits.count}{" "}
+            deducted ({inr(run.debits.total)}), {run.in_sync} already up to date.
+          </p>
+        )}
+        {run.blocked_below_zero.length > 0 && (
+          <p className="text-amber-700 dark:text-amber-400">
+            {run.blocked_below_zero.length} deduction{run.blocked_below_zero.length === 1 ? "" : "s"} held because the IIC
+            wallet would go below zero (user {run.blocked_below_zero.map((b) => `#${b.user_id}`).join(", ")}).
+          </p>
+        )}
+        {run.failed.length > 0 && (
+          <p className="text-red-700 dark:text-red-400">
+            {run.failed.length} failed (user {run.failed.map((f) => `#${f.user_id}`).join(", ")}); they are retried on the
+            next run.
+          </p>
+        )}
+      </>
+    )}
+  </div>
+);
 
 const FacultyWalletSyncDeadlineCard = () => {
   const [status, setStatus] = useState<FacultyWalletSyncDeadline | null>(null);
@@ -94,8 +139,8 @@ const FacultyWalletSyncDeadlineCard = () => {
           Faculty login wallet sync
         </CardTitle>
         <CardDescription>
-          Until this deadline, each faculty sign-in brings that faculty member's old-portal wallet transactions and balance
-          into their IIC wallet. The manual sync on this page is not affected by the deadline.
+          Until this deadline, each faculty sign-in, and an automatic run every night for all faculty, brings the old-portal
+          wallet transactions and balance into the IIC wallet. The manual sync on this page is not affected by the deadline.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -146,6 +191,8 @@ const FacultyWalletSyncDeadlineCard = () => {
                 )}
               </div>
             </div>
+
+            <DailySyncSummary time={status.daily_sync_time_ist} run={status.last_batch_sync ?? null} />
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1 space-y-1">
