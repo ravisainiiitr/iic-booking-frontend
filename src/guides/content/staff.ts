@@ -143,11 +143,15 @@ export function slotStatusSection(g: Gate): GuideSection {
     icon: "calendar",
     group: LAB,
     intro: ["Open slots, block them or mark maintenance in bulk from a week view."],
-    steps: [
-      {
+    steps: compact([
+      g.only(["admin"], {
         title: "Open it",
-        body: "On the equipment page, choose Change slot status in the menu.",
-      },
+        body: "In the dashboard menu, choose Change slot status, pick the Department/Centre (IIC first) and then the equipment, and click Change slot status. The equipment page menu has it too.",
+      }),
+      g.only(["oic"], {
+        title: "Open it",
+        body: "In the dashboard menu, choose Change slot status, pick one of your equipment (including equipment you cover as temporary OIC) and click Change slot status. The equipment page menu has it too.",
+      }),
       {
         title: "Pick the week",
         body: "Double-click a date (or drag across several) to open the Week view; it starts on the current week. One click on an arrow changes the week; double-clicking a date jumps to it.",
@@ -156,7 +160,7 @@ export function slotStatusSection(g: Gate): GuideSection {
         title: "Select and apply",
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
-    ],
+    ]),
     rules: compact([
       g.only(["oic"], "Available only on equipment assigned to you."),
       "Admins and Officers In Charge can see and book slots in any week.",

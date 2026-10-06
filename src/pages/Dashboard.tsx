@@ -103,6 +103,7 @@ const OIC_DASHBOARD_MENU_ORDER = [
   "booking_management",
   "urgent_requests",
   "multi_mode_equipment",
+  "change_slot_status",
   "equipment_waitlist",
   "equipment_settings",
   "booking_attempt_log",
@@ -121,6 +122,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/urgent-requests": { title: "Urgent Booking", description: "Type B urgent requests (50% surcharge) awaiting your decision." },
   "/oic/multi-mode": { title: "Multi-mode Equipment" },
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
+  "/change-slot-status": {
+    title: "Change Slot Status",
+    description: "Pick an equipment to mark its slots available, blocked or under maintenance.",
+  },
   "/oic/equipment-settings": {
     title: "Equipment Booking Configuration",
     description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
@@ -2842,6 +2847,38 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage modes</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "change_slot_status",
+      label: "Change slot status",
+      path: "/change-slot-status",
+      visible: Boolean(isAdmin || isOicUser),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/change-slot-status")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-emerald-600 text-white shadow-lg">
+                    <CalendarDays className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Change slot status</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {isAdmin
+                        ? "Pick a department and equipment, then mark slots available, blocked or under maintenance"
+                        : "Pick one of your equipment, then mark slots available, blocked or under maintenance"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open</Button>
               </CardContent>
             </Card>
       ),

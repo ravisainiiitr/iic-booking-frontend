@@ -117,6 +117,19 @@ export interface StaffListFiltersMeta {
   equipment_options: Array<{ equipment_id: number; code: string; name: string; department_id: number | null }>;
 }
 
+export interface SlotStatusPickerEquipment {
+  equipment_id: number;
+  code: string;
+  name: string;
+  status: string;
+  status_display: string;
+  department_id: number | null;
+  department_name: string;
+  department_code: string;
+  /** OIC only: covering for another OIC (temporary OIC). */
+  temporary_oic: boolean;
+}
+
 export interface EquipmentWaitlistEntry {
   id: number;
   position: number | null;
@@ -12766,6 +12779,19 @@ class ApiClient {
       } | null;
       filters?: StaffListFiltersMeta;
     }>(q ? `${endpoint}waitlist-all/?${q}` : `${endpoint}waitlist-all/`, { method: 'GET' });
+  }
+
+  /** Change Slot Status menu: equipment whose slots the Main Admin (all) or OIC (incl. temporary OIC) may change. */
+  async getSlotStatusPicker(params?: { departmentId?: number; equipmentId?: number }) {
+    const sp = new URLSearchParams();
+    if (params?.departmentId != null) sp.set('department_id', String(params.departmentId));
+    if (params?.equipmentId != null) sp.set('equipment_id', String(params.equipmentId));
+    const q = sp.toString();
+    return this.request<{
+      equipment: SlotStatusPickerEquipment[];
+      count: number;
+      filters: StaffListFiltersMeta;
+    }>(q ? `/equipments/slot-status-picker/?${q}` : '/equipments/slot-status-picker/', { method: 'GET' });
   }
 
   /** OIC: all slots of a date (any status, incl. weekends / holidays / maintenance) for manual waitlist confirmation. */

@@ -32,6 +32,22 @@ describe("What's New", () => {
     expect(ids(buildGuide({ audience: "faculty" }))).not.toContain("wallet-modes-departments");
   });
 
+  it("announces Change slot status in the menu to Officers In Charge and the Main Administrator only", () => {
+    for (const audience of ["oic", "admin"] as const) {
+      for (const flags of [{}, { training: true }]) {
+        const guide = buildGuide({ audience, flags });
+        expect(ids(guide)).toEqual(expect.arrayContaining(["slot-status-menu", "maintenance-notice-closes"]));
+        expect(guide.whatsNew.items.length).toBeLessThanOrEqual(10);
+      }
+    }
+    expect(buildGuide({ audience: "oic" }).whatsNew.items.find((i) => i.id === "slot-status-menu")?.href).toBe(
+      "/change-slot-status"
+    );
+    for (const audience of ["operator", "dept_admin", "student", "faculty"] as const) {
+      expect(ids(buildGuide({ audience }))).not.toContain("slot-status-menu");
+    }
+  });
+
   it("announces registration approvals to the Main Administrator, faculty and project staff only", () => {
     expect(ids(buildGuide({ audience: "admin" }))[0]).toBe("registration-requests");
     expect(ids(buildGuide({ audience: "faculty" }))).toContain("registration-approvals-faculty");
