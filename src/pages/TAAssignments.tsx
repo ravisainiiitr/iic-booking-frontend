@@ -7,6 +7,7 @@ import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -655,6 +656,8 @@ export default function TAAssignments() {
                         <ChevronRight className="h-4 w-4 ml-2" />
                       </Button>
                     </div>
+
+                    <NextWeekOpeningCountdown equipmentId={allocationEquipmentId} audience="staff" className="mx-auto mb-4 flex w-fit" />
 
                     {weekSlotState?.slots.some((s) => isOutsideVisibilityWindow(s)) && (
                       <RestrictedSlotLegend

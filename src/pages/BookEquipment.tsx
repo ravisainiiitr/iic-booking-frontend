@@ -232,7 +232,7 @@ import {
 } from "@/lib/waitlistMessage";
 import { shortSlotReason, slotAccessibleLabel, unavailableBookingSlotReason } from "@/lib/slotReason";
 import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator";
-import { SlotOpeningCountdown } from "@/components/booking/SlotOpeningCountdown";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
 import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
 import { ViewBookingsCountedButton } from "@/components/quota/ViewBookingsCountedButton";
@@ -8038,6 +8038,7 @@ const BookEquipment = () => {
             </div>
 
             <div className="overflow-auto max-h-[min(70dvh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
+              <NextWeekOpeningCountdown equipmentId={selectedEquipment.id} audience="staff" className="mb-2" />
               <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
                 Swipe sideways to view the full week calendar
               </p>
@@ -10588,11 +10589,6 @@ const BookEquipment = () => {
                             <p className="text-base font-semibold text-primary bg-primary/10 px-3 py-2 rounded-md">
                               Current week only — new slots open {schedule}.
                             </p>
-                            <SlotOpeningCountdown
-                              refWeekday={Number(refWeekday)}
-                              refTime={String(refTime)}
-                              onOpen={handleSlotsOpened}
-                            />
                           </div>
                         );
                       }
@@ -10633,6 +10629,14 @@ const BookEquipment = () => {
                     <ChevronRight className="h-4 w-4 ml-2" />
                   </Button>
                 </div>
+
+                <NextWeekOpeningCountdown
+                  equipmentId={selectedEquipment?.id}
+                  refWeekday={equipmentDetail?.slot_window_reference_weekday}
+                  refTime={equipmentDetail?.slot_window_reference_time}
+                  onOpen={handleSlotsOpened}
+                  className="mx-auto mb-3 flex w-fit"
+                />
 
                 {isAdminOrOIC() &&
                   (Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to) ||
@@ -10764,11 +10768,6 @@ const BookEquipment = () => {
                                   <p className="text-base font-medium text-foreground">
                                     New slots open {schedule}.
                                   </p>
-                                  <SlotOpeningCountdown
-                                    refWeekday={Number(refWeekday)}
-                                    refTime={String(refTime)}
-                                    onOpen={handleSlotsOpened}
-                                  />
                                   {draftEnabled && (
                                     <p className="text-muted-foreground text-sm">
                                       Your details above are saved on this device, so you can come back and confirm quickly.

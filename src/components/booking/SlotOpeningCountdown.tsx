@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -42,6 +42,28 @@ export function useSlotOpening(refWeekday: number | null | undefined, refTime: s
   };
 }
 
+// Several calendars can be on one page; only the first mounted countdown speaks to screen readers.
+let announcers: symbol[] = [];
+const announcerListeners = new Set<() => void>();
+function setAnnouncers(next: symbol[]) {
+  announcers = next;
+  announcerListeners.forEach((fn) => fn());
+}
+function subscribeAnnouncers(fn: () => void) {
+  announcerListeners.add(fn);
+  return () => announcerListeners.delete(fn);
+}
+
+function useIsAnnouncer(active: boolean): boolean {
+  const id = useRef(Symbol("slot-opening")).current;
+  useEffect(() => {
+    if (!active) return;
+    setAnnouncers([...announcers, id]);
+    return () => setAnnouncers(announcers.filter((a) => a !== id));
+  }, [active, id]);
+  return useSyncExternalStore(subscribeAnnouncers, () => announcers[0] === id, () => false);
+}
+
 type Props = {
   /** 0 = Monday … 6 = Sunday, as returned by the slots API. */
   refWeekday: number | null | undefined;
@@ -58,6 +80,7 @@ export function SlotOpeningCountdown({ refWeekday, refTime, onOpen, lead = "Next
   const { openingMs, remainingMs, label } = useSlotOpening(refWeekday, refTime);
   const firedFor = useRef<number | null>(null);
   const prevOpening = useRef<number | null>(null);
+  const announce = useIsAnnouncer(openingMs != null);
 
   useEffect(() => {
     // When the opening passes, nextSlotOpening rolls forward a week; fire for the one that just passed.
@@ -80,7 +103,7 @@ export function SlotOpeningCountdown({ refWeekday, refTime, onOpen, lead = "Next
   return (
     <div
       className={cn(
-        "inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-sm text-sky-950 dark:text-sky-100",
+        "inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-md border border-info-border bg-info-subtle px-3 py-1.5 text-sm text-info-subtle-foreground",
         className,
       )}
       data-testid="slot-opening-countdown"
@@ -92,9 +115,13 @@ export function SlotOpeningCountdown({ refWeekday, refTime, onOpen, lead = "Next
       <span className="font-mono tabular-nums font-semibold" aria-hidden>
         in {formatCountdown(remainingMs)}
       </span>
-      <span className="sr-only" aria-live="polite">
-        in {countdownAriaText(remainingMs)}
-      </span>
+      {announce ? (
+        <span className="sr-only" aria-live="polite">
+          in {countdownAriaText(remainingMs)}
+        </span>
+      ) : (
+        <span className="sr-only">in {countdownAriaText(remainingMs)}</span>
+      )}
     </div>
   );
 }

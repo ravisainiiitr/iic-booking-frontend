@@ -4,6 +4,7 @@ import { addDays, format, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { apiClient, type StaffAppToday } from "@/lib/api";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { cn } from "@/lib/utils";
@@ -148,6 +149,7 @@ export default function StaffWeekCalendar({ equipment }: Props) {
             slotsPayload={payload}
             bookedSlotsOnly={bookedOnly}
             onBookedSlotClick={(bookingId) => navigate(`/booking-management?expand=${bookingId}`)}
+            headerActions={equipmentId != null ? <NextWeekOpeningCountdown equipmentId={equipmentId} audience="staff" /> : undefined}
           />
         </div>
       )}
