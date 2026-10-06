@@ -90,6 +90,7 @@ import {
 } from "@/components/dashboard/dashboardMenuLayout";
 import { ADMIN_MENU_SECTIONS } from "@/components/dashboard/adminMenuSections";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
+import { useWorkspaceResume } from "@/lib/workspaceResume";
 import { useRememberedOpen } from "@/lib/rememberedOpen";
 import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
@@ -1412,6 +1413,8 @@ const Dashboard = () => {
     setWorkspaceTitle("");
     setWorkspaceCurrentPath("");
   }, []);
+
+  useWorkspaceResume({ workspacePath, workspaceCurrentPath, workspaceTitle, openWorkspace });
 
   const workspaceBackRef = useRef<(() => void) | null>(null);
   const workspaceTitleOverride = useWorkspaceTitleOverride();

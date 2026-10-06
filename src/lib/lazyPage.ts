@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from "react";
+import { rememberWorkspaceForReload } from "@/lib/workspaceResume";
 
 const RELOAD_KEY = "iic:chunk-reload-at";
 const RELOAD_WINDOW_MS = 30_000;
@@ -26,6 +27,7 @@ export function lazyPage<T extends ComponentType<any>>(factory: () => Promise<{ 
       return await factory();
     } catch (error) {
       if (shouldReloadForChunkError()) {
+        rememberWorkspaceForReload();
         window.location.reload();
         return new Promise<{ default: T }>(() => {});
       }
