@@ -367,7 +367,7 @@ const FinanceReports = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-7xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 sm:p-8 text-white shadow-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">Finance Reports</h1>
           <p className="mt-2 text-white/85 text-sm sm:text-base max-w-3xl">
             Departmental revenue, wallet recharges, and payment analytics for{" "}
@@ -392,7 +392,7 @@ const FinanceReports = () => {
                   type="button"
                   size="sm"
                   variant={preset === p.value ? "default" : "outline"}
-                  className={preset === p.value ? "bg-primary hover:bg-primary/90 text-white" : ""}
+                  className={preset === p.value ? "bg-brand hover:bg-brand/90 text-white" : ""}
                   onClick={() => handlePresetClick(p.value)}
                   disabled={loading}
                 >
@@ -418,7 +418,7 @@ const FinanceReports = () => {
               <Button
                 type="button"
                 variant={preset === "custom" ? "default" : "outline"}
-                className={preset === "custom" ? "bg-primary hover:bg-primary/90 text-white" : ""}
+                className={preset === "custom" ? "bg-brand hover:bg-brand/90 text-white" : ""}
                 onClick={handleApplyCustomRange}
                 disabled={loading}
               >
@@ -477,7 +477,7 @@ const FinanceReports = () => {
               </Alert>
             ) : null}
 
-            <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-primary p-6 text-white shadow-lg">
+            <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-brand p-6 text-white shadow-lg">
               <p className="text-sm font-medium uppercase tracking-wider text-sky-100/90">{data.meta.institute_name}</p>
               <h3 className="mt-2 text-2xl font-bold tracking-tight">{data.meta.report_title}</h3>
               <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-300">

@@ -208,7 +208,7 @@ export default function TypedTableBuilderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-6xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-6xl">
         <DialogHeader>
           <DialogTitle>Configure columns — {fieldLabel || `field ${fieldKey}`}</DialogTitle>
           <DialogDescription>

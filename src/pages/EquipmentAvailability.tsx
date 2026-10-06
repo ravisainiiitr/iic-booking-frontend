@@ -93,8 +93,8 @@ export default function EquipmentAvailability() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-32 sm:px-6 md:pt-36">
-        <div className="mb-6 rounded-2xl bg-gradient-to-br from-primary via-[hsl(215_62%_22%)] to-slate-950 p-6 text-white shadow-xl shadow-primary/25 sm:p-8">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-[calc(var(--site-header-h)+1.5rem)] sm:px-6">
+        <div className="mb-6 rounded-2xl bg-gradient-to-br from-brand via-[hsl(215_62%_22%)] to-slate-950 p-6 text-white shadow-xl shadow-primary/25 sm:p-8">
           <div className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
             <CalendarClock className="h-5 w-5" />
           </div>

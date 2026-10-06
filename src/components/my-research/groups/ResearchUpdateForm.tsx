@@ -162,7 +162,7 @@ export function ResearchUpdateForm({ request, unprompted = null, onOpenChange, o
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl [&>*]:min-w-0">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
             <DialogTitle className="break-words">{request ? request.title : "Send update"}</DialogTitle>

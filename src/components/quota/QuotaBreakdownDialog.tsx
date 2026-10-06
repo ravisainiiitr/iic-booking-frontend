@@ -436,7 +436,7 @@ type DialogProps = {
 export function QuotaBreakdownDialog({ request, onClose, onOpenBooking }: DialogProps) {
   return (
     <Dialog open={request != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl lg:max-w-5xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-3xl lg:max-w-5xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Bookings counted toward this limit</DialogTitle>
           <DialogDescription>{PERIOD_RULE}</DialogDescription>

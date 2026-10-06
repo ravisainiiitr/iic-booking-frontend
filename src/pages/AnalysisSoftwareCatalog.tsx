@@ -559,7 +559,7 @@ export default function AnalysisSoftwareCatalog() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit software" : "Add software"}</DialogTitle>
           </DialogHeader>

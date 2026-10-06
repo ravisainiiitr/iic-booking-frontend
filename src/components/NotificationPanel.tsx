@@ -168,7 +168,7 @@ const NotificationPanel = () => {
               : `${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`}
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="h-[calc(100vh-140px)]">
+        <ScrollArea className="h-[calc(100dvh-140px)]">
           {pending.length > 0 ? (
             <div className="border-b bg-amber-50/50 p-4 dark:bg-amber-950/10">
               <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">

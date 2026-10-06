@@ -236,7 +236,7 @@ export function BookingAttemptDetailsDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-4xl grid-cols-[minmax(0,1fr)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2 pr-6">
             Booking attempt details

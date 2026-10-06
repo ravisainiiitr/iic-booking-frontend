@@ -190,7 +190,7 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-full max-w-3xl overflow-hidden p-0 sm:rounded-xl">
+      <DialogContent className="max-h-[90dvh] w-full max-w-3xl overflow-hidden p-0 sm:rounded-xl">
         <DialogHeader className="border-b px-6 py-4 text-left">
           <DialogTitle>Select Analysis Data</DialogTitle>
           <DialogDescription>
@@ -255,7 +255,7 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
               <TabsTrigger value="previous">Previous Data</TabsTrigger>
             </TabsList>
             <TabsContent value={scope} className="mt-3">
-              <ScrollArea className="h-[42vh] rounded-lg border">
+              <ScrollArea className="h-[42dvh] rounded-lg border">
                 <div className="space-y-2 p-3">
                   {loading ? (
                     <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">

@@ -113,7 +113,7 @@ export default function UserGuidePage() {
                 className="h-9 pl-8 text-sm"
               />
             </div>
-            <div className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-1">
+            <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto pr-1">
               <GuideToc guide={guide} activeId={activeId} query={query} onSelect={jump} />
             </div>
           </div>

@@ -74,7 +74,7 @@ export function LinkPublicationsDialog({ workspaceId, open, onOpenChange, onLink
             first if it is not listed.
           </DialogDescription>
         </DialogHeader>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+        <div className="max-h-[50dvh] overflow-y-auto rounded-md border">
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

@@ -252,7 +252,7 @@ export default function SampleSubmissionPolicyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-xl p-0">
+      <DialogContent className="flex max-h-[90dvh] max-w-2xl flex-col gap-0 overflow-hidden rounded-xl p-0">
         <DialogHeader className="border-b px-5 pb-4 pt-5 text-left sm:px-6">
           <DialogTitle className="flex items-center gap-2 pr-6 text-lg">
             <FlaskConical className="h-5 w-5 shrink-0 text-sky-700 dark:text-sky-300" aria-hidden />

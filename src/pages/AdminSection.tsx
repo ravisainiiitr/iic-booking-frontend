@@ -2245,12 +2245,12 @@ export default function AdminSection() {
         <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) { setEditUserNewPassword(""); setEditUserNewPasswordConfirm(""); } setModalOpen(open); }}>
             <DialogContent className={
               sectionKey === "equipment"
-                ? "!flex !flex-col !gap-0 max-w-6xl w-[95vw] h-[92vh] max-h-[92vh] overflow-hidden p-0"
+                ? "!flex !flex-col !gap-0 max-w-6xl w-[95vw] h-[92dvh] max-h-[92dvh] overflow-hidden p-0"
                 : sectionKey === "equipmentGroups"
-                  ? "max-w-4xl max-h-[90vh] overflow-y-auto"
+                  ? "max-w-4xl max-h-[90dvh] overflow-y-auto"
                   : sectionKey === "cmsPages"
-                  ? "max-w-5xl w-[90vw] max-h-[90vh] overflow-y-auto"
-                  : "max-w-lg max-h-[90vh] overflow-y-auto"
+                  ? "max-w-5xl w-[90vw] max-h-[90dvh] overflow-y-auto"
+                  : "max-w-lg max-h-[90dvh] overflow-y-auto"
             }>
             <DialogHeader className={sectionKey === "equipment" ? "shrink-0 px-6 pt-6 pb-3 border-b space-y-1.5 text-left" : undefined}>
               <DialogTitle>{editingId !== null ? "Edit" : "Add"} {title}</DialogTitle>
@@ -2717,7 +2717,7 @@ export default function AdminSection() {
                 <DialogDescription>
                   Add a page with blocks: heading, paragraph, image, list, quote, divider. Link this page from Menu via link type &quot;CMS page&quot;.
                 </DialogDescription>
-                <div className="grid gap-4 py-4 max-h-[75vh] overflow-y-auto">
+                <div className="grid gap-4 py-4 max-h-[75dvh] overflow-y-auto">
                   <div className="grid grid-cols-[auto_1fr] items-center gap-4">
                     <Label className="text-right whitespace-nowrap">Title</Label>
                     <Input

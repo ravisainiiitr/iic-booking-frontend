@@ -359,7 +359,7 @@ const BookingAttemptLogs = () => {
   return (
     <div
       className="page-shell"
-      style={{ minHeight: "100vh", backgroundColor: "var(--background, #f8fafc)", color: "var(--foreground, #0f172a)" }}
+      style={{ minHeight: "var(--viewport-min-h, 100vh)", backgroundColor: "hsl(var(--background))", color: "hsl(var(--foreground))" }}
     >
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5" style={{ display: "block" }}>
@@ -813,7 +813,7 @@ const BookingAttemptLogs = () => {
         />
 
         <Dialog open={bookingDetailPopup !== null || loadingBookingDetail} onOpenChange={(open) => { if (!open) { setBookingDetailPopup(null); } }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0" aria-describedby={undefined}>
+          <DialogContent className="max-w-4xl max-h-[90dvh] overflow-y-auto p-0 gap-0" aria-describedby={undefined}>
             <DialogTitle className="sr-only">Booking details</DialogTitle>
             {loadingBookingDetail ? (
               <div className="flex items-center justify-center py-16" role="status" aria-label="Loading booking details">

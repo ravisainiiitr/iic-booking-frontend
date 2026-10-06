@@ -41,20 +41,20 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div
           style={{
-            minHeight: "100vh",
+            minHeight: "var(--viewport-min-h, 100vh)",
             padding: "2rem",
-            backgroundColor: "#f8fafc",
-            color: "#0f172a",
+            backgroundColor: "hsl(var(--background, 210 40% 98%))",
+            color: "hsl(var(--foreground, 222 47% 11%))",
           }}
         >
           <h1 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
             {this.props.fallbackTitle ?? "Something went wrong"}
           </h1>
-          <p style={{ marginBottom: "1rem", color: "#64748b" }}>
+          <p style={{ marginBottom: "1rem", color: "hsl(var(--muted-foreground, 215 16% 47%))" }}>
             This page could not be displayed. Go back and try again.
           </p>
           {err && (
-            <pre style={{ fontSize: "0.75rem", padding: "1rem", background: "#f1f5f9", borderRadius: "6px", overflow: "auto", marginBottom: "1rem" }}>
+            <pre style={{ fontSize: "0.75rem", padding: "1rem", background: "hsl(var(--muted, 210 40% 96%))", borderRadius: "6px", overflow: "auto", marginBottom: "1rem", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
               {err.message}
             </pre>
           )}

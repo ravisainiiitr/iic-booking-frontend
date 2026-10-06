@@ -75,7 +75,7 @@ export default function BookingCalendar() {
       <DashboardHeader />
       <main className={embedded ? "container mx-auto px-3 py-4" : "container mx-auto px-4 py-8"}>
         {!embedded && (
-          <div className="mb-5 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-5 text-white shadow-lg">
+          <div className="mb-5 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-5 text-white shadow-lg">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
                 <CalendarDays className="h-5 w-5" />

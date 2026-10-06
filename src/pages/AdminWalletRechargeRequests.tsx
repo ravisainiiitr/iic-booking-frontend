@@ -899,7 +899,7 @@ export default function AdminWalletRechargeRequests() {
       </main>
 
       <Dialog open={!!detailRow} onOpenChange={(open) => !open && setDetailRow(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{detailRow?.transaction_number || detailRow?.request_id || `Request #${detailRow?.id}`}</DialogTitle>
             <DialogDescription>
@@ -1111,7 +1111,7 @@ export default function AdminWalletRechargeRequests() {
           if (!open && linkingEntryId === null) setCashbookRow(null);
         }}
       >
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Matching SRIC cash-book entries</DialogTitle>
             <DialogDescription>

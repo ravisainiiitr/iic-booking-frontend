@@ -565,7 +565,7 @@ function ResearchWorkspace({ workspaceId }: { workspaceId: string }) {
             className="bg-card pl-9"
           />
           {query.trim() && (searchResult || searching) ? (
-            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[60vh] overflow-y-auto rounded-lg border bg-popover p-2 shadow-xl">
+            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-[60dvh] overflow-y-auto rounded-lg border bg-popover p-2 shadow-xl">
               {searching && !searchResult ? (
                 <Loader2 className="mx-auto my-4 h-5 w-5 animate-spin text-muted-foreground" />
               ) : searchResult &&

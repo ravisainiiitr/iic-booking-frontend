@@ -204,7 +204,7 @@ export function BookingShareButton({ bookingId, bookingLabel }: BookingShareButt
         Share data
       </Button>
       <Dialog open={open} onOpenChange={(next) => !submitting && setOpen(next)}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Share research data{bookingLabel ? ` · ${bookingLabel}` : ""}</DialogTitle>
             <DialogDescription>

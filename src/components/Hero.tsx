@@ -32,7 +32,7 @@ const DEFAULT_HOME = {
 };
 
 const primaryCtaClass =
-  "h-10 shrink-0 gap-1.5 whitespace-nowrap bg-primary px-3.5 text-sm text-white shadow-lg shadow-primary/30 hover:bg-primary/90 sm:h-11 sm:gap-2 sm:px-4 sm:text-base";
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-3.5 text-sm text-brand-foreground shadow-lg shadow-black/25 ring-1 ring-white/10 hover:bg-brand/90 sm:gap-2 sm:px-4 sm:text-base";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -136,7 +136,7 @@ const Hero = () => {
   };
 
   return (
-    <section className="relative flex min-h-[58svh] max-h-[78svh] flex-col overflow-hidden sm:min-h-[62svh]">
+    <section className="relative flex min-h-[58svh] flex-col overflow-hidden sm:min-h-[62svh]">
       <div className="absolute inset-0 z-0">
         <img
           src={iitrMainBuilding}
@@ -151,8 +151,8 @@ const Hero = () => {
       </div>
 
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
-        {/* pt clears fixed header (lg IITR banner); keep badge fully below the bar */}
-        <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-28 sm:pb-5 sm:pt-32 md:pt-36">
+        {/* pt clears the fixed site header (height + safe area); keep badge fully below the bar */}
+        <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />

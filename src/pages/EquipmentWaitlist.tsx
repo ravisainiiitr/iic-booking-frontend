@@ -276,7 +276,7 @@ export default function EquipmentWaitlist() {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
         <StandaloneOnly>
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
             <Button
               variant="ghost"
               size="sm"

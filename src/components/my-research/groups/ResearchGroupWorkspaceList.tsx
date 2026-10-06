@@ -205,7 +205,7 @@ export function ResearchGroupWorkspaceList({ groupId, canManage }: Props) {
           {options.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted-foreground">Nothing available to add.</p>
           ) : (
-            <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-md border">
+            <ul className="max-h-[50dvh] divide-y overflow-y-auto rounded-md border">
               {options.map((o) => {
                 const id = `rg-link-${o.id}`;
                 return (

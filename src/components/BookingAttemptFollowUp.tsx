@@ -144,7 +144,7 @@ export function SaveAsTemplateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className={useCalendar && rememberSlot ? "max-w-3xl max-h-[90vh] overflow-y-auto" : "max-w-md"}>
+      <DialogContent className={useCalendar && rememberSlot ? "max-w-3xl max-h-[90dvh] overflow-y-auto" : "max-w-md"}>
         <DialogHeader>
           <DialogTitle>Save as a booking template</DialogTitle>
           <DialogDescription>

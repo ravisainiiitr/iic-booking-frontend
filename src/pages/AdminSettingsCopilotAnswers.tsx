@@ -707,7 +707,7 @@ const AdminSettingsCopilotAnswers = () => {
       </main>
 
       <Dialog open={Boolean(editor)} onOpenChange={(o) => !o && setEditor(null)}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto">
           {editor ? (
             <>
               <DialogHeader>

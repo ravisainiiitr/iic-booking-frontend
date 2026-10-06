@@ -101,7 +101,7 @@ function SessionDialog({ state, onClose, onSaved }: { state: SessionDialogState;
 
   return (
     <Dialog open={Boolean(state)} onOpenChange={(open) => !open && !busy && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{state?.mode === "edit" ? "Reschedule session" : "Add session"}</DialogTitle>
           <DialogDescription>{state?.event.title}</DialogDescription>

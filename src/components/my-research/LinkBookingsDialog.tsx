@@ -85,7 +85,7 @@ export function LinkBookingsDialog({ workspaceId, open, onOpenChange, onLinked }
             placeholder="Search by equipment name, code or booking ID"
           />
         </div>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+        <div className="max-h-[50dvh] overflow-y-auto rounded-md border">
           {loading ? (
             <div className="flex justify-center py-10">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

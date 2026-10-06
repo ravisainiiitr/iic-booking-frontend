@@ -297,7 +297,7 @@ const StudentManagement = () => {
             <Card className="overflow-hidden rounded-2xl border-primary/25 shadow-[var(--shadow-card)] dark:border-primary/40">
               <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
                 <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Send className="h-6 w-6" />
                   </div>
                   <div>

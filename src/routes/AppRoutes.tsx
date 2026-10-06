@@ -158,7 +158,7 @@ const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
 function RouteFallback() {
   return (
-    <div className="flex min-h-[50vh] w-full items-center justify-center" role="status" aria-live="polite">
+    <div className="flex min-h-[50dvh] w-full items-center justify-center" role="status" aria-live="polite">
       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
       <span className="sr-only">Loading page…</span>
     </div>

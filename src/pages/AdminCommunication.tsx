@@ -1325,7 +1325,7 @@ const AdminCommunication = () => {
         </Tabs>
 
         <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingTemplate ? "Edit template" : "Add template"}</DialogTitle>
               <DialogDescription>
@@ -1469,7 +1469,7 @@ const AdminCommunication = () => {
         </Dialog>
 
         <Dialog open={noticeDialogOpen} onOpenChange={setNoticeDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingNotice ? "Edit notice" : "Add notice"}</DialogTitle>
               <DialogDescription>

@@ -442,7 +442,7 @@ const EquipmentCard = ({
           setDialogOpen(open);
         }}
       >
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <DialogHeader>
               <DialogTitle className="text-2xl">{equipmentDetail?.name || name}</DialogTitle>
               {category ? <DialogDescription>{category}</DialogDescription> : null}
@@ -679,7 +679,7 @@ const EquipmentCard = ({
       </Dialog>
 
       <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <DialogHeader>
               <DialogTitle className="text-xl">Ratings & reviews</DialogTitle>
               <DialogDescription>{name}</DialogDescription>

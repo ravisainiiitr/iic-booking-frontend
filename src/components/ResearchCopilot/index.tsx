@@ -1258,7 +1258,7 @@ export default function ResearchCopilot({
         type="button"
         aria-label={open ? "Close Booking Assistant" : "Open Booking Assistant"}
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-[calc(1.5rem+var(--booking-action-bar-h,0px))] right-6 z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
+        className="floating-launcher fixed bottom-[calc(1.5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(1.5rem,calc(env(safe-area-inset-right)+0.75rem))] z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
@@ -1266,8 +1266,11 @@ export default function ResearchCopilot({
 
       {open && (
         <div
-          className="fixed bottom-[calc(5rem+var(--booking-action-bar-h,0px))] right-3 z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
-          style={{ height: "min(640px, calc(100vh - 7rem - var(--booking-action-bar-h, 0px)))" }}
+          className="fixed bottom-[calc(5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(0.75rem,env(safe-area-inset-right))] z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
+          style={{
+            height:
+              "min(640px, calc(var(--viewport-h, 100vh) - 7rem - env(safe-area-inset-top) - max(var(--booking-action-bar-h, 0px), env(safe-area-inset-bottom))))",
+          }}
         >
           {/* History (signed-in only) */}
           {isAuthenticated ? (

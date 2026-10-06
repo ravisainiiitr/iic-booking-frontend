@@ -51,7 +51,7 @@ const ExternalUserManagement = () => {
     <div className="page-shell flex flex-col">
       <DashboardHeader />
       <main className="flex-1 container mx-auto px-4 py-5">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <StandaloneOnly>
             <Button
               variant="ghost"
@@ -85,7 +85,7 @@ const ExternalUserManagement = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                   <Building2 className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -98,7 +98,7 @@ const ExternalUserManagement = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open departments</Button>
+              <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open departments</Button>
             </CardContent>
           </Card>
 
@@ -117,7 +117,7 @@ const ExternalUserManagement = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                   <UserCheck className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">

@@ -566,7 +566,7 @@ function DashboardMenuEditor({ open, onOpenChange, orderedIds, labels, layout, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto" data-menu-keep-open>
+      <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto" data-menu-keep-open>
         <DialogHeader>
           <DialogTitle>Customize dashboard menu</DialogTitle>
           <DialogDescription>

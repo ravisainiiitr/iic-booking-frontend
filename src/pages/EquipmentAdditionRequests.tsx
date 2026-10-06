@@ -232,7 +232,7 @@ const EquipmentAdditionRequests = () => {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-6xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="min-w-0">
               <StandaloneOnly>
@@ -316,7 +316,7 @@ const EquipmentAdditionRequests = () => {
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            className="bg-primary hover:bg-primary/90 text-white"
+                            className="bg-brand hover:bg-brand/90 text-white"
                             onClick={() => {
                               setSelected(r);
                               setReviewNotes(r.review_notes || "");
@@ -344,7 +344,7 @@ const EquipmentAdditionRequests = () => {
         </Card>
 
         <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-background text-foreground">
+          <DialogContent className="sm:max-w-xl max-h-[90dvh] overflow-y-auto bg-background text-foreground">
             <DialogHeader>
               <DialogTitle className="text-foreground pr-6">
                 {selected?.name || selected?.code}
@@ -493,7 +493,7 @@ const EquipmentAdditionRequests = () => {
                   <Button variant="destructive" onClick={handleReject} disabled={actionLoading}>
                     Reject
                   </Button>
-                  <Button className="bg-primary hover:bg-primary/90 text-white" onClick={handleApprove} disabled={actionLoading}>
+                  <Button className="bg-brand hover:bg-brand/90 text-white" onClick={handleApprove} disabled={actionLoading}>
                     {actionLoading ? "Working…" : "Approve & create"}
                   </Button>
                 </>

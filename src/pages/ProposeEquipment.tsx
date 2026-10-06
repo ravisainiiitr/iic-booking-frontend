@@ -197,7 +197,7 @@ const ProposeEquipment = () => {
       )}
 
       <main className="container mx-auto px-4 py-5 max-w-3xl">
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 text-white shadow-xl">
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
           <h1 className="text-2xl font-semibold tracking-tight">Equipment addition request</h1>
           <p className="mt-2 text-sm text-white/85">
             Submit a proposal for a new instrument. An administrator will review before slots and charges are configured.

@@ -138,7 +138,7 @@ function ReportBanner({ header }: { header: NonNullable<EquipmentReportData>["re
   const durationHuman = header.period_display ?? "";
   const durationSuffix = header.report_duration_suffix ?? "";
   return (
-    <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-primary p-6 text-white shadow-lg">
+    <div className="mb-6 rounded-xl border bg-gradient-to-br from-slate-900 via-slate-800 to-brand p-6 text-white shadow-lg">
       <p className="text-sm font-medium uppercase tracking-wider text-sky-100/90">{header.institute_name}</p>
       <p className="text-lg text-slate-200">{header.organization}</p>
       <h3 className="mt-3 text-left text-2xl font-bold tracking-tight break-words">
@@ -464,7 +464,7 @@ const Reports = () => {
       <DashboardHeader />
       <main className="container mx-auto px-4 py-5 max-w-7xl">
         <StandaloneOnly>
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-primary via-primary to-accent p-6 sm:p-8 text-white shadow-xl">
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 sm:p-8 text-white shadow-xl">
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
               {isLabInchargeUser ? "Equipment performance reports" : "Reports & Statistics"}
             </h1>
@@ -480,7 +480,7 @@ const Reports = () => {
 
         {isFacultyUser && !isLabInchargeUser && (
           <Card className="mb-6 overflow-hidden border-primary/25 shadow-md dark:border-primary/40 rounded-2xl">
-            <div className="border-b bg-gradient-to-r from-primary via-primary to-accent px-6 py-5 text-white">
+            <div className="border-b bg-gradient-to-r from-brand via-brand to-brand-accent px-6 py-5 text-white">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight text-primary-foreground">

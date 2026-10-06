@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,23 @@ const Header = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const checkingRef = useRef(false);
   const hasCheckedRef = useRef(false);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Pages under this fixed header offset their content by --site-header-h; publish the real height
+  // (it changes with the banner wrapping, safe-area inset and breakpoint) before paint.
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const apply = () => root.style.setProperty("--site-header-h", `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    apply();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(apply) : null;
+    observer?.observe(el);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty("--site-header-h");
+    };
+  }, []);
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : '';
   const canManageBookings = ['admin', 'operator', 'manager'].includes(userTypeStr);
   const isAccountsInCharge = userTypeStr === 'finance';
@@ -111,12 +128,12 @@ const Header = () => {
   return (
     <>
     <SkipToContent />
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur-md shadow-sm shadow-primary/5">
-      <div className="container mx-auto px-4 sm:px-6 py-3.5 sm:py-4">
+    <header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 pt-safe px-safe backdrop-blur-md shadow-sm shadow-primary/5 supports-[backdrop-filter]:bg-card/90">
+      <div className="container mx-auto px-3 py-2.5 sm:px-6 sm:py-4">
         {/* Equal side columns keep the clock on the header's centre line. They never shrink below
             the banner/actions, so on narrow screens the clock moves off-centre instead of overlapping. */}
-        <div className="server-clock-row flex items-center justify-between gap-4 sm:gap-6 lg:grid lg:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
-          <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-6">
+        <div className="server-clock-row flex items-center justify-between gap-2 sm:gap-6 lg:grid lg:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-6">
             <BackButton />
             <div
               className="flex items-center min-w-0 flex-1 cursor-pointer rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -227,7 +244,7 @@ const Header = () => {
               <Button
                 onClick={() => navigate("/auth")}
                 size="lg"
-                className="h-10 sm:h-11 px-5 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+                className="h-11 px-4 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
               >
                 Sign In
               </Button>

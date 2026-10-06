@@ -269,7 +269,7 @@ export default function CmsPageView() {
     return (
       <div className="page-shell flex flex-col">
         <Header />
-        <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
+        <main className="flex-1 pt-[calc(var(--site-header-h)+1.5rem)] pb-8 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 flex items-center justify-center min-h-[200px]">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -288,7 +288,7 @@ export default function CmsPageView() {
     return (
       <div className="page-shell flex flex-col">
         <Header />
-        <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
+        <main className="flex-1 pt-[calc(var(--site-header-h)+1.5rem)] pb-8 container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 flex items-center justify-center min-h-[200px]">
               <div className="text-center space-y-4">
@@ -312,7 +312,7 @@ export default function CmsPageView() {
   return (
     <div className="page-shell flex flex-col">
       <Header />
-      <main className="flex-1 pt-32 pb-8 md:pt-36 container mx-auto px-4">
+      <main className="flex-1 pt-[calc(var(--site-header-h)+1.5rem)] pb-8 container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <Button

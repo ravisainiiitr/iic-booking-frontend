@@ -81,7 +81,7 @@ export function ResearchUpdateRequestDialog({ groupId, open, onOpenChange, membe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl [&>*]:min-w-0">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl [&>*]:min-w-0">
         <form onSubmit={submit} className="space-y-4">
           <DialogHeader>
             <DialogTitle>Ask for an update</DialogTitle>

@@ -70,7 +70,7 @@ export default function WhatsNewDialog({ open, onClose, guide, userName, unreadI
             className={cn(
               // Phones: stretched by the overlay to a full-screen sheet (overriding the global 92vh dialog cap). Larger screens: centred card.
               "relative flex w-full flex-col overflow-hidden bg-background shadow-2xl outline-none max-sm:!max-h-none",
-              "sm:max-h-[min(88vh,46rem)] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-border/70",
+              "sm:max-h-[min(88dvh,46rem)] sm:max-w-2xl sm:rounded-2xl sm:border sm:border-border/70",
               "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom-2"
             )}
           >

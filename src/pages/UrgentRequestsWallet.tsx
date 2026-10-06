@@ -589,7 +589,7 @@ const UrgentRequestsWallet = () => {
         </Card>
 
         <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) { setDetailRow(null); setViewParamsOpen(false); } }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Urgent request details</DialogTitle>
               <DialogDescription>
@@ -760,7 +760,7 @@ const UrgentRequestsWallet = () => {
         </Dialog>
 
         <Dialog open={viewParamsOpen} onOpenChange={setViewParamsOpen}>
-          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-lg">User slot & parameters</DialogTitle>
               <DialogDescription>

@@ -316,7 +316,7 @@ const NoticeBoard = () => {
 
       <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
         <div
-          className="max-h-[min(70vh,38rem)] min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          className="max-h-[min(70dvh,38rem)] min-h-0 flex-1 overflow-y-auto overscroll-contain"
           tabIndex={0}
           aria-label="Notices"
         >
@@ -413,7 +413,7 @@ const NoticeBoard = () => {
       </CardContent>
 
       <Dialog open={selectedNotice != null} onOpenChange={(open) => !open && setSelectedNotice(null)}>
-        <DialogContent className="max-h-[90vh] max-w-2xl gap-0 overflow-y-auto p-0">
+        <DialogContent className="max-h-[90dvh] max-w-2xl gap-0 overflow-y-auto p-0">
           {selectedNotice && (
             <>
               <DialogHeader

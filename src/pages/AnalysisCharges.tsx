@@ -221,8 +221,8 @@ export default function AnalysisCharges() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-32 sm:px-6 md:pt-36">
-        <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-r from-primary via-[hsl(215_62%_22%)] to-slate-950 px-4 py-3 text-white shadow-md shadow-primary/20 sm:items-center sm:px-5">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-6 pt-[calc(var(--site-header-h)+1.5rem)] sm:px-6">
+        <div className="mb-4 flex items-start justify-between gap-3 rounded-xl bg-gradient-to-r from-brand via-[hsl(215_62%_22%)] to-slate-950 px-4 py-3 text-white shadow-md shadow-primary/20 sm:items-center sm:px-5">
           <div className="flex min-w-0 items-center gap-3">
             <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15">
               <IndianRupee className="h-4 w-4" />
@@ -437,7 +437,7 @@ export default function AnalysisCharges() {
             <div className="p-3 sm:p-4">
               <ChargesTable
                 className="min-w-[720px]"
-                viewportClassName="max-h-[75vh]"
+                viewportClassName="max-h-[75dvh]"
               >
                 <thead>
                   <tr>

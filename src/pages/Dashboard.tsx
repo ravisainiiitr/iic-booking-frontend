@@ -1546,7 +1546,7 @@ const Dashboard = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                   <Package className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1559,7 +1559,7 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
             </CardHeader>
             <CardContent>
-              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-primary hover:bg-primary/90 text-white ring-offset-background transition-colors">
+              <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-brand hover:bg-brand/90 text-white ring-offset-background transition-colors">
                 Browse and Book Equipment
               </span>
             </CardContent>
@@ -1578,7 +1578,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1592,7 +1592,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/leave-management");
@@ -1616,7 +1616,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1630,7 +1630,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/oic-leave-management");
@@ -1730,7 +1730,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1744,7 +1744,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/team-calendar");
@@ -1768,7 +1768,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                     <Calendar className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1781,7 +1781,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View bookings</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">View bookings</Button>
               </CardContent>
             </Card>
       ),
@@ -2032,7 +2032,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Receipt className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2045,7 +2045,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Proforma invoice</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Proforma invoice</Button>
               </CardContent>
             </Card>
       ),
@@ -2162,7 +2162,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <ClipboardList className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2175,7 +2175,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage nomination requests</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage nomination requests</Button>
               </CardContent>
             </Card>
       ),
@@ -2252,7 +2252,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-emerald-600 text-white shadow-lg">
                     <UserCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2265,7 +2265,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">
                   Open TA assignments
                 </Button>
               </CardContent>
@@ -2287,7 +2287,7 @@ const Dashboard = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2322,7 +2322,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <BookOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2336,7 +2336,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     openWorkspace("/user-guide", "User guide");
@@ -2360,7 +2360,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2374,7 +2374,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
                   onClick={(e) => { e.stopPropagation(); openWorkspace("/student-management"); }}
                 >
                   View students
@@ -2437,7 +2437,7 @@ const Dashboard = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                   <Star className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2450,7 +2450,7 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
             </CardHeader>
             <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Give Feedback</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Give Feedback</Button>
             </CardContent>
           </Card>
       ),
@@ -2468,7 +2468,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <MessageSquarePlus className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2481,7 +2481,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open Support</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open Support</Button>
               </CardContent>
             </Card>
       ),
@@ -2498,7 +2498,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2511,7 +2511,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">View Booking</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">View Booking</Button>
               </CardContent>
             </Card>
       ),
@@ -2672,7 +2672,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                     <Send className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2685,7 +2685,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Initiate TA nomination call</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Initiate TA nomination call</Button>
               </CardContent>
             </Card>
       ),
@@ -2702,7 +2702,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Star className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2718,7 +2718,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open reward settings</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open reward settings</Button>
               </CardContent>
             </Card>
       ),
@@ -2735,7 +2735,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                     <Wrench className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2748,7 +2748,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage accessories</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage accessories</Button>
               </CardContent>
             </Card>
       ),
@@ -2765,7 +2765,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <PackageOpen className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2778,7 +2778,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage materials</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage materials</Button>
               </CardContent>
             </Card>
       ),
@@ -2795,7 +2795,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Clock className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2808,7 +2808,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage settings</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage settings</Button>
               </CardContent>
             </Card>
       ),
@@ -2825,7 +2825,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-emerald-600 text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-emerald-600 text-white shadow-lg">
                     <GitBranch className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2838,7 +2838,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary/50 to-emerald-500 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Manage modes</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Manage modes</Button>
               </CardContent>
             </Card>
       ),
@@ -2885,7 +2885,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-brand text-white shadow-lg">
                     <UserCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2917,7 +2917,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                     <UserCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -2949,7 +2949,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                     <UserCheck className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3020,7 +3020,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-brand text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3052,7 +3052,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                     <Users className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3082,7 +3082,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
                     <Layers className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3095,7 +3095,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open lifecycle hub</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open lifecycle hub</Button>
               </CardContent>
             </Card>
       ),
@@ -3393,7 +3393,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                     <LifeBuoy className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3406,7 +3406,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open tickets</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open tickets</Button>
               </CardContent>
             </Card>
       ),
@@ -3453,7 +3453,7 @@ const Dashboard = () => {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-4 mb-1">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-primary text-white shadow-lg">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-accent to-brand text-white shadow-lg">
                     <Settings className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -3466,7 +3466,7 @@ const Dashboard = () => {
                 <div className="h-1 w-16 rounded-full bg-gradient-to-r from-accent to-primary/50 mt-3" />
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-primary hover:bg-primary/90 text-white">Open settings</Button>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open settings</Button>
               </CardContent>
             </Card>
       ),
@@ -3683,7 +3683,7 @@ const Dashboard = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                   <Globe2 className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -3696,7 +3696,7 @@ const Dashboard = () => {
               <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
             </CardHeader>
             <CardContent>
-              <Button className="w-full bg-primary hover:bg-primary/90 text-white">
+              <Button className="w-full bg-brand hover:bg-brand/90 text-white">
                 Manage external bookings
               </Button>
             </CardContent>
@@ -3712,7 +3712,7 @@ const Dashboard = () => {
           >
             <CardHeader className="pb-2">
               <div className="flex items-center gap-4 mb-1">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -3779,7 +3779,7 @@ const Dashboard = () => {
             <CardContent className="pt-0">
               <Button
                 onClick={() => navigate("/profile#external-billing")}
-                className="bg-primary hover:bg-primary/90 text-white"
+                className="bg-brand hover:bg-brand/90 text-white"
               >
                 Go to Profile
               </Button>
@@ -3793,7 +3793,7 @@ const Dashboard = () => {
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(
-            "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-primary via-primary to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",
+            "dashboard-hero-card relative overflow-hidden border border-white/25 bg-gradient-to-br from-brand via-brand to-slate-950 text-white shadow-2xl shadow-primary/40 ring-1 ring-white/20",
             "mb-5 rounded-2xl"
           )}
         >
@@ -3912,18 +3912,18 @@ const Dashboard = () => {
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-primary dark:text-primary-foreground">
+              <CardTitle className="text-lg font-extrabold tracking-tight flex items-center gap-2 text-primary dark:text-sky-100">
                 <AlertCircle className="h-5 w-5 text-primary dark:text-sky-200" />
                 Link your wallet to continue booking
               </CardTitle>
-              <CardDescription className="text-sm font-medium text-primary/90 dark:text-primary-foreground/90">
+              <CardDescription className="text-sm font-medium text-primary/90 dark:text-foreground/90">
                 Your IITR student account does not have a linked faculty wallet yet. Click below to go to Wallet and send a link request.
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
               <Button
                 onClick={() => openWorkspace("/wallet")}
-                className="bg-primary hover:bg-primary/90 text-white font-bold px-6 py-2.5 ring-2 ring-primary/40 dark:ring-primary/50"
+                className="bg-brand hover:bg-brand/90 text-white font-bold px-6 py-2.5 ring-2 ring-primary/40 dark:ring-primary/50"
               >
                 Go to Wallet
               </Button>
@@ -3934,12 +3934,12 @@ const Dashboard = () => {
         {/* Pending rating prompt for bookable end-users only (not staff / Dept Admin / Account In-charge) */}
         {!isOperatorOrManager && !isDeptAdmin && !isAccountsInChargeUser && pendingRatingBookings.length > 0 && (
           <Card className="dashboard-notice-card dashboard-notice-warning mb-6 border-primary/25 bg-primary/5 dark:border-primary/40 dark:bg-primary/15 shadow-md">
-            <CardContent className="py-5 px-6">
-              <div className="flex flex-wrap items-center gap-4">
+            <CardContent className="px-4 py-4 sm:px-6 sm:py-5">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary dark:text-sky-300">
                   <Star className="h-6 w-6" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-[12rem] flex-1">
                   <p className="font-semibold text-foreground">
                     You have {pendingRatingBookings.length} completed booking{pendingRatingBookings.length !== 1 ? "s" : ""} pending your rating
                   </p>
@@ -3949,7 +3949,7 @@ const Dashboard = () => {
                 </div>
                 <Button
                   onClick={() => navigate("/my-bookings?pending_rating=1")}
-                  className="bg-primary hover:bg-primary/90 text-white shrink-0"
+                  className="bg-brand hover:bg-brand/90 text-white shrink-0"
                 >
                   Submit rating
                 </Button>
@@ -4719,7 +4719,7 @@ const Dashboard = () => {
                         </div>
                         <Button
                           type="button"
-                          className="bg-primary text-white hover:bg-primary/90 shrink-0"
+                          className="bg-brand text-white hover:bg-brand/90 shrink-0"
                           onClick={() => navigate("/team-calendar")}
                         >
                           Open team calendar
@@ -4780,7 +4780,7 @@ const Dashboard = () => {
                 <CardHeader className="pb-4 border-b bg-gradient-to-r from-primary/10 to-accent/10">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/50 to-accent text-white shadow-lg">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
                         <Calendar className="h-6 w-6" />
                       </div>
                       <div>
@@ -4877,7 +4877,7 @@ const Dashboard = () => {
                 <CardHeader className="pb-4 border-b bg-gradient-to-r from-emerald-500/10 to-primary/10">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-primary text-white shadow-lg">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
                         <BarChart3 className="h-6 w-6" />
                       </div>
                       <div>

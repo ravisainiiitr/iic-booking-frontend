@@ -444,7 +444,7 @@ export default function AdminPanelAccessConfig() {
                       (e.g. Bookings → bookings.manage).
                     </p>
                   </div>
-                  <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[50dvh] overflow-y-auto pr-1">
                     {moduleTree
                       .filter((n) => !n.main_admin_only)
                       .map((node) => (
