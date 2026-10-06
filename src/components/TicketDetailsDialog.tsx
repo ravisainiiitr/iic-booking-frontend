@@ -641,7 +641,7 @@ export default function TicketDetailsDialog({
                   </div>
                   <Button
                     type="button"
-                    className="bg-emerald-700 hover:bg-emerald-800"
+                    className="bg-emerald-700 text-white hover:bg-emerald-800"
                     disabled={statusSaving || detail.status === "resolved"}
                     onClick={() => void handleResolve()}
                   >

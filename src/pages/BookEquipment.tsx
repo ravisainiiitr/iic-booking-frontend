@@ -12323,7 +12323,7 @@ const BookEquipment = () => {
                         </TableCell>
                         <TableCell>
                           {tx.transaction_type === "credit" ? (
-                            <Badge variant="default" className="bg-emerald-700 gap-1">
+                            <Badge variant="default" className="bg-emerald-700 text-white gap-1">
                               <Plus className="h-3 w-3" /> Credit
                             </Badge>
                           ) : (

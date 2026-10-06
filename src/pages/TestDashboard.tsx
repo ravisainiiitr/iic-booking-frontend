@@ -56,8 +56,8 @@ type CurrentTest = {
 
 function recBadge(rec?: string) {
   const r = (rec || "pending").toLowerCase();
-  if (r === "go") return <Badge className="bg-emerald-700 hover:bg-emerald-700">GO</Badge>;
-  if (r === "conditional_go") return <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">Conditional GO</Badge>;
+  if (r === "go") return <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">GO</Badge>;
+  if (r === "conditional_go") return <Badge className="bg-amber-500 text-amber-950 dark:text-amber-950 hover:bg-amber-500">Conditional GO</Badge>;
   if (r === "no_go") return <Badge className="bg-red-600 hover:bg-red-600">NO GO</Badge>;
   return <Badge variant="outline">Pending</Badge>;
 }

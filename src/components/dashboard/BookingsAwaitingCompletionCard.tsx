@@ -53,7 +53,7 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
         <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
           <ClipboardCheck className="h-5 w-5 text-amber-600" />
           Bookings awaiting completion
-          <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">{rows.length}</Badge>
+          <Badge className="bg-amber-500 text-amber-950 dark:text-amber-950 hover:bg-amber-500">{rows.length}</Badge>
         </CardTitle>
         <CardDescription>
           The booking time of these bookings is over and the lab has received the sample, but they are not marked as

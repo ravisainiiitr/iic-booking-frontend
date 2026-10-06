@@ -48,7 +48,7 @@ type LegacyBookingRow = {
 function badgeFor(status?: string) {
   const s = (status || "").toUpperCase();
   if (s === "ELIGIBLE" || s === "READY" || s === "BLOCKED") {
-    return <Badge className="bg-emerald-700">{status}</Badge>;
+    return <Badge className="bg-emerald-700 text-white">{status}</Badge>;
   }
   if (s === "UNRESOLVED") return <Badge variant="outline">Unresolved</Badge>;
   if (s === "RESOLVED_CHANNEL_I") return <Badge className="bg-blue-700">Resolved</Badge>;

@@ -103,7 +103,7 @@ function RechargeStatusBadge({
     return <Badge variant="outline" className="shrink-0">Awaiting OTP</Badge>;
   }
   if (status === "APPROVED") {
-    return <Badge className="shrink-0 bg-green-700 hover:bg-green-700">{request.status_display || "Approved"}</Badge>;
+    return <Badge className="shrink-0 bg-green-700 text-white hover:bg-green-700">{request.status_display || "Approved"}</Badge>;
   }
   if (status === "REJECTED") {
     return <Badge variant="destructive" className="shrink-0">{request.status_display || "Rejected"}</Badge>;
@@ -1775,7 +1775,7 @@ const Wallet = () => {
                             </Badge>
                           )}
                           {request.status === "APPROVED" && (
-                            <Badge variant="default" className="flex items-center gap-1 bg-green-700">
+                            <Badge variant="default" className="flex items-center gap-1 bg-green-700 text-white">
                               <CheckCircle className="h-3 w-3" />
                               {request.status_display || "Approved"}
                             </Badge>
@@ -3088,7 +3088,7 @@ const Wallet = () => {
                             </Badge>
                           )}
                           {isApproved && (
-                            <Badge variant="default" className="flex items-center gap-1 bg-green-700">
+                            <Badge variant="default" className="flex items-center gap-1 bg-green-700 text-white">
                               <CheckCircle className="h-3 w-3" />
                               {request.status_display || "Approved"}
                             </Badge>
@@ -3189,7 +3189,7 @@ const Wallet = () => {
                         <Button
                           variant="default"
                           size="sm"
-                          className="bg-green-700 hover:bg-green-800"
+                          className="bg-green-700 text-white hover:bg-green-800"
                           disabled={bulkJoinActionLoading !== false || facultyPendingSelectedCount === 0}
                           onClick={handleBulkApproveJoinRequests}
                         >
@@ -3296,7 +3296,7 @@ const Wallet = () => {
                             </Badge>
                           )}
                           {request.status === "APPROVED" && (
-                            <Badge variant="default" className="flex items-center gap-1 bg-green-700">
+                            <Badge variant="default" className="flex items-center gap-1 bg-green-700 text-white">
                               <CheckCircle className="h-3 w-3" />
                               {request.status_display || "Approved"}
                             </Badge>

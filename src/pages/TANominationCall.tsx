@@ -569,7 +569,7 @@ export default function TANominationCall() {
                                 title="Approve nomination"
                                 size="sm"
                                 variant="default"
-                                className="h-8 bg-green-700 hover:bg-green-800"
+                                className="h-8 bg-green-700 text-white hover:bg-green-800"
                                 disabled={actioningId !== null}
                                 onClick={() => handleApprove(n.id)}
                               >

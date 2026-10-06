@@ -33,7 +33,7 @@ export function PendingActionList({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2 font-medium">
                 {item.label}
-                <Badge className="bg-amber-500 text-amber-950 hover:bg-amber-500">{item.count}</Badge>
+                <Badge className="bg-amber-500 text-amber-950 dark:text-amber-950 hover:bg-amber-500">{item.count}</Badge>
               </div>
               {!compact ? <p className="mt-1 text-sm text-muted-foreground">{item.description}</p> : null}
               {item.details && item.details.length > 0 ? (

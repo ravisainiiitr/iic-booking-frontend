@@ -400,7 +400,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
                           {item.description}
                         </p>
                       </div>
-                      <Badge className="shrink-0 bg-amber-500 tabular-nums text-amber-950 hover:bg-amber-500">{item.count}</Badge>
+                      <Badge className="shrink-0 bg-amber-500 tabular-nums text-amber-950 dark:text-amber-950 hover:bg-amber-500">{item.count}</Badge>
                       {go ? (
                         <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label={`Open ${item.label}`} onClick={go}>
                           <ArrowRight className="h-4 w-4" aria-hidden />
