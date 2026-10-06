@@ -1,3 +1,4 @@
+import { SHOW_ANDROID_APP_BANNER } from "@/lib/androidAppBanner";
 import { compact, type RoleGuide } from "../gate";
 import { assistantSection } from "./booking";
 import { helpSection } from "./help";
@@ -25,12 +26,12 @@ export const oicGuide: RoleGuide = {
         intro: [
           "Sign in with Channel i or your staff credentials. Your tools cover equipment where you are Officer In Charge (primary or temporary).",
         ],
-        steps: [
+        steps: compact([
           {
             title: "Your dashboard",
             body: "View Booking, Urgent booking, Change slot status, Equipment waitlist, Support tickets and the OIC tools for your equipment are on the dashboard.",
           },
-          {
+          SHOW_ANDROID_APP_BANNER && {
             title: "Android app",
             body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, pending samples, messages, results overdue, urgent requests and waitlist.",
           },
@@ -38,7 +39,7 @@ export const oicGuide: RoleGuide = {
             title: "Book for a user",
             body: "Click Book on your equipment and choose Book slots for a user, then select the user. The charge goes to that user.",
           },
-        ],
+        ]),
         rules: [
           "Booking for a user and Change slot status work only on equipment assigned to you, including equipment you cover as temporary OIC.",
           "Admin Settings appears only if Admin Panel Access is enabled for your role and department.",

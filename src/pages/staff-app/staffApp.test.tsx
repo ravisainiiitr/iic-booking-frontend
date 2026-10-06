@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 const state = vi.hoisted(() => ({
   native: true,
+  showAndroidBanner: true,
   auth: {
     user: { id: 5, user_type: "operator", name: "Asha Rao" } as Record<string, unknown> | null,
     isAuthenticated: true,
@@ -30,6 +31,11 @@ vi.mock("@/lib/nativeApp", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/nativeApp")>()),
   isNativeApp: () => state.native,
   getNativeAppInfo: vi.fn(async () => null),
+}));
+vi.mock("@/lib/androidAppBanner", () => ({
+  get SHOW_ANDROID_APP_BANNER() {
+    return state.showAndroidBanner;
+  },
 }));
 vi.mock("./StaffWeekCalendar", () => ({ default: () => <div>week calendar</div> }));
 
@@ -96,6 +102,7 @@ const today = {
 
 beforeEach(() => {
   state.native = true;
+  state.showAndroidBanner = true;
   state.auth.user = { id: 5, user_type: "operator", name: "Asha Rao" };
   state.auth.isAuthenticated = true;
   Object.values(state.api).forEach((fn) => fn.mockReset());
@@ -260,6 +267,15 @@ describe("Get the Android app card", () => {
     cleanup();
     renderAt("/dashboard", <AndroidAppCard />);
     await waitFor(() => expect(state.api.getMobileAppLatest).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Get the Android app")).toBeNull();
+  });
+
+  it("is hidden for everyone on the website while SHOW_ANDROID_APP_BANNER is off", () => {
+    state.native = false;
+    state.showAndroidBanner = false;
+    state.api.getMobileAppLatest.mockResolvedValue({ data: { release } });
+    renderAt("/dashboard", <AndroidAppCard />);
+    expect(state.api.getMobileAppLatest).not.toHaveBeenCalled();
     expect(screen.queryByText("Get the Android app")).toBeNull();
   });
 
