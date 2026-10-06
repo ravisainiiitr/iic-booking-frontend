@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  */
 
 type ChargesTableProps = React.TableHTMLAttributes<HTMLTableElement> & {
-  /** Classes for the scroll viewport, e.g. `max-h-[70vh]` to enable the sticky header. */
+  /** Classes for the scroll viewport, e.g. `max-h-[70dvh]` to enable the sticky header. */
   viewportClassName?: string;
   frameClassName?: string;
 };
