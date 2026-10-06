@@ -8,26 +8,29 @@ import {
   DEFAULT_GREY,
   DEFAULT_UNAVAILABLE_LABEL,
   WEEKDAY_LABELS,
+  describeDateRange,
   describeHours,
   describeWeekdays,
+  isAlwaysSchedule,
   isoDate,
   modeColor,
   monthGrid,
   scheduleCoversDate,
-  type ModeAvailability,
+  weekdayOf,
   type ModeBehavior,
   type MultiModeCandidate,
+  type MultiModeChild,
   type MultiModeFamily,
   type MultiModeOverview,
   type MultiModeSchedule,
 } from "@/lib/multiMode";
+import { formatDMY } from "@/lib/dateFormat";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { DateInput } from "@/components/ui/date-input";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,13 +72,6 @@ type ScheduleForm = {
   exclusive_blocked_color: string;
 };
 
-type ModeDraft = Record<number, { checked: boolean; availability: ModeAvailability }>;
-
-const AVAILABILITY_LABEL: Record<ModeAvailability, string> = {
-  ALWAYS: "Always available",
-  SCHEDULED_ONLY: "Only on scheduled days",
-};
-
 const emptyForm = (date = "", modeId = ""): ScheduleForm => ({
   mode_equipment_id: modeId,
   start_date: date,
@@ -95,8 +91,8 @@ function formFromSchedule(s: MultiModeSchedule): ScheduleForm {
   const hasWindow = Boolean(s.start_time && s.end_time);
   return {
     mode_equipment_id: String(s.mode_equipment_id),
-    start_date: s.start_date,
-    end_date: s.end_date,
+    start_date: s.start_date ?? "",
+    end_date: s.end_date ?? "",
     weekdays: [...(s.weekdays ?? [])],
     hours: hasWindow ? "window" : "all",
     start_time: (s.start_time ?? "").slice(0, 5),
@@ -109,14 +105,9 @@ function formFromSchedule(s: MultiModeSchedule): ScheduleForm {
   };
 }
 
+/** "Tue 06-10-2026" */
 function formatDay(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-IN", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return `${WEEKDAY_LABELS[weekdayOf(iso)]} ${formatDMY(iso)}`;
 }
 
 function equipmentLabel(e: { code?: string | null; name?: string | null }): string {
@@ -141,9 +132,7 @@ export default function MultiModeEquipment() {
   const [family, setFamily] = useState<MultiModeFamily | null>(null);
   const [candidates, setCandidates] = useState<MultiModeCandidate[]>([]);
   const [familyLoading, setFamilyLoading] = useState(false);
-  const [draft, setDraft] = useState<ModeDraft>({});
-  const [savingModes, setSavingModes] = useState(false);
-  const [modesError, setModesError] = useState<string | null>(null);
+  const [removingModeId, setRemovingModeId] = useState<number | null>(null);
 
   const today = isoDate(new Date());
   const [month, setMonth] = useState(() => {
@@ -196,17 +185,8 @@ export default function MultiModeEquipment() {
   }, [departmentId, loadOverview]);
 
   useEffect(() => {
-    setModesError(null);
     void loadFamily(baseId);
   }, [baseId, loadFamily]);
-
-  useEffect(() => {
-    const next: ModeDraft = {};
-    for (const c of candidates) {
-      next[c.equipment_id] = { checked: c.is_mode, availability: c.mode_availability ?? "ALWAYS" };
-    }
-    setDraft(next);
-  }, [candidates]);
 
   const baseOptions = useMemo(() => {
     if (!overview) return [];
@@ -223,31 +203,33 @@ export default function MultiModeEquipment() {
     setBaseId(firstFamily ? String(firstFamily.parent_equipment_id) : "");
   }, [overview, baseOptions, baseId]);
 
-  const modes = family?.children ?? [];
+  const modes = useMemo(() => family?.children ?? [], [family]);
   const modeIds = useMemo(() => modes.map((m) => m.equipment_id), [modes]);
   const schedules = family?.schedules ?? [];
 
-  const modesDirty = candidates.some((c) => {
-    const d = draft[c.equipment_id];
-    if (!d) return false;
-    if (d.checked !== c.is_mode) return true;
-    return d.checked && c.is_mode && d.availability !== (c.mode_availability ?? "ALWAYS");
-  });
+  /** Same-department equipment not yet part of an instrument: choosing it in a schedule makes it a mode. */
+  const newModeOptions: MultiModeCandidate[] = useMemo(
+    () => candidates.filter((c) => !c.is_mode && !c.locked && !modeIds.includes(c.equipment_id)),
+    [candidates, modeIds],
+  );
+  const canAddSchedule = modes.length > 0 || newModeOptions.length > 0;
 
-  const saveModes = async () => {
+  const removeMode = async (m: MultiModeChild) => {
     if (!family) return;
-    const payload = Object.entries(draft)
-      .filter(([, d]) => d.checked)
-      .map(([id, d]) => ({ equipment_id: Number(id), mode_availability: d.availability }));
-    setSavingModes(true);
-    setModesError(null);
-    const res = await apiClient.saveMultiModeFamily(family.parent_equipment_id, payload);
-    setSavingModes(false);
+    if (
+      !window.confirm(
+        `Stop ${m.code} being a mode of ${family.parent_code}? Its current and future schedules are deleted and it becomes a standalone instrument again.`,
+      )
+    )
+      return;
+    setRemovingModeId(m.equipment_id);
+    const res = await apiClient.removeMultiModeMode(family.parent_equipment_id, m.equipment_id);
+    setRemovingModeId(null);
     if (res.error || !res.data) {
-      setModesError(res.error || "Could not save the modes.");
+      toast.error(res.error || "Could not remove the mode.");
       return;
     }
-    toast.success("Modes saved.");
+    toast.success(`${m.code} is no longer a mode of ${family.parent_code}.`);
     setFamily(res.data.family);
     setCandidates(res.data.candidates);
     void loadOverview(departmentId);
@@ -279,11 +261,15 @@ export default function MultiModeEquipment() {
 
   const saveSchedule = async () => {
     if (!family) return;
-    if (!form.mode_equipment_id || !form.start_date || !form.end_date) {
-      toast.error("Choose the mode and both dates.");
+    if (!form.mode_equipment_id) {
+      toast.error("Choose the mode.");
       return;
     }
-    if (form.end_date < form.start_date) {
+    if (Boolean(form.start_date) !== Boolean(form.end_date)) {
+      toast.error("Enter both dates, or leave both blank to make this mode always available.");
+      return;
+    }
+    if (form.start_date && form.end_date < form.start_date) {
       toast.error("The To date must be on or after the From date.");
       return;
     }
@@ -293,8 +279,8 @@ export default function MultiModeEquipment() {
     }
     const payload = {
       mode_equipment_id: Number(form.mode_equipment_id),
-      start_date: form.start_date,
-      end_date: form.end_date,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
       weekdays: form.weekdays,
       start_time: form.hours === "window" ? form.start_time : null,
       end_time: form.hours === "window" ? form.end_time : null,
@@ -313,14 +299,22 @@ export default function MultiModeEquipment() {
       toast.error(res.error);
       return;
     }
-    toast.success(editingId ? "Schedule updated." : "Schedule added.");
+    const linked = res.data && "mode_linked" in res.data && res.data.mode_linked;
+    toast.success(
+      linked
+        ? `Schedule added. ${selectedLabel} is now a mode of ${family.parent_code}.`
+        : editingId
+          ? "Schedule updated."
+          : "Schedule added.",
+    );
     setFormOpen(false);
     await loadFamily(String(family.parent_equipment_id));
+    if (linked) void loadOverview(departmentId);
   };
 
   const deleteSchedule = async (s: MultiModeSchedule) => {
     if (!family) return;
-    if (!window.confirm(`Delete the ${s.mode_equipment_code || "mode"} schedule ${s.start_date} to ${s.end_date}?`)) return;
+    if (!window.confirm(`Delete the ${s.mode_equipment_code || "mode"} schedule (${describeDateRange(s)})?`)) return;
     setDeletingId(s.id);
     const res = await apiClient.deleteOicMultiModeSchedule(s.id);
     setDeletingId(null);
@@ -328,8 +322,13 @@ export default function MultiModeEquipment() {
       toast.error(res.error);
       return;
     }
-    toast.success("Schedule deleted.");
+    toast.success(
+      res.data?.mode_unlinked
+        ? `Schedule deleted. ${s.mode_equipment_code || "The mode"} had no other schedule, so it is no longer a mode.`
+        : "Schedule deleted.",
+    );
     await loadFamily(String(family.parent_equipment_id));
+    if (res.data?.mode_unlinked) void loadOverview(departmentId);
   };
 
   const weeks = monthGrid(month.year, month.month);
@@ -341,10 +340,13 @@ export default function MultiModeEquipment() {
       return { year: d.getFullYear(), month: d.getMonth() };
     });
 
-  const selectedMode = modes.find((m) => String(m.equipment_id) === form.mode_equipment_id);
+  const selectedOption =
+    modes.find((m) => String(m.equipment_id) === form.mode_equipment_id) ??
+    newModeOptions.find((c) => String(c.equipment_id) === form.mode_equipment_id);
+  const selectedLabel = selectedOption?.code || "The equipment";
   const scheduleSummary = (s: MultiModeSchedule) =>
     [
-      `${formatDay(s.start_date)} to ${formatDay(s.end_date)}`,
+      describeDateRange(s),
       describeWeekdays(s.weekdays),
       describeHours(s.start_time, s.end_time),
     ].join(" · ");
@@ -383,7 +385,7 @@ export default function MultiModeEquipment() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => openChangeSlotStatus(navigate, s.mode_equipment_id, s.start_date)}
+          onClick={() => openChangeSlotStatus(navigate, s.mode_equipment_id, s.start_date ?? undefined)}
         >
           Slots
         </Button>
@@ -425,8 +427,8 @@ export default function MultiModeEquipment() {
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight">Multi-mode equipment</h1>
                 <p className="mt-1 max-w-2xl text-sm text-white/85">
-                  Choose which instruments are modes of a base instrument, then plan the days a mode runs.
-                  Modes can be booked any day unless you limit them or run one on its own.
+                  Pick a base instrument, then add a schedule for each of its modes. Leave the dates blank to make a
+                  mode always available, or set dates to allow it only on those days.
                 </p>
               </div>
             </div>
@@ -498,107 +500,28 @@ export default function MultiModeEquipment() {
         ) : family ? (
           <>
             <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
-              <CardHeader>
-                <CardTitle>Modes of {family.parent_code}</CardTitle>
-                <CardDescription>
-                  Tick the instruments that are other modes of {family.parent_name || family.parent_code}. Only
-                  equipment in the same department that is not already part of another instrument is listed.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {candidates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No other equipment can be a mode of this instrument.
-                  </p>
-                ) : (
-                  <ul className="space-y-2">
-                    {candidates.map((c) => {
-                      const d = draft[c.equipment_id] ?? { checked: c.is_mode, availability: "ALWAYS" as ModeAvailability };
-                      const id = `mm-mode-${c.equipment_id}`;
-                      return (
-                        <li
-                          key={c.equipment_id}
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              id={id}
-                              checked={d.checked}
-                              disabled={c.locked}
-                              onCheckedChange={(v) =>
-                                setDraft((p) => ({ ...p, [c.equipment_id]: { ...d, checked: v === true } }))
-                              }
-                            />
-                            <Label htmlFor={id} className="cursor-pointer font-normal">
-                              {equipmentLabel(c)}
-                              {c.locked ? (
-                                <span className="ml-1 text-xs text-muted-foreground">(managed by another OIC)</span>
-                              ) : null}
-                            </Label>
-                          </div>
-                          {d.checked && (
-                            <Select
-                              value={d.availability}
-                              disabled={c.locked}
-                              onValueChange={(v) =>
-                                setDraft((p) => ({
-                                  ...p,
-                                  [c.equipment_id]: { ...d, availability: v as ModeAvailability },
-                                }))
-                              }
-                            >
-                              <SelectTrigger className="h-8 w-[220px]" aria-label={`When can ${c.code} be booked`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="ALWAYS">{AVAILABILITY_LABEL.ALWAYS}</SelectItem>
-                                <SelectItem value="SCHEDULED_ONLY">{AVAILABILITY_LABEL.SCHEDULED_ONLY}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Always available: the mode can be booked any day, except when another mode runs on its own.
-                  Only on scheduled days: the mode can be booked only on the days you add below.
-                </p>
-                {modesError && (
-                  <Alert variant="destructive">
-                    <AlertTitle>Modes not saved</AlertTitle>
-                    <AlertDescription>{modesError}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => void saveModes()} disabled={!modesDirty || savingModes}>
-                    {savingModes ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Save modes
-                  </Button>
-                  {modesDirty && (
-                    <Button variant="outline" onClick={() => setCandidates([...candidates])} disabled={savingModes}>
-                      Undo changes
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
               <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
                 <div>
                   <CardTitle>Mode calendar</CardTitle>
-                  <CardDescription>Click a day to add or change what runs that day.</CardDescription>
+                  <CardDescription>
+                    Click a day to add or change what runs that day. Choosing other equipment in a schedule makes it a
+                    mode of {family.parent_code}.
+                  </CardDescription>
                 </div>
-                <Button onClick={() => openAdd()} disabled={modes.length === 0} className="gap-2">
+                <Button onClick={() => openAdd()} disabled={!canAddSchedule} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add schedule
                 </Button>
               </CardHeader>
               <CardContent className="space-y-4">
-                {modes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Tick at least one mode above and save before planning days.</p>
+                {!canAddSchedule ? (
+                  <p className="text-sm text-muted-foreground">
+                    No other equipment in this department can be a mode of this instrument.
+                  </p>
+                ) : modes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No modes yet. Add a schedule and choose the equipment that is another mode of this instrument.
+                  </p>
                 ) : null}
 
                 <div className="flex flex-col gap-2">
@@ -618,34 +541,56 @@ export default function MultiModeEquipment() {
                       Slot status
                     </Button>
                   </div>
-                  {modes.map((m) => (
-                    <div
-                      key={m.equipment_id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm"
-                    >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{ backgroundColor: modeColor(modeIds, m.equipment_id) }}
-                          aria-hidden
-                        />
-                        <span className="font-medium">{equipmentLabel(m)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {AVAILABILITY_LABEL[m.mode_availability ?? "ALWAYS"]}
-                        </span>
-                      </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="gap-1"
-                        onClick={() => openChangeSlotStatus(navigate, m.equipment_id, monthIso)}
+                  {modes.map((m) => {
+                    const unscheduled = (m.current_schedule_count ?? 0) === 0;
+                    return (
+                      <div
+                        key={m.equipment_id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-sm"
                       >
-                        <CalendarClock className="h-3.5 w-3.5" />
-                        Slot status
-                      </Button>
-                    </div>
-                  ))}
+                        <span className="flex min-w-0 flex-wrap items-center gap-2">
+                          <span
+                            className="h-3 w-3 shrink-0 rounded-full"
+                            style={{ backgroundColor: modeColor(modeIds, m.equipment_id) }}
+                            aria-hidden
+                          />
+                          <span className="font-medium">{equipmentLabel(m)}</span>
+                          {unscheduled ? (
+                            <Badge variant="outline" className="border-amber-500/60 text-amber-700 dark:text-amber-300">
+                              No current schedule: users cannot book it
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            onClick={() => openChangeSlotStatus(navigate, m.equipment_id, monthIso)}
+                          >
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Slot status
+                          </Button>
+                          {m.can_manage !== false ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive"
+                              disabled={removingModeId === m.equipment_id}
+                              onClick={() => void removeMode(m)}
+                            >
+                              {removingModeId === m.equipment_id ? (
+                                <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />
+                              ) : null}
+                              Remove mode
+                            </Button>
+                          ) : null}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -679,7 +624,7 @@ export default function MultiModeEquipment() {
                               <td key={di} className="h-20 border border-border/40 p-0 align-top">
                                 <button
                                   type="button"
-                                  disabled={modes.length === 0}
+                                  disabled={!canAddSchedule && active.length === 0}
                                   onClick={() => (active.length ? setDayOpen(iso) : openAdd(iso))}
                                   className={`flex h-full min-h-20 w-full flex-col gap-1 p-1 text-left transition-colors hover:bg-primary/5 disabled:cursor-default disabled:hover:bg-transparent ${
                                     exclusive ? "bg-muted/40" : ""
@@ -770,35 +715,44 @@ export default function MultiModeEquipment() {
                       {equipmentLabel(m)}
                     </SelectItem>
                   ))}
+                  {newModeOptions.map((c) => (
+                    <SelectItem key={c.equipment_id} value={String(c.equipment_id)}>
+                      {equipmentLabel(c)} (add as a new mode)
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="mm-form-from">From date</Label>
-                <Input
-                  id="mm-form-from"
-                  type="date"
-                  value={form.start_date}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      start_date: e.target.value,
-                      end_date: p.end_date && p.end_date >= e.target.value ? p.end_date : e.target.value,
-                    }))
-                  }
-                />
+            <div className="space-y-2">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="mm-form-from">From date</Label>
+                  <DateInput
+                    id="mm-form-from"
+                    value={form.start_date}
+                    onValueChange={(v) =>
+                      setForm((p) => ({
+                        ...p,
+                        start_date: v,
+                        end_date: !v ? p.end_date : p.end_date && p.end_date >= v ? p.end_date : v,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mm-form-to">To date</Label>
+                  <DateInput
+                    id="mm-form-to"
+                    value={form.end_date}
+                    min={form.start_date || undefined}
+                    onValueChange={(v) => setForm((p) => ({ ...p, end_date: v }))}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="mm-form-to">To date</Label>
-                <Input
-                  id="mm-form-to"
-                  type="date"
-                  value={form.end_date}
-                  min={form.start_date || undefined}
-                  onChange={(e) => setForm((p) => ({ ...p, end_date: e.target.value }))}
-                />
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave both dates blank to make this mode always available. With dates, it is available only on the
+                scheduled days.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Repeat on (optional)</Label>
@@ -821,7 +775,12 @@ export default function MultiModeEquipment() {
                 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                {form.weekdays.length ? `Only on ${describeWeekdays(form.weekdays)} between the dates.` : "Every day between the dates."}
+                {(() => {
+                  const range = form.start_date || form.end_date ? " between the dates" : "";
+                  return form.weekdays.length
+                    ? `Only on ${describeWeekdays(form.weekdays)}${range}.`
+                    : `Every day${range}.`;
+                })()}
               </p>
             </div>
             <div className="space-y-2">
@@ -878,12 +837,6 @@ export default function MultiModeEquipment() {
                   </Label>
                 </div>
               </RadioGroup>
-              {form.behavior === "PARALLEL" && selectedMode && (selectedMode.mode_availability ?? "ALWAYS") === "ALWAYS" && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedMode.code} is already always available, so this schedule only marks the calendar. To limit
-                  it to these days, set it to &quot;Only on scheduled days&quot; under Modes.
-                </p>
-              )}
             </div>
             <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
               <CollapsibleTrigger asChild>

@@ -1,5 +1,7 @@
 /** Multi-mode equipment page: API shapes and pure calendar helpers. */
 
+import { formatDMY } from "@/lib/dateFormat";
+
 export type ModeAvailability = "ALWAYS" | "SCHEDULED_ONLY";
 export type ModeBehavior = "PARALLEL" | "EXCLUSIVE";
 
@@ -10,6 +12,8 @@ export type MultiModeChild = {
   status?: string | null;
   mode_availability?: ModeAvailability;
   can_manage?: boolean;
+  /** Schedules that are current, future or have no dates. 0 = users cannot book this mode. */
+  current_schedule_count?: number;
 };
 
 export type MultiModeSchedule = {
@@ -18,8 +22,10 @@ export type MultiModeSchedule = {
   mode_equipment_id: number;
   mode_equipment_code?: string | null;
   mode_equipment_name?: string | null;
-  start_date: string;
-  end_date: string;
+  /** Both null = no date limits (the mode is always available). */
+  start_date: string | null;
+  end_date: string | null;
+  always?: boolean;
   start_time?: string | null;
   end_time?: string | null;
   /** 0 = Monday … 6 = Sunday; empty = every day. */
@@ -79,8 +85,8 @@ export type MultiModeFamilyDetail = {
 export type MultiModeSchedulePayload = {
   parent_equipment_id?: number;
   mode_equipment_id: number;
-  start_date: string;
-  end_date: string;
+  start_date: string | null;
+  end_date: string | null;
   weekdays: number[];
   start_time: string | null;
   end_time: string | null;
@@ -118,10 +124,22 @@ export function weekdayOf(iso: string): number {
   return (new Date(y, m - 1, d).getDay() + 6) % 7;
 }
 
+/** Blank start/end dates mean no limit on that side. */
 export function scheduleCoversDate(s: Pick<MultiModeSchedule, "start_date" | "end_date" | "weekdays">, iso: string): boolean {
-  if (iso < s.start_date || iso > s.end_date) return false;
+  if (s.start_date && iso < s.start_date) return false;
+  if (s.end_date && iso > s.end_date) return false;
   const days = s.weekdays ?? [];
   return days.length === 0 || days.includes(weekdayOf(iso));
+}
+
+export function isAlwaysSchedule(s: Pick<MultiModeSchedule, "start_date" | "end_date">): boolean {
+  return !s.start_date && !s.end_date;
+}
+
+/** "06-10-2026 to 16-10-2026", or "Always (no dates)". */
+export function describeDateRange(s: Pick<MultiModeSchedule, "start_date" | "end_date">): string {
+  if (isAlwaysSchedule(s)) return "Always (no dates)";
+  return `${formatDMY(s.start_date)} to ${formatDMY(s.end_date)}`;
 }
 
 /** Weeks (Mon–Sun) covering the month; days outside the month are null. */

@@ -10210,24 +10210,37 @@ class ApiClient {
     });
   }
 
+  /** Adding a schedule for eligible equipment that is not yet a mode makes it a mode of the base. */
   async createOicMultiModeSchedule(payload: MultiModeSchedulePayload & { parent_equipment_id: number }) {
-    return this.request<{ schedule: MultiModeSchedule }>("/oic/multi-mode/schedules/", {
+    return this.request<{ schedule: MultiModeSchedule; mode_linked?: boolean }>("/oic/multi-mode/schedules/", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   }
 
   async updateOicMultiModeSchedule(scheduleId: number, payload: Partial<MultiModeSchedulePayload>) {
-    return this.request<{ schedule: MultiModeSchedule }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
+    return this.request<{ schedule: MultiModeSchedule; mode_linked?: boolean; mode_unlinked?: boolean }>(
+      `/oic/multi-mode/schedules/${scheduleId}/`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
+  }
+
+  /** A mode left with no current or future schedule (and no upcoming booking) stops being a mode. */
+  async deleteOicMultiModeSchedule(scheduleId: number) {
+    return this.request<{ message?: string; mode_unlinked?: boolean }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
+      method: "DELETE",
     });
   }
 
-  async deleteOicMultiModeSchedule(scheduleId: number) {
-    return this.request<{ message?: string }>(`/oic/multi-mode/schedules/${scheduleId}/`, {
-      method: "DELETE",
-    });
+  /** Stop equipment being a mode of the base (deletes its current and future schedules). */
+  async removeMultiModeMode(baseId: number, modeId: number) {
+    return this.request<MultiModeFamilyDetail & { schedules_deleted?: number }>(
+      `/oic/multi-mode/families/${baseId}/modes/${modeId}/`,
+      { method: "DELETE" },
+    );
   }
 
   /** Admin/OIC: allocate a booking duty to an approved TA nomination. */
