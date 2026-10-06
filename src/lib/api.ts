@@ -4358,6 +4358,20 @@ class ApiClient {
     return this.request<{ url: string }>(`/laser-cut-analyses/${analysisId}/dxf-presign/`);
   }
 
+  /** DXF drawing text of an uploaded part, streamed through the API (used to draw the booking preview). */
+  async getLaserCutDxfText(analysisId: string): Promise<{ text?: string; error?: string }> {
+    const token = this.getToken();
+    try {
+      const res = await fetch(`${this.baseURL}/laser-cut-analyses/${analysisId}/dxf/`, {
+        headers: token ? { Authorization: `Token ${token}` } : {},
+      });
+      if (!res.ok) return { error: `HTTP ${res.status}` };
+      return { text: await res.text() };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Download failed" };
+    }
+  }
+
   async getBookingFabricationFiles(bookingId: number | string) {
     return this.request<FabricationFilesState>(`/bookings/${bookingId}/fabrication-files/`);
   }
@@ -8822,7 +8836,7 @@ class ApiClient {
   /** Admin/OIC: set post-print actual weight and time on a 3D print booking. */
   async updateBookingPrintActuals(
     bookingId: number,
-    data: { actual_weight_grams?: number; actual_time_minutes?: number }
+    data: { analysis_id?: string; actual_weight_grams?: number; actual_time_minutes?: number }
   ) {
     return this.request<{
       message: string;
@@ -8832,8 +8846,9 @@ class ApiClient {
         previous_charge: string;
         new_charge: string;
         refund_amount: string | null;
+        refund_status?: string | null;
         extra_amount: string | null;
-      };
+      } | null;
     }>(`/bookings/${bookingId}/print-actuals/`, {
       method: 'PATCH',
       body: JSON.stringify(data),

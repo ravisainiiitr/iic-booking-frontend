@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,11 +12,7 @@ import { apiClient, type LaserCutAnalysis, type LaserCutBatch, type LaserSheetMa
 import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry, type DxfUnitKey } from "@/lib/dxfGeometry";
 import { extractDxfFilesFromZip } from "@/lib/extractZipDxfFiles";
 import { AlertTriangle, Eye, Trash2, Upload } from "lucide-react";
-
-// three.js viewer: loaded only when a part is previewed.
-const DxfModelPreview = lazy(() =>
-  import("@/components/DxfModelPreview").then((m) => ({ default: m.DxfModelPreview })),
-);
+import { DxfPreviewNavigator, laserPartMetrics, type DxfPreviewItem } from "@/components/DxfPreviewNavigator";
 
 const MAX_DXF_BYTES = 25 * 1024 * 1024;
 const UNIT_OPTIONS: DxfUnitKey[] = ["mm", "cm", "m", "in", "ft"];
@@ -311,8 +307,37 @@ export function LaserCutBookingPanel({
     if (!ok) setDrafts((d) => ({ ...d, [p.id]: { ...draft, qty: String(p.quantity) } }));
   };
 
-  const previewPart = parts.find((p) => p.id === previewId) ?? null;
-  const previewMaterial = previewPart?.material_id ? materialById.get(previewPart.material_id) : undefined;
+  const previewItems = useMemo<DxfPreviewItem[]>(
+    () =>
+      parts.map((p) => {
+        const material = p.material_id ? materialById.get(p.material_id) : undefined;
+        const failed = p.status === "FAILED";
+        return {
+          id: p.id,
+          name: p.display_part_name || p.part_name || p.dxf_filename || "Part",
+          filename: p.dxf_filename,
+          geometry: failed ? null : geometries[p.id] ?? null,
+          unitScale: unitToMm(p.units),
+          thicknessMm: material ? Number(material.thickness_mm) : null,
+          widthMm: p.width_mm != null ? Number(p.width_mm) : null,
+          heightMm: p.height_mm != null ? Number(p.height_mm) : null,
+          error: failed ? p.error_message || "This DXF could not be read." : null,
+          metrics: failed
+            ? []
+            : laserPartMetrics({
+                widthMm: p.width_mm,
+                heightMm: p.height_mm,
+                areaMm2: p.area_mm2,
+                quantity: p.quantity,
+                materialName: material?.name ?? p.material_name,
+                thicknessMm: material?.thickness_mm,
+                cost: p.estimated_material_cost != null ? formatRupees(p.estimated_material_cost) : undefined,
+              }),
+        };
+      }),
+    [parts, materialById, geometries],
+  );
+  const previewActiveId = parts.some((p) => p.id === previewId) ? previewId : parts[0]?.id ?? null;
   const controlsDisabled = disabled || uploading;
 
   return (
@@ -392,7 +417,7 @@ export function LaserCutBookingPanel({
                   className={cn(
                     "space-y-2 rounded-md border p-3",
                     (failed || p.fit_error) && "border-destructive/50 bg-destructive/5",
-                    previewId === p.id && "ring-1 ring-primary/40",
+                    previewActiveId === p.id && "ring-1 ring-primary/40",
                   )}
                 >
                   <div className="grid gap-2 md:grid-cols-[minmax(0,2fr)_6rem_minmax(0,2.5fr)_auto]">
@@ -551,30 +576,8 @@ export function LaserCutBookingPanel({
           </p>
         )}
 
-        {previewPart && (
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              Preview: {previewPart.display_part_name || previewPart.part_name || previewPart.dxf_filename}
-            </p>
-            {geometries[previewPart.id] ? (
-              <Suspense
-                fallback={<div className="h-[320px] w-full animate-pulse rounded-lg border bg-muted" aria-label="Loading preview" />}
-              >
-                <DxfModelPreview
-                  geometry={geometries[previewPart.id]}
-                  unitScale={unitToMm(previewPart.units)}
-                  thicknessMm={previewMaterial ? Number(previewMaterial.thickness_mm) : null}
-                  widthMm={previewPart.width_mm != null ? Number(previewPart.width_mm) : null}
-                  heightMm={previewPart.height_mm != null ? Number(previewPart.height_mm) : null}
-                />
-              </Suspense>
-            ) : (
-              <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
-                The preview cannot draw this file (for example a binary DXF), but the server measured it:{" "}
-                {formatDim(previewPart.width_mm)} × {formatDim(previewPart.height_mm)} mm.
-              </p>
-            )}
-          </div>
+        {previewItems.length > 0 && (
+          <DxfPreviewNavigator items={previewItems} activeId={previewActiveId} onActiveChange={setPreviewId} />
         )}
       </CardContent>
     </Card>

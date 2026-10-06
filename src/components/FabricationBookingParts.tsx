@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, FileCog, History, Loader2 } from "lucide-react";
+import { Box, Download, FileCog, History, Loader2 } from "lucide-react";
 import {
   apiClient,
   getApiOrigin,
@@ -9,7 +9,8 @@ import {
   type FabricationPart,
   type LaserSheetMaterial,
 } from "@/lib/api";
-import { DXF_UNIT_LABELS } from "@/lib/dxfGeometry";
+import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry } from "@/lib/dxfGeometry";
+import { DxfPreviewNavigator, laserPartMetrics, type DxfPreviewItem } from "@/components/DxfPreviewNavigator";
 import { getRealBookingId } from "@/lib/bookingRef";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,58 @@ function filesLine(files: FabricationFileChange["new_files"]): string {
     .join(", ");
 }
 
+/** Preview of the DXFs attached to a booking; each drawing is fetched when it is first shown. */
+export function BookedDxfPreview({ parts }: { parts: FabricationPart[] }) {
+  const [activeId, setActiveId] = useState<string | null>(parts[0]?.analysis_id ?? null);
+  const [geometries, setGeometries] = useState<Record<string, DxfGeometry | null>>({});
+  const current = parts.some((p) => p.analysis_id === activeId) ? activeId : parts[0]?.analysis_id ?? null;
+
+  useEffect(() => {
+    if (!current || current in geometries) return;
+    let cancelled = false;
+    void apiClient.getLaserCutDxfText(current).then((res) => {
+      if (cancelled) return;
+      let geometry: DxfGeometry | null = null;
+      if (res.text) {
+        try {
+          geometry = parseDxfGeometry(res.text);
+        } catch {
+          geometry = null;
+        }
+      }
+      setGeometries((g) => ({ ...g, [current]: geometry }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [current, geometries]);
+
+  const items = useMemo<DxfPreviewItem[]>(
+    () =>
+      parts.map((p) => ({
+        id: p.analysis_id,
+        name: p.name || p.filename || "Part",
+        filename: p.filename,
+        geometry: p.analysis_id in geometries ? geometries[p.analysis_id] : undefined,
+        unitScale: unitToMm(p.units),
+        thicknessMm: num(p.thickness_mm),
+        widthMm: num(p.width_mm),
+        heightMm: num(p.height_mm),
+        metrics: laserPartMetrics({
+          widthMm: p.width_mm,
+          heightMm: p.height_mm,
+          areaMm2: p.area_mm2,
+          quantity: p.quantity,
+          materialName: p.material_name || p.material_code,
+          thicknessMm: p.thickness_mm,
+        }),
+      })),
+    [parts, geometries],
+  );
+
+  return <DxfPreviewNavigator items={items} activeId={current} onActiveChange={setActiveId} />;
+}
+
 interface FabricationBookingPartsProps {
   booking: FabricationBookingFields;
   /** Job sheet: plain list, no actions. */
@@ -120,6 +173,7 @@ interface FabricationBookingPartsProps {
 export function FabricationBookingParts({ booking, printable, onUpdated }: FabricationBookingPartsProps) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const parts = booking.fabrication_parts ?? [];
   const changes = booking.fabrication_file_changes ?? [];
   const isLaser = booking.equipment_profile_type === "LASER_CUT_2D";
@@ -187,6 +241,22 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             </li>
           ))}
         </ul>
+      )}
+      {!printable && isLaser && parts.length > 0 && (
+        <div className="space-y-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-expanded={previewOpen}
+            onClick={() => setPreviewOpen((v) => !v)}
+            data-testid="laser-preview-toggle"
+          >
+            <Box className="mr-1 h-4 w-4" />
+            {previewOpen ? "Hide preview" : parts.length > 1 ? `Preview ${parts.length} DXF files` : "Preview DXF"}
+          </Button>
+          {previewOpen && <BookedDxfPreview parts={parts} />}
+        </div>
       )}
       {!printable && replaceable && !replaceable.allowed && replaceable.reason && (
         <p className="text-xs text-muted-foreground">{replaceable.reason}</p>
