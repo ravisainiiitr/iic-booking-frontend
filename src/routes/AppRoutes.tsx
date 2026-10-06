@@ -40,6 +40,7 @@ const PublicationClaimsReview = lazyPage(() => import("@/pages/PublicationClaims
 const StudentManagement = lazyPage(() => import("@/pages/StudentManagement"));
 const BookingAttemptLogs = lazyPage(() => import("@/pages/BookingAttemptLogs"));
 const EquipmentWaitlist = lazyPage(() => import("@/pages/EquipmentWaitlist"));
+const ChangeSlotStatus = lazyPage(() => import("@/pages/ChangeSlotStatus"));
 const TemporaryOIC = lazyPage(() => import("@/pages/TemporaryOIC"));
 const LeaveManagement = lazyPage(() => import("@/pages/LeaveManagement"));
 const OICLeaveManagement = lazyPage(() => import("@/pages/OICLeaveManagement"));
@@ -253,6 +254,7 @@ export default function AppRoutes() {
           <Route path="/booking-attempt-logs" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
           <Route path="/booking-attempt-logs/" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
           <Route path="/equipment-waitlist" element={<ErrorBoundary fallbackTitle="Equipment Waitlist" backPath="/dashboard"><EquipmentWaitlist /></ErrorBoundary>} />
+          <Route path="/change-slot-status" element={<ErrorBoundary fallbackTitle="Change Slot Status" backPath="/dashboard"><ChangeSlotStatus /></ErrorBoundary>} />
           <Route path="/temporary-oic" element={<ErrorBoundary fallbackTitle="Temporary OIC" backPath="/dashboard"><TemporaryOIC /></ErrorBoundary>} />
           <Route path="/leave-management" element={<ErrorBoundary fallbackTitle="Intimate Unavailability" backPath="/dashboard"><LeaveManagement /></ErrorBoundary>} />
           <Route path="/oic-leave-management" element={<ErrorBoundary fallbackTitle="Leave Management" backPath="/dashboard"><OICLeaveManagement /></ErrorBoundary>} />

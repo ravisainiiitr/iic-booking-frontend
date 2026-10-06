@@ -28,7 +28,7 @@ export const oicGuide: RoleGuide = {
         steps: [
           {
             title: "Your dashboard",
-            body: "View Booking, Urgent booking, Equipment waitlist, Support tickets and the OIC tools for your equipment are on the dashboard.",
+            body: "View Booking, Urgent booking, Change slot status, Equipment waitlist, Support tickets and the OIC tools for your equipment are on the dashboard.",
           },
           {
             title: "Android app",
@@ -40,7 +40,7 @@ export const oicGuide: RoleGuide = {
           },
         ],
         rules: [
-          "Booking for a user and Change slot status work only on equipment assigned to you.",
+          "Booking for a user and Change slot status work only on equipment assigned to you, including equipment you cover as temporary OIC.",
           "Admin Settings appears only if Admin Panel Access is enabled for your role and department.",
         ],
       },
