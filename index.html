@@ -4,10 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" sizes="64x64" href="/iitr-logo-64.png" />
     <link rel="alternate icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the layout use the full screen on notched phones; fixed/sticky chrome pads itself
+         with env(safe-area-inset-*). Pinch-zoom stays enabled for accessibility. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- The portal has its own light and dark themes (it follows the phone/OS setting), so browsers and the
          Android WebView must not apply their automatic darkening on top of it. -->
     <meta name="color-scheme" content="light dark" />
+    <!-- Browser UI (Android address bar, Safari tab bar) matches the header surface in each OS theme. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#151d2a" />
+    <!-- First paint uses the right page colour before the stylesheet arrives (no white flash in dark mode). -->
+    <style>
+      html { background: #fbfcfd; color: #0f1d33; }
+      #app-loading { color: #515e70; }
+      @media (prefers-color-scheme: dark) {
+        html { background: #0c111a; color: #f0f4f8; }
+        #app-loading { color: #a8b5c7; }
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Only the IITRBanner Hindi line uses this font; `text=` must list its characters (update if that text changes). -->
@@ -28,7 +42,7 @@
 
   <body>
     <div id="root">
-      <div id="app-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: system-ui, sans-serif; color: #64748b;">
+      <div id="app-loading" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; min-height: 100dvh; font-family: system-ui, sans-serif;">
         Loading…
       </div>
     </div>

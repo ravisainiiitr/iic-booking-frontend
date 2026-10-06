@@ -1,7 +1,21 @@
 import type { Config } from "tailwindcss";
+import path from "node:path";
+import darkPaletteBridge from "./tailwind/darkPaletteBridge";
+
+/** Status colours: solid fill + foreground, plus a subtle tint for banners/badges. */
+const statusColor = (name: string) => ({
+  DEFAULT: `hsl(var(--${name}))`,
+  foreground: `hsl(var(--${name}-foreground))`,
+  subtle: `hsl(var(--${name}-subtle))`,
+  "subtle-foreground": `hsl(var(--${name}-subtle-foreground))`,
+  border: `hsl(var(--${name}-border))`,
+});
 
 export default {
-  darkMode: ["class"],
+  // The OS/browser appearance is the only source of truth: `dark:` compiles to a
+  // prefers-color-scheme media query, so there is no toggle, no stored preference and no flash.
+  // `screen` keeps printouts on the light palette (dark text on white paper).
+  darkMode: ["variant", "@media screen and (prefers-color-scheme: dark) { & }"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
@@ -19,18 +33,24 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        overlay: "hsl(var(--overlay))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+        },
+        brand: {
+          DEFAULT: "hsl(var(--brand))",
+          foreground: "hsl(var(--brand-foreground))",
+          accent: "hsl(var(--brand-accent))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
         },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
+        destructive: statusColor("destructive"),
+        success: statusColor("success"),
+        warning: statusColor("warning"),
+        info: statusColor("info"),
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -47,6 +67,14 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+          6: "hsl(var(--chart-6))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -62,6 +90,17 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      // h-screen / max-h-screen track the visible (dynamic) viewport, min-h-screen the small viewport,
+      // so mobile address bars never hide content; see --viewport-* in index.css (100vh fallback).
+      height: { screen: "var(--viewport-h)" },
+      maxHeight: { screen: "var(--viewport-h)" },
+      minHeight: { screen: "var(--viewport-min-h)" },
+      spacing: {
+        "safe-top": "env(safe-area-inset-top)",
+        "safe-bottom": "env(safe-area-inset-bottom)",
+        "safe-left": "env(safe-area-inset-left)",
+        "safe-right": "env(safe-area-inset-right)",
       },
       keyframes: {
         "accordion-down": {
@@ -87,5 +126,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate"), darkPaletteBridge(path.resolve(__dirname, "src"))],
 } satisfies Config;

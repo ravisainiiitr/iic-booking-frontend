@@ -8,6 +8,13 @@ import { bootstrapNativeApp, isNativeApp } from "@/lib/nativeApp";
 
 installChunkReloadHandler();
 
+// The theme follows the OS (prefers-color-scheme). Drop the preference the former next-themes setup stored.
+try {
+  localStorage.removeItem("theme");
+} catch {
+  // Storage can be unavailable (private mode / blocked); nothing to clean up then.
+}
+
 const renderApp = () => {
   const rootEl = document.getElementById("root");
   if (!rootEl) {
