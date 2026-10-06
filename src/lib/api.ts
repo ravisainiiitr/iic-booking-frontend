@@ -8332,7 +8332,7 @@ class ApiClient {
   /** Admin/OIC: set post-print actual weight and time on a 3D print booking. */
   async updateBookingPrintActuals(
     bookingId: number,
-    data: { actual_weight_grams?: number; actual_time_minutes?: number }
+    data: { analysis_id?: string; actual_weight_grams?: number; actual_time_minutes?: number }
   ) {
     return this.request<{
       message: string;
@@ -8343,7 +8343,8 @@ class ApiClient {
         new_charge: string;
         refund_amount: string | null;
         extra_amount: string | null;
-      };
+        refund_status?: string | null;
+      } | null;
     }>(`/bookings/${bookingId}/print-actuals/`, {
       method: 'PATCH',
       body: JSON.stringify(data),

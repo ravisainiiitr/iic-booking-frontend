@@ -3487,9 +3487,15 @@ export function BookingDetailCard({
           {booking.print_analysis && booking.equipment_profile_type === "PRINT_3D" && bookingPk != null && (
             <Print3DBookingActuals
               printAnalysis={booking.print_analysis}
+              printAnalyses={booking.print_analyses}
               bookingId={bookingPk}
-              enableChargeRecalculation={!!booking.equipment_enable_charge_recalculation && !booking.source_booking_id}
-              canEdit={isManagerOrAdmin && !booking.source_booking_id && booking.status.toUpperCase() === "BOOKED"}
+              totalCharge={isFinanceUser || isJobSheetView ? null : booking.total_charge}
+              pendingAmount={isJobSheetView ? null : booking.charge_recalculation_pending_amount}
+              canEdit={
+                isManagerOrAdmin &&
+                !booking.source_booking_id &&
+                ["BOOKED", "COMPLETED"].includes(booking.status.toUpperCase())
+              }
               onUpdated={(payload) => {
                 const updated = payload?.booking;
                 if (updated) {

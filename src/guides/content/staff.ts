@@ -217,6 +217,10 @@ export function oicChargesSection(): GuideSection {
         body: "When the user edits before the cancellation deadline, the difference is refunded to their wallet automatically. For edits after the deadline, and for edits made by lab staff, use Confirm refund on the booking.",
       },
       { title: "Higher charge, unpaid", body: "Use Deduct Money to debit the difference from the user's wallet." },
+      {
+        title: "3D print actual weight and time",
+        body: "After printing, open the booking and click Set actual weight & time (choose the file first when the booking has several STL files). Saving recalculates the amount with the same rates and GST as the estimate: a lower amount waits for your Confirm refund, a higher amount is collected with Deduct Money or the user's Pay Now.",
+      },
     ],
     rules: [
       "You can open Calculate charges on any catalog equipment; it is view-only on equipment not assigned to you.",
