@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { apiClient } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
@@ -272,7 +273,10 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
       } catch {
         isPast = false;
       }
-      if (status === "BOOKED" || status === "BOOKING_NOT_UTILIZED") {
+      if (isCompletedSlot(slot)) {
+        label = "Completed";
+        bg = slotColors.COMPLETED;
+      } else if (status === "BOOKED" || status === "BOOKING_NOT_UTILIZED") {
         label = "Booked";
         bg = slotColors.BOOKED;
       } else if (status === "NOT_AVAILABLE" && (holidayName || dow === 6 || dow === 0)) {
@@ -320,6 +324,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
   const legend: Array<{ label: string; color: string }> = [
     { label: "Available", color: slotColors.AVAILABLE },
     { label: "Booked", color: slotColors.BOOKED },
+    { label: "Completed", color: slotColors.COMPLETED },
     { label: "Past", color: PAST_SLOT_COLOR },
     { label: "Maintenance", color: slotColors.UNDER_MAINTENANCE },
     { label: "Not available", color: slotColors.NOT_AVAILABLE },

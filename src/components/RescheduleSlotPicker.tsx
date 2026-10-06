@@ -3,6 +3,7 @@ import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay 
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
@@ -866,7 +867,11 @@ export default function RescheduleSlotPicker({
                         ${!slot && !holidayColorReschedule ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
                         ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
                         ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold pointer-events-none" : ""}
-                        ${booked && slot && !currentBookingSlotIds.has(slot.id) ? "bg-destructive/20 text-destructive cursor-not-allowed" : ""}
+                        ${booked && slot && !currentBookingSlotIds.has(slot.id)
+                          ? isCompletedSlot(slot)
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 cursor-not-allowed"
+                            : "bg-destructive/20 text-destructive cursor-not-allowed"
+                          : ""}
                         ${selected ? "bg-primary text-primary-foreground cursor-pointer" : ""}
                         ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
                         ${available && disabled && !selected && !currentBooking ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}

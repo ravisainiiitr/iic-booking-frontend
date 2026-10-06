@@ -1,0 +1,55 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { addDays, format, startOfWeek } from "date-fns";
+
+const getEquipmentSlots = vi.fn();
+vi.mock("@/lib/api", () => ({ apiClient: { getEquipmentSlots: (...args: unknown[]) => getEquipmentSlots(...args) } }));
+
+import EquipmentAvailabilityCalendar from "./EquipmentAvailabilityCalendar";
+
+afterEach(() => {
+  cleanup();
+  getEquipmentSlots.mockReset();
+});
+
+function slot(id: number, day: Date, fields: Record<string, unknown>) {
+  const date = format(day, "yyyy-MM-dd");
+  return {
+    id,
+    date,
+    slot_open_time: "09:00:00",
+    start_datetime: `${date}T09:00:00+05:30`,
+    end_datetime: `${date}T10:00:00+05:30`,
+    ...fields,
+  };
+}
+
+describe("EquipmentAvailabilityCalendar", () => {
+  it("shows a slot of a completed booking as Completed, not Booked", async () => {
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, monday, { status: "BOOKED", display_status: "COMPLETED", booking_status: "COMPLETED" }),
+          slot(2, addDays(monday, 1), { status: "BOOKED", booking_status: "COMPLETED" }),
+          slot(3, addDays(monday, 2), { status: "BOOKED", display_status: "BOOKED", booking_status: "BOOKED" }),
+          // Free future slot this week, so the calendar stays on this week.
+          slot(4, addDays(monday, 6), { status: "AVAILABLE", start_datetime: "2099-01-01T09:00:00+05:30" }),
+        ],
+        slot_master_times: ["09:00:00"],
+        slot_duration_minutes: 60,
+        calendar_colors: { slot_colors: { COMPLETED: "#9f32d2", BOOKED: "#3819d2" } },
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    // Two cells plus the legend entry.
+    await waitFor(() => expect(screen.getAllByText("Completed")).toHaveLength(3));
+    const completed = screen.getAllByText("Completed");
+    expect((completed[0] as HTMLElement).style.backgroundColor).toBe("rgb(159, 50, 210)");
+    // One open booking plus the legend entry.
+    expect(screen.getAllByText("Booked")).toHaveLength(2);
+  });
+});

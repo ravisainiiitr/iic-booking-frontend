@@ -3,6 +3,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
+import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
@@ -747,7 +748,9 @@ export default function TAAssignments() {
                                       OPERATOR_ABSENT: "Operator Absent",
                                       BOOKING_NOT_UTILIZED: "Booked",
                                     };
-                                    if (slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED") {
+                                    if (isCompletedSlot(slotData)) {
+                                      displayStatus = "Completed";
+                                    } else if (slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED") {
                                       displayStatus = "Booked";
                                     } else {
                                       displayStatus =
