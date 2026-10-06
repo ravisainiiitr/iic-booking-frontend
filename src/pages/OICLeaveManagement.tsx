@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import { ArrowLeft, Calendar, CalendarClock, CalendarDays, CheckCircle2, Clock, Loader2, Paperclip, Pencil, UserCheck, X, XCircle } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarDays, CheckCircle2, Clock, Loader2, Paperclip, UserCheck, XCircle } from "lucide-react";
 
 import DashboardHeader from "@/components/DashboardHeader";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -21,8 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
   Table,
   TableBody,
@@ -68,20 +66,6 @@ type LeaveLike = {
   end_date: string;
   end_session: LeaveSession;
   status: string;
-};
-
-type EquipmentOption = { id: number; code: string; name: string };
-type OicUser = { id: number; name: string; email: string };
-type Delegation = {
-  id: number;
-  equipment_id: number;
-  equipment_code: string;
-  equipment_name: string;
-  temporary_oic_id: number;
-  temporary_oic_name: string;
-  temporary_oic_email: string;
-  resume_at: string;
-  created_at: string;
 };
 
 function clampLeaveCount(v: number) {
@@ -143,18 +127,6 @@ function overlapLeaveDays(leave: LeaveLike, rangeStart: Date, rangeEnd: Date): n
   return computeLeaveDays(clipStartIso, clipStartSession, clipEndIso, clipEndSession);
 }
 
-function computedResumeAtIso(endDateIso: string, endSession: LeaveSession): string | null {
-  if (!endDateIso) return null;
-  const end = parseISO(endDateIso);
-  if (Number.isNaN(end.getTime())) return null;
-  // Use a deterministic local-time cutoff so the temp OIC keeps access through the leave end.
-  const hh = endSession === "FN" ? 13 : 23;
-  const mm = endSession === "FN" ? 0 : 59;
-  const ss = endSession === "FN" ? 0 : 59;
-  const dtLocal = new Date(end.getFullYear(), end.getMonth(), end.getDate(), hh, mm, ss, 0);
-  return dtLocal.toISOString();
-}
-
 export default function OICLeaveManagement() {
   const navigate = useNavigate();
   const embedded = useEmbeddedMode();
@@ -195,23 +167,6 @@ export default function OICLeaveManagement() {
   const [coverageEligibleOperators, setCoverageEligibleOperators] = useState<Array<{ id: number; name: string; email: string }>>([]);
   const [coverageByEquipmentId, setCoverageByEquipmentId] = useState<Record<number, { mode: "SECONDARY_OPERATOR" | "OIC_SELF_OPERATE" | "OPERATOR_ON_LEAVE"; acting_operator_id?: number | null }>>({});
   const [coverageSubmitting, setCoverageSubmitting] = useState(false);
-
-  // Temporary OIC (Leave) — merged from TemporaryOIC page
-  const [tempOicEquipments, setTempOicEquipments] = useState<EquipmentOption[]>([]);
-  const [tempOicUsers, setTempOicUsers] = useState<OicUser[]>([]);
-  const [tempOicDelegations, setTempOicDelegations] = useState<Delegation[]>([]);
-  const [tempOicLoadingEquipments, setTempOicLoadingEquipments] = useState(true);
-  const [tempOicLoadingUsers, setTempOicLoadingUsers] = useState(true);
-  const [tempOicLoadingDelegations, setTempOicLoadingDelegations] = useState(true);
-  const [tempOicSubmitting, setTempOicSubmitting] = useState(false);
-  const [tempOicCancellingId, setTempOicCancellingId] = useState<number | null>(null);
-  const [tempOicSelectedEquipmentId, setTempOicSelectedEquipmentId] = useState<string>("");
-  const [tempOicSelectedUserId, setTempOicSelectedUserId] = useState<string>("");
-  const [tempOicComboboxOpen, setTempOicComboboxOpen] = useState(false);
-  const [tempOicSearchQuery, setTempOicSearchQuery] = useState("");
-  const [tempOicEditingDelegationId, setTempOicEditingDelegationId] = useState<number | null>(null);
-  const [tempOicEditResumeAt, setTempOicEditResumeAt] = useState("");
-  const [tempOicSavingEditId, setTempOicSavingEditId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isOicOrAdmin) {
@@ -288,105 +243,6 @@ export default function OICLeaveManagement() {
     if (!isOicOrAdmin) return;
     refresh(year);
   }, [isOicOrAdmin, year]);
-
-  useEffect(() => {
-    if (!isOicOrAdmin) return;
-    // Load Temporary OIC supporting data for managers/admins.
-    setTempOicLoadingEquipments(true);
-    setTempOicLoadingUsers(true);
-    setTempOicLoadingDelegations(true);
-    apiClient.getTemporaryOicMyEquipments().then((res) => {
-      setTempOicLoadingEquipments(false);
-      if (res.error) setTempOicEquipments([]);
-      else setTempOicEquipments(res.data?.equipments ?? []);
-    });
-    apiClient.getTemporaryOicOicUsers().then((res) => {
-      setTempOicLoadingUsers(false);
-      if (res.error) setTempOicUsers([]);
-      else setTempOicUsers(res.data?.oic_users ?? []);
-    });
-    apiClient.getTemporaryOicMine().then((res) => {
-      setTempOicLoadingDelegations(false);
-      if (res.error) setTempOicDelegations([]);
-      else setTempOicDelegations(res.data?.delegations ?? []);
-    });
-  }, [isOicOrAdmin]);
-
-  const refreshTempOicDelegations = () => {
-    apiClient.getTemporaryOicMine().then((res) => {
-      if (!res.error && res.data?.delegations) setTempOicDelegations(res.data.delegations);
-    });
-  };
-
-  const submitTempOicDelegation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const eqId = tempOicSelectedEquipmentId ? parseInt(tempOicSelectedEquipmentId, 10) : 0;
-    const oicId = tempOicSelectedUserId ? parseInt(tempOicSelectedUserId, 10) : 0;
-    const resumeAtIso = computedResumeAtIso(endDate, endSession);
-    if (!eqId || !oicId || !resumeAtIso) {
-      toast.error("Select equipment and Temporary OIC. Leave end date is required to compute resume time.");
-      return;
-    }
-    if (new Date(resumeAtIso) <= new Date()) {
-      toast.error("Computed resume time must be in the future. Please adjust your leave end date.");
-      return;
-    }
-    setTempOicSubmitting(true);
-    try {
-      const res = await apiClient.createTemporaryOic(eqId, oicId, resumeAtIso);
-      if (res.error) throw new Error(res.error);
-      toast.success(res.data?.message ?? "Temporary OIC assigned.");
-      setTempOicSelectedEquipmentId("");
-      setTempOicSelectedUserId("");
-      refreshTempOicDelegations();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to assign temporary OIC.");
-    } finally {
-      setTempOicSubmitting(false);
-    }
-  };
-
-  const cancelTempOicDelegation = async (delegationId: number) => {
-    setTempOicCancellingId(delegationId);
-    try {
-      const res = await apiClient.cancelTemporaryOic(delegationId);
-      if (res.error) throw new Error(res.error);
-      toast.success(res.data?.message ?? "Delegation cancelled.");
-      refreshTempOicDelegations();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to cancel delegation.");
-    } finally {
-      setTempOicCancellingId(null);
-    }
-  };
-
-  const openTempOicEditDialog = (d: Delegation) => {
-    const dt = new Date(d.resume_at);
-    setTempOicEditResumeAt(format(dt, "yyyy-MM-dd'T'HH:mm"));
-    setTempOicEditingDelegationId(d.id);
-  };
-
-  const saveTempOicEdit = async () => {
-    if (tempOicEditingDelegationId == null || !tempOicEditResumeAt.trim()) return;
-    const dt = new Date(tempOicEditResumeAt);
-    if (Number.isNaN(dt.getTime()) || dt <= new Date()) {
-      toast.error("Resume date and time must be in the future.");
-      return;
-    }
-    setTempOicSavingEditId(tempOicEditingDelegationId);
-    try {
-      const res = await apiClient.updateTemporaryOic(tempOicEditingDelegationId, dt.toISOString());
-      if (res.error) throw new Error(res.error);
-      toast.success(res.data?.message ?? "Date and time updated.");
-      setTempOicEditingDelegationId(null);
-      setTempOicEditResumeAt("");
-      refreshTempOicDelegations();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save.");
-    } finally {
-      setTempOicSavingEditId(null);
-    }
-  };
 
   useEffect(() => {
     if (leaveType === "FULL_DAY") {
@@ -1191,237 +1047,21 @@ export default function OICLeaveManagement() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <UserCheck className="h-5 w-5" />
-                Temporary OIC (Leave)
+                OIC substitute while you are away
               </CardTitle>
               <CardDescription>
-                Assign another Officer in Charge (OIC) to manage an equipment while you are on leave.
-                Resume time is computed automatically from your leave <span className="font-semibold">To</span> date/session.
+                To let another OIC of your department manage an equipment while you are on leave, use OIC Substitute.
+                You keep your own access, and the substitute and Lab in-charges are notified.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={submitTempOicDelegation} className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Equipment</Label>
-                    <Select
-                      value={tempOicSelectedEquipmentId}
-                      onValueChange={setTempOicSelectedEquipmentId}
-                      disabled={tempOicLoadingEquipments}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={tempOicLoadingEquipments ? "Loading..." : "Select equipment"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {tempOicEquipments.map((e) => (
-                          <SelectItem key={e.id} value={String(e.id)}>
-                            {e.name || e.code}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Temporary OIC</Label>
-                    <Popover open={tempOicComboboxOpen} onOpenChange={setTempOicComboboxOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={tempOicComboboxOpen}
-                          disabled={tempOicLoadingUsers}
-                          className="w-full justify-between font-normal"
-                        >
-                          {tempOicLoadingUsers
-                            ? "Loading..."
-                            : tempOicSelectedUserId
-                              ? (() => {
-                                  const u = tempOicUsers.find((x) => String(x.id) === tempOicSelectedUserId);
-                                  return u ? `${u.name || u.email} (${u.email})` : "Select OIC";
-                                })()
-                              : "Select OIC (search by name)…"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                        <Command shouldFilter={false}>
-                          <CommandInput
-                            placeholder="Search by name or email…"
-                            value={tempOicSearchQuery}
-                            onValueChange={setTempOicSearchQuery}
-                          />
-                          <CommandList>
-                            <CommandEmpty>
-                              {tempOicUsers.length === 0
-                                ? "No other OIC users found."
-                                : "No match."}
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {tempOicUsers
-                                .filter((u) => {
-                                  const q = tempOicSearchQuery.trim().toLowerCase();
-                                  if (!q) return true;
-                                  return (
-                                    (u.name || "").toLowerCase().includes(q) ||
-                                    (u.email || "").toLowerCase().includes(q)
-                                  );
-                                })
-                                .map((u) => (
-                                  <CommandItem
-                                    key={u.id}
-                                    value={String(u.id)}
-                                    onSelect={() => {
-                                      setTempOicSelectedUserId(String(u.id));
-                                      setTempOicComboboxOpen(false);
-                                      setTempOicSearchQuery("");
-                                    }}
-                                  >
-                                    {u.name || u.email} ({u.email})
-                                  </CommandItem>
-                                ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-muted/20 p-3">
-                  <div className="text-xs font-semibold text-muted-foreground">Computed resume time</div>
-                  <div className="mt-1 flex items-center gap-2 text-sm">
-                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-semibold">
-                      {computedResumeAtIso(endDate, endSession) ? new Date(computedResumeAtIso(endDate, endSession) as string).toLocaleString() : "—"}
-                    </span>
-                    <span className="text-muted-foreground">
-                      (from To date/session: {endDate || "—"} {endSession})
-                    </span>
-                  </div>
-                </div>
-
-                <Button type="submit" disabled={tempOicSubmitting}>
-                  {tempOicSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Assigning...
-                    </>
-                  ) : (
-                    "Assign temporary OIC"
-                  )}
-                </Button>
-              </form>
+              <Button variant="outline" className="gap-2" onClick={() => navigate("/oic-substitute")}>
+                <UserCheck className="h-4 w-4" aria-hidden />
+                Open OIC Substitute
+              </Button>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-md">
-            <CardHeader>
-              <CardTitle>Active delegations</CardTitle>
-              <CardDescription>
-                Delegations you have created. Cancel to revoke. (Edit is available for exceptional cases.)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {tempOicLoadingDelegations ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : tempOicDelegations.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">No active temporary OIC delegations.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Equipment</TableHead>
-                      <TableHead>Temporary OIC</TableHead>
-                      <TableHead>Resume at</TableHead>
-                      <TableHead className="w-[120px]">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {tempOicDelegations.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell>
-                          <span className="font-medium">{d.equipment_code}</span>
-                          <span className="text-muted-foreground"> – {d.equipment_name}</span>
-                        </TableCell>
-                        <TableCell>
-                          {d.temporary_oic_name}
-                          <span className="text-muted-foreground text-xs block">{d.temporary_oic_email}</span>
-                        </TableCell>
-                        <TableCell>{format(new Date(d.resume_at), "PPp")}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              aria-label="Edit date and time"
-                              variant="ghost"
-                              size="sm"
-                              title="Edit date & time"
-                              onClick={() => openTempOicEditDialog(d)}
-                            >
-                              <Pencil className="h-4 w-4" aria-hidden />
-                            </Button>
-                            <Button
-                              aria-label="Cancel delegation"
-                              title="Cancel delegation"
-                              variant="ghost"
-                              size="sm"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => cancelTempOicDelegation(d.id)}
-                              disabled={tempOicCancellingId === d.id}
-                            >
-                              {tempOicCancellingId === d.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                              ) : (
-                                <X className="h-4 w-4" aria-hidden />
-                              )}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-
-          <Dialog open={tempOicEditingDelegationId != null} onOpenChange={(open) => !open && setTempOicEditingDelegationId(null)}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Edit resume date & time</DialogTitle>
-                <DialogDescription>
-                  Change when you will take over again. After this time, the temporary OIC will no longer be able to manage the equipment.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 py-2">
-                <Label className="flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4" />
-                  Resume date & time
-                </Label>
-                <Input
-                  type="datetime-local"
-                  value={tempOicEditResumeAt}
-                  onChange={(e) => setTempOicEditResumeAt(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setTempOicEditingDelegationId(null)} disabled={tempOicSavingEditId != null}>
-                  Cancel
-                </Button>
-                <Button onClick={saveTempOicEdit} disabled={tempOicSavingEditId != null || !tempOicEditResumeAt.trim()}>
-                  {tempOicSavingEditId != null ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
     </div>

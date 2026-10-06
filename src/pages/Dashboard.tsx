@@ -177,6 +177,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
+  "/oic-substitute": {
+    title: "OIC Substitute",
+    description: "Let another OIC of your department manage your equipment for a period, with a full history.",
+  },
   "/admin/legacy-user-sync": {
     title: "Legacy User Sync",
     description: "Map a user to their old booking portal account, test sync, then confirm wallet and booking sync.",
@@ -1653,6 +1657,46 @@ const Dashboard = () => {
                   }}
                 >
                   Open leave management
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "oic_substitute",
+      label: "OIC Substitute",
+      path: "/oic-substitute",
+      visible: Boolean(isOicUser || isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+              onClick={() => openWorkspace("/oic-substitute")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">OIC Substitute</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      {isAdmin
+                        ? "All OIC substitutions, their reasons and history"
+                        : "Let an OIC of your department manage your equipment while you are away"}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-brand hover:bg-brand/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/oic-substitute");
+                  }}
+                >
+                  Open OIC Substitute
                 </Button>
               </CardContent>
             </Card>

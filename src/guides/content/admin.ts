@@ -36,6 +36,10 @@ export const adminGuide: RoleGuide = {
         steps: [
           { title: "Admin Panel Access", body: "Choose which user types and departments may open Admin Settings modules." },
           { title: "Department Administration", body: "Oversee staff roles and permission caps across departments." },
+          {
+            title: "OIC Substitute",
+            body: "Under Users & access, OIC Substitute lists every substitution an Officer In Charge has given to another OIC of their department, with the reason, period and history. Use Revoke (or Cancel, if it has not started) with a reason to end one; the substitute, the Lab Operators and the OIC are notified.",
+          },
           { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers and charges. Multi-mode equipment (one page for all departments, with a department filter) is where you link modes to a base instrument, choose whether each mode is always available or only on scheduled days, and plan mode days on a month calendar." },
           {
             title: "Equipment form",

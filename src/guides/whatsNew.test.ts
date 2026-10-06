@@ -34,11 +34,12 @@ describe("What's New", () => {
 
   it("announces waitlist and urgent request limits to Officers In Charge only", () => {
     const oic = buildGuide({ audience: "oic", flags: { training: true } });
-    expect(ids(oic)[0]).toBe("booking-depths");
+    expect(ids(oic).slice(0, 2)).toEqual(["oic-substitute", "booking-depths"]);
     expect(ids(oic)).toContain("training-oic");
     expect(oic.whatsNew.items.length).toBeLessThanOrEqual(10);
     for (const audience of ["admin", "dept_admin", "operator", "student"] as const) {
       expect(ids(buildGuide({ audience }))).not.toContain("booking-depths");
+      expect(ids(buildGuide({ audience }))).not.toContain("oic-substitute");
     }
   });
 

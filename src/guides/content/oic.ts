@@ -51,6 +51,38 @@ export const oicGuide: RoleGuide = {
       slotStatusSection(g),
       oicConfigSection(g),
       oicChargesSection(),
+      {
+        id: "oic-substitute",
+        title: "OIC Substitute",
+        icon: "users",
+        group: "Lab operations",
+        intro: [
+          "Going on leave or away? Let another Officer In Charge of your department manage your equipment for a set period. You keep your own access.",
+        ],
+        steps: [
+          {
+            title: "Assign a substitute",
+            body: "Open OIC Substitute from the dashboard. Pick the equipment, search and select one or more OICs of your department, choose the From and Until dates and write the reason, then click Assign substitute.",
+          },
+          {
+            title: "What the substitute can do",
+            body: "For those days the substitute has the same OIC permissions on that equipment as you: View Booking, approvals, urgent requests, waitlist, Change slot status and Equipment Booking Configuration. They, the equipment's Lab Operators and you get an email and a notification.",
+          },
+          {
+            title: "Revoke or cancel",
+            body: "Under Substitutes you assigned, use Revoke to end active access now or Cancel for one that has not started. A reason is required, and everyone notified at the start is told.",
+          },
+          {
+            title: "History",
+            body: "The Active, Scheduled and Past tabs list every substitution with its reason. Click History on a card to see who created, changed, revoked or cancelled it and when.",
+          },
+        ],
+        rules: [
+          "Only active OICs of your own department can be chosen, and not for equipment they already manage. Choose up to 5 substitutes at once; the same substitute cannot have overlapping periods on the same equipment.",
+          "Dates are in IST. Starting today gives access at once; access ends automatically at 11:59 PM on the Until date, and everyone is told when it ends.",
+          "Only the equipment's own (permanent) OIC can assign a substitute. The Main Administrator can see and revoke all substitutions.",
+        ],
+      },
       trainingSection(g),
       ticketsSection(g),
       assistantSection(g),

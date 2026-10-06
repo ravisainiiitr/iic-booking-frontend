@@ -208,10 +208,10 @@ export function oicConfigSection(g: Gate): GuideSection {
         title: "Multi-mode equipment",
         body: "When one instrument runs in several modes (for example XPS with UPS and Depth Profile), open Multi-mode equipment, pick the base instrument and tick its modes. For each mode choose Always available (bookable any day) or Only on scheduled days. Then click a day in the calendar to add a schedule: the mode, From and To dates, optional Repeat on days (for example Mon and Thu), optional hours, and whether other modes and the base can be booked at the same time. Answer No to run that mode on its own; the base and the other modes are then closed for those hours. Use Slot status beside each mode to open its slots.",
       },
-      g.when(g.flags.oicLeaveManagement, {
+      {
         title: "Cover your leave",
-        body: "Use Temporary OIC / Leave Management to delegate your equipment before planned leave.",
-      }),
+        body: "Before planned leave, open OIC Substitute to let another OIC of your department manage your equipment for those days.",
+      },
     ]),
     rules: [
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",

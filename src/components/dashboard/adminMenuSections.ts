@@ -72,6 +72,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "department_administration",
       "organization_users",
       "leave_management",
+      "oic_substitute",
       "legacy_user_sync",
     ],
   },
