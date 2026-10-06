@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -312,18 +313,16 @@ export default function DirectRechargeTab({
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="grant-from">Valid from</Label>
-                  <Input
+                  <DateTimeInput
                     id="grant-from"
-                    type="datetime-local"
                     value={grantForm.validFrom}
                     onChange={(e) => setGrantForm((f) => ({ ...f, validFrom: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="grant-until">Valid until</Label>
-                  <Input
+                  <DateTimeInput
                     id="grant-until"
-                    type="datetime-local"
                     value={grantForm.validUntil}
                     onChange={(e) => setGrantForm((f) => ({ ...f, validUntil: e.target.value }))}
                     aria-invalid={Boolean(grantErrors.valid_until)}

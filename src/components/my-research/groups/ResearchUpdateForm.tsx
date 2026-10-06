@@ -6,6 +6,7 @@ import type { GroupAttachment, GroupUpdateRequest } from "@/lib/researchGroupTyp
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -227,7 +228,7 @@ export function ResearchUpdateForm({ request, unprompted = null, onOpenChange, o
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rg-up-expected">Expected completion (optional)</Label>
-              <Input id="rg-up-expected" type="date" value={expected} onChange={(e) => setExpected(e.target.value)} />
+              <DateInput id="rg-up-expected" value={expected} onChange={(e) => setExpected(e.target.value)} />
             </div>
           </div>
           <div className="space-y-2">

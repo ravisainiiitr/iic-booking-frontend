@@ -14,6 +14,7 @@ import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -2667,12 +2668,11 @@ export function BookingDetailCard({
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="space-y-1">
                       <Label htmlFor="extend-hold-until" className="text-xs">Results due by</Label>
-                      <Input
+                      <DateTimeInput
                         id="extend-hold-until"
-                        type="datetime-local"
                         value={extendHoldUntilLocal}
                         onChange={(e) => setExtendHoldUntilLocal(e.target.value)}
-                        className="h-9 w-[220px]"
+                        className="w-[220px]" inputClassName="h-9"
                       />
                     </div>
                     <div className="space-y-1 min-w-[220px]">

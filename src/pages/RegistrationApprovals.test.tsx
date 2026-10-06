@@ -105,13 +105,13 @@ describe("Registration approvals (faculty)", () => {
       </MemoryRouter>,
     );
     const date = (await screen.findByLabelText("Extend access until")) as HTMLInputElement;
-    expect(date.value).toBe("2027-04-10");
-    expect(date.max).toBe("2027-04-10");
+    expect(date.value).toBe("10-04-2027");
 
-    fireEvent.change(date, { target: { value: "2027-01-31" } });
+    fireEvent.change(date, { target: { value: "31-01-2027" } });
     expect(screen.getByText("I request that their access be extended up to 31 Jan 2027.")).toBeTruthy();
 
-    fireEvent.change(date, { target: { value: "2027-05-01" } });
+    fireEvent.change(date, { target: { value: "01-05-2027" } });
+    expect(date.getAttribute("aria-invalid")).toBe("true");
     expect(screen.getByText("Choose 10 Apr 2027 or earlier.")).toBeTruthy();
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
     expect(submitButtons()[1].disabled).toBe(true);

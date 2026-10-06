@@ -26,6 +26,7 @@ import { clearReturnToBooking, readReturnToBooking } from "@/lib/rechargeReturn"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -2604,20 +2605,18 @@ const Wallet = () => {
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label htmlFor="tx-date-from" className="text-xs text-muted-foreground whitespace-nowrap">From</Label>
-                    <Input
+                    <DateInput
                       id="tx-date-from"
-                      type="date"
-                      className="w-full sm:w-[140px] h-9"
+                      className="w-full sm:w-[140px]" inputClassName="h-9"
                       value={txDateFrom}
                       onChange={(e) => setTxDateFrom(e.target.value)}
                     />
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <Label htmlFor="tx-date-to" className="text-xs text-muted-foreground whitespace-nowrap">To</Label>
-                    <Input
+                    <DateInput
                       id="tx-date-to"
-                      type="date"
-                      className="w-full sm:w-[140px] h-9"
+                      className="w-full sm:w-[140px]" inputClassName="h-9"
                       value={txDateTo}
                       onChange={(e) => setTxDateTo(e.target.value)}
                     />

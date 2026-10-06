@@ -7,6 +7,7 @@ import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -323,8 +324,7 @@ export default function EquipmentLifecycleHub() {
                 ].map(([k, label]) => (
                   <div key={k}>
                     <Label>{label}</Label>
-                    <Input
-                      type="date"
+                    <DateInput
                       value={(lifecycle[k] as string)?.slice(0, 10) || ""}
                       onChange={(e) => updateLifecycleField(k, e.target.value || null)}
                       disabled={!canEditLifecycle}
@@ -392,11 +392,11 @@ export default function EquipmentLifecycleHub() {
                     </div>
                     <div>
                       <Label>Start</Label>
-                      <Input aria-label="Start" type="date" value={amcStart} onChange={(e) => setAmcStart(e.target.value)} />
+                      <DateInput aria-label="Start" value={amcStart} onChange={(e) => setAmcStart(e.target.value)} />
                     </div>
                     <div>
                       <Label>End</Label>
-                      <Input aria-label="End" type="date" value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
+                      <DateInput aria-label="End" value={amcEnd} onChange={(e) => setAmcEnd(e.target.value)} />
                     </div>
                     <div>
                       <Label>Contract value</Label>
@@ -480,7 +480,7 @@ export default function EquipmentLifecycleHub() {
                   </div>
                   <div>
                     <Label>Date</Label>
-                    <Input aria-label="Date" type="date" value={exDate} onChange={(e) => setExDate(e.target.value)} />
+                    <DateInput aria-label="Date" value={exDate} onChange={(e) => setExDate(e.target.value)} />
                   </div>
                   <div>
                     <Label>Amount</Label>

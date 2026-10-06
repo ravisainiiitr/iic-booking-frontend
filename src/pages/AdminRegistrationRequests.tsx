@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -286,11 +287,11 @@ export default function AdminRegistrationRequests() {
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="regreq-from">Registered from</Label>
-                    <Input id="regreq-from" type="date" value={filters.date_from ?? ""} onChange={(e) => setFilter({ date_from: e.target.value || undefined })} />
+                    <DateInput id="regreq-from" value={filters.date_from ?? ""} onChange={(e) => setFilter({ date_from: e.target.value || undefined })} />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="regreq-to">Registered to</Label>
-                    <Input id="regreq-to" type="date" value={filters.date_to ?? ""} onChange={(e) => setFilter({ date_to: e.target.value || undefined })} />
+                    <DateInput id="regreq-to" value={filters.date_to ?? ""} onChange={(e) => setFilter({ date_to: e.target.value || undefined })} />
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2">

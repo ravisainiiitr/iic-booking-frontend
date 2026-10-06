@@ -5,6 +5,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { ArrowLeft, CreditCard, Loader2, RefreshCw, Save } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { formatDMY } from "@/lib/dateFormat";
 
 type FacilitySettings = {
   department_id: number;
@@ -269,9 +271,8 @@ export default function DepartmentFacultyCreditFacilityPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="cf-cutoff">Eligible Date of Joining (on or after)</Label>
-                <Input
+                <DateInput
                   id="cf-cutoff"
-                  type="date"
                   value={cutoff}
                   onChange={(e) => setCutoff(e.target.value)}
                   disabled={!enabled}
@@ -351,10 +352,10 @@ export default function DepartmentFacultyCreditFacilityPage() {
                         <TableCell className="text-right">₹{row.outstanding_credit}</TableCell>
                         <TableCell className="text-right">₹{row.remaining_credit}</TableCell>
                         <TableCell>
-                          {row.availed_at ? new Date(row.availed_at).toLocaleDateString() : "—"}
+                          {row.availed_at ? formatDMY(row.availed_at) : "—"}
                         </TableCell>
                         <TableCell>
-                          {row.closed_at ? new Date(row.closed_at).toLocaleDateString() : "—"}
+                          {row.closed_at ? formatDMY(row.closed_at) : "—"}
                         </TableCell>
                       </TableRow>
                     ))

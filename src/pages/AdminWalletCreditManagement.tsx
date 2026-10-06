@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -367,7 +368,7 @@ export default function AdminWalletCreditManagement() {
                     </div>
                     <div>
                       <Label>Due Date</Label>
-                      <Input aria-label="Due Date" type="date" value={dueDate || ""} onChange={(e) => setDueDate(e.target.value)} />
+                      <DateInput aria-label="Due Date" value={dueDate || ""} onChange={(e) => setDueDate(e.target.value)} />
                     </div>
                     <div className="sm:col-span-3">
                       <Label>Reason (mandatory for reduce / reject / clarification)</Label>

@@ -9,7 +9,7 @@ import { PageHero, PageShell, StandaloneOnly, heroButtonClass } from "@/componen
 import { preloadQuotaBreakdown } from "@/components/quota/QuotaBreakdownHost";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -139,24 +139,22 @@ export default function MyBookingAttempts() {
           <div className="flex flex-wrap items-end gap-3 border-b bg-muted/30 px-4 py-3">
             <div className="space-y-1">
               <Label htmlFor="attempts-from" className="text-xs">From</Label>
-              <Input
+              <DateInput
                 id="attempts-from"
-                type="date"
                 value={dateFrom}
                 max={dateTo || undefined}
                 onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }}
-                className="h-9 w-40"
+                className="w-40" inputClassName="h-9"
               />
             </div>
             <div className="space-y-1">
               <Label htmlFor="attempts-to" className="text-xs">To</Label>
-              <Input
+              <DateInput
                 id="attempts-to"
-                type="date"
                 value={dateTo}
                 min={dateFrom || undefined}
                 onChange={(e) => { setDateTo(e.target.value); setOffset(0); }}
-                className="h-9 w-40"
+                className="w-40" inputClassName="h-9"
               />
             </div>
             {filtered && (

@@ -59,7 +59,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import {
   Select,
   SelectContent,
@@ -4404,10 +4404,9 @@ const Dashboard = () => {
                           <Label htmlFor="lab-dash-from" className="text-xs">
                             From
                           </Label>
-                          <Input
+                          <DateInput
                             id="lab-dash-from"
-                            type="date"
-                            className="h-8 w-[10rem]"
+                            className="w-[10rem]" inputClassName="h-8"
                             value={labDashCustomFrom}
                             onChange={(e) => setLabDashCustomFrom(e.target.value)}
                           />
@@ -4416,10 +4415,9 @@ const Dashboard = () => {
                           <Label htmlFor="lab-dash-to" className="text-xs">
                             To
                           </Label>
-                          <Input
+                          <DateInput
                             id="lab-dash-to"
-                            type="date"
-                            className="h-8 w-[10rem]"
+                            className="w-[10rem]" inputClassName="h-8"
                             value={labDashCustomTo}
                             onChange={(e) => setLabDashCustomTo(e.target.value)}
                           />

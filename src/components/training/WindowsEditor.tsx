@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CalendarSearch, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { FreeWindowFinder } from "./FreeWindowFinder";
 import { addMinutesIso, fromLocalInputValue, toLocalInputValue } from "./trainingHelpers";
 
@@ -57,20 +57,18 @@ export function WindowsEditor({ value, onChange, equipmentId, durationMinutes }:
         <div key={index} className="space-y-2 rounded-lg border border-border/70 p-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="w-full text-xs font-medium text-muted-foreground sm:w-auto">Window {index + 1}</span>
-            <Input
-              type="datetime-local"
+            <DateTimeInput
               aria-label={`Window ${index + 1} start`}
               value={row.start}
               onChange={(e) => setStart(index, e.target.value)}
-              className="h-9 w-full sm:w-auto"
+              className="w-full sm:w-auto" inputClassName="h-9"
             />
             <span className="text-xs text-muted-foreground">to</span>
-            <Input
-              type="datetime-local"
+            <DateTimeInput
               aria-label={`Window ${index + 1} end`}
               value={row.end}
               onChange={(e) => update(index, { end: e.target.value })}
-              className="h-9 w-full sm:w-auto"
+              className="w-full sm:w-auto" inputClassName="h-9"
             />
             <div className="flex gap-1 sm:ml-auto">
               {equipmentId ? (

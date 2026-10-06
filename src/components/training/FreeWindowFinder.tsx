@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CalendarSearch, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { trainingApi } from "@/lib/trainingApi";
 import type { TrainingWindow } from "@/lib/trainingTypes";
@@ -44,11 +44,11 @@ export function FreeWindowFinder({ equipmentId, durationMinutes, onPick, compact
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label className="text-xs">From</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-8 w-[9.5rem] text-sm" />
+          <DateInput value={from} onChange={(e) => setFrom(e.target.value)} className="w-[9.5rem]" inputClassName="h-8 text-sm" />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">To</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-8 w-[9.5rem] text-sm" />
+          <DateInput value={to} onChange={(e) => setTo(e.target.value)} className="w-[9.5rem]" inputClassName="h-8 text-sm" />
         </div>
         <Button type="button" size="sm" variant="secondary" className="h-8" onClick={() => void search()} disabled={!canSearch || loading}>
           {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarSearch className="mr-1.5 h-4 w-4" />}

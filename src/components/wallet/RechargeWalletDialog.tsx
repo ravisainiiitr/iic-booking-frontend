@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -901,9 +902,8 @@ export default function RechargeWalletDialog({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="inline-project-start">Start Date</Label>
-                <Input
+                <DateInput
                   id="inline-project-start"
-                  type="date"
                   value={projectForm.start_date}
                   onChange={(e) => updateProjectField("start_date", e.target.value)}
                   aria-invalid={Boolean(projectFormErrors.start_date)}
@@ -913,9 +913,8 @@ export default function RechargeWalletDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="inline-project-end">End Date</Label>
-                <Input
+                <DateInput
                   id="inline-project-end"
-                  type="date"
                   value={projectForm.end_date}
                   min={projectForm.start_date || undefined}
                   onChange={(e) => updateProjectField("end_date", e.target.value)}

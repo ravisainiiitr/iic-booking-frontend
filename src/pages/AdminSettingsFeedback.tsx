@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import {
   Select,
   SelectContent,
@@ -419,8 +420,7 @@ const AdminSettingsFeedback = () => {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">From</p>
-                <Input
-                  type="date"
+                <DateInput
                   value={dateFrom}
                   max={dateTo || undefined}
                   onChange={(e) => resetPage(setDateFrom)(e.target.value)}
@@ -429,8 +429,7 @@ const AdminSettingsFeedback = () => {
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">To</p>
-                <Input
-                  type="date"
+                <DateInput
                   value={dateTo}
                   min={dateFrom || undefined}
                   onChange={(e) => resetPage(setDateTo)(e.target.value)}

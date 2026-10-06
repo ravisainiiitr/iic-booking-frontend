@@ -160,6 +160,10 @@ export function slotStatusSection(g: Gate): GuideSection {
         title: "Select and apply",
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
+      g.only(["oic", "admin"], {
+        title: "Read the week",
+        body: "Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by a mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
+      }),
     ]),
     rules: compact([
       g.only(["oic"], "Available only on equipment assigned to you."),

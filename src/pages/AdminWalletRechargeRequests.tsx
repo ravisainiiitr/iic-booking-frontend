@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -52,6 +53,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { formatDMY } from "@/lib/dateFormat";
 
 interface AuditLog {
   id: number;
@@ -201,7 +203,7 @@ const statusBadgeClass = (status: string) => {
   return "bg-amber-100 text-amber-800 border-amber-200";
 };
 
-const formatDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "—");
+const formatDate = (iso?: string | null) => (iso ? formatDMY(iso) : "—");
 
 const rechargeModeLabel = (mode?: string) => {
   if (mode === "direct_cash_deposit") return "Direct Cash Deposit / Bank Transfer";
@@ -612,11 +614,11 @@ export default function AdminWalletRechargeRequests() {
               </div>
               <div className="space-y-1">
                 <Label>From</Label>
-                <Input aria-label="From" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <DateInput aria-label="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>To</Label>
-                <Input aria-label="To" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <DateInput aria-label="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>Project grant</Label>

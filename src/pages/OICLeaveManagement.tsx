@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -794,20 +795,18 @@ export default function OICLeaveManagement() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="leave-start-date">From</Label>
-                    <Input
+                    <DateInput
                       id="leave-start-date"
-                      type="date"
-                      className="h-11"
+                      inputClassName="h-11"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="leave-end-date">To</Label>
-                    <Input
+                    <DateInput
                       id="leave-end-date"
-                      type="date"
-                      className="h-11"
+                      inputClassName="h-11"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
                     />

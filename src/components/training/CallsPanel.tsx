@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -113,7 +114,7 @@ function OpenCallDialog({ open, onOpenChange, onCreated }: { open: boolean; onOp
               <Label htmlFor="call-deadline">
                 Nomination deadline <span className="text-destructive">*</span>
               </Label>
-              <Input id="call-deadline" type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              <DateTimeInput id="call-deadline" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1">

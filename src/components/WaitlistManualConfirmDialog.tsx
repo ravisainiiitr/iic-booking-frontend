@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 
 type SlotRow = {
@@ -132,9 +132,8 @@ export default function WaitlistManualConfirmDialog({ open, onOpenChange, equipm
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label htmlFor="wl-confirm-date">Date</Label>
-              <Input
+              <DateInput
                 id="wl-confirm-date"
-                type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-44"

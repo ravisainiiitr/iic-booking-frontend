@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -129,7 +130,7 @@ export function ResearchUpdateRequestDialog({ groupId, open, onOpenChange, membe
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="rg-req-due">Due date (optional)</Label>
-              <Input id="rg-req-due" type="date" min={todayIso()} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+              <DateInput id="rg-req-due" min={todayIso()} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
             {activities.length > 0 ? (
               <div className="space-y-1.5">

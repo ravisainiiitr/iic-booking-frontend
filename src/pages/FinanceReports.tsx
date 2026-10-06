@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -403,9 +403,8 @@ const FinanceReports = () => {
             <div className="flex flex-wrap items-end gap-3 border-t pt-4">
               <div className="space-y-2">
                 <Label>Custom from</Label>
-                <Input
+                <DateInput
                   aria-label="Custom from"
-                  type="date"
                   value={customFrom}
                   onChange={(e) => setCustomFrom(e.target.value)}
                   className="w-40"
@@ -413,7 +412,7 @@ const FinanceReports = () => {
               </div>
               <div className="space-y-2">
                 <Label>Custom to</Label>
-                <Input aria-label="Custom to" type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-40" />
+                <DateInput aria-label="Custom to" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-40" />
               </div>
               <Button
                 type="button"

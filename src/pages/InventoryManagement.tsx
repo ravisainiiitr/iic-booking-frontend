@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -399,7 +400,7 @@ export default function InventoryManagement() {
               </div>
               <div>
                 <Label>Required by</Label>
-                <Input aria-label="Required by" type="date" value={requestRequiredDate} onChange={(e) => setRequestRequiredDate(e.target.value)} />
+                <DateInput aria-label="Required by" value={requestRequiredDate} onChange={(e) => setRequestRequiredDate(e.target.value)} />
               </div>
             </div>
             <div>

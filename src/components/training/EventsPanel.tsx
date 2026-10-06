@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DateTimeInput } from "@/components/ui/datetime-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -110,9 +111,8 @@ function SessionDialog({ state, onClose, onSaved }: { state: SessionDialogState;
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="session-start">Start</Label>
-              <Input
+              <DateTimeInput
                 id="session-start"
-                type="datetime-local"
                 value={start}
                 onChange={(e) => {
                   const value = e.target.value;
@@ -124,7 +124,7 @@ function SessionDialog({ state, onClose, onSaved }: { state: SessionDialogState;
             </div>
             <div className="space-y-1">
               <Label htmlFor="session-end">End</Label>
-              <Input id="session-end" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <DateTimeInput id="session-end" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
           {state?.event.equipment?.equipment_id ? (

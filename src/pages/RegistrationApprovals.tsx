@@ -15,7 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
@@ -167,9 +167,8 @@ function DecisionCard({
             {isExt ? (
               <div className="space-y-1.5">
                 <Label htmlFor={`until-${entry.item.id}`}>Extend access until</Label>
-                <Input
+                <DateInput
                   id={`until-${entry.item.id}`}
-                  type="date"
                   value={until}
                   max={ext!.max_until ?? undefined}
                   onChange={(e) => setUntil(e.target.value)}

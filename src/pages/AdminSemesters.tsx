@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -267,18 +268,16 @@ export default function AdminSemesters() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="sem-start">Start date</Label>
-                <Input
+                <DateInput
                   id="sem-start"
-                  type="date"
                   value={form.start_date}
                   onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sem-end">End date</Label>
-                <Input
+                <DateInput
                   id="sem-end"
-                  type="date"
                   value={form.end_date}
                   onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
                 />

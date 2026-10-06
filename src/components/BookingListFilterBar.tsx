@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -83,21 +84,19 @@ export function BookingListFilterBar({
           ))}
         </SelectContent>
       </Select>
-      <Input
-        type="date"
+      <DateInput
         aria-label="Start date"
         title="Start date"
         value={startDate}
         onChange={(e) => onStartDateChange(e.target.value)}
-        className="h-9 w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]"
+        className="w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]" inputClassName="h-9"
       />
-      <Input
-        type="date"
+      <DateInput
         aria-label="End date"
         title="End date"
         value={endDate}
         onChange={(e) => onEndDateChange(e.target.value)}
-        className="h-9 w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]"
+        className="w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]" inputClassName="h-9"
       />
       <Select value={equipment || "all"} onValueChange={onEquipmentChange}>
         <SelectTrigger className="h-9 w-[13rem] min-w-[7rem] lg:w-auto lg:flex-[1.5_1_11rem]" aria-label="Equipment">
