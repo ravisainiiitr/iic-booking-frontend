@@ -286,6 +286,9 @@ interface DailySlot {
   blocked_label?: string | null;
   mode_overlay_color?: string | null;
   mode_overlay?: string | null;
+  /** Staff views only: the slot is Available but users cannot book it (multi-mode); label users see and why. */
+  users_blocked_label?: string | null;
+  users_blocked_reason?: string | null;
   /** Staff views only: outside the equipment's weekly visibility window (hidden from regular users). */
   outside_visibility_window?: boolean;
   /** @deprecated Prefer available_for_external / status AVAILABLE; quota replaces reserved-for-external marking. */
@@ -8042,19 +8045,36 @@ const BookEquipment = () => {
               <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
                 Swipe sideways to view the full week calendar
               </p>
-              {(Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to) ||
-                (statusChangeSlots ?? []).some((s) => isOutsideVisibilityWindow(s))) && (
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <SlotVisibilityScopeToggle value={slotVisibilityScope} onChange={setSlotVisibilityScope} />
-                  {slotVisibilityScope === "all" && (statusChangeSlots ?? []).some((s) => isOutsideVisibilityWindow(s)) && (
-                    <RestrictedSlotLegend
-                      from={equipmentDetail?.weekly_view_time_from}
-                      to={equipmentDetail?.weekly_view_time_to}
-                      className="flex-1 min-w-[260px]"
-                    />
-                  )}
-                </div>
-              )}
+              {(() => {
+                const weekSlots = statusChangeSlots ?? [];
+                const hasWindow = Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to);
+                const anyOutside = slotVisibilityScope === "all" && weekSlots.some((s) => isOutsideVisibilityWindow(s));
+                const anyUsersBlocked = weekSlots.some((s) => Boolean(s.users_blocked_reason));
+                const anyHolidayOverride = weekSlots.some((s) => {
+                  if (String(s.status).toUpperCase() !== "AVAILABLE" || !s.date) return false;
+                  const dow = new Date(`${s.date}T00:00:00`).getDay();
+                  return dow === 0 || dow === 6 || Boolean(statusChangeHolidays[s.date]);
+                });
+                const showToggle = hasWindow || weekSlots.some((s) => isOutsideVisibilityWindow(s));
+                if (!showToggle && !anyUsersBlocked && !anyHolidayOverride) return null;
+                return (
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {showToggle && (
+                      <SlotVisibilityScopeToggle value={slotVisibilityScope} onChange={setSlotVisibilityScope} />
+                    )}
+                    {(anyOutside || anyUsersBlocked || anyHolidayOverride) && (
+                      <RestrictedSlotLegend
+                        from={equipmentDetail?.weekly_view_time_from}
+                        to={equipmentDetail?.weekly_view_time_to}
+                        outsideWindow={anyOutside}
+                        usersBlocked={anyUsersBlocked}
+                        holidayOverride={anyHolidayOverride}
+                        className="flex-1 min-w-[260px]"
+                      />
+                    )}
+                  </div>
+                );
+              })()}
               {loadingStatusSlots ? (
                 <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
                   <span className="animate-pulse">Loading slots…</span>
@@ -8164,12 +8184,13 @@ const BookEquipment = () => {
                           const isSundayCol = dayJs === 0;
                           const isCalendarAccentDay = isSaturdayCol || isSundayCol || Boolean(holidayName);
                           const slotStatusUpper = String(slot?.status ?? "").toUpperCase();
-                          /** Until staff changes the slot, Sat/Sun/holidays show admin calendar names+colors; any other status uses slot styling. */
+                          /**
+                           * Closed days are generated Not Available, so they keep the admin calendar name and colour.
+                           * Available on such a day is always a staff override and must read as Available, as users see it.
+                           */
                           const useCalendarDayStyling =
-                            isCalendarAccentDay &&
-                            (!slot ||
-                              slotStatusUpper === "NOT_AVAILABLE" ||
-                              slotStatusUpper === "AVAILABLE");
+                            isCalendarAccentDay && (!slot || slotStatusUpper === "NOT_AVAILABLE");
+                          const holidayOverride = Boolean(slot) && isCalendarAccentDay && slotStatusUpper === "AVAILABLE";
                           const calendarDayLabel =
                             holidayName && holidayName !== ""
                               ? holidayCellLabel(holidayName)
@@ -8210,6 +8231,13 @@ const BookEquipment = () => {
                             borderRadius: "4px",
                           };
                           const slotRestricted = isOutsideVisibilityWindow(slot);
+                          const usersBlockedReason = String(slot?.users_blocked_reason ?? "").trim();
+                          const lockedForUsers = slotRestricted || usersBlockedReason !== "";
+                          const holidayOverrideHint = holidayOverride
+                            ? `Opened on ${
+                                holidayName ? `a holiday (${holidayName})` : isSaturdayCol ? "a Saturday" : "a Sunday"
+                              }: users see this slot as Available.`
+                            : "";
                           return (
                             <div
                               key={dayOffset}
@@ -8225,6 +8253,17 @@ const BookEquipment = () => {
                                     holidayName,
                                     isWeekend: isSaturdayCol || isSundayCol,
                                   });
+                                  const extraLines = [
+                                    ...(usersBlockedReason
+                                      ? [`Users see: ${slot.users_blocked_label || "Not available"}`, usersBlockedReason]
+                                      : []),
+                                    ...(slotRestricted ? [restrictedHint] : []),
+                                    ...(holidayOverrideHint ? [holidayOverrideHint] : []),
+                                  ];
+                                  const hoverLines =
+                                    extraLines.length > 0 && userDetailLines.length === 0
+                                      ? [`Status: ${statusLabel(slot)}`, ...extraLines]
+                                      : [...userDetailLines, ...extraLines];
                                   const cellInner = (
                                     <div className="w-full h-full min-h-[28px] relative flex items-stretch">
                                       <button
@@ -8237,11 +8276,9 @@ const BookEquipment = () => {
                                         }}
                                         disabled={!slotSelectable}
                                         title={
-                                          holidayName && useCalendarDayStyling && userDetailLines.length === 0
+                                          holidayName && useCalendarDayStyling && hoverLines.length === 0
                                             ? holidayHoverText(holidayName)
-                                            : slotRestricted && userDetailLines.length === 0
-                                              ? restrictedHint
-                                              : undefined
+                                            : undefined
                                         }
                                         className={cn(
                                           "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
@@ -8258,22 +8295,33 @@ const BookEquipment = () => {
                                                   backgroundColor: displayBg,
                                                   color: getContrastTextColor(displayBg),
                                                 };
-                                                return slotRestricted ? restrictedSlotStyle(base) : base;
+                                                return lockedForUsers ? restrictedSlotStyle(base) : base;
                                               })()
                                             : isSelected ? cell3dStyle : undefined
                                         }
                                       >
                                         {isSelected ? (
                                           "✓"
-                                        ) : slotRestricted ? (
+                                        ) : lockedForUsers ? (
                                           <>
-                                            <Lock className="mr-0.5 h-3 w-3 shrink-0" aria-label="Not visible to users" />
+                                            <Lock
+                                              className="mr-0.5 h-3 w-3 shrink-0"
+                                              aria-label={slotRestricted ? "Not visible to users" : "Users cannot book this slot"}
+                                            />
                                             <span className="truncate">{displayLabel}</span>
                                           </>
                                         ) : (
                                           displayLabel
                                         )}
                                       </button>
+                                      {holidayOverride && !isSelected && (
+                                        <span
+                                          role="img"
+                                          aria-label="Holiday override"
+                                          className="pointer-events-none absolute left-0.5 top-0.5 h-2 w-2 rounded-full ring-1 ring-slate-900/50"
+                                          style={{ backgroundColor: calendarDayBg }}
+                                        />
+                                      )}
                                       {slot.status === "BOOKED" && slot.booking_id && (
                                         <button
                                           type="button"
@@ -8309,7 +8357,7 @@ const BookEquipment = () => {
                                       )}
                                     </div>
                                   );
-                                  if (userDetailLines.length === 0) return cellInner;
+                                  if (hoverLines.length === 0) return cellInner;
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -8319,9 +8367,7 @@ const BookEquipment = () => {
                                         side="top"
                                         className="z-[120] max-w-xs text-left px-3 py-2"
                                       >
-                                        <SlotHoverLines
-                                          lines={slotRestricted ? [...userDetailLines, restrictedHint] : userDetailLines}
-                                        />
+                                        <SlotHoverLines lines={hoverLines} />
                                       </TooltipContent>
                                     </Tooltip>
                                   );
