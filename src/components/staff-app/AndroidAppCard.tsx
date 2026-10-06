@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type MobileAppRelease } from "@/lib/api";
+import { SHOW_ANDROID_APP_BANNER } from "@/lib/androidAppBanner";
 import { isNativeApp } from "@/lib/nativeApp";
 import { isStaffAppUserType } from "@/lib/staffApp";
 import { cn } from "@/lib/utils";
@@ -17,11 +18,11 @@ function dismissKey(userId: unknown, versionCode: number) {
 
 /**
  * "Get the Android app" on the Officer In Charge and Lab Operator dashboards (website only).
- * Dismissing hides it until a newer version is published.
+ * Dismissing hides it until a newer version is published. Off for everyone while SHOW_ANDROID_APP_BANNER is false.
  */
 export default function AndroidAppCard({ className }: { className?: string }) {
   const { user } = useAuth();
-  const eligible = !isNativeApp() && isStaffAppUserType(user?.user_type);
+  const eligible = SHOW_ANDROID_APP_BANNER && !isNativeApp() && isStaffAppUserType(user?.user_type);
   const [release, setRelease] = useState<MobileAppRelease | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
