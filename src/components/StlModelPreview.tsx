@@ -1,203 +1,188 @@
-import { useEffect, useRef } from "react";
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { printAppearance } from "@/lib/preview3d/appearance";
+import { formatMm, isCoarsePointer, isWebGLAvailable, prefersReducedMotion } from "@/lib/preview3d/env";
+import { loadStlMesh } from "@/lib/preview3d/loadStlMesh";
+import { drawMeshToCanvas } from "@/lib/preview3d/softwareRender";
+import type { StlMeshData, StlMeshPhase } from "@/lib/preview3d/stlMesh";
+import { cn } from "@/lib/utils";
+import { PreviewStage, type ViewPreset } from "@/components/preview3d/stage";
+import { buildPrintScene } from "@/components/preview3d/printScene";
+import {
+  PREVIEW_FRAME_CLASS,
+  PREVIEW_SCENE_CLASS,
+  PreviewChip,
+  PreviewLoading,
+  PreviewNotice,
+  PreviewToolbar,
+  touchHint,
+  useFullscreen,
+} from "@/components/preview3d/PreviewChrome";
+
+export interface StlPreviewStats {
+  /** One copy. */
+  weightGrams?: number | null;
+  timeMinutes?: number | null;
+  quantity?: number | null;
+}
 
 interface StlModelPreviewProps {
   buffer: ArrayBuffer | null;
+  /** Printer build plate (x × y) and height (z), mm. */
   bedSize?: { x: number; y: number; z: number };
   className?: string;
+  /** Filament / resin, for the model's look (PLA, PETG, ABS, resin; colour words such as "Black PLA"). */
+  materialName?: string | null;
+  materialCode?: string | null;
+  /** Explicit colour, e.g. "#ff6600" or "red", when the material carries one. */
+  colorHint?: string | null;
+  layerHeightMm?: number | null;
+  /** Estimated weight / time, shown when known. */
+  stats?: StlPreviewStats | null;
 }
 
-function placeGeometryOnBed(geometry: THREE.BufferGeometry) {
-  geometry.computeBoundingBox();
-  const box = geometry.boundingBox;
-  if (!box) return;
+const PHASE_LABEL: Record<StlMeshPhase, string> = {
+  parse: "Reading the model",
+  simplify: "Simplifying a very large model for the preview",
+  normals: "Shading the surfaces",
+};
 
-  const center = new THREE.Vector3();
-  box.getCenter(center);
-  geometry.translate(-center.x, -center.y, -center.z);
+const PHASE_SPAN: Record<StlMeshPhase, [number, number]> = {
+  parse: [0, 0.45],
+  simplify: [0.45, 0.75],
+  normals: [0.75, 1],
+};
 
-  geometry.computeBoundingBox();
-  const centered = geometry.boundingBox;
-  if (centered) {
-    geometry.translate(0, -centered.min.y, 0);
-  }
+function formatMinutes(min: number): string {
+  if (min < 60) return `${Math.round(min)} min`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min - h * 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
 }
 
-function fitCameraToBox(
-  camera: THREE.PerspectiveCamera,
-  controls: OrbitControls,
-  box: THREE.Box3,
-  offset = 1.4,
-) {
-  if (box.isEmpty()) return;
-
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z, 1);
-
-  const fovRad = (camera.fov * Math.PI) / 180;
-  const fitHeight = maxDim / 2 / Math.tan(fovRad / 2);
-  const fitWidth = fitHeight / Math.max(camera.aspect, 0.1);
-  const distance = Math.max(fitHeight, fitWidth) * offset;
-
-  const direction = new THREE.Vector3(1.1, 0.85, 1.1).normalize();
-  camera.position.copy(center).addScaledVector(direction, distance);
-  camera.near = Math.max(0.1, distance / 200);
-  camera.far = distance * 200;
-  camera.updateProjectionMatrix();
-
-  controls.target.copy(center);
-  controls.maxDistance = distance * 4;
-  controls.update();
+function SoftwareView({ mesh, color }: { mesh: StlMeshData; color: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr)) || 600;
+    canvas.height = Math.max(1, Math.round(canvas.clientHeight * dpr)) || 400;
+    drawMeshToCanvas(canvas, mesh, color);
+  }, [mesh, color]);
+  return <canvas ref={ref} className="absolute inset-0 h-full w-full" data-testid="stl-preview-2d" aria-label="Shaded view of the model" role="img" />;
 }
 
-function addBuildPlate(group: THREE.Group, bed: { x: number; y: number; z: number }) {
-  const plate = new THREE.Mesh(
-    new THREE.PlaneGeometry(bed.x, bed.y),
-    new THREE.MeshBasicMaterial({
-      color: 0x64748b,
-      transparent: true,
-      opacity: 0.15,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  plate.rotation.x = -Math.PI / 2;
-  plate.position.y = 0.01;
-
-  const frame = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(bed.x, 1, bed.y)),
-    new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6 }),
-  );
-  frame.position.y = 0.5;
-
-  group.add(plate, frame);
-  return [plate, frame];
-}
-
-export function StlModelPreview({ buffer, bedSize, className }: StlModelPreviewProps) {
+export function StlModelPreview({
+  buffer,
+  bedSize,
+  className,
+  materialName,
+  materialCode,
+  colorHint,
+  layerHeightMm,
+  stats,
+}: StlModelPreviewProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<PreviewStage | null>(null);
+  const materialsRef = useRef<Array<{ wireframe: boolean }>>([]);
+  const fullscreen = useFullscreen(frameRef);
+  const webgl = useMemo(() => isWebGLAvailable(), []);
+  const [webglFailed, setWebglFailed] = useState(false);
+  const [mesh, setMesh] = useState<StlMeshData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ phase: StlMeshPhase; value: number } | null>(null);
+  const [dimensions, setDimensions] = useState(true);
+  const [wireframe, setWireframe] = useState(false);
+  const [exceedsBed, setExceedsBed] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  const appearance = useMemo(
+    () => printAppearance({ materialName, materialCode, colorHint }),
+    [materialName, materialCode, colorHint],
+  );
+  const use3d = webgl && !webglFailed;
+
+  useEffect(() => {
+    setMesh(null);
+    setLoadError(null);
+    setReady(false);
+    if (!buffer) return;
+    let cancelled = false;
+    setProgress({ phase: "parse", value: 0 });
+    const maxTriangles = !use3d ? 60_000 : isCoarsePointer() ? 200_000 : 400_000;
+    loadStlMesh(buffer, { maxTriangles }, (phase, fraction) => {
+      if (cancelled) return;
+      const [a, b] = PHASE_SPAN[phase];
+      setProgress({ phase, value: a + (b - a) * fraction });
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setMesh(data);
+        setProgress(null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setProgress(null);
+        setLoadError(e instanceof Error ? e.message : "Could not read the STL file.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [buffer, use3d]);
 
   useEffect(() => {
     const mount = mountRef.current;
-    if (!mount || !buffer) return;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0f172a);
-
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1_000_000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-    const canvas = renderer.domElement;
-    canvas.style.display = "block";
-    canvas.style.position = "absolute";
-    canvas.style.inset = "0";
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    mount.appendChild(canvas);
-
-    const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.screenSpacePanning = false;
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const key = new THREE.DirectionalLight(0xffffff, 1.2);
-    key.position.set(2, 4, 3);
-    scene.add(key);
-    const fill = new THREE.DirectionalLight(0x93c5fd, 0.5);
-    fill.position.set(-3, 2, -2);
-    scene.add(fill);
-
-    const root = new THREE.Group();
-    scene.add(root);
-
-    const loader = new STLLoader();
-    const geometry = loader.parse(buffer);
-    geometry.computeVertexNormals();
-    placeGeometryOnBed(geometry);
-
-    const mesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({
-        color: 0x3b82f6,
-        metalness: 0.12,
-        roughness: 0.5,
-      }),
-    );
-    root.add(mesh);
-
-    geometry.computeBoundingBox();
-    const modelBox = geometry.boundingBox?.clone() ?? new THREE.Box3();
-    const modelSize = modelBox.getSize(new THREE.Vector3());
-
-    const gridSpan = Math.max(bedSize?.x ?? 0, bedSize?.y ?? 0, modelSize.x, modelSize.y, 50);
-    const grid = new THREE.GridHelper(gridSpan, 20, 0x475569, 0x334155);
-    root.add(grid);
-
-    const disposables: THREE.BufferGeometry[] = [geometry, grid.geometry];
-    const materials: THREE.Material[] = [(mesh.material as THREE.Material)];
-
-    if (bedSize) {
-      const [plate, frame] = addBuildPlate(root, bedSize);
-      disposables.push(
-        plate.geometry as THREE.BufferGeometry,
-        (frame.geometry as THREE.BufferGeometry),
-      );
-      materials.push(plate.material as THREE.Material, frame.material as THREE.Material);
+    if (!use3d || !mount || !mesh) return;
+    let stage: PreviewStage;
+    try {
+      stage = new PreviewStage(mount, {
+        reducedMotion: prefersReducedMotion(),
+        coarse: isCoarsePointer(),
+        autoRotate: true,
+        onContextLost: () => setWebglFailed(true),
+      });
+    } catch {
+      setWebglFailed(true);
+      return;
     }
-
-    const fitScene = () => {
-      const box = new THREE.Box3().setFromObject(root);
-      fitCameraToBox(camera, controls, box);
-    };
-
-    const resize = () => {
-      const width = mount.clientWidth;
-      const height = mount.clientHeight;
-      if (width === 0 || height === 0) return;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height, false);
-      fitScene();
-    };
-
-    const observer = new ResizeObserver(() => resize());
-    observer.observe(mount);
-    requestAnimationFrame(() => {
-      resize();
-      fitScene();
-    });
-
-    let frameId = 0;
-    const animate = () => {
-      frameId = requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
-
+    stageRef.current = stage;
+    try {
+      const result = buildPrintScene(stage, mesh, appearance, bedSize, layerHeightMm);
+      materialsRef.current = result.materials as unknown as Array<{ wireframe: boolean }>;
+      setExceedsBed(result.exceedsBed);
+      setReady(true);
+    } catch {
+      stage.dispose();
+      stageRef.current = null;
+      setWebglFailed(true);
+      return;
+    }
     return () => {
-      cancelAnimationFrame(frameId);
-      observer.disconnect();
-      controls.dispose();
-      disposables.forEach((g) => g.dispose());
-      materials.forEach((m) => m.dispose());
-      renderer.dispose();
-      canvas.remove();
+      stage.dispose();
+      stageRef.current = null;
+      materialsRef.current = [];
+      setReady(false);
     };
-  }, [buffer, bedSize?.x, bedSize?.y, bedSize?.z]);
+    // bedSize is compared by value: callers often pass a new object literal each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [use3d, mesh, appearance, bedSize?.x, bedSize?.y, bedSize?.z, layerHeightMm]);
+
+  useEffect(() => {
+    for (const m of materialsRef.current) m.wireframe = wireframe;
+    stageRef.current?.invalidate();
+  }, [wireframe, ready]);
+
+  useEffect(() => {
+    stageRef.current?.setOverlayVisible(dimensions);
+  }, [dimensions, ready]);
 
   if (!buffer) {
     return (
       <div
         className={
           className ??
-          "flex h-[360px] w-full items-center justify-center rounded-lg border border-dashed bg-muted/20 text-sm text-muted-foreground"
+          "flex h-[420px] w-full items-center justify-center rounded-lg border border-dashed bg-muted/20 text-sm text-muted-foreground sm:h-[460px]"
         }
       >
         Upload an STL to preview the model
@@ -205,16 +190,96 @@ export function StlModelPreview({ buffer, bedSize, className }: StlModelPreviewP
     );
   }
 
+  const size = mesh ? [mesh.max[0] - mesh.min[0], mesh.max[2] - mesh.min[2], mesh.max[1] - mesh.min[1]] : null;
+  const onView = (preset: ViewPreset) => stageRef.current?.setView(preset);
+  const qty = Math.max(1, Number(stats?.quantity) || 1);
+  const weight = Number(stats?.weightGrams);
+  const minutes = Number(stats?.timeMinutes);
+
   return (
-    <div
-      className={
-        className ?? "relative h-[360px] w-full overflow-hidden rounded-lg border bg-[#0f172a]"
-      }
-    >
-      <div ref={mountRef} className="absolute inset-0" />
-      <p className="pointer-events-none absolute bottom-2 right-3 z-10 text-[10px] text-slate-400">
-        Drag to rotate · scroll to zoom
-      </p>
+    <div ref={frameRef} className={className ?? cn(PREVIEW_FRAME_CLASS, "h-[420px] sm:h-[460px]")} data-testid="stl-preview-frame">
+      <div className={PREVIEW_SCENE_CLASS}>
+      {use3d ? (
+        <div ref={mountRef} className="absolute inset-0" data-testid="stl-preview-3d" />
+      ) : mesh ? (
+        <SoftwareView mesh={mesh} color={appearance.color} />
+      ) : null}
+
+      {progress && (
+        <PreviewLoading label={`${PHASE_LABEL[progress.phase]}…`} value={progress.value > 0 ? progress.value : null} />
+      )}
+      {loadError && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+          <p className="max-w-sm rounded-md border border-destructive-border bg-destructive-subtle p-3 text-center text-xs text-destructive-subtle-foreground">
+            The preview could not draw this file: {loadError}
+          </p>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-wrap items-start justify-between gap-1.5">
+        <div className="flex min-w-0 max-w-full flex-col items-start gap-1 sm:max-w-[65%]">
+          {size && (
+            <PreviewChip testId="stl-preview-size">
+              <span className="font-medium tabular-nums">
+                {formatMm(size[0])} × {formatMm(size[1])} × {formatMm(size[2])} mm
+              </span>
+              <span className="text-muted-foreground">(W × D × H)</span>
+            </PreviewChip>
+          )}
+          {!webgl && (
+            <PreviewNotice testId="stl-preview-webgl-off">
+              Interactive 3D needs WebGL, which is turned off or not supported in this browser. Showing a still view.
+            </PreviewNotice>
+          )}
+          {webgl && webglFailed && (
+            <PreviewNotice testId="stl-preview-webgl-off">The 3D view stopped working on this device. Showing a still view.</PreviewNotice>
+          )}
+          {exceedsBed && bedSize && use3d && (
+            <PreviewNotice testId="stl-preview-exceeds">
+              Larger than the {bedSize.x} × {bedSize.y} × {bedSize.z} mm build volume.
+            </PreviewNotice>
+          )}
+          {mesh?.simplified && (
+            <PreviewChip testId="stl-preview-simplified" className="text-muted-foreground">
+              Simplified for the preview: {mesh.sourceTriangleCount.toLocaleString()} → {mesh.triangleCount.toLocaleString()} triangles
+            </PreviewChip>
+          )}
+        </div>
+        <div className="flex flex-wrap justify-end gap-1 sm:flex-col sm:items-end">
+          <PreviewChip testId="stl-preview-material">
+            <span
+              className="inline-block h-3 w-3 rounded-full border border-border"
+              style={{ backgroundColor: appearance.color }}
+              aria-hidden
+            />
+            {appearance.label}
+          </PreviewChip>
+          {(Number.isFinite(weight) && weight > 0) || (Number.isFinite(minutes) && minutes > 0) ? (
+            <PreviewChip testId="stl-preview-stats">
+              {Number.isFinite(weight) && weight > 0 && <span>{Math.ceil(weight)} g</span>}
+              {Number.isFinite(minutes) && minutes > 0 && <span>· {formatMinutes(minutes)}</span>}
+              {qty > 1 && <span className="text-muted-foreground">each</span>}
+            </PreviewChip>
+          ) : null}
+        </div>
+      </div>
+      </div>
+
+      {use3d && mesh && (
+        <PreviewToolbar
+          onView={onView}
+          dimensions={dimensions}
+          onDimensionsChange={setDimensions}
+          wireframe={wireframe}
+          onWireframeChange={setWireframe}
+          onShowSheet={() => onView("sheet")}
+          sheetLabel="Plate"
+          fullscreen={fullscreen}
+          hint={touchHint()}
+        />
+      )}
     </div>
   );
 }
+
+export default StlModelPreview;

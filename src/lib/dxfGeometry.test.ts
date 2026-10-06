@@ -55,6 +55,21 @@ describe("parseDxfGeometry", () => {
     expect(g.bounds).toEqual({ minX: 100, minY: 50, maxX: 140, maxY: 70 });
   });
 
+  it("keeps each path's layer, with block entities on layer 0 taking the INSERT's layer", () => {
+    const blocks = [
+      "0", "SECTION", "2", "BLOCKS",
+      "0", "BLOCK", "8", "0", "2", "LOGO", "70", "0", "10", "0", "20", "0",
+      circle(0, 0, 2),
+      ["0", "CIRCLE", "8", "CUT", "10", "5", "20", "0", "40", "1"].join("\n"),
+      "0", "ENDBLK",
+      "0", "ENDSEC",
+    ].join("\n");
+    const insert = ["0", "INSERT", "8", "ENGRAVE", "2", "LOGO", "10", "50", "20", "50"].join("\n");
+    const text = ["0", "LINE", "8", "Etch", "10", "10", "20", "10", "11", "40", "21", "10"].join("\n");
+    const g = parseDxfGeometry(dxf([header(4), blocks, entities(rect(0, 0, 200, 100), insert, text)]));
+    expect(g.paths.map((p) => p.layer)).toEqual(["0", "ENGRAVE", "CUT", "Etch"]);
+  });
+
   it("builds a region with a hole for the 3D extrusion", () => {
     const g = parseDxfGeometry(dxf([header(4), entities(rect(0, 0, 200, 100), circle(50, 50, 10))]));
     const regions = buildRegions(g);

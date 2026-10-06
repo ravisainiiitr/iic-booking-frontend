@@ -696,6 +696,13 @@ export function Print3DBookingPanel({
 
   const currentPreviewBuffer = previewEntries[previewIndex]?.buffer ?? null;
   const currentPreviewFilename = previewEntries[previewIndex]?.filename ?? "";
+  const currentPreviewItem =
+    completedItems.find((i) => i.filename.toLowerCase() === currentPreviewFilename.toLowerCase()) ??
+    (completedItems.length === 1 && previewEntries.length === 1 ? completedItems[0] : undefined);
+  const previewLayerHeight = Number(
+    (analysis?.slicer_settings ?? batch?.slicer_settings)?.layer_height_mm,
+  );
+  const previewColor = (selectedMaterial as { color?: string; colour?: string; color_hex?: string } | undefined);
 
   useEffect(() => {
     setPreviewIndex(0);
@@ -841,9 +848,25 @@ export function Print3DBookingPanel({
               </div>
             )}
             <Suspense
-              fallback={<div className="h-[360px] w-full animate-pulse rounded-lg border bg-muted" aria-label="Loading 3D preview" />}
+              fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading 3D preview" />}
             >
-              <StlModelPreview buffer={currentPreviewBuffer} bedSize={bedSize} />
+              <StlModelPreview
+                buffer={currentPreviewBuffer}
+                bedSize={bedSize}
+                materialName={selectedMaterial?.name ?? null}
+                materialCode={selectedMaterial?.code ?? null}
+                colorHint={previewColor?.color_hex ?? previewColor?.color ?? previewColor?.colour ?? null}
+                layerHeightMm={Number.isFinite(previewLayerHeight) && previewLayerHeight > 0 ? previewLayerHeight : null}
+                stats={
+                  currentPreviewItem
+                    ? {
+                        weightGrams: currentPreviewItem.weightGramsEach,
+                        timeMinutes: currentPreviewItem.timeMinutesEach,
+                        quantity: currentPreviewItem.quantity,
+                      }
+                    : null
+                }
+              />
             </Suspense>
           </div>
         )}

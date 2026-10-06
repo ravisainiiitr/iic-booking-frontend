@@ -321,6 +321,11 @@ export function LaserCutBookingPanel({
           thicknessMm: material ? Number(material.thickness_mm) : null,
           widthMm: p.width_mm != null ? Number(p.width_mm) : null,
           heightMm: p.height_mm != null ? Number(p.height_mm) : null,
+          materialName: material?.name ?? p.material_name ?? null,
+          materialCode: material?.code ?? p.material_code_snapshot ?? null,
+          materialFamily: material?.material_family ?? null,
+          sheetWidthMm: material ? Number(material.sheet_width_mm) || null : null,
+          sheetHeightMm: material ? Number(material.sheet_height_mm) || null : null,
           error: failed ? p.error_message || "This DXF could not be read." : null,
           metrics: failed
             ? []

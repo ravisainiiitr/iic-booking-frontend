@@ -4453,6 +4453,20 @@ class ApiClient {
     return this.request<{ url: string }>(`/print-analyses/${analysisId}/stl-presign/`);
   }
 
+  /** STL bytes of an uploaded model, streamed through the API (used to draw the booking preview). */
+  async getPrintAnalysisStlBuffer(analysisId: string): Promise<{ buffer?: ArrayBuffer; error?: string }> {
+    const token = this.getToken();
+    try {
+      const res = await fetch(`${this.baseURL}/print-analyses/${analysisId}/stl/`, {
+        headers: token ? { Authorization: `Token ${token}` } : {},
+      });
+      if (!res.ok) return { error: `HTTP ${res.status}` };
+      return { buffer: await res.arrayBuffer() };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Download failed" };
+    }
+  }
+
   async recalculatePrintAnalysis(
     analysisId: string,
     params: {

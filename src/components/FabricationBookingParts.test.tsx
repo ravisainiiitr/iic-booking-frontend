@@ -17,6 +17,9 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiClient: api,
 }));
 vi.mock("@/components/DxfModelPreview", () => ({ default: () => null }));
+vi.mock("@/components/BookedStlPreview", () => ({
+  default: ({ parts }: { parts: FabricationPart[] }) => <div data-testid="booked-stl-stub">{parts.map((p) => p.filename).join(",")}</div>,
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { FabricationBookingParts, fabricationPartDetail, type FabricationBookingFields } from "@/components/FabricationBookingParts";
@@ -172,6 +175,25 @@ describe("FabricationBookingParts", () => {
     fireEvent.click(screen.getByTestId("fabrication-replace-submit"));
 
     await waitFor(() => expect(api.replaceBookingFabricationFiles).toHaveBeenCalledWith(673, expect.any(Object)));
+  });
+
+  it("offers a 3D preview of the STL files on a 3D print booking, but not on the printed job sheet", async () => {
+    const printParts: FabricationPart[] = [
+      { kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1 },
+      { kind: "print", analysis_id: "p2", name: "Hub", filename: "hub.stl", quantity: 2 },
+    ];
+    const printBooking = booking({ equipment_profile_type: "PRINT_3D", fabrication_parts: printParts });
+    const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
+
+    const toggle = screen.getByTestId("print-preview-toggle");
+    expect(toggle.textContent).toContain("Preview 2 STL files");
+    fireEvent.click(toggle);
+    expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("gear.stl,hub.stl");
+    expect(toggle.textContent).toContain("Hide preview");
+    unmount();
+
+    render(<FabricationBookingParts booking={printBooking} printable />);
+    expect(screen.queryByTestId("print-preview-toggle")).toBeNull();
   });
 
   it("blocks a quantity below one", async () => {

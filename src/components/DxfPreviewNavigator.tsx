@@ -30,6 +30,13 @@ export interface DxfPreviewItem {
   metrics?: DxfPreviewMetric[];
   /** Shown instead of the drawing, e.g. when the server could not measure the file. */
   error?: string | null;
+  /** Sheet material, for the 3D look (acrylic, plywood, MDF, steel…). */
+  materialName?: string | null;
+  materialCode?: string | null;
+  materialFamily?: string | null;
+  /** Stock sheet size, mm. */
+  sheetWidthMm?: number | null;
+  sheetHeightMm?: number | null;
 }
 
 function num(value: string | number | null | undefined): number | null {
@@ -240,7 +247,7 @@ export function DxfPreviewNavigator({ items, activeId, onActiveChange, className
             {item.error}
           </p>
         ) : item.geometry === undefined ? (
-          <div className="h-[320px] w-full animate-pulse rounded-lg border bg-muted" aria-label="Loading preview" role="status" />
+          <div className="h-[400px] w-full animate-pulse rounded-lg border bg-muted sm:h-[440px]" aria-label="Loading preview" role="status" />
         ) : item.geometry === null ? (
           <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
             The preview cannot draw this file (for example a binary DXF), but the server measured it
@@ -248,7 +255,7 @@ export function DxfPreviewNavigator({ items, activeId, onActiveChange, className
           </p>
         ) : (
           <Suspense
-            fallback={<div className="h-[320px] w-full animate-pulse rounded-lg border bg-muted" aria-label="Loading preview" />}
+            fallback={<div className="h-[400px] w-full animate-pulse rounded-lg border bg-muted sm:h-[440px]" aria-label="Loading preview" />}
           >
             <DxfModelPreview
               key={item.id}
@@ -257,6 +264,11 @@ export function DxfPreviewNavigator({ items, activeId, onActiveChange, className
               thicknessMm={item.thicknessMm ?? null}
               widthMm={item.widthMm ?? null}
               heightMm={item.heightMm ?? null}
+              materialName={item.materialName ?? null}
+              materialCode={item.materialCode ?? null}
+              materialFamily={item.materialFamily ?? null}
+              sheetWidthMm={item.sheetWidthMm ?? null}
+              sheetHeightMm={item.sheetHeightMm ?? null}
             />
           </Suspense>
         )}

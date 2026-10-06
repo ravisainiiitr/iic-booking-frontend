@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Box, Download, FileCog, History, Loader2 } from "lucide-react";
 import {
@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LaserCutBookingPanel, materialLabel, type LaserCutBookingValues } from "@/components/LaserCutBookingPanel";
 import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Print3DBookingPanel";
+
+const BookedStlPreview = lazy(() => import("@/components/BookedStlPreview"));
 
 export interface FabricationBookingFields {
   booking_id: number | string;
@@ -148,6 +150,10 @@ export function BookedDxfPreview({ parts }: { parts: FabricationPart[] }) {
         thicknessMm: num(p.thickness_mm),
         widthMm: num(p.width_mm),
         heightMm: num(p.height_mm),
+        materialName: p.material_name || null,
+        materialCode: p.material_code || null,
+        sheetWidthMm: num(p.sheet_width_mm),
+        sheetHeightMm: num(p.sheet_height_mm),
         metrics: laserPartMetrics({
           widthMm: p.width_mm,
           heightMm: p.height_mm,
@@ -242,7 +248,7 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
           ))}
         </ul>
       )}
-      {!printable && isLaser && parts.length > 0 && (
+      {!printable && parts.length > 0 && (
         <div className="space-y-2">
           <Button
             type="button"
@@ -250,12 +256,23 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             variant="outline"
             aria-expanded={previewOpen}
             onClick={() => setPreviewOpen((v) => !v)}
-            data-testid="laser-preview-toggle"
+            data-testid={isLaser ? "laser-preview-toggle" : "print-preview-toggle"}
           >
             <Box className="mr-1 h-4 w-4" />
-            {previewOpen ? "Hide preview" : parts.length > 1 ? `Preview ${parts.length} DXF files` : "Preview DXF"}
+            {previewOpen
+              ? "Hide preview"
+              : parts.length > 1
+                ? `Preview ${parts.length} ${isLaser ? "DXF" : "STL"} files`
+                : `Preview ${isLaser ? "DXF" : "STL"}`}
           </Button>
-          {previewOpen && <BookedDxfPreview parts={parts} />}
+          {previewOpen &&
+            (isLaser ? (
+              <BookedDxfPreview parts={parts} />
+            ) : (
+              <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading preview" />}>
+                <BookedStlPreview parts={parts} />
+              </Suspense>
+            ))}
         </div>
       )}
       {!printable && replaceable && !replaceable.allowed && replaceable.reason && (

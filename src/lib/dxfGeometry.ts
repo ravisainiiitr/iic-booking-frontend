@@ -32,6 +32,8 @@ export type Point2 = [number, number];
 export interface DxfPath {
   points: Point2[];
   closed: boolean;
+  /** DXF layer (entities on layer "0" inside a block take the INSERT's layer). */
+  layer?: string;
 }
 
 export interface DxfBounds {
@@ -403,7 +405,11 @@ export function parseDxfGeometry(text: string): DxfGeometry {
   let entityCount = 0;
   let truncated = false;
 
-  const walk = (entities: RawEntity[], transform: Transform, depth: number) => {
+  const layerOf = (entity: RawEntity, inherited: string) => {
+    const own = str(entity.groups, 8);
+    return !own || own === "0" ? inherited || own : own;
+  };
+  const walk = (entities: RawEntity[], transform: Transform, depth: number, inheritedLayer: string) => {
     for (const entity of entities) {
       if (truncated) return;
       if (entity.type === "INSERT") {
@@ -415,10 +421,11 @@ export function parseDxfGeometry(text: string): DxfGeometry {
         }
         const cols = Math.max(1, Math.min(100, num(entity.groups, 70, 1)));
         const rows = Math.max(1, Math.min(100, num(entity.groups, 71, 1)));
+        const insertLayer = layerOf(entity, inheritedLayer);
         for (let r = 0; r < rows; r += 1) {
           for (let c = 0; c < cols; c += 1) {
             const local = insertTransform(entity, block, c, r);
-            walk(block.entities, (p) => transform(local(p)), depth + 1);
+            walk(block.entities, (p) => transform(local(p)), depth + 1, insertLayer);
           }
         }
         continue;
@@ -432,12 +439,15 @@ export function parseDxfGeometry(text: string): DxfGeometry {
         warnings.push("The drawing is very large; only part of it is shown in the preview.");
         return;
       }
+      const layer = layerOf(entity, inheritedLayer);
       for (const path of entityPaths) {
-        paths.push({ closed: path.closed, points: transform === identity ? path.points : path.points.map(transform) });
+        const out: DxfPath = { closed: path.closed, points: transform === identity ? path.points : path.points.map(transform) };
+        if (layer) out.layer = layer;
+        paths.push(out);
       }
     }
   };
-  walk(modelEntities, identity, 0);
+  walk(modelEntities, identity, 0, "");
 
   let bounds: DxfBounds | null = null;
   for (const path of paths) {
