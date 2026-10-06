@@ -63,6 +63,8 @@ type GroupRow = {
   quotas?: Array<Partial<QuotaRow> & { quota_type: string }>;
 };
 
+/** Individual Students see the IITR Student instruction, so they get no instruction of their own. */
+const INSTRUCTION_HIDDEN_USER_TYPES = new Set(["individual_student"]);
 const NO_WEEKDAY = "__none__";
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const QUOTA_TYPES = ["WEEKLY", "MONTHLY"] as const;
@@ -182,7 +184,11 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     max_rush_relief_requests_per_week: optionalCount(settings.max_rush_relief_requests_per_week),
     max_surcharge_urgent_requests_per_week: optionalCount(settings.max_surcharge_urgent_requests_per_week),
     important_instruction: settings.important_instruction ?? "",
-    important_instruction_by_user_type: { ...(settings.important_instruction_by_user_type ?? {}) },
+    important_instruction_by_user_type: Object.fromEntries(
+      Object.entries(settings.important_instruction_by_user_type ?? {}).filter(
+        ([code]) => !INSTRUCTION_HIDDEN_USER_TYPES.has(code),
+      ),
+    ),
   };
 }
 
@@ -329,7 +335,9 @@ export default function OICEquipmentSettings() {
       if (typeof res.data?.can_edit_slot_window_reference === "boolean") {
         setCanEditSlotWindowReference(res.data.can_edit_slot_window_reference);
       }
-      setInstructionUserTypes(res.data?.instruction_user_types ?? []);
+      setInstructionUserTypes(
+        (res.data?.instruction_user_types ?? []).filter((o) => !INSTRUCTION_HIDDEN_USER_TYPES.has(o.value)),
+      );
       if (list.length > 0) setSelectedId(String(list[0].equipment_id));
     });
     void apiClient.getOicEquipmentGroupQuotas().then((res) => {
@@ -537,7 +545,7 @@ export default function OICEquipmentSettings() {
                       Shown as a note on the equipment page and when booking. Format it like a Word document: text
                       size, bold, colours, bulleted and numbered lists, and links. Click Preview to see it as users
                       will. The default applies to every user type that has no instruction of its own. Leave empty
-                      to show nothing.
+                      to show nothing. Individual Students see the IITR Student instruction.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">

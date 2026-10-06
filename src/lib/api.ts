@@ -22,7 +22,13 @@ import { myBookingAttemptsQuery, type MyBookingAttemptsPage, type MyBookingAttem
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
-import type { OicSubstituteOptions, OicSubstitutePerson, OicSubstitution } from "@/lib/oicSubstitute";
+import type {
+  OicBulkAssignment,
+  OicBulkRowError,
+  OicSubstituteOptions,
+  OicSubstitutePerson,
+  OicSubstitution,
+} from "@/lib/oicSubstitute";
 import type {
   ModeAvailability,
   MultiModeFamilyDetail,
@@ -2522,6 +2528,7 @@ class ApiClient {
               field === 'waitlist_full' ||
               field === 'virtual_booking_id' ||
               field === 'quota' ||
+              field === 'row_errors' ||
               (field === 'message' && !data.email_verified)
             ) {
               continue;
@@ -13378,9 +13385,10 @@ class ApiClient {
   }
 
   /** OIC Substitute: search active OICs of the OIC's own department (enforced by the backend). */
-  async searchOicSubstituteCandidates(search: string) {
+  async searchOicSubstituteCandidates(search: string, limit?: number) {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
+    if (limit) params.set("limit", String(limit));
     const q = params.toString();
     return this.request<{ department: { id: number; name: string } | null; candidates: OicSubstitutePerson[] }>(
       q ? `/equipments/oic-substitutes/candidates/?${q}` : '/equipments/oic-substitutes/candidates/',
@@ -13422,6 +13430,27 @@ class ApiClient {
     return this.request<{ item: OicSubstitution; message: string }>(
       `/equipments/oic-substitutes/${delegationId}/end/`,
       { method: 'POST', body: JSON.stringify({ reason }) }
+    );
+  }
+
+  /** OIC Substitute: assign substitutes for several equipment at once (all or nothing; `row_errors` on failure). */
+  async createOicSubstitutionsBulk(payload: {
+    assignments: OicBulkAssignment[];
+    start_date: string;
+    end_date: string;
+    reason: string;
+  }) {
+    return this.request<{ items?: OicSubstitution[]; message?: string; row_errors?: OicBulkRowError[] }>(
+      '/equipments/oic-substitutes/bulk/',
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** OIC Substitute: cancel / revoke several substitutions with one reason (all or nothing). */
+  async endOicSubstitutionsBulk(ids: number[], reason: string) {
+    return this.request<{ items?: OicSubstitution[]; message?: string; row_errors?: OicBulkRowError[] }>(
+      '/equipments/oic-substitutes/bulk-end/',
+      { method: 'POST', body: JSON.stringify({ ids, reason }) }
     );
   }
 
