@@ -255,7 +255,7 @@ const SelfVerify = () => {
           </div>
           <div className="flex gap-3">
             <Button
-              className="flex-1 bg-green-700 hover:bg-green-800"
+              className="flex-1 bg-green-700 text-white hover:bg-green-800"
               onClick={handleAccept}
               disabled={submitting !== null}
             >

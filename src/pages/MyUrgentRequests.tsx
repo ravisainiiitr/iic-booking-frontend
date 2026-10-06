@@ -500,7 +500,7 @@ const MyUrgentRequests = () => {
                     </p>
                     <Button
                       size="sm"
-                      className="bg-green-700 hover:bg-green-800"
+                      className="bg-green-700 text-white hover:bg-green-800"
                       onClick={() => navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}`)}
                     >
                       Book this equipment
@@ -520,7 +520,7 @@ const MyUrgentRequests = () => {
                     </p>
                     <Button
                       size="sm"
-                      className="bg-emerald-700 hover:bg-emerald-800"
+                      className="bg-emerald-700 text-white hover:bg-emerald-800"
                       onClick={() => {
                         setUrgentRequestType("NO_SLOT");
                         navigate(

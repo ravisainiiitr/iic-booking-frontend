@@ -1899,7 +1899,7 @@ const MyBookings = () => {
             <div className="flex flex-col gap-3">
               {resultsDialogBookingId != null && (
                 <Button
-                  className="w-full bg-green-700 hover:bg-green-800"
+                  className="w-full bg-green-700 text-white hover:bg-green-800"
                   disabled={zipDownloadInProgress}
                   onClick={async () => {
                     setZipDownloadInProgress(true);

@@ -182,7 +182,7 @@ export default function SharedWithMe() {
                         </div>
                         <Button
                           size="sm"
-                          className="gap-1 bg-green-700 hover:bg-green-800"
+                          className="gap-1 bg-green-700 text-white hover:bg-green-800"
                           disabled={!item.results_accessible}
                           onClick={() => setDialogItem(item)}
                         >

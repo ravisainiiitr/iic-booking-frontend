@@ -408,7 +408,7 @@ export default function EquipmentSoftwareMapping() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold">{c.name}</p>
                             {c.vendor ? <Badge variant="secondary">{c.vendor}</Badge> : null}
-                            {already ? <Badge className="bg-emerald-700 hover:bg-emerald-700">Selected</Badge> : null}
+                            {already ? <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">Selected</Badge> : null}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             Installed on: {Number(c.installed_count ?? 0)} RAA PC

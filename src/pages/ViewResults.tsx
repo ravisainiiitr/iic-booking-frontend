@@ -63,7 +63,7 @@ export default function ViewResults() {
               </div>
             )}
           >
-            {newCount > 0 ? <Badge className="bg-green-700 hover:bg-green-700">{newCount} new</Badge> : null}
+            {newCount > 0 ? <Badge className="bg-green-700 text-white hover:bg-green-700">{newCount} new</Badge> : null}
             <Button
               type="button"
               variant="outline"
@@ -103,7 +103,7 @@ export default function ViewResults() {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold">{item.equipment_name}</span>
                             {item.is_new ? (
-                              <Badge className="bg-green-700 hover:bg-green-700">New</Badge>
+                              <Badge className="bg-green-700 text-white hover:bg-green-700">New</Badge>
                             ) : (
                               <Badge variant="secondary">Viewed</Badge>
                             )}
@@ -145,7 +145,7 @@ export default function ViewResults() {
                           ) : null}
                           <Button
                             size="sm"
-                            className="gap-1 bg-green-700 hover:bg-green-800"
+                            className="gap-1 bg-green-700 text-white hover:bg-green-800"
                             disabled={item.locked_code === "not_completed" || item.locked_code === "rating_required"}
                             onClick={() => setDialogItem(item)}
                           >

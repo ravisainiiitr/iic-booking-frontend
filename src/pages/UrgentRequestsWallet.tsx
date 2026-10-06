@@ -534,7 +534,7 @@ const UrgentRequestsWallet = () => {
                               <Badge variant="secondary">Pending your approval</Badge>
                             ) : tab === "approved" ? (
                               <div className="text-sm">
-                                <Badge className="bg-green-700">Approved by you</Badge>
+                                <Badge className="bg-green-700 text-white">Approved by you</Badge>
                                 {row.wallet_approved_at && (
                                   <div className="text-xs text-muted-foreground mt-1">
                                     {format(new Date(row.wallet_approved_at), "dd MMM yyyy")}

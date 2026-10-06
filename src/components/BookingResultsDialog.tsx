@@ -144,7 +144,7 @@ export function BookingResultsDialog({
           <p className="text-sm text-muted-foreground">No result files were found for this booking.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            <Button className="w-full bg-green-700 hover:bg-green-800" disabled={zipInProgress} onClick={downloadZip}>
+            <Button className="w-full bg-green-700 text-white hover:bg-green-800" disabled={zipInProgress} onClick={downloadZip}>
               <FolderDown className="h-4 w-4 mr-2" />
               {zipInProgress ? "Preparing ZIP..." : "Download folder (ZIP)"}
             </Button>

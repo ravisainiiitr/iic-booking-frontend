@@ -92,7 +92,7 @@ function optionLabel(o: NewEquipmentOption) {
 
 function statusBadge(status?: string) {
   const s = (status || "UNMAPPED").toUpperCase();
-  if (s === "ACTIVE") return <Badge className="bg-emerald-700">Mapped</Badge>;
+  if (s === "ACTIVE") return <Badge className="bg-emerald-700 text-white">Mapped</Badge>;
   if (s === "CAPACITY_SPLIT") return <Badge className="bg-violet-700">Capacity split</Badge>;
   if (s === "CONFLICT") return <Badge variant="destructive">Conflict</Badge>;
   if (s === "RETIRED") return <Badge variant="secondary">Not required</Badge>;

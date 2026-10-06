@@ -1021,7 +1021,7 @@
    (so cells still match the legend) but tones them down so a week grid is not a wall of pastel glare. */
 @media screen and (prefers-color-scheme: dark) {
   .calendar-color-cell {
-    filter: brightness(0.78) saturate(1.15);
+    filter: brightness(0.7) saturate(1.2);
   }
 }
 
