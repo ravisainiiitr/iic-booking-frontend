@@ -192,10 +192,10 @@ export function oicConfigSection(g: Gate): GuideSection {
         title: "Accessories and modes",
         body: "Use Accessories, 3D Print Materials (where applicable) and Multi-Mode Equipment to keep options and mode schedules current.",
       },
-      g.when(g.flags.oicLeaveManagement, {
+      {
         title: "Cover your leave",
-        body: "Use Temporary OIC / Leave Management to delegate your equipment before planned leave.",
-      }),
+        body: "Before planned leave, open OIC Substitute to let another OIC of your department manage your equipment for those days.",
+      },
     ]),
     rules: [
       "A lead time of 0 means no sample deadline. With both values at 0 (walk-in), no sample emails are sent and bookings are not marked Not Utilized automatically.",

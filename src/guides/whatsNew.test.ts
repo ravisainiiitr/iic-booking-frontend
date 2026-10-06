@@ -32,6 +32,16 @@ describe("What's New", () => {
     expect(ids(buildGuide({ audience: "faculty" }))).not.toContain("wallet-modes-departments");
   });
 
+  it("announces OIC Substitute to Officers In Charge only", () => {
+    const oic = buildGuide({ audience: "oic", flags: { training: true } });
+    expect(ids(oic)[0]).toBe("oic-substitute");
+    expect(ids(oic)).toContain("training-oic");
+    expect(oic.whatsNew.items.length).toBeLessThanOrEqual(10);
+    for (const audience of ["admin", "dept_admin", "operator", "student"] as const) {
+      expect(ids(buildGuide({ audience }))).not.toContain("oic-substitute");
+    }
+  });
+
   it("announces Change slot status in the menu to Officers In Charge and the Main Administrator only", () => {
     for (const audience of ["oic", "admin"] as const) {
       for (const flags of [{}, { training: true }]) {

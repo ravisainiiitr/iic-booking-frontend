@@ -22,6 +22,7 @@ import { myBookingAttemptsQuery, type MyBookingAttemptsPage, type MyBookingAttem
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
+import type { OicSubstituteOptions, OicSubstitutePerson, OicSubstitution } from "@/lib/oicSubstitute";
 import type {
   EmailDecisionItem,
   EmailDecisionResult,
@@ -12825,81 +12826,56 @@ class ApiClient {
     );
   }
 
-  /** OIC: list other OIC users for temporary OIC dropdown (excludes current user). Optional search by name/email. */
-  async getTemporaryOicOicUsers(search?: string) {
+  /** OIC Substitute: role, department and the equipment the OIC is the permanent OIC of. */
+  async getOicSubstituteOptions() {
+    return this.request<OicSubstituteOptions>('/equipments/oic-substitutes/options/', { method: 'GET' });
+  }
+
+  /** OIC Substitute: search active OICs of the OIC's own department (enforced by the backend). */
+  async searchOicSubstituteCandidates(search: string) {
     const params = new URLSearchParams();
-    if (search != null && search.trim() !== "") params.set("search", search.trim());
+    if (search.trim()) params.set("search", search.trim());
     const q = params.toString();
-    return this.request<{ oic_users: Array<{ id: number; name: string; email: string }> }>(
-      q ? `/equipments/temporary-oic/oic-users/?${q}` : '/equipments/temporary-oic/oic-users/',
+    return this.request<{ department: { id: number; name: string } | null; candidates: OicSubstitutePerson[] }>(
+      q ? `/equipments/oic-substitutes/candidates/?${q}` : '/equipments/oic-substitutes/candidates/',
       { method: 'GET' }
     );
   }
 
-  /** OIC: list equipments for which current user is primary OIC. */
-  async getTemporaryOicMyEquipments() {
-    return this.request<{ equipments: Array<{ id: number; code: string; name: string }> }>(
-      '/equipments/temporary-oic/my-equipments/',
-      { method: 'GET' }
-    );
-  }
-
-  /** OIC: create temporary OIC delegation. */
-  async createTemporaryOic(equipmentId: number, temporaryOicId: number, resumeAt: string) {
+  /** OIC Substitute: an OIC gets what they granted and what was assigned to them; the Main Admin gets all. */
+  async getOicSubstitutions(filters: { status?: string; search?: string } = {}) {
+    const params = new URLSearchParams();
+    if (filters.status) params.set("status", filters.status);
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    const q = params.toString();
     return this.request<{
-      id: number;
-      equipment_id: number;
-      equipment_code: string;
-      temporary_oic_id: number;
-      temporary_oic_name: string;
-      resume_at: string;
-      message: string;
-    }>('/equipments/temporary-oic/', {
+      scope: "oic" | "admin";
+      granted?: OicSubstitution[];
+      assigned_to_me?: OicSubstitution[];
+      items?: OicSubstitution[];
+      limit?: number;
+    }>(q ? `/equipments/oic-substitutes/?${q}` : '/equipments/oic-substitutes/', { method: 'GET' });
+  }
+
+  /** OIC Substitute: give one or more same-department OICs access to an equipment for whole IST days. */
+  async createOicSubstitution(payload: {
+    equipment_id: number;
+    substitute_ids: number[];
+    start_date: string;
+    end_date: string;
+    reason: string;
+  }) {
+    return this.request<{ items: OicSubstitution[]; message: string }>('/equipments/oic-substitutes/', {
       method: 'POST',
-      body: JSON.stringify({
-        equipment_id: equipmentId,
-        temporary_oic_id: temporaryOicId,
-        resume_at: resumeAt,
-      }),
+      body: JSON.stringify(payload),
     });
   }
 
-  /** OIC: list my active temporary OIC delegations. */
-  async getTemporaryOicMine() {
-    return this.request<{
-      delegations: Array<{
-        id: number;
-        equipment_id: number;
-        equipment_code: string;
-        equipment_name: string;
-        temporary_oic_id: number;
-        temporary_oic_name: string;
-        temporary_oic_email: string;
-        resume_at: string;
-        created_at: string;
-      }>;
-    }>('/equipments/temporary-oic/mine/', { method: 'GET' });
-  }
-
-  /** OIC: update a temporary OIC delegation's resume date/time (only primary OIC). */
-  async updateTemporaryOic(delegationId: number, resumeAt: string) {
-    return this.request<{
-      message: string;
-      id: number;
-      resume_at: string;
-      equipment_code: string;
-      temporary_oic_name: string;
-    }>(`/equipments/temporary-oic/${delegationId}/`, {
-      method: 'PATCH',
-      body: JSON.stringify({ resume_at: resumeAt }),
-    });
-  }
-
-  /** OIC: cancel a temporary OIC delegation (only primary OIC). */
-  async cancelTemporaryOic(delegationId: number) {
-    return this.request<{ message: string }>(
-      `/equipments/temporary-oic/${delegationId}/cancel/`,
-      { method: 'DELETE' }
+  /** OIC Substitute: cancel (scheduled) or revoke (active) with a reason. */
+  async endOicSubstitution(delegationId: number, reason: string) {
+    return this.request<{ item: OicSubstitution; message: string }>(
+      `/equipments/oic-substitutes/${delegationId}/end/`,
+      { method: 'POST', body: JSON.stringify({ reason }) }
     );
   }
 
