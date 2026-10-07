@@ -19,7 +19,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
     steps: compact([
       {
         title: "Find bookings",
-        body: "Use search, Status, dates and All equipment; More filters shows the rest. Click any column heading to sort.",
+        body: "Use search, Status, dates and All equipment; More filters shows the rest. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. Click any column heading to sort.",
       },
       {
         title: "Check who booked",

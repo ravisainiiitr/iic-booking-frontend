@@ -45,6 +45,7 @@ import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
 import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwaitingCard";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -130,6 +131,7 @@ const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsOffset, setBookingsOffset] = useState(0);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
@@ -153,6 +155,10 @@ const BookingManagement = () => {
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [clearNonce, setClearNonce] = useState(0);
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(searchQuery);
+  const [userNameTerm, setUserNameTerm] = useLiveSearchTerm(userNameFilter);
+  const [supervisorNameTerm, setSupervisorNameTerm] = useLiveSearchTerm(supervisorNameFilter);
 
   // Check if user is operator, manager, admin, or department administrator
   const userType: any = user?.user_type;
@@ -177,12 +183,10 @@ const BookingManagement = () => {
       navigate("/dashboard");
       return;
     }
-
-    fetchBookings();
     // Depend on user.id (stable), not the whole user object — AuthContext session
     // polling must not reload this list every 15s.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, navigate, authLoading, isAuthenticated, user?.id, isOperatorOrManager]);
+  }, [navigate, authLoading, isAuthenticated, user?.id, isOperatorOrManager]);
 
   // ?expand=<booking pk or display id> (repeat sample / urgent requests, Change slot status): open that booking
   // whatever its status, and list it by clearing the status filter and searching for its booking ID.
@@ -208,8 +212,7 @@ const BookingManagement = () => {
       const ref = b.virtual_booking_id || String(b.booking_id);
       setStatusFilter("all");
       setSearchQuery(ref);
-      setPage(1);
-      void fetchBookings(1, { filters: { status: "all", search: ref } });
+      setSearchTerm(ref);
       setOverrideBooking(b);
       setDetailBooking(null);
       setSelectedBookingId(b.booking_id);
@@ -254,42 +257,36 @@ const BookingManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBookingId, overrideBooking?.booking_id]);
 
-  const fetchBookings = async (
-    pageOverride?: number,
-    opts?: { silent?: boolean; filters?: { status?: string; search?: string }; ordering?: string }
-  ) => {
+  const fetchBookings = async (pageOverride?: number, opts?: { silent?: boolean }) => {
     const seq = ++fetchSeqRef.current;
     try {
       if (!opts?.silent) setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
-      const effectiveStatus = opts?.filters?.status ?? statusFilter;
-      const effectiveSearch = (opts?.filters?.search ?? searchQuery).trim();
-      const effectiveOrdering = opts?.ordering ?? ordering;
+      const offset = (currentPage - 1) * PAGE_SIZE;
       const params: any = {
         limit: PAGE_SIZE,
-        offset: (currentPage - 1) * PAGE_SIZE,
+        offset,
         list_view: true,
       };
-      if (effectiveOrdering) params.ordering = effectiveOrdering;
-      if (effectiveStatus === RESULTS_OVERDUE_FILTER) {
+      if (ordering) params.ordering = ordering;
+      if (statusFilter === RESULTS_OVERDUE_FILTER) {
         params.results_overdue = true;
-      } else if (effectiveStatus !== "all") {
-        params.status = effectiveStatus;
+      } else if (statusFilter !== "all") {
+        params.status = statusFilter;
       }
-      if (effectiveSearch) {
-        params.search = effectiveSearch;
-      }
+      if (searchTerm) params.search = searchTerm;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
-      if (!isLabInchargeUser && userNameFilter.trim()) params.user_name = userNameFilter.trim();
-      if (!isLabInchargeUser && supervisorNameFilter.trim()) params.supervisor_name = supervisorNameFilter.trim();
+      if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
+      if (!isLabInchargeUser && supervisorNameTerm) params.supervisor_name = supervisorNameTerm;
       if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
       if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
       const response = await apiClient.getBookings(params);
       if (seq !== fetchSeqRef.current) return;
       if (response.data && response.data.bookings) {
         setBookings(response.data.bookings);
+        setBookingsOffset(offset);
         setTotalCount(response.data.total_count ?? response.data.bookings.length);
       } else {
         setBookings([]);
@@ -319,40 +316,63 @@ const BookingManagement = () => {
     }).catch(() => {});
   }, [isOperatorOrManager, isAuthenticated]);
 
-  const handleApplyFilters = () => {
-    setPage(1);
-    closeDetail();
-    fetchBookings(1);
-  };
-
-  const [clearNonce, setClearNonce] = useState(0);
+  // Filters apply as soon as they change (search and name boxes after a short pause): any change
+  // goes back to page 1, and fetchBookings ignores responses that a newer request has overtaken.
+  const canLoadBookings = !authLoading && isAuthenticated && user?.id != null && isOperatorOrManager;
+  const filterKey = JSON.stringify([
+    statusFilter,
+    searchTerm,
+    startDate,
+    endDate,
+    equipmentFilter,
+    userNameTerm,
+    supervisorNameTerm,
+    userTypeFilter,
+    istemFbrFilter,
+    ordering,
+    clearNonce,
+  ]);
+  const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
-    if (clearNonce === 0) return;
-    void fetchBookings(1);
+    const filtersChanged = loadedFilterKeyRef.current !== filterKey;
+    loadedFilterKeyRef.current = filterKey;
+    if (!canLoadBookings) return;
+    if (filtersChanged && page !== 1) {
+      setPage(1);
+      return;
+    }
+    void fetchBookings(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearNonce]);
+  }, [canLoadBookings, filterKey, page]);
+
+  const withCloseDetail =
+    <T,>(set: (value: T) => void) =>
+    (value: T) => {
+      set(value);
+      closeDetail();
+    };
 
   const handleClearFilters = () => {
     setSearchQuery("");
+    setSearchTerm("");
     setStatusFilter("all");
     setStartDate("");
     setEndDate("");
     setEquipmentFilter("all");
     setUserNameFilter("");
+    setUserNameTerm("");
     setSupervisorNameFilter("");
+    setSupervisorNameTerm("");
     setUserTypeFilter("all");
     setIstemFbrFilter("all");
     setOrdering("");
-    setPage(1);
     closeDetail();
     setClearNonce((n) => n + 1);
   };
 
   const handleSort = (next: string) => {
     setOrdering(next);
-    setPage(1);
     closeDetail();
-    void fetchBookings(1, { ordering: next });
   };
 
   const statusOptions = [
@@ -384,7 +404,7 @@ const BookingManagement = () => {
               type="text"
               placeholder="Filter by user name"
               value={userNameFilter}
-              onChange={(e) => setUserNameFilter(e.target.value)}
+              onChange={(e) => withCloseDetail(setUserNameFilter)(e.target.value)}
             />
           </div>
         )}
@@ -396,14 +416,14 @@ const BookingManagement = () => {
               type="text"
               placeholder="Filter by supervisor name"
               value={supervisorNameFilter}
-              onChange={(e) => setSupervisorNameFilter(e.target.value)}
+              onChange={(e) => withCloseDetail(setSupervisorNameFilter)(e.target.value)}
             />
           </div>
         )}
         {!isLabInchargeUser && (
           <div className="space-y-1.5">
             <Label>User type</Label>
-            <Select value={userTypeFilter} onValueChange={setUserTypeFilter}>
+            <Select value={userTypeFilter} onValueChange={withCloseDetail(setUserTypeFilter)}>
               <SelectTrigger aria-label="User type">
                 <SelectValue placeholder="All users" />
               </SelectTrigger>
@@ -418,7 +438,7 @@ const BookingManagement = () => {
         {isManagerOrAdmin && (
           <div className="space-y-1.5">
             <Label>I-STEM FBR</Label>
-            <Select value={istemFbrFilter} onValueChange={setIstemFbrFilter}>
+            <Select value={istemFbrFilter} onValueChange={withCloseDetail(setIstemFbrFilter)}>
               <SelectTrigger aria-label="I-STEM FBR">
                 <SelectValue placeholder="All I-STEM" />
               </SelectTrigger>
@@ -436,8 +456,8 @@ const BookingManagement = () => {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasNextPage = page < totalPages;
   const hasPrevPage = page > 1;
-  const rangeStart = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(page * PAGE_SIZE, totalCount);
+  const rangeStart = totalCount === 0 ? 0 : bookingsOffset + 1;
+  const rangeEnd = Math.min(bookingsOffset + PAGE_SIZE, totalCount);
 
   const showBookingDetail = (booking: Booking) => {
     const bookingId = booking.booking_id;
@@ -458,6 +478,7 @@ const BookingManagement = () => {
     setSelectedBookingId(null);
     setOverrideBooking(null);
     setDetailBooking(null);
+    if (!searchParams.has("expand")) return;
     setSearchParams((prev) => {
       prev.delete("expand");
       return prev;
@@ -498,29 +519,28 @@ const BookingManagement = () => {
           <CardHeader className="space-y-0 border-b bg-muted/30 py-3">
             <BookingListFilterBar
               search={searchQuery}
-              onSearchChange={setSearchQuery}
+              onSearchChange={withCloseDetail(setSearchQuery)}
               searchPlaceholder={
                 isLabInchargeUser
                   ? "Booking ID, equipment, email, mobile…"
                   : "Booking ID, equipment, user, email, mobile…"
               }
               status={statusFilter}
-              onStatusChange={setStatusFilter}
+              onStatusChange={withCloseDetail(setStatusFilter)}
               statusOptions={statusOptions}
               startDate={startDate}
-              onStartDateChange={setStartDate}
+              onStartDateChange={withCloseDetail(setStartDate)}
               endDate={endDate}
-              onEndDateChange={setEndDate}
+              onEndDateChange={withCloseDetail(setEndDate)}
               equipment={equipmentFilter}
-              onEquipmentChange={setEquipmentFilter}
+              onEquipmentChange={withCloseDetail(setEquipmentFilter)}
               equipmentOptions={(equipmentList || []).map((eq) => ({ value: String(eq.equipment_id), label: eq.name }))}
-              onApply={handleApplyFilters}
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
             />
           </CardHeader>
-          {loadingBookings ? (
+          {loadingBookings && bookings.length === 0 ? (
             <CardContent className="py-12">
               <div className="flex items-center justify-center gap-3 text-muted-foreground">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -533,11 +553,14 @@ const BookingManagement = () => {
             </CardContent>
           ) : (
             <>
-              <CardContent className="p-0 overflow-x-auto">
+              <CardContent
+                className={`p-0 overflow-x-auto transition-opacity ${loadingBookings ? "opacity-60" : ""}`}
+                aria-busy={loadingBookings || undefined}
+              >
                 <Table className="min-w-[720px]" stackOnMobile>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="w-14 font-semibold">S.No.</TableHead>
+                      <TableHead className="w-14 font-semibold">S.No</TableHead>
                       {[
                         { key: "booking_ref", label: "Booking ID" },
                         { key: "equipment_name", label: "Equipment Name" },
