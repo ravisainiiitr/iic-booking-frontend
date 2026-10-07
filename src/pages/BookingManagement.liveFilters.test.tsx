@@ -5,16 +5,18 @@ import { MemoryRouter } from "react-router-dom";
 import BookingManagement from "./BookingManagement";
 
 const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
+const auth = vi.hoisted(() => ({ userType: "manager" }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: 1, email: "oic@example.test", name: "OIC", user_type: "manager" },
+    user: { id: 1, email: "oic@example.test", name: "OIC", user_type: auth.userType },
     isAuthenticated: true,
     loading: false,
   }),
 }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/booking/LabQuestionsAwaitingCard", () => ({ LabQuestionsAwaitingCard: () => null }));
+vi.mock("@/components/BookingLabMessages", () => ({ default: () => null }));
 vi.mock("@/lib/api", () => ({
   apiClient: new Proxy(
     {},
@@ -55,16 +57,19 @@ const calls = () => api.getBookings.mock.calls.map(([p]) => p as Params).filter(
 const lastCall = () => calls()[calls().length - 1];
 const sleep = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
 
-function renderPage() {
+function renderPage(url = "/booking-management") {
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <BookingManagement />
     </MemoryRouter>,
   );
   return screen.getByRole("searchbox", { name: "Search" });
 }
 
+const statusBox = () => screen.getByRole("combobox", { name: "Status" });
+
 beforeEach(() => {
+  auth.userType = "manager";
   api.getBookings.mockImplementation(async (params: Params) => page(params));
   api.exportBookings.mockResolvedValue({ rowCount: 25 });
   vi.stubGlobal(
@@ -177,5 +182,69 @@ describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
     const { limit: _limit, offset: _offset, list_view: _listView, ...listFilters } = lastCall();
     expect(api.exportBookings).toHaveBeenCalledWith("csv", "staff", listFilters);
     expect(listFilters).toMatchObject({ search: "xps", start_date: "2026-10-01", ordering: lastCall().ordering });
+  });
+});
+
+describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
+  it.each(["operator", "manager", "dept_admin"])("opens on All status for %s and lists every booking", async (userType) => {
+    auth.userType = userType;
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(statusBox().textContent).toContain("All status");
+    expect(calls().length).toBeGreaterThan(0);
+    for (const call of calls()) {
+      expect(call.status).toBeUndefined();
+      expect(call.results_overdue).toBeUndefined();
+    }
+  });
+
+  it("keeps Booked as the Main Administrator's default", async () => {
+    auth.userType = "admin";
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(statusBox().textContent).toContain("Booked");
+    expect(calls().length).toBeGreaterThan(0);
+    for (const call of calls()) expect(call.status).toBe("BOOKED");
+  });
+
+  it("exports all statuses by default for non-admins and Booked for the Main Administrator", async () => {
+    for (const [userType, status] of [["manager", undefined], ["admin", "BOOKED"]] as const) {
+      auth.userType = userType;
+      renderPage();
+      await screen.findByText("XPS202600001");
+      fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+      fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+      await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
+      expect(api.exportBookings.mock.calls[0][2].status).toBe(status);
+      cleanup();
+      vi.clearAllMocks();
+      api.getBookings.mockImplementation(async (params: Params) => page(params));
+      api.exportBookings.mockResolvedValue({ rowCount: 25 });
+    }
+  });
+
+  it("still honours ?results=overdue for every role, and Clear goes back to All status", async () => {
+    for (const userType of ["manager", "admin"]) {
+      auth.userType = userType;
+      renderPage("/booking-management?results=overdue");
+      await screen.findByText("XPS202600001");
+      expect(calls()[0].results_overdue).toBe(true);
+      expect(calls()[0].status).toBeUndefined();
+
+      fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+      await waitFor(() => expect(lastCall().results_overdue).toBeUndefined());
+      expect(lastCall().status).toBeUndefined();
+      expect(statusBox().textContent).toContain("All status");
+      cleanup();
+      vi.clearAllMocks();
+      api.getBookings.mockImplementation(async (params: Params) => page(params));
+    }
+  });
+
+  it("still opens ?expand on All status for the Main Administrator", async () => {
+    auth.userType = "admin";
+    renderPage("/booking-management?expand=7");
+    await waitFor(() => expect(calls().length).toBeGreaterThan(0));
+    for (const call of calls()) expect(call.status).toBeUndefined();
   });
 });
