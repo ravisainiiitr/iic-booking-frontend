@@ -217,8 +217,8 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
   },
   {
     key: "walletStudentRechargeSettings",
-    label: "Wallet Student Recharge Settings",
-    description: "Toggle IITR Student recharge of the shared faculty wallet",
+    label: "Wallet Student Recharge Settings (not used)",
+    description: "No longer used: students on a supervisor's wallet always see Recharge Wallet; methods follow Wallet Payment Modes",
     icon: <ShoppingCart className="h-6 w-6" />,
     path: "/admin-settings/wallet-student-recharge-settings",
     mainAdminOnly: true,

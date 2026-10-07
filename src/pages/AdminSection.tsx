@@ -1820,7 +1820,6 @@ export default function AdminSection() {
                           <TableHead>Equipment Visibility</TableHead>
                           <TableHead>Equipment Booking</TableHead>
                           <TableHead>Wallet Credit</TableHead>
-                          <TableHead>Student Recharge</TableHead>
                           <TableHead>User Count</TableHead>
                           <TableHead>Equipment Count</TableHead>
                           <TableHead className="w-[100px]">Actions</TableHead>
@@ -2012,12 +2011,6 @@ export default function AdminSection() {
                               </TableCell>
                               <TableCell>
                                 {row.enable_wallet_credit === true || row.enable_wallet_credit === "true"
-                                  ? "Enabled"
-                                  : "Disabled"}
-                              </TableCell>
-                              <TableCell>
-                                {row.enable_student_wallet_recharge === true ||
-                                row.enable_student_wallet_recharge === "true"
                                   ? "Enabled"
                                   : "Disabled"}
                               </TableCell>
@@ -3073,28 +3066,6 @@ export default function AdminSection() {
                       />
                       <span className="text-sm text-muted-foreground">
                         When enabled, eligible faculty/staff may request Wallet Credit Facility for this department. External users remain ineligible.
-                      </span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right" htmlFor="dept-student-recharge">Student wallet recharge</Label>
-                    <div className="col-span-3 flex items-center gap-3">
-                      <Checkbox
-                        id="dept-student-recharge"
-                        checked={
-                          formData.enable_student_wallet_recharge === true ||
-                          formData.enable_student_wallet_recharge === "true"
-                        }
-                        onCheckedChange={(checked) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            enable_student_wallet_recharge: checked === true,
-                          }))
-                        }
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        When enabled, IITR Students may request a wallet recharge for this department
-                        (amount + department → email Accept/Reject). Off by default.
                       </span>
                     </div>
                   </div>

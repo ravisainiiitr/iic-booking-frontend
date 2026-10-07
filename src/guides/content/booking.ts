@@ -284,7 +284,13 @@ export function memberWalletSection(g: Gate): GuideSection {
       "Leaving a wallet removes your access at once; you can then request another wallet.",
       "You can have up to 3 pending invitations. Each one expires after 30 days.",
     ],
-    tips: [`The search only lists faculty who have signed in to the portal at least once. If your ${owner} is not listed, invite them by email.`],
+    tips: compact([
+      `The search only lists faculty who have signed in to the portal at least once. If your ${owner} is not listed, invite them by email.`,
+      g.when(
+        g.flags.studentRecharge,
+        "A recharge method shown as Awaiting Competent Authority Approval is not open for that department yet.",
+      ),
+    ]),
   };
 }
 
@@ -306,7 +312,7 @@ export function ownerWalletSection(g: Gate): GuideSection {
     group: "Wallet",
     intro: compact([
       faculty
-        ? "Open Wallet management. Your wallet has a sub-wallet per department, and linked students book against it."
+        ? "Open Wallet management. Your wallet has a sub-wallet per department, and linked students book against it and can recharge it too (Project Grant stays faculty-only)."
         : "Open Wallet management to see your balance, recharges and transactions.",
       g.when(methods.length > 0, `Recharge methods available to you: ${methods.join("; ")}.`),
     ]),

@@ -224,7 +224,6 @@ const Wallet = () => {
   const [isOtherUser, setIsOtherUser] = useState(false);
   const [isStudent, setIsStudent] = useState(false);
   const [isIndividualStudent, setIsIndividualStudent] = useState(false);
-  const [iitrStudentRechargeEnabled, setIitrStudentRechargeEnabled] = useState(false);
   const [projectGrantRechargeEnabled, setProjectGrantRechargeEnabled] = useState(false);
   const [walletModeFlags, setWalletModeFlags] = useState<WalletModeFlags>(DEFAULT_WALLET_MODE_FLAGS);
   /** Non-null while the recharge dialog is open; the dialog is remounted (fresh state) on every open. */
@@ -293,8 +292,9 @@ const Wallet = () => {
   const [txEquipmentFilter, setTxEquipmentFilter] = useState("");
   const [txBookedByFilter, setTxBookedByFilter] = useState("");
 
-  const canShowWalletRecharge = !isShared || (isStudent && iitrStudentRechargeEnabled);
-  const isIitrStudentRecharge = isStudent && iitrStudentRechargeEnabled;
+  // Every IITR Student on a supervisor's wallet may recharge it; methods follow Wallet Payment Modes.
+  const isIitrStudentRecharge = isStudent && isShared;
+  const canShowWalletRecharge = !isShared || isIitrStudentRecharge;
 
   const openRechargeDialog = useCallback((departmentId?: number | null, amount?: string | null) => {
     setRechargeDialog({ departmentId: departmentId ?? null, amount: amount ?? null });
@@ -304,7 +304,6 @@ const Wallet = () => {
     void (async () => {
       const res = await apiClient.getWalletStudentRechargeSettings();
       if (!res.error && res.data) {
-        setIitrStudentRechargeEnabled(Boolean(res.data.enabled));
         setProjectGrantRechargeEnabled(Boolean(res.data.project_grant_recharge_enabled));
         setWalletModeFlags(walletModeFlagsFromSettings(res.data));
       }
