@@ -76,7 +76,7 @@ export type RechargeWalletDialogProps = {
   onSubmitted: () => void | Promise<void>;
   isFaculty: boolean;
   userType: unknown;
-  /** IITR student on a shared faculty wallet with student recharge enabled. */
+  /** IITR student recharging their supervisor's (shared) wallet. */
   isStudentRecharge: boolean;
   subWallets: SubWalletBalance[];
   initialDepartmentId?: number | null;

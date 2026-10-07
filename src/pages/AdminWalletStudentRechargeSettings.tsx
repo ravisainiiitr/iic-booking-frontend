@@ -1,31 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, ShoppingCart } from "lucide-react";
+import { ArrowLeft, ShoppingCart } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
-
-interface WalletStudentRechargeSettingsData {
-  id: number;
-  enable_iitr_student_wallet_recharge: boolean;
-}
 
 export default function AdminWalletStudentRechargeSettings() {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isAdmin = userTypeStr === "admin";
-
-  const [id, setId] = useState<number>(1);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -38,40 +25,6 @@ export default function AdminWalletStudentRechargeSettings() {
       navigate("/user-management");
     }
   }, [navigate, isAuthenticated, user, isAdmin, authLoading]);
-
-  useEffect(() => {
-    if (!isAdmin) return;
-    setLoading(true);
-    apiClient
-      .adminSingletonGet<WalletStudentRechargeSettingsData>("walletStudentRechargeSettings")
-      .then((res) => {
-        if (res.error) {
-          toast.error(res.error);
-          return;
-        }
-        if (res.data) {
-          setId(res.data.id ?? 1);
-          setEnabled(res.data.enable_iitr_student_wallet_recharge ?? false);
-        }
-      })
-      .catch(() => toast.error("Failed to load wallet student recharge settings."))
-      .finally(() => setLoading(false));
-  }, [isAdmin]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const res = await apiClient.adminSingletonUpdate<WalletStudentRechargeSettingsData>(
-      "walletStudentRechargeSettings",
-      { enable_iitr_student_wallet_recharge: enabled },
-      id
-    );
-    setSaving(false);
-    if (res.error) {
-      toast.error(res.error);
-      return;
-    }
-    toast.success("Wallet student recharge settings updated.");
-  };
 
   if (!isAdmin && !authLoading) return null;
 
@@ -90,50 +43,37 @@ export default function AdminWalletStudentRechargeSettings() {
             <ShoppingCart className="h-8 w-8 text-primary" />
             Wallet Student Recharge Settings
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Legacy global toggle. Prefer enabling IITR Student wallet recharge{" "}
-            <strong>per department</strong> under Admin → Departments
-            (&quot;Student wallet recharge&quot;). That control is off by default for every department.
-          </p>
+          <p className="text-muted-foreground mt-1">No longer used: there is nothing to switch on here.</p>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>IITR Student wallet recharge (legacy global)</CardTitle>
-              <CardDescription>
-                Department-wise enablement on the Departments admin page is the primary gate.
-                Keep this off unless you need the legacy global override. Individual Students keep
-                their own wallet and are not affected.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div>
-                  <Label className="text-base">Enable IITR Student wallet recharge (legacy)</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Prefer Admin → Departments → &quot;Student wallet recharge&quot; so students can
-                    enter amount, select department, and send an email Accept/Reject request.
-                  </p>
-                </div>
-                <Switch checked={enabled} onCheckedChange={setEnabled} />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/user-management")}>
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>IITR Student wallet recharge is always available</CardTitle>
+            <CardDescription>
+              Every IITR Student linked to a supervisor&apos;s wallet sees Recharge Wallet on the Wallet page, for the
+              same departments the supervisor can recharge.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              The recharge methods follow{" "}
+              <strong className="text-foreground">Admin Settings → Wallet Payment Modes</strong> (global switches and
+              per-department overrides). A method switched off for a department shows &quot;Awaiting Competent
+              Authority Approval&quot;. Project Grant stays faculty-only; students use Direct Cash Deposit / Bank
+              Transfer (or Pay online when it is on).
+            </p>
+            <p>
+              The old global switch and the per-department &quot;Student wallet recharge&quot; option no longer change
+              anything. Students not linked to a supervisor still see the form to link their supervisor first.
+              Individual Students keep their own wallet and are not affected.
+            </p>
+            <div className="pt-2">
+              <Button variant="outline" onClick={() => navigate("/user-management")}>
+                Back
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

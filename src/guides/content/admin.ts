@@ -143,6 +143,7 @@ export const adminGuide: RoleGuide = {
         rules: [
           "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval. The department is that of the sub-wallet being funded, debited or transferred from.",
           "A department can only switch an option off; while a master switch is off, the option is off in every department. Credit limit caps apply to every department.",
+          "Every IITR Student linked to a supervisor's wallet can recharge it for the same departments as the supervisor, with the methods these switches allow; Project Grant stays faculty-only. There is no separate student switch to turn on.",
           "Direct wallet recharge is off by default. Only the Main Administrator and people with a current permission can use it, and each recharge is recorded with who made it, when, the permission used and the IP address.",
           "A Project Grant request declined by SRIC becomes an auto-approved credit, recovered from the user's next approved recharge.",
         ],
