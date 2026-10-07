@@ -213,7 +213,7 @@ export function myBookingsSection(g: Gate): GuideSection {
     steps: [
       {
         title: "Find a booking",
-        body: "Use search, Status, dates and All equipment; More filters shows the rest. Click Apply, or Clear to reset. What do these statuses mean? explains each status badge.",
+        body: "Use search, Status, dates and All equipment. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. S.No numbers the bookings across pages. What do these statuses mean? explains each status badge.",
         screenshotCaption: "My Bookings",
         screenshotSrc: "/guides/my-bookings-dashboard.png",
       },

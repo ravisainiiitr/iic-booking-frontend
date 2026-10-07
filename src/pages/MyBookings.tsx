@@ -65,6 +65,7 @@ import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatus
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import { formatDMY } from "@/lib/dateFormat";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -316,6 +317,9 @@ const MyBookings = () => {
   const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsOffset, setBookingsOffset] = useState(0);
+  const fetchSeqRef = useRef(0);
+  const skipNextFilterFetchRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -388,6 +392,7 @@ const MyBookings = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(searchQuery);
   const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
   const [ordering, setOrdering] = useState<string>("-created_at");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
@@ -612,6 +617,8 @@ const MyBookings = () => {
     const pendingRating = searchParams.get("pending_rating");
     const onlyShowPendingRating = pendingRating === "1" || pendingRating === "true";
     if (onlyShowPendingRating) {
+      // The fetch below adds the unrated-only filter; the status change must not refetch without it.
+      skipNextFilterFetchRef.current = true;
       setStatusFilter("COMPLETED");
       setSearchParams({}, { replace: true });
     }
@@ -691,33 +698,37 @@ const MyBookings = () => {
     }
   }, [editInputsParam, setSearchParams]);
 
+  // Filters apply as soon as they change (search after a short pause) and go back to page 1;
+  // fetchBookings ignores responses that a newer request has overtaken.
   const [clearFiltersNonce, setClearFiltersNonce] = useState(0);
+  const filterKey = JSON.stringify([statusFilter, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce]);
+  const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
-    if (clearFiltersNonce === 0) return;
+    if (loadedFilterKeyRef.current === filterKey) return;
+    loadedFilterKeyRef.current = filterKey;
+    if (skipNextFilterFetchRef.current) {
+      skipNextFilterFetchRef.current = false;
+      return;
+    }
+    if (authLoading || !apiClient.getToken()) return;
+    setPage(1);
+    closeDetail();
     void fetchBookings(undefined, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clearFiltersNonce]);
+  }, [filterKey]);
 
   const clearBookingFilters = () => {
     setStatusFilter("all");
     setStartDate("");
     setEndDate("");
     setSearchQuery("");
+    setSearchTerm("");
     setEquipmentFilter("all");
     setOrdering("-created_at");
-    setPage(1);
-    setSelectedBookingId(null);
-    setOverrideBooking(null);
     setClearFiltersNonce((n) => n + 1);
   };
 
-  const handleSort = (next: string) => {
-    setOrdering(next);
-    setPage(1);
-    setSelectedBookingId(null);
-    setOverrideBooking(null);
-    void fetchBookings({ ordering: next }, 1);
-  };
+  const handleSort = (next: string) => setOrdering(next);
 
   const checkAuthAndFetchBookings = async (onlyShowPendingRating?: boolean) => {
     const token = apiClient.getToken();
@@ -732,23 +743,26 @@ const MyBookings = () => {
     overrides?: { status?: string; onlyShowUnrated?: boolean; ordering?: string },
     pageOverride?: number
   ) => {
+    const seq = ++fetchSeqRef.current;
     try {
       setLoading(true);
       const currentPage = pageOverride ?? page;
+      const offset = (currentPage - 1) * PAGE_SIZE;
       const effectiveOrdering = overrides?.ordering ?? ordering;
       const params: Record<string, string | number | boolean> = {
         limit: PAGE_SIZE,
-        offset: (currentPage - 1) * PAGE_SIZE,
+        offset,
         list_view: true,
       };
       const status = overrides?.status ?? statusFilter;
       if (status !== "all" && status !== "WAITLISTED") params.status = status;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
-      if (searchQuery.trim()) params.search = searchQuery.trim();
+      if (searchTerm) params.search = searchTerm;
       if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
       if (effectiveOrdering) params.ordering = effectiveOrdering;
       const response = await apiClient.getBookings(params);
+      if (seq !== fetchSeqRef.current) return;
       if (response.error) {
         toast.error(response.error || "Failed to load bookings");
         setBookings([]);
@@ -757,6 +771,7 @@ const MyBookings = () => {
         let list = response.data.bookings as unknown as Booking[];
         if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
+          if (seq !== fetchSeqRef.current) return;
           if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
             const activeOnly = (waitlistRes.data.entries as Array<Record<string, unknown>>).filter(
               (e) => {
@@ -789,18 +804,20 @@ const MyBookings = () => {
           );
         }
         setBookings(list);
+        setBookingsOffset(offset);
         setTotalCount(response.data.total_count ?? list.length);
       } else {
         setBookings([]);
         setTotalCount(0);
       }
     } catch (error: any) {
+      if (seq !== fetchSeqRef.current) return;
       console.error("Error fetching bookings:", error);
       toast.error("Failed to load bookings");
       setBookings([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      if (seq === fetchSeqRef.current) setLoading(false);
     }
   };
 
@@ -859,6 +876,7 @@ const MyBookings = () => {
   const closeDetail = () => {
     setSelectedBookingId(null);
     setOverrideBooking(null);
+    if (!searchParams.has("booking")) return;
     setSearchParams((prev) => {
       prev.delete("booking");
       return prev;
@@ -1603,36 +1621,16 @@ const MyBookings = () => {
                   equipment={equipmentFilter}
                   onEquipmentChange={setEquipmentFilter}
                   equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
-                  onApply={() => {
-                    setPage(1);
-                    setSelectedBookingId(null);
-                    setOverrideBooking(null);
-                    fetchBookings(undefined, 1);
-                  }}
                   onClear={clearBookingFilters}
                 />
                 <BookingStatusLegend className="pt-2" />
               </CardHeader>
               {!loading && bookings.length === 0 ? (
               <CardContent className="py-12 text-center">
-                {statusFilter !== "all" || startDate || endDate || searchQuery.trim() || (equipmentFilter && equipmentFilter !== "all") ? (
+                {statusFilter !== "all" || startDate || endDate || searchTerm || (equipmentFilter && equipmentFilter !== "all") ? (
                   <>
                     <p className="text-muted-foreground mb-4">No bookings match your filters</p>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setStatusFilter("all");
-                        setStartDate("");
-                        setEndDate("");
-                        setSearchQuery("");
-                        setEquipmentFilter("all");
-                        setOrdering("-created_at");
-                        setPage(1);
-                        setSelectedBookingId(null);
-                        setOverrideBooking(null);
-                        setTimeout(() => fetchBookings(undefined, 1), 0);
-                      }}
-                    >
+                    <Button variant="outline" onClick={clearBookingFilters}>
                       Clear filters
                     </Button>
                   </>
@@ -1652,6 +1650,7 @@ const MyBookings = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
+                      <TableHead className="w-14 font-semibold">S.No</TableHead>
                       {[
                         { key: "booking_ref", label: "Booking ID" },
                         { key: "equipment_name", label: "Equipment" },
@@ -1679,7 +1678,7 @@ const MyBookings = () => {
                       <>
                         {[1, 2, 3, 4, 5, 6, 7].map((i) => (
                           <TableRow key={i}>
-                            <TableCell colSpan={7} className="h-12">
+                            <TableCell colSpan={8} className="h-12">
                               <div className="animate-pulse flex gap-2">
                                 <div className="h-4 bg-muted rounded w-24" />
                                 <div className="h-4 bg-muted rounded w-32" />
@@ -1690,8 +1689,9 @@ const MyBookings = () => {
                         ))}
                       </>
                     ) : (
-                      bookings.map((booking) => (
+                      bookings.map((booking, index) => (
                       <TableRow key={booking.booking_id} className="group">
+                        <TableCell className="text-muted-foreground tabular-nums">{bookingsOffset + index + 1}</TableCell>
                         <TableCell className="font-medium">
                           {renderBookingIdButton(booking)}
                           {renderSampleSummary(booking)}
@@ -1740,7 +1740,7 @@ const MyBookings = () => {
                           </div>
                         </li>
                       ))
-                    : bookings.map((booking) => (
+                    : bookings.map((booking, index) => (
                         <li key={booking.booking_id} className="space-y-2 p-4">
                           <div className="flex items-start justify-between gap-2">
                             {renderBookingIdButton(booking, true)}
@@ -1751,6 +1751,8 @@ const MyBookings = () => {
                           <p className="break-words font-medium">{booking.equipment_name}</p>
                           {renderSampleSummary(booking)}
                           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                            <dt className="text-muted-foreground">S.No</dt>
+                            <dd className="tabular-nums">{bookingsOffset + index + 1}</dd>
                             <dt className="text-muted-foreground">{isWaitlistedEntry(booking) ? "Requested" : "Start"}</dt>
                             <dd>{formatListStart(booking)}</dd>
                             <dt className="text-muted-foreground">Duration</dt>

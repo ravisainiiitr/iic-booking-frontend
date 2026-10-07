@@ -28,7 +28,6 @@ type BookingListFilterBarProps = {
   equipment: string;
   onEquipmentChange: (value: string) => void;
   equipmentOptions: BookingListFilterOption[];
-  onApply: () => void;
   onClear?: () => void;
   moreFilters?: ReactNode;
   moreFiltersActiveCount?: number;
@@ -48,18 +47,15 @@ export function BookingListFilterBar({
   equipment,
   onEquipmentChange,
   equipmentOptions,
-  onApply,
   onClear,
   moreFilters,
   moreFiltersActiveCount = 0,
 }: BookingListFilterBarProps) {
   return (
     <form
+      role="search"
       className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onApply();
-      }}
+      onSubmit={(e) => e.preventDefault()}
     >
       <div className="relative w-full min-w-[8rem] lg:w-auto lg:flex-[2_1_12rem]">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
@@ -126,17 +122,9 @@ export function BookingListFilterBar({
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80 space-y-3">
             {moreFilters}
-            <div className="flex justify-end">
-              <Button type="button" size="sm" onClick={onApply}>
-                Apply
-              </Button>
-            </div>
           </PopoverContent>
         </Popover>
       ) : null}
-      <Button type="submit" size="sm" className="h-9 shrink-0">
-        Apply
-      </Button>
       {onClear ? (
         <Button type="button" variant="ghost" size="sm" className="h-9 shrink-0" onClick={onClear}>
           Clear
