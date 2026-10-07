@@ -550,13 +550,23 @@ export default function OICPrintMaterials() {
                 {t === "print" && (
                   <fieldset className="space-y-3 rounded-lg border p-4" data-testid="max-print-size">
                     <legend className="flex items-center gap-2 px-1 text-sm font-medium">
-                      <Ruler className="h-4 w-4" aria-hidden /> Maximum print size (mm)
+                      <Ruler className="h-4 w-4" aria-hidden /> Maximum print size / bed size (mm)
                     </legend>
                     <p className="text-xs text-muted-foreground">
-                      The largest model this printer can make. Users see it when they upload, and STL files larger
-                      than this are refused straight away, so they are not uploaded and rejected later. Leave an axis
-                      empty for no limit on it. STL sizes are read in millimetres; 0.5 mm over is still accepted.
+                      The largest model this printer can make (its usable bed / build volume). Users see it when they
+                      upload, and STL files larger than this cannot be uploaded or booked. Leave an axis empty for no
+                      limit on it. STL sizes are read in millimetres; 0.5 mm over is still accepted.
                     </p>
+                    {PRINT_SIZE_AXES.every((a) => !savedPrintSize[a]) && (
+                      <p
+                        role="alert"
+                        data-testid="max-print-size-missing"
+                        className="rounded-md border border-warning-border bg-warning-subtle p-2 text-xs text-warning-subtle-foreground"
+                      >
+                        No maximum print size is set, so models of any size can be booked on this printer. Enter the
+                        printer&apos;s bed size to refuse models that do not fit.
+                      </p>
+                    )}
                     <div className="grid gap-3 sm:grid-cols-3">
                       {PRINT_SIZE_AXES.map((axis) => (
                         <div key={axis} className="space-y-1">

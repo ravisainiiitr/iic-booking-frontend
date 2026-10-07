@@ -23,7 +23,7 @@ vi.mock("@/components/StlModelPreview", () => ({
   },
 }));
 
-import { Print3DBookingPanel } from "@/components/Print3DBookingPanel";
+import { Print3DBookingPanel, printSizeBlockMessage } from "@/components/Print3DBookingPanel";
 
 const pla: PrintMaterial = {
   id: 7,
@@ -128,6 +128,46 @@ describe("Print3DBookingPanel maximum print size", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("reports the size refusal so the booking page can block Book, and clears it when the file is removed", async () => {
+    const onSizeBlockChange = vi.fn();
+    const { container } = render(
+      <Print3DBookingPanel
+        equipmentId={5}
+        materials={[pla]}
+        maxPrintSize={LIMIT}
+        onReady={vi.fn()}
+        onSizeBlockChange={onSizeBlockChange}
+      />,
+    );
+    expect(onSizeBlockChange).toHaveBeenLastCalledWith(null);
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [stlFile("wing.stl", boxStl(300, 20, 10))] } });
+
+    await waitFor(() =>
+      expect(onSizeBlockChange).toHaveBeenLastCalledWith(
+        expect.stringContaining("wing.stl is 300 × 20 × 10 mm (W × D × H), larger than this printer's maximum print size of 220 × 220 × 250 mm"),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Remove/ }));
+    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith(null));
+
+    fireEvent.change(input, { target: { files: [stlFile("wing.stl", boxStl(300, 20, 10))] } });
+    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith(expect.stringContaining("wing.stl")));
+    cleanup();
+    expect(onSizeBlockChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("reports the server's size refusal too", async () => {
+    api.analyzeEquipmentStl.mockResolvedValue({ error: "part.stl is 230 × 20 × 20 mm, too large.", code: "PRINT_SIZE_EXCEEDED" });
+    const onSizeBlockChange = vi.fn();
+    const { container } = render(
+      <Print3DBookingPanel equipmentId={5} materials={[pla]} maxPrintSize={null} onReady={vi.fn()} onSizeBlockChange={onSizeBlockChange} />,
+    );
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [stlFile("part.stl", boxStl(230, 20, 20))] } });
+    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith("part.stl is 230 × 20 × 20 mm, too large."));
+  });
+
   it("warns, without blocking, when the model looks like it is not in millimetres", async () => {
     api.analyzeEquipmentStl.mockResolvedValue({ error: "stop here" });
     const { input } = renderPanel();
@@ -135,5 +175,16 @@ describe("Print3DBookingPanel maximum print size", () => {
 
     expect((await screen.findByTestId("print-size-warning")).textContent).toContain("metres or inches");
     await waitFor(() => expect(api.analyzeEquipmentStl).toHaveBeenCalled());
+  });
+});
+
+describe("printSizeBlockMessage", () => {
+  it("names the first oversized file and counts the rest, else uses the server's refusal", () => {
+    expect(printSizeBlockMessage([], null)).toBeNull();
+    expect(printSizeBlockMessage(["a.stl is too big."], "server")).toBe("a.stl is too big.");
+    expect(printSizeBlockMessage(["a.stl is too big.", "b.stl is too big."], null)).toBe(
+      "2 models are too large for this printer. a.stl is too big.",
+    );
+    expect(printSizeBlockMessage([], "server says no")).toBe("server says no");
   });
 });

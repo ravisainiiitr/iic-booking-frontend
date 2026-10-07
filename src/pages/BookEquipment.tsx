@@ -112,7 +112,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
+import { AlertTriangle, CalendarIcon, CalendarPlus, FlaskConical, MousePointerClick } from "lucide-react";
 import { RichTextContent } from "@/components/RichTextContent";
 import { looksLikeRichHtml } from "@/lib/richText";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Check, Circle, Plus, Minus, Trash2, Mail, Receipt, ExternalLink, Download, FileSpreadsheet, FileText, ChevronDown, ChevronUp, Wallet, Info, Lock, BookmarkCheck, Save } from "lucide-react";
@@ -1047,6 +1047,8 @@ const BookEquipment = () => {
   const [printAnalysisId, setPrintAnalysisId] = useState<string | null>(null);
   const [printAnalysisBatchId, setPrintAnalysisBatchId] = useState<string | null>(null);
   const [print3dAnalyzing, setPrint3dAnalyzing] = useState(false);
+  /** 3D print: the uploaded model is larger than the printer's maximum print size, so booking is blocked. */
+  const [print3dSizeBlock, setPrint3dSizeBlock] = useState<string | null>(null);
   const [laserCutBatchId, setLaserCutBatchId] = useState<string | null>(null);
   /** Laser: changes with part quantities / sheets / units, so the estimate refreshes for the same upload. */
   const [laserPartsKey, setLaserPartsKey] = useState<string | null>(null);
@@ -1055,6 +1057,7 @@ const BookEquipment = () => {
   /** 3D print / laser: the user brings their own material (fixed charge replaces the material cost). */
   const [fabricationOwnMaterial, setFabricationOwnMaterial] = useState(false);
   const fabricationKey = JSON.stringify([laserCutBatchId, laserPartsKey, printPartsKey, fabricationOwnMaterial]);
+  const print3dSizeBlocksBooking = equipmentDetail?.profile_type === "PRINT_3D" && !!print3dSizeBlock;
   const fabricationQuantity = fabricationJobQuantity(inputFieldValues[FABRICATION_QUANTITY_KEY]);
   const [chargeProgress, setChargeProgress] = useState(0);
   const [icpmsCoverageByFieldKey, setIcpmsCoverageByFieldKey] = useState<
@@ -6224,6 +6227,7 @@ const BookEquipment = () => {
     setLaserCutBatchId(null);
     setLaserPartsKey(null);
     setPrintPartsKey(null);
+    setPrint3dSizeBlock(null);
     setFabricationOwnMaterial(false);
   }, [selectedEquipment?.id]);
 
@@ -6781,6 +6785,10 @@ const BookEquipment = () => {
       return;
     }
 
+    if (equipmentDetail?.profile_type === "PRINT_3D" && print3dSizeBlock) {
+      toast.error(print3dSizeBlock);
+      return;
+    }
     if (equipmentDetail?.profile_type === "PRINT_3D" && !printAnalysisId && !printAnalysisBatchId) {
       toast.error("Upload and analyze STL file(s) before booking.");
       return;
@@ -9425,6 +9433,7 @@ const BookEquipment = () => {
                     jobQuantity={fabricationQuantity}
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
+                    onSizeBlockChange={setPrint3dSizeBlock}
                     disabled={!!repeatSourceBooking}
                   />
                 )}
@@ -10303,6 +10312,20 @@ const BookEquipment = () => {
                     </div>
                   )}
                   
+                  {print3dSizeBlocksBooking && (
+                    <div
+                      role="alert"
+                      data-testid="print-size-booking-blocked"
+                      className="mt-4 flex gap-2 rounded-md border border-destructive-border bg-destructive-subtle p-3 text-sm text-destructive-subtle-foreground"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                      <div className="space-y-1">
+                        <p className="font-medium">This model cannot be booked on this printer.</p>
+                        <p>{print3dSizeBlock}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {!chargeCalculated &&
                     !loadingCharge &&
                     !chargeCalculationFailed &&
@@ -11552,8 +11575,10 @@ const BookEquipment = () => {
                           !selectedEquipmentIsOperational ||
                           (selectedSlots.length === 0 && !canSubmitWithoutSlots) ||
                           isSubmittingBooking ||
-                          (walletLinkRequired && !bookingForAnotherUser)
+                          (walletLinkRequired && !bookingForAnotherUser) ||
+                          print3dSizeBlocksBooking
                         }
+                        title={print3dSizeBlocksBooking ? print3dSizeBlock ?? undefined : undefined}
                       >
                         {isSubmittingBooking ? (
                           <>

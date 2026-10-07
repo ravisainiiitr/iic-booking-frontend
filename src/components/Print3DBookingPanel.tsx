@@ -98,7 +98,14 @@ interface Print3DBookingPanelProps {
   jobQuantity?: number;
   onReady: (values: Print3DBookingValues | null) => void;
   onAnalyzingChange?: (analyzing: boolean) => void;
+  /** Why the chosen file(s) cannot be booked (larger than the printer's maximum print size), or null. */
+  onSizeBlockChange?: (message: string | null) => void;
   disabled?: boolean;
+}
+
+export function printSizeBlockMessage(errors: string[], serverError: string | null): string | null {
+  if (errors.length > 1) return `${errors.length} models are too large for this printer. ${errors[0]}`;
+  return errors[0] ?? serverError ?? null;
 }
 
 export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename?: string): Print3DFileItem {
@@ -227,6 +234,7 @@ export function Print3DBookingPanel({
   jobQuantity = 1,
   onReady,
   onAnalyzingChange,
+  onSizeBlockChange,
   disabled,
 }: Print3DBookingPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +278,16 @@ export function Print3DBookingPanel({
   const sizeErrors = sizeChecks.filter((c) => c.error);
   const sizeWarnings = sizeChecks.filter((c) => c.warning);
   const tooLarge = sizeErrors.length > 0;
+  const sizeBlock = printSizeBlockMessage(
+    sizeErrors.map((c) => c.error as string),
+    serverSizeError,
+  );
+
+  useEffect(() => {
+    onSizeBlockChange?.(sizeBlock);
+  }, [sizeBlock, onSizeBlockChange]);
+
+  useEffect(() => () => onSizeBlockChange?.(null), [onSizeBlockChange]);
 
   const ownMaterialAvailable =
     ownMaterialCharge !== null && ownMaterialCharge !== undefined && String(ownMaterialCharge) !== "";

@@ -111,6 +111,16 @@ describe("OICPrintMaterials lab settings", () => {
       ),
     );
     await waitFor(() => expect((screen.getByLabelText("X (width)") as HTMLInputElement).value).toBe("250"));
+    await waitFor(() => expect(screen.queryByTestId("max-print-size-missing")).toBeNull());
+  });
+
+  it("warns that any size can be booked while no maximum print size is saved", async () => {
+    renderPage();
+    const warning = await screen.findByTestId("max-print-size-missing");
+    expect(warning.textContent).toContain("models of any size can be booked");
+    // Typing a size is not enough: the warning follows the saved setting.
+    fireEvent.change(screen.getByLabelText("X (width)"), { target: { value: "250" } });
+    expect(screen.getByTestId("max-print-size-missing")).toBeTruthy();
   });
 
   it("refuses a maximum print size of zero", async () => {
