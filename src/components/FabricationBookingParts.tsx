@@ -26,6 +26,7 @@ import {
   type LaserCutBookingValues,
 } from "@/components/LaserCutBookingPanel";
 import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Print3DBookingPanel";
+import { FABRICATION_QUANTITY_LABEL } from "@/lib/fabricationProfiles";
 
 const BookedStlPreview = lazy(() => import("@/components/BookedStlPreview"));
 
@@ -37,6 +38,8 @@ export interface FabricationBookingFields {
   user_type_snapshot?: string;
   own_material?: boolean;
   own_material_fixed_charge?: string | null;
+  /** Quantity Required (input A); 1 for bookings made before it. */
+  fabrication_quantity?: number | null;
   fabrication_parts?: FabricationPart[];
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
@@ -190,7 +193,8 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
   const isLaser = booking.equipment_profile_type === "LASER_CUT_2D";
   const replaceable = booking.fabrication_files_replaceable;
 
-  const totalQty = parts.reduce((sum, p) => sum + (Number(p.quantity) || 1), 0);
+  const jobQuantity = Math.max(1, Number(booking.fabrication_quantity) || 1);
+  const totalQty = parts.reduce((sum, p) => sum + (Number(p.quantity) || 1), 0) * jobQuantity;
 
   return (
     <div className="rounded-lg border p-4 space-y-3" data-testid="fabrication-booking-parts">
@@ -199,6 +203,10 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
           {isLaser ? "Laser cutting parts" : "Print files"}{" "}
           <span className="text-muted-foreground font-normal">
             ({parts.length} file{parts.length === 1 ? "" : "s"}, {totalQty} piece{totalQty === 1 ? "" : "s"})
+          </span>
+          <span className="block text-xs font-normal text-muted-foreground" data-testid="fabrication-quantity">
+            {FABRICATION_QUANTITY_LABEL}: <span className="font-medium text-foreground">{jobQuantity}</span>
+            {jobQuantity > 1 ? ` — every file is made ${jobQuantity} times its own count` : ""}
           </span>
         </p>
         <div className="flex items-center gap-2">
@@ -222,7 +230,11 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             <li key={part.analysis_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" data-testid={`fabrication-part-${part.analysis_id}`}>
               <div className="min-w-0">
                 <p className="font-medium truncate">
-                  {part.name} <span className="text-muted-foreground font-normal">× {part.quantity}</span>
+                  {part.name}{" "}
+                  <span className="text-muted-foreground font-normal">
+                    × {part.quantity}
+                    {jobQuantity > 1 ? ` × ${jobQuantity} sets` : ""}
+                  </span>
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {fabricationPartDetail(part)}
@@ -567,6 +579,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                     estimateUserType={booking.user_type_snapshot || undefined}
                     ownMaterialCharge={null}
                     ownMaterialSelected={ownMaterial}
+                    jobQuantity={Number(booking.fabrication_quantity) || 1}
                     onReady={setLaserValues}
                     onAnalyzingChange={setUploadBusy}
                     disabled={saving}
@@ -576,6 +589,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                     equipmentId={booking.equipment}
                     estimateUserType={booking.user_type_snapshot || undefined}
                     ownMaterialCharge={null}
+                    jobQuantity={Number(booking.fabrication_quantity) || 1}
                     onReady={setPrintValues}
                     onAnalyzingChange={setUploadBusy}
                     disabled={saving}

@@ -302,6 +302,8 @@ export interface FabricationPart {
   name: string;
   filename?: string;
   quantity: number;
+  /** Quantity Required of the booking: the part is made quantity × job_quantity times. */
+  job_quantity?: number;
   weight_g_each?: number | string | null;
   time_min_each?: number | string | null;
   weight_g_total?: number | string | null;

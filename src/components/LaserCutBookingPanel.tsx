@@ -36,6 +36,8 @@ interface LaserCutBookingPanelProps {
   /** Own-material choice made outside the panel (booking file-replace dialog). */
   ownMaterialSelected?: boolean;
   estimateUserType?: string;
+  /** Quantity Required (input A): every part is cut this many times its own count. */
+  jobQuantity?: number;
   onReady: (values: LaserCutBookingValues | null) => void;
   onAnalyzingChange?: (analyzing: boolean) => void;
   disabled?: boolean;
@@ -92,10 +94,12 @@ export function LaserCutBookingPanel({
   ownMaterialCharge,
   ownMaterialSelected,
   estimateUserType,
+  jobQuantity = 1,
   onReady,
   onAnalyzingChange,
   disabled,
 }: LaserCutBookingPanelProps) {
+  const sets = Math.max(1, Math.floor(jobQuantity) || 1);
   const inputRef = useRef<HTMLInputElement>(null);
   const [materials, setMaterials] = useState<LaserSheetMaterial[]>(materialsProp ?? []);
   const [materialsLoaded, setMaterialsLoaded] = useState(Boolean(materialsProp?.length));
@@ -574,9 +578,14 @@ export function LaserCutBookingPanel({
             })}
 
             <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-md bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Estimated sheet material (all parts)</span>
-              <span className={cn("font-semibold tabular-nums", ownMaterial && "text-muted-foreground line-through")}>
-                {formatRupees(materialEstimate)}
+              <span className="text-muted-foreground">
+                {sets > 1 ? `Estimated sheet material (all parts × ${sets} sets)` : "Estimated sheet material (all parts)"}
+              </span>
+              <span
+                className={cn("font-semibold tabular-nums", ownMaterial && "text-muted-foreground line-through")}
+                data-testid="laser-material-estimate"
+              >
+                {formatRupees(Math.round(materialEstimate * sets * 100) / 100)}
               </span>
             </div>
           </div>

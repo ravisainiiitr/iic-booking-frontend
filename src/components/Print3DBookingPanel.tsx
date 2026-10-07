@@ -94,6 +94,8 @@ interface Print3DBookingPanelProps {
   estimateUserType?: string;
   /** Equipment's fixed own-material charge; null/undefined hides the option. */
   ownMaterialCharge?: string | number | null;
+  /** Quantity Required (input A): the whole job is printed this many times. */
+  jobQuantity?: number;
   onReady: (values: Print3DBookingValues | null) => void;
   onAnalyzingChange?: (analyzing: boolean) => void;
   disabled?: boolean;
@@ -222,6 +224,7 @@ export function Print3DBookingPanel({
   maxPrintSize,
   estimateUserType,
   ownMaterialCharge,
+  jobQuantity = 1,
   onReady,
   onAnalyzingChange,
   disabled,
@@ -738,11 +741,12 @@ export function Print3DBookingPanel({
       ? "Updating weight and print time…"
       : "";
 
+  const sets = Math.max(1, Math.floor(jobQuantity) || 1);
   const totals = useMemo(() => {
-    const weight = completedItems.reduce((s, i) => s + i.weightGrams, 0);
-    const time = completedItems.reduce((s, i) => s + i.timeMinutes, 0);
+    const weight = completedItems.reduce((s, i) => s + i.weightGrams, 0) * sets;
+    const time = completedItems.reduce((s, i) => s + i.timeMinutes, 0) * sets;
     return { weight, time };
-  }, [completedItems]);
+  }, [completedItems, sets]);
 
   const previewEntries = useMemo((): ZipStlEntry[] => {
     if (isZipUpload && zipStlEntries.length > 0) return zipStlEntries;
@@ -1084,6 +1088,12 @@ export function Print3DBookingPanel({
                   );
                 })}
               </div>
+              {sets > 1 && (
+                <p className="text-sm text-muted-foreground" data-testid="print-job-quantity">
+                  Quantity Required: <span className="font-medium text-foreground">{sets}</span> — totals below are for
+                  all {sets} sets.
+                </p>
+              )}
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Total weight</dt>

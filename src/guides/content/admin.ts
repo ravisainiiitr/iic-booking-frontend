@@ -59,7 +59,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Fabrication materials",
-            body: "Fabrication Materials is the master list of 3D print materials and laser cutting sheets. For each 3D printer or laser cutter, tick its Supported materials from the master list of the same kind and save; users see a material only when it is supported and enabled, otherwise No materials configured — contact the OIC. Disabling a material hides it everywhere but keeps it supported; bookings already made keep their price.",
+            body: "Fabrication Materials is the master list of 3D print materials and laser cutting sheets. For each 3D printer or laser cutter, tick its Supported materials from the master list of the same kind and save; users see a material only when it is supported and enabled, otherwise No materials configured — contact the OIC. Disabling a material hides it everywhere but keeps it supported; bookings already made keep their price. 3D printers and laser cutters also ask for Quantity Required (field key A), which multiplies the job's material charge (and the print time); it is added automatically when an equipment is switched to a fabrication profile.",
           },
           {
             title: "Maximum print size",

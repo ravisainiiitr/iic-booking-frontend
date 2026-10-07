@@ -82,6 +82,18 @@ describe("fabricationPartDetail", () => {
 });
 
 describe("FabricationBookingParts", () => {
+  it("shows Quantity Required and the sets on each part", () => {
+    render(<FabricationBookingParts booking={booking({ fabrication_quantity: 3 })} />);
+    expect(screen.getByTestId("fabrication-quantity").textContent).toContain("Quantity Required: 3");
+    expect(screen.getByText(/× 5 × 3 sets/)).toBeTruthy();
+  });
+
+  it("counts an older booking without a quantity as 1", () => {
+    render(<FabricationBookingParts booking={booking()} />);
+    expect(screen.getByTestId("fabrication-quantity").textContent).toBe("Quantity Required: 1");
+    expect(screen.queryByText(/sets/)).toBeNull();
+  });
+
   it("lists the parts, the own-material flag and a DXF download", async () => {
     api.getLaserCutDxfPresign.mockResolvedValue({ data: { url: "https://s3.example/bracket.dxf?sig=1" } });
     const open = vi.spyOn(window, "open").mockReturnValue(null);

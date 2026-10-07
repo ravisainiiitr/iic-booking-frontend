@@ -20,12 +20,37 @@ interface Print3DBookingActualsProps {
   /** Current booking amount and pending adjustment (negative = refund, positive = extra to pay). */
   totalCharge?: string | number | null;
   pendingAmount?: string | number | null;
+  /** Quantity Required of the booking: each file is printed its own copies × this. */
+  jobQuantity?: number | null;
   /** Called after save with latest booking payload (no navigation). */
   onUpdated?: (payload?: { booking?: any; print_analysis?: PrintAnalysisResult }) => void;
 }
 
 function hasActuals(a: PrintAnalysisResult): boolean {
   return a.actual_weight_grams != null || a.actual_time_minutes != null;
+}
+
+/** Copies of one file in the booking: its own quantity × the booking's Quantity Required. */
+export function printFileCopies(file: PrintAnalysisResult, jobQuantity?: number | null): number {
+  return Math.max(1, Math.floor(Number(file.quantity) || 1)) * Math.max(1, Math.floor(Number(jobQuantity) || 1));
+}
+
+/** Estimated weight (g, rounded up per copy) and time of every copy of a file; null when not measured. */
+export function printFileEstimatedTotals(file: PrintAnalysisResult, jobQuantity?: number | null) {
+  const copies = printFileCopies(file, jobQuantity);
+  return {
+    weight: file.weight_grams != null ? ceilPrintWeightGrams(file.weight_grams) * copies : null,
+    time: file.estimated_time_minutes != null ? Number(file.estimated_time_minutes) * copies : null,
+  };
+}
+
+/** Actuals are entered as the total of all copies, so the form starts from the actual or the estimated total. */
+function initialActuals(file: PrintAnalysisResult, jobQuantity?: number | null) {
+  const estimate = printFileEstimatedTotals(file, jobQuantity);
+  return {
+    weight: String(file.actual_weight_grams ?? estimate.weight ?? ""),
+    time: String(file.actual_time_minutes ?? estimate.time ?? ""),
+  };
 }
 
 export function Print3DBookingActuals({
@@ -35,6 +60,7 @@ export function Print3DBookingActuals({
   canEdit = false,
   totalCharge,
   pendingAmount,
+  jobQuantity,
   onUpdated,
 }: Print3DBookingActualsProps) {
   const files = useMemo(
@@ -45,14 +71,17 @@ export function Print3DBookingActuals({
   const selected = files.find((f) => f.id === selectedId) ?? files[0];
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [weight, setWeight] = useState(String(selected.actual_weight_grams ?? selected.weight_grams ?? ""));
-  const [time, setTime] = useState(String(selected.actual_time_minutes ?? selected.estimated_time_minutes ?? ""));
+  const [weight, setWeight] = useState(() => initialActuals(selected, jobQuantity).weight);
+  const [time, setTime] = useState(() => initialActuals(selected, jobQuantity).time);
 
   useEffect(() => {
-    setWeight(String(selected.actual_weight_grams ?? selected.weight_grams ?? ""));
-    setTime(String(selected.actual_time_minutes ?? selected.estimated_time_minutes ?? ""));
-  }, [selected]);
+    const initial = initialActuals(selected, jobQuantity);
+    setWeight(initial.weight);
+    setTime(initial.time);
+  }, [selected, jobQuantity]);
 
+  const copies = printFileCopies(selected, jobQuantity);
+  const estimatedTotals = printFileEstimatedTotals(selected, jobQuantity);
   const estimatedWeight = selected.weight_grams;
   const estimatedTime = selected.estimated_time_minutes;
   const selectedHasActuals = hasActuals(selected);
@@ -199,19 +228,29 @@ export function Print3DBookingActuals({
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
         <div>
-          <dt className="text-muted-foreground">Estimated weight</dt>
+          <dt className="text-muted-foreground">Estimated weight{copies > 1 ? " (one copy)" : ""}</dt>
           <dd className="font-medium">
             {estimatedWeight != null ? formatPrintWeightGrams(estimatedWeight) : "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Estimated time</dt>
+          <dt className="text-muted-foreground">Estimated time{copies > 1 ? " (one copy)" : ""}</dt>
           <dd className="font-medium">
             {estimatedTime != null ? `${estimatedTime} min` : "—"}
           </dd>
         </div>
+        {copies > 1 && (
+          <div className="col-span-2" data-testid="print-actuals-estimated-total">
+            <dt className="text-muted-foreground">Estimated total ({copies} copies)</dt>
+            <dd className="font-medium">
+              {estimatedTotals.weight != null ? formatPrintWeightGrams(estimatedTotals.weight) : "—"}
+              {" · "}
+              {estimatedTotals.time != null ? `${estimatedTotals.time} min` : "—"}
+            </dd>
+          </div>
+        )}
         <div>
-          <dt className="text-muted-foreground">Actual weight</dt>
+          <dt className="text-muted-foreground">Actual weight{copies > 1 ? " (total)" : ""}</dt>
           <dd className="font-medium">
             {selected.actual_weight_grams != null
               ? formatPrintWeightGrams(selected.actual_weight_grams)
@@ -219,7 +258,7 @@ export function Print3DBookingActuals({
           </dd>
         </div>
         <div>
-          <dt className="text-muted-foreground">Actual time</dt>
+          <dt className="text-muted-foreground">Actual time{copies > 1 ? " (total)" : ""}</dt>
           <dd className="font-medium">
             {selected.actual_time_minutes != null
               ? `${selected.actual_time_minutes} min`
@@ -281,7 +320,12 @@ export function Print3DBookingActuals({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="actual-weight">
-                Actual weight (g){files.length > 1 || Number(selected.quantity) > 1 ? ", all copies of this file" : ""}
+                Actual weight (g)
+                {copies > 1
+                  ? `, total for all ${copies} copies of this file`
+                  : files.length > 1
+                    ? ", this file"
+                    : ""}
               </Label>
               <Input
                 id="actual-weight"
@@ -295,7 +339,9 @@ export function Print3DBookingActuals({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="actual-time">Actual print time (min)</Label>
+              <Label htmlFor="actual-time">
+                Actual print time (min){copies > 1 ? `, total for all ${copies} copies` : ""}
+              </Label>
               <Input
                 id="actual-time"
                 type="number"
@@ -324,8 +370,9 @@ export function Print3DBookingActuals({
               size="sm"
               disabled={saving}
               onClick={() => {
-                setWeight(String(selected.actual_weight_grams ?? selected.weight_grams ?? ""));
-                setTime(String(selected.actual_time_minutes ?? selected.estimated_time_minutes ?? ""));
+                const initial = initialActuals(selected, jobQuantity);
+                setWeight(initial.weight);
+                setTime(initial.time);
                 setEditing(false);
               }}
             >

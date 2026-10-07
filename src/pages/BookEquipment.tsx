@@ -17,6 +17,7 @@ import {
   type TemplateSlotFallback,
   isFabricationProfile,
 } from "@/lib/api";
+import { FABRICATION_QUANTITY_KEY, PRINT_3D_SERVER_KEYS, fabricationJobQuantity } from "@/lib/fabricationProfiles";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
 import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
@@ -1049,9 +1050,12 @@ const BookEquipment = () => {
   const [laserCutBatchId, setLaserCutBatchId] = useState<string | null>(null);
   /** Laser: changes with part quantities / sheets / units, so the estimate refreshes for the same upload. */
   const [laserPartsKey, setLaserPartsKey] = useState<string | null>(null);
+  /** 3D print: changes with copies / material of the analysed files, so the estimate refreshes. */
+  const [printPartsKey, setPrintPartsKey] = useState<string | null>(null);
   /** 3D print / laser: the user brings their own material (fixed charge replaces the material cost). */
   const [fabricationOwnMaterial, setFabricationOwnMaterial] = useState(false);
-  const fabricationKey = JSON.stringify([laserCutBatchId, laserPartsKey, fabricationOwnMaterial]);
+  const fabricationKey = JSON.stringify([laserCutBatchId, laserPartsKey, printPartsKey, fabricationOwnMaterial]);
+  const fabricationQuantity = fabricationJobQuantity(inputFieldValues[FABRICATION_QUANTITY_KEY]);
   const [chargeProgress, setChargeProgress] = useState(0);
   const [icpmsCoverageByFieldKey, setIcpmsCoverageByFieldKey] = useState<
     Record<
@@ -3443,8 +3447,8 @@ const BookEquipment = () => {
       const { carried, droppedLabels } = sanitizeRebookInputValues(
         withoutSampleSets(source.input_values),
         rebookFields,
-        // 3D print weight/material/time come from a fresh STL analysis, never from the old booking.
-        isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
+        // 3D print material/time come from a fresh STL analysis, never from the old booking.
+        isPrint3d ? { skipKeys: new Set(PRINT_3D_SERVER_KEYS) } : undefined
       );
       setInputFieldValues((prev) => {
         const next: Record<string, unknown> = { ...prev, ...carried };
@@ -3574,7 +3578,7 @@ const BookEquipment = () => {
       const { carried, dropped, droppedLabels } = sanitizeRebookInputValues(
         withoutSampleSets(templateValues),
         templateFields,
-        isPrint3d ? { skipKeys: new Set(["A", "B", "C"]) } : undefined
+        isPrint3d ? { skipKeys: new Set(PRINT_3D_SERVER_KEYS) } : undefined
       );
       setInputFieldValues((prev) => {
         const next: Record<string, unknown> = { ...prev, ...carried };
@@ -6184,6 +6188,7 @@ const BookEquipment = () => {
     if (!values) {
       setPrintAnalysisId(null);
       setPrintAnalysisBatchId(null);
+      setPrintPartsKey(null);
       lastCalculatedValuesRef.current = '';
       setChargeCalculated(false);
       setCalculatedCharge(null);
@@ -6195,12 +6200,8 @@ const BookEquipment = () => {
     setPrintAnalysisBatchId(values.batchId ?? null);
     setFabricationOwnMaterial(values.ownMaterial);
     lastCalculatedValuesRef.current = '';
-    setInputFieldValues((prev) => ({
-      ...prev,
-      A: values.weightGrams,
-      B: values.materialCode,
-      C: values.timeMinutes,
-    }));
+    // Weight, material and time are read from the STL analysis on the server; A stays Quantity Required.
+    setPrintPartsKey(JSON.stringify([values.weightGrams, values.materialCode, values.timeMinutes]));
   }, []);
 
   const handleLaserCutReady = useCallback((values: LaserCutBookingValues | null) => {
@@ -6222,6 +6223,7 @@ const BookEquipment = () => {
   useEffect(() => {
     setLaserCutBatchId(null);
     setLaserPartsKey(null);
+    setPrintPartsKey(null);
     setFabricationOwnMaterial(false);
   }, [selectedEquipment?.id]);
 
@@ -9420,6 +9422,7 @@ const BookEquipment = () => {
                     estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
                     maxPrintSize={(equipmentDetail as { max_print_size?: MaxPrintSizePayload | null }).max_print_size}
                     ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}
+                    jobQuantity={fabricationQuantity}
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
                     disabled={!!repeatSourceBooking}
@@ -9432,6 +9435,7 @@ const BookEquipment = () => {
                     equipmentId={selectedEquipment.id}
                     estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
                     ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}
+                    jobQuantity={fabricationQuantity}
                     onReady={handleLaserCutReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
                   />
@@ -9594,7 +9598,7 @@ const BookEquipment = () => {
                         {equipmentDetail.input_fields
                           .filter((field: any) => {
                             if (equipmentDetail?.profile_type === "PRINT_3D") {
-                              if (["A", "B", "C"].includes(String(field.field_key || "").toUpperCase())) {
+                              if (PRINT_3D_SERVER_KEYS.includes(String(field.field_key || "").toUpperCase())) {
                                 return false;
                               }
                             }

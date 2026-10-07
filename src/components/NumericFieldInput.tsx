@@ -64,6 +64,7 @@ export function NumericFieldInput({
   const status = numericInputStatus(value, bounds);
   const hint = numericInputHint(value, bounds, { maxHint, clampNote });
   const allowsNegative = numericFieldAllowsNegative(bounds);
+  const wholeNumbersOnly = Number.isInteger(bounds.step) && Number.isInteger(bounds.min);
   const stepAttr = formatStepAttr(bounds.step);
   const minText = formatNumericBound(bounds.min);
   const maxText = formatNumericBound(bounds.max);
@@ -94,7 +95,7 @@ export function NumericFieldInput({
         <Input
           id={id}
           type="number"
-          inputMode={allowsNegative ? "text" : "decimal"}
+          inputMode={allowsNegative ? "text" : wholeNumbersOnly ? "numeric" : "decimal"}
           value={text}
           onChange={(e) => {
             const next = sanitizeNumericTyping(e.target.value, bounds);

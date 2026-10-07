@@ -259,7 +259,11 @@ export function oicChargesSection(): GuideSection {
       { title: "Higher charge, unpaid", body: "Use Deduct Money to debit the difference from the user's wallet." },
       {
         title: "3D print actual weight and time",
-        body: "After printing, open the booking and click Set actual weight & time (choose the file first when the booking has several STL files). Saving recalculates the amount with the same rates and GST as the estimate: a lower amount waits for your Confirm refund, a higher amount is collected with Deduct Money or the user's Pay Now.",
+        body: "After printing, open the booking and click Set actual weight & time (choose the file first when the booking has several STL files). Enter the total weight and time of all copies of that file, including the Quantity Required; the form starts from the estimated total. Saving recalculates the amount with the same rates and GST as the estimate: a lower amount waits for your Confirm refund, a higher amount is collected with Deduct Money or the user's Pay Now.",
+      },
+      {
+        title: "Quantity Required (field A)",
+        body: "Every 3D printer and laser cutter asks for Quantity Required (field key A, a whole number from 1 by default), the number of copies of the whole job. For 3D printing the weight and print time are multiplied by it; for laser cutting the sheet material charge is multiplied by it, and the machine time only when your time formula uses A. Booking details and exports show it under A, and reports count it as the number of samples. Bookings made before it was added count as 1 and keep their charge.",
       },
     ],
     rules: [

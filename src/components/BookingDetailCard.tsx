@@ -305,6 +305,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   own_material?: boolean;
   own_material_fixed_charge?: string | null;
   fabrication_parts?: FabricationPart[];
+  fabrication_quantity?: number | null;
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
   fabrication_workflow?: FabricationWorkflow | null;
@@ -3574,6 +3575,7 @@ export function BookingDetailCard({
               bookingId={bookingPk}
               totalCharge={isFinanceUser || isJobSheetView ? null : booking.total_charge}
               pendingAmount={isJobSheetView ? null : booking.charge_recalculation_pending_amount}
+              jobQuantity={booking.fabrication_quantity}
               canEdit={
                 isManagerOrAdmin &&
                 !booking.source_booking_id &&

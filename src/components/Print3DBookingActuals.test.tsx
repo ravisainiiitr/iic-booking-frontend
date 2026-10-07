@@ -74,6 +74,30 @@ describe("Print3DBookingActuals", () => {
     );
   });
 
+  it("asks for the total of all copies and starts from the estimated total", async () => {
+    api.updateBookingPrintActuals.mockResolvedValue({ data: { message: "ok", booking: {}, charge_recalculation_summary: null } });
+    render(
+      <Print3DBookingActuals
+        printAnalysis={file("a", { quantity: 2, weight_grams: 10.2, estimated_time_minutes: 30 })}
+        bookingId={9}
+        jobQuantity={3}
+        canEdit
+      />,
+    );
+    expect(screen.getByTestId("print-actuals-estimated-total").textContent).toContain("6 copies");
+    expect(screen.getByTestId("print-actuals-estimated-total").textContent).toContain("66 g");
+    expect(screen.getByTestId("print-actuals-estimated-total").textContent).toContain("180 min");
+    fireEvent.click(screen.getByRole("button", { name: /Set actual weight & time/ }));
+    expect(screen.getByLabelText(/Actual weight/).getAttribute("id")).toBe("actual-weight");
+    expect(screen.getByText(/total for all 6 copies of this file/)).toBeTruthy();
+    expect((screen.getByLabelText(/Actual weight/) as HTMLInputElement).value).toBe("66");
+    expect((screen.getByLabelText(/Actual print time/) as HTMLInputElement).value).toBe("180");
+    fireEvent.click(screen.getByRole("button", { name: /Save & update charges/ }));
+    await waitFor(() =>
+      expect(api.updateBookingPrintActuals).toHaveBeenCalledWith(9, { actual_weight_grams: 66, actual_time_minutes: 180 }),
+    );
+  });
+
   it("shows the booking amount and a pending adjustment once actuals are set", () => {
     const { unmount } = render(
       <Print3DBookingActuals
