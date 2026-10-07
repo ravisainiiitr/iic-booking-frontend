@@ -5,10 +5,11 @@ import { MemoryRouter } from "react-router-dom";
 import MyBookings from "./MyBookings";
 
 const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
+const auth = vi.hoisted(() => ({ userType: "student" }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
-    user: { id: 7, email: "student@example.test", name: "Student", user_type: "student" },
+    user: { id: 7, email: "student@example.test", name: "Student", user_type: auth.userType },
     isAuthenticated: true,
     loading: false,
   }),
@@ -71,6 +72,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  auth.userType = "student";
   api.getBookings.mockImplementation(async (params: Params) => page(params));
   api.exportBookings.mockResolvedValue({ rowCount: 60 });
   vi.stubGlobal(
@@ -144,4 +146,20 @@ describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
     expect(api.exportBookings).toHaveBeenCalledWith("pdf", "my", listFilters);
     expect(listFilters).toMatchObject({ search: "xrd", end_date: "2026-10-31" });
   });
+
+  it.each(["student", "faculty", "finance", "operator", "manager", "dept_admin", "admin"])(
+    "opens on All status with no date range for %s",
+    async (userType) => {
+      auth.userType = userType;
+      renderPage();
+      await screen.findAllByText("XRD202600001");
+      expect(screen.getByRole("combobox", { name: "Status" }).textContent).toContain("All status");
+      expect(calls().length).toBeGreaterThan(0);
+      for (const call of calls()) {
+        expect(call.status).toBeUndefined();
+        expect(call.start_date).toBeUndefined();
+        expect(call.end_date).toBeUndefined();
+      }
+    },
+  );
 });

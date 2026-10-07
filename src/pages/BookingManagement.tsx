@@ -128,6 +128,11 @@ const PAGE_SIZE = 10;
 /** Pseudo status: open bookings past the equipment's results deadline (sent as results_overdue=1). */
 const RESULTS_OVERDUE_FILTER = "RESULTS_OVERDUE";
 
+/** Status the list opens with: Booked for the Main Administrator, All status for everyone else. */
+function defaultStaffStatusFilter(userType: string | number | null | undefined): string {
+  return String(userType ?? "").toLowerCase() === "admin" ? "BOOKED" : "all";
+}
+
 const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
@@ -136,8 +141,9 @@ const BookingManagement = () => {
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
-  const [statusFilter, setStatusFilter] = useState<string>(() =>
-    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULTS_OVERDUE_FILTER : "BOOKED",
+  /** null until a link or the user picks a status: the list then uses the role's default. */
+  const [chosenStatusFilter, setStatusFilter] = useState<string | null>(() =>
+    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULTS_OVERDUE_FILTER : null,
   );
   const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
@@ -170,6 +176,7 @@ const BookingManagement = () => {
   const isManagerOrAdmin =
     userTypeStr === 'manager' || userTypeStr === 'admin' || isDeptAdmin;
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
+  const statusFilter = chosenStatusFilter ?? defaultStaffStatusFilter(userTypeStr);
 
   useEffect(() => {
     if (authLoading) return;
