@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type BookingListFilters } from "@/lib/api";
 import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
@@ -54,6 +54,7 @@ import {
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
+import { BookingExportMenu } from "@/components/BookingExportMenu";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
@@ -739,6 +740,22 @@ const MyBookings = () => {
     fetchBookings(onlyShowPendingRating ? { status: "COMPLETED", onlyShowUnrated: true } : undefined, 1);
   };
 
+  /** Server-side filters, search and sort on screen; shared by the list and Export. */
+  const listFilters = (status: string = statusFilter, effectiveOrdering: string = ordering): BookingListFilters => {
+    const params: BookingListFilters = {};
+    // "Waitlisted" is applied client-side after merging waitlist entries (Export sends it; see exportFilters).
+    if (status !== "all" && status !== "WAITLISTED") params.status = status;
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    if (searchTerm) params.search = searchTerm;
+    if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
+    if (effectiveOrdering) params.ordering = effectiveOrdering;
+    return params;
+  };
+
+  const exportFilters = (): BookingListFilters =>
+    statusFilter === "WAITLISTED" ? { ...listFilters(), status: "WAITLISTED" } : listFilters();
+
   const fetchBookings = async (
     overrides?: { status?: string; onlyShowUnrated?: boolean; ordering?: string },
     pageOverride?: number
@@ -749,19 +766,13 @@ const MyBookings = () => {
       const currentPage = pageOverride ?? page;
       const offset = (currentPage - 1) * PAGE_SIZE;
       const effectiveOrdering = overrides?.ordering ?? ordering;
-      const params: Record<string, string | number | boolean> = {
+      const status = overrides?.status ?? statusFilter;
+      const response = await apiClient.getBookings({
+        ...listFilters(status, effectiveOrdering),
         limit: PAGE_SIZE,
         offset,
         list_view: true,
-      };
-      const status = overrides?.status ?? statusFilter;
-      if (status !== "all" && status !== "WAITLISTED") params.status = status;
-      if (startDate) params.start_date = startDate;
-      if (endDate) params.end_date = endDate;
-      if (searchTerm) params.search = searchTerm;
-      if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
-      if (effectiveOrdering) params.ordering = effectiveOrdering;
-      const response = await apiClient.getBookings(params);
+      });
       if (seq !== fetchSeqRef.current) return;
       if (response.error) {
         toast.error(response.error || "Failed to load bookings");
@@ -1622,6 +1633,7 @@ const MyBookings = () => {
                   onEquipmentChange={setEquipmentFilter}
                   equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
                   onClear={clearBookingFilters}
+                  actions={<BookingExportMenu view="my" getFilters={exportFilters} />}
                 />
                 <BookingStatusLegend className="pt-2" />
               </CardHeader>

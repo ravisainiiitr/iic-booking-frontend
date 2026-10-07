@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, type BookingResultsDeadline } from "@/lib/api";
+import { apiClient, type BookingListFilters, type BookingResultsDeadline } from "@/lib/api";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ import {
 import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
+import { BookingExportMenu } from "@/components/BookingExportMenu";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
@@ -257,32 +258,38 @@ const BookingManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBookingId, overrideBooking?.booking_id]);
 
+  /** Filters, search and sort on screen; shared by the list and Export so both show the same bookings. */
+  const listFilters = (): BookingListFilters => {
+    const params: BookingListFilters = {};
+    if (ordering) params.ordering = ordering;
+    if (statusFilter === RESULTS_OVERDUE_FILTER) {
+      params.results_overdue = true;
+    } else if (statusFilter !== "all") {
+      params.status = statusFilter;
+    }
+    if (searchTerm) params.search = searchTerm;
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
+    if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
+    if (!isLabInchargeUser && supervisorNameTerm) params.supervisor_name = supervisorNameTerm;
+    if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
+    if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
+    return params;
+  };
+
   const fetchBookings = async (pageOverride?: number, opts?: { silent?: boolean }) => {
     const seq = ++fetchSeqRef.current;
     try {
       if (!opts?.silent) setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
       const offset = (currentPage - 1) * PAGE_SIZE;
-      const params: any = {
+      const response = await apiClient.getBookings({
+        ...listFilters(),
         limit: PAGE_SIZE,
         offset,
         list_view: true,
-      };
-      if (ordering) params.ordering = ordering;
-      if (statusFilter === RESULTS_OVERDUE_FILTER) {
-        params.results_overdue = true;
-      } else if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      if (searchTerm) params.search = searchTerm;
-      if (startDate) params.start_date = startDate;
-      if (endDate) params.end_date = endDate;
-      if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
-      if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
-      if (!isLabInchargeUser && supervisorNameTerm) params.supervisor_name = supervisorNameTerm;
-      if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
-      if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
-      const response = await apiClient.getBookings(params);
+      });
       if (seq !== fetchSeqRef.current) return;
       if (response.data && response.data.bookings) {
         setBookings(response.data.bookings);
@@ -538,6 +545,7 @@ const BookingManagement = () => {
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
+              actions={<BookingExportMenu view="staff" getFilters={listFilters} />}
             />
           </CardHeader>
           {loadingBookings && bookings.length === 0 ? (

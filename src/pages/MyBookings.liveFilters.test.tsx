@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import MyBookings from "./MyBookings";
 
-const api = vi.hoisted(() => ({ getBookings: vi.fn() }));
+const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -20,6 +20,7 @@ vi.mock("@/lib/api", () => ({
     {
       get: (_t, prop) => {
         if (prop === "getBookings") return api.getBookings;
+        if (prop === "exportBookings") return api.exportBookings;
         if (prop === "getToken") return () => "token";
         if (prop === "getMyWaitlistEntries") return async () => ({ data: { entries: [] } });
         return vi.fn(async () => ({ data: {} }));
@@ -71,10 +72,20 @@ function renderPage() {
 
 beforeEach(() => {
   api.getBookings.mockImplementation(async (params: Params) => page(params));
+  api.exportBookings.mockResolvedValue({ rowCount: 60 });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
@@ -115,5 +126,22 @@ describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
     expect(firstCell()).toBe("51");
     const firstCard = within(screen.getByRole("list", { name: "Bookings" })).getAllByRole("listitem")[0];
     expect(firstCard.textContent).toContain("S.No51");
+  });
+
+  it("exports with the filters and search the list is using, without paging", async () => {
+    const search = renderPage();
+    await screen.findAllByText("XRD202600001");
+    fireEvent.change(search, { target: { value: "xrd" } });
+    await waitFor(() => expect(lastCall().search).toBe("xrd"));
+    fireEvent.change(screen.getByLabelText("End date"), { target: { value: "31-10-2026" } });
+    await waitFor(() => expect(lastCall().end_date).toBe("2026-10-31"));
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /PDF/ }));
+
+    await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
+    const { limit: _limit, offset: _offset, list_view: _listView, ...listFilters } = lastCall();
+    expect(api.exportBookings).toHaveBeenCalledWith("pdf", "my", listFilters);
+    expect(listFilters).toMatchObject({ search: "xrd", end_date: "2026-10-31" });
   });
 });

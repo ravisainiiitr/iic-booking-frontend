@@ -2504,6 +2504,95 @@ export interface CopilotUsage {
   top_articles: Array<{ id: string; title: string; usage_count: number; helpful_count: number; not_helpful_count: number }>;
 }
 
+/** Filters, search and sort shared by the booking list (GET /bookings/) and its export. */
+export type BookingListFilters = {
+  user_id?: string | number;
+  equipment_id?: string | number;
+  booking_id?: number;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+  search?: string;
+  user_name?: string;
+  supervisor_name?: string;
+  /** "internal" (students/faculty) or "external" */
+  user_type_filter?: string;
+  /** Filter by rating: "unrated", "2_and_below", "3_and_below", "4_and_below", or "5" (admin/OIC/lab only) */
+  rating?: string;
+  /** Filter I-STEM FBR seal: "verified" or "unverified" (admin/OIC only) */
+  istem_fbr?: string;
+  ordering?: string;
+  /** Staff only: open bookings past the equipment's results deadline */
+  results_overdue?: boolean;
+};
+
+export type BookingExportFormat = "xlsx" | "csv" | "pdf";
+
+export function bookingListFilterQuery(params?: BookingListFilters): URLSearchParams {
+  const queryParams = new URLSearchParams();
+  if (params?.results_overdue) {
+    queryParams.append('results_overdue', '1');
+  }
+  if (params?.user_id) {
+    queryParams.append('user_id', String(params.user_id));
+  }
+  if (params?.equipment_id) {
+    queryParams.append('equipment_id', String(params.equipment_id));
+  }
+  if (params?.booking_id != null) {
+    queryParams.append('booking_id', String(params.booking_id));
+  }
+  if (params?.status) {
+    queryParams.append('status', params.status);
+  }
+  if (params?.start_date) {
+    queryParams.append('start_date', params.start_date);
+  }
+  if (params?.end_date) {
+    queryParams.append('end_date', params.end_date);
+  }
+  if (params?.search && params.search.trim()) {
+    queryParams.append('search', params.search.trim());
+  }
+  if (params?.user_name && params.user_name.trim()) {
+    queryParams.append('user_name', params.user_name.trim());
+  }
+  if (params?.supervisor_name && params.supervisor_name.trim()) {
+    queryParams.append('supervisor_name', params.supervisor_name.trim());
+  }
+  if (params?.user_type_filter && ['internal', 'external'].includes(params.user_type_filter)) {
+    queryParams.append('user_type_filter', params.user_type_filter);
+  }
+  if (params?.rating && (params.rating === 'unrated' || ['2_and_below', '3_and_below', '4_and_below', '5'].includes(params.rating))) {
+    queryParams.append('rating', params.rating);
+  }
+  if (params?.istem_fbr && ['verified', 'unverified'].includes(params.istem_fbr)) {
+    queryParams.append('istem_fbr', params.istem_fbr);
+  }
+  if (params?.ordering) {
+    queryParams.append('ordering', params.ordering);
+  }
+  return queryParams;
+}
+
+/** bookings_<YYYY-MM-DD_HHMM>.<ext> in IST, matching the name the server sends. */
+export function bookingExportFilename(format: BookingExportFormat, now: Date = new Date()): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value]),
+  );
+  return `bookings_${parts.year}-${parts.month}-${parts.day}_${parts.hour}${parts.minute}.${format}`;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -8473,74 +8562,58 @@ class ApiClient {
     }>("/bookings/approaching-sample-submission/");
   }
 
-  async getBookings(params?: {
-    user_id?: string | number;
-    equipment_id?: string | number;
-    booking_id?: number;
-    status?: string;
-    start_date?: string;
-    end_date?: string;
-    search?: string;
-    user_name?: string;
-    supervisor_name?: string;
-    /** "internal" (students/faculty) or "external" */
-    user_type_filter?: string;
-    /** Filter by rating: "unrated", "2_and_below", "3_and_below", "4_and_below", or "5" (admin/OIC/lab only) */
-    rating?: string;
-    /** Filter I-STEM FBR seal: "verified" or "unverified" (admin/OIC only) */
-    istem_fbr?: string;
-    ordering?: string;
+  /**
+   * Download every booking matching the list filters (no paging) as xlsx / csv / pdf.
+   * view "staff" is View Booking (/booking-management); "my" is My Bookings (adds active waitlist entries).
+   */
+  async exportBookings(
+    format: BookingExportFormat,
+    view: "staff" | "my",
+    filters?: BookingListFilters,
+  ): Promise<{ error?: string; rowCount?: number }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const q = bookingListFilterQuery(filters);
+    q.set('export_format', format);
+    q.set('view', view);
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    let res: Response;
+    try {
+      res = await fetch(`${base}/bookings/export/?${q.toString()}`, { headers: { Authorization: `Token ${token}` } });
+    } catch {
+      return { error: 'Could not reach the server. Check your connection and try again.' };
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      try {
+        const j = JSON.parse(text) as { error?: string; detail?: string };
+        return { error: j.error || j.detail || res.statusText || 'Export failed' };
+      } catch {
+        return { error: res.statusText || 'Export failed' };
+      }
+    }
+    const blob = await res.blob();
+    const name =
+      res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i)?.[1] || bookingExportFilename(format);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const count = Number(res.headers.get('X-Export-Row-Count'));
+    return { rowCount: Number.isFinite(count) && res.headers.has('X-Export-Row-Count') ? count : undefined };
+  }
+
+  async getBookings(params?: BookingListFilters & {
     limit?: number;
     offset?: number;
     /** Request lightweight list response (table view); omit for full detail */
     list_view?: boolean;
-    /** Staff only: open bookings past the equipment's results deadline */
-    results_overdue?: boolean;
   }) {
-    const queryParams = new URLSearchParams();
-    if (params?.results_overdue) {
-      queryParams.append('results_overdue', '1');
-    }
-    
-    if (params?.user_id) {
-      queryParams.append('user_id', String(params.user_id));
-    }
-    if (params?.equipment_id) {
-      queryParams.append('equipment_id', String(params.equipment_id));
-    }
-    if (params?.booking_id != null) {
-      queryParams.append('booking_id', String(params.booking_id));
-    }
-    if (params?.status) {
-      queryParams.append('status', params.status);
-    }
-    if (params?.start_date) {
-      queryParams.append('start_date', params.start_date);
-    }
-    if (params?.end_date) {
-      queryParams.append('end_date', params.end_date);
-    }
-    if (params?.search && params.search.trim()) {
-      queryParams.append('search', params.search.trim());
-    }
-    if (params?.user_name && params.user_name.trim()) {
-      queryParams.append('user_name', params.user_name.trim());
-    }
-    if (params?.supervisor_name && params.supervisor_name.trim()) {
-      queryParams.append('supervisor_name', params.supervisor_name.trim());
-    }
-    if (params?.user_type_filter && ['internal', 'external'].includes(params.user_type_filter)) {
-      queryParams.append('user_type_filter', params.user_type_filter);
-    }
-    if (params?.rating && (params.rating === 'unrated' || ['2_and_below', '3_and_below', '4_and_below', '5'].includes(params.rating))) {
-      queryParams.append('rating', params.rating);
-    }
-    if (params?.istem_fbr && ['verified', 'unverified'].includes(params.istem_fbr)) {
-      queryParams.append('istem_fbr', params.istem_fbr);
-    }
-    if (params?.ordering) {
-      queryParams.append('ordering', params.ordering);
-    }
+    const queryParams = bookingListFilterQuery(params);
     if (params?.limit != null) {
       queryParams.append('limit', String(params.limit));
     }

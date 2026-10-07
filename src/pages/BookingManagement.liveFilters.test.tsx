@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import BookingManagement from "./BookingManagement";
 
-const api = vi.hoisted(() => ({ getBookings: vi.fn() }));
+const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -21,6 +21,7 @@ vi.mock("@/lib/api", () => ({
     {
       get: (_t, prop) => {
         if (prop === "getBookings") return api.getBookings;
+        if (prop === "exportBookings") return api.exportBookings;
         return vi.fn(async () => ({ data: {} }));
       },
     },
@@ -65,10 +66,20 @@ function renderPage() {
 
 beforeEach(() => {
   api.getBookings.mockImplementation(async (params: Params) => page(params));
+  api.exportBookings.mockResolvedValue({ rowCount: 25 });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
@@ -147,5 +158,24 @@ describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
     await screen.findByText("XPS202600011");
     expect(firstCell()).toBe("11");
     expect(screen.getByText(/Showing 11–20 of 25/)).toBeTruthy();
+  });
+
+  it("exports with exactly the filters, search and sort the list is using, without paging", async () => {
+    const search = renderPage();
+    await screen.findByText("XPS202600001");
+    fireEvent.change(search, { target: { value: "xps" } });
+    await waitFor(() => expect(lastCall().search).toBe("xps"));
+    fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "01-10-2026" } });
+    await waitFor(() => expect(lastCall().start_date).toBe("2026-10-01"));
+    fireEvent.click(screen.getByRole("button", { name: /Equipment Name/ }));
+    await waitFor(() => expect(lastCall().ordering).toBeTruthy());
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+
+    await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
+    const { limit: _limit, offset: _offset, list_view: _listView, ...listFilters } = lastCall();
+    expect(api.exportBookings).toHaveBeenCalledWith("csv", "staff", listFilters);
+    expect(listFilters).toMatchObject({ search: "xps", start_date: "2026-10-01", ordering: lastCall().ordering });
   });
 });
