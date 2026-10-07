@@ -14,7 +14,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useNotifications, Notification } from "@/contexts/NotificationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { PendingActionList, type PendingItem } from "@/components/PendingActions/PendingActionList";
+import { withoutAwaitingCompletionUnlessOperator } from "@/components/dashboard/awaitingCompletion";
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -34,6 +36,7 @@ function toInAppPath(link: string): string {
 
 const NotificationPanel = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead, removeNotification, refreshNotifications } = useNotifications();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<PendingItem[]>([]);
@@ -42,7 +45,9 @@ const NotificationPanel = () => {
     setOpen(isOpen);
     if (isOpen) {
       refreshNotifications();
-      apiClient.getPendingActions().then((res) => setPending(res.data?.items ?? []));
+      apiClient
+        .getPendingActions()
+        .then((res) => setPending(withoutAwaitingCompletionUnlessOperator(res.data?.items ?? [], user?.user_type)));
     }
   };
   const pendingTotal = pending.reduce((sum, i) => sum + i.count, 0);

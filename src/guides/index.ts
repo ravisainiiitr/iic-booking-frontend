@@ -52,7 +52,7 @@ export function buildGuide(ctx: { audience: GuideAudienceId; flags?: Partial<Gui
   };
 }
 
-export { resolveGuideAudience, resolveGuideAudienceForUser, shouldAutoShowUserGuide } from "./resolveAudience";
+export { resolveGuideAudience, resolveGuideAudienceForUser } from "./resolveAudience";
 export type { GuideUserLike } from "./resolveAudience";
 export type {
   GuideAudienceId,

@@ -10,20 +10,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePeakWindow } from "@/hooks/use-peak-window";
-import { resolveGuideAudienceForUser, shouldAutoShowUserGuide, type GuideUserLike } from "@/guides/resolveAudience";
+import { resolveGuideAudienceForUser, type GuideUserLike } from "@/guides/resolveAudience";
 import type { GuideAudienceId, UserGuideContent } from "@/guides/types";
 import { loadGuideFlags } from "@/components/UserGuide/guideFlags";
 import { formatPersonName } from "@/lib/displayName";
-import { isPeakBlockableUserType } from "@/lib/peakWindow";
-import { useStaffAppShell } from "@/lib/staffApp";
 import { useProfileCompletion } from "@/components/ProfileCompletion/ProfileCompletionProvider";
-import {
-  hasUserGuideAutoShownThisLogin,
-  markUserGuideAutoShownThisLogin,
-} from "@/components/UserGuide/userGuideSession";
+import { markUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { markWhatsNewSeen, unreadWhatsNewIds } from "@/components/UserGuide/whatsNewSeen";
 
 interface UserGuideContextValue {
@@ -31,12 +25,12 @@ interface UserGuideContextValue {
   openGuide: (opts?: { force?: boolean; sectionId?: string }) => void;
   closeGuide: () => void;
   isOpen: boolean;
-  /** Opens "What's new for you" (also shown after each sign-in). */
+  /** Opens "What's new for you" (from the account menu; it no longer opens by itself after sign-in). */
   openWhatsNew: () => void;
   whatsNewOpen: boolean;
   /**
-   * True from sign-in until the Complete your profile prompt and then the post-login What's New have been
-   * shown and closed (or skipped), and while the guide or What's New is open. Other post-login prompts wait for it.
+   * True from sign-in until the Complete your profile prompt has been shown and closed (or skipped), and while
+   * the guide or What's New is open. Other post-login prompts wait for it.
    */
   postLoginBusy: boolean;
   /** Built for the signed-in user on demand; null until requested and loaded, or when there is no guide. */
@@ -55,9 +49,6 @@ const UserGuideDialog = lazy(() => import("@/components/UserGuide/UserGuideDialo
 const loadWhatsNewDialog = () => import("@/components/UserGuide/WhatsNewDialog");
 const WhatsNewDialog = lazy(loadWhatsNewDialog);
 
-/** Delay after the dashboard appears, so What's New does not flash over a page that is still loading. */
-const AUTO_SHOW_DELAY_MS = 900;
-
 type GuideUser = GuideUserLike & {
   oic_enable_leave_management?: boolean | null;
   oic_enable_ta_nomination?: boolean | null;
@@ -66,10 +57,7 @@ type GuideUser = GuideUserLike & {
 export function UserGuideProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const { blocking: profilePromptDue } = useProfileCompletion();
-  const location = useLocation();
   const navigate = useNavigate();
-  const peak = usePeakWindow();
-  const staffAppShell = useStaffAppShell();
   const [open, setOpen] = useState(false);
   const [guideStart, setGuideStart] = useState<string | null>(null);
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
@@ -77,11 +65,10 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   const [whatsNewSession, setWhatsNewSession] = useState(0);
   const [wanted, setWanted] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  /** User whose post-login What's New is decided (shown or skipped) in this mount. */
+  /** User whose post-login step is settled in this mount; later post-login prompts wait for it. */
   const [settledUserId, setSettledUserId] = useState<number | null>(null);
   /** In-memory mirror — survives user-object refreshes within this mount. */
   const autoShowHandledUserIdRef = useRef<number | null>(null);
-  const autoShowTimeoutRef = useRef<number | null>(null);
 
   const guideUser = user as unknown as GuideUser | null;
   const audience = useMemo<GuideAudienceId | null>(
@@ -179,10 +166,6 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isAuthenticated) return;
     autoShowHandledUserIdRef.current = null;
-    if (autoShowTimeoutRef.current != null) {
-      window.clearTimeout(autoShowTimeoutRef.current);
-      autoShowTimeoutRef.current = null;
-    }
     setOpen(false);
     setWhatsNewOpen(false);
     setSettledUserId(null);
@@ -194,55 +177,13 @@ export function UserGuideProvider({ children }: { children: ReactNode }) {
     if (loadFailed) setWhatsNewOpen(false);
   }, [loadFailed]);
 
-  const peakPaused = peak.externalPaused && isPeakBlockableUserType(user?.user_type ?? null);
-
-  // What's New on the first /dashboard visit after each sign-in, for every role with a guide
-  // (sessionStorage survives remounts / auth flicker). Waits for the fresh profile so it never
-  // opens on a stale cached user, and for the Complete your profile prompt to close first.
-  // Not in the staff Android app, which opens its own Today screen.
+  // What's New does not open by itself after sign-in; it is opened from the account menu. Once the fresh
+  // profile is in and the Complete your profile prompt has closed, the later post-login prompts may run.
   useEffect(() => {
     if (!isAuthenticated || !user?.id || authLoading || profilePromptDue) return;
     if (autoShowHandledUserIdRef.current === user.id) return;
-
-    if (hasUserGuideAutoShownThisLogin(user.id)) {
-      settle(user.id);
-      return;
-    }
-
-    if (!shouldAutoShowUserGuide({ user: guideUser }) || staffAppShell) {
-      markUserGuideAutoShownThisLogin(user.id);
-      settle(user.id);
-      return;
-    }
-
-    if (location.pathname !== "/dashboard" || peakPaused) return;
-
-    if (loadFailed) {
-      markUserGuideAutoShownThisLogin(user.id);
-      settle(user.id);
-      return;
-    }
-
-    if (!guide) {
-      setWanted(true);
-      return;
-    }
-
-    const userId = user.id;
-    autoShowHandledUserIdRef.current = userId;
-    markUserGuideAutoShownThisLogin(userId);
-
-    if (autoShowTimeoutRef.current != null) {
-      window.clearTimeout(autoShowTimeoutRef.current);
-    }
-    autoShowTimeoutRef.current = window.setTimeout(() => {
-      autoShowTimeoutRef.current = null;
-      setWhatsNewSession((n) => n + 1);
-      setWhatsNewOpen(true);
-      setSettledUserId(userId);
-    }, AUTO_SHOW_DELAY_MS);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, authLoading, profilePromptDue, user?.id, audience, location.pathname, guide, staffAppShell, peakPaused, loadFailed]);
+    settle(user.id);
+  }, [isAuthenticated, authLoading, profilePromptDue, user?.id, settle]);
 
   const postLoginBusy =
     isAuthenticated && user?.id != null && (profilePromptDue || settledUserId !== user.id || whatsNewOpen || open);

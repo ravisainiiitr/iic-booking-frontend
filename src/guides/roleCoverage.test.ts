@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { buildGuide, DEFAULT_GUIDE_FLAGS, GUIDE_AUDIENCES, type GuideFeatureFlags } from "@/guides";
-import { resolveGuideAudienceForUser, shouldAutoShowUserGuide, type GuideUserLike } from "./resolveAudience";
+import { resolveGuideAudienceForUser, type GuideUserLike } from "./resolveAudience";
 
 const ALL_ON = Object.fromEntries(Object.keys(DEFAULT_GUIDE_FLAGS).map((k) => [k, true])) as unknown as GuideFeatureFlags;
 
@@ -33,12 +33,11 @@ const ACCOUNTS: Array<[string, GuideUserLike & Record<string, unknown>, string]>
 describe("What's New and the user guide for every account type", () => {
   it.each(ACCOUNTS)("%s gets its own guide", (_label, user, audience) => {
     expect(resolveGuideAudienceForUser(user)).toBe(audience);
-    expect(shouldAutoShowUserGuide({ user })).toBe(true);
   });
 
   it("ignores the server's legacy user_guide_viewed flag, so nobody is left out", () => {
     const user = { user_type: "manager", user_guide_viewed: true } as GuideUserLike;
-    expect(shouldAutoShowUserGuide({ user })).toBe(true);
+    expect(resolveGuideAudienceForUser(user)).toBe("oic");
   });
 
   it("gives every role 1 to 10 items, each New, Improved or Fixed with a one-line description", () => {

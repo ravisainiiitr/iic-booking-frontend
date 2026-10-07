@@ -9,11 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const BOOKINGS_AWAITING_COMPLETION_ANCHOR = "bookings-awaiting-completion";
-/** Pending-actions item key for the same list (iic_booking/equipment/pending_actions.py). */
-export const BOOKINGS_AWAITING_COMPLETION_KEY = "bookings_awaiting_completion";
 
 /**
- * OIC / Lab in-charge dashboard: bookings of their equipment whose slot time is over and whose sample the lab
+ * Lab Operator dashboard: bookings of their equipment whose slot time is over and whose sample the lab
  * has received, but which are not marked Completed. "Overdue by" counts from the later of slot end and receipt.
  */
 export default function BookingsAwaitingCompletionCard({ className = "" }: { className?: string }) {

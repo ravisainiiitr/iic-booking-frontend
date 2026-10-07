@@ -19,6 +19,7 @@ import {
   markPendingActionsShownThisLogin,
 } from "@/components/PendingActions/pendingActionsSession";
 import { PendingActionList, type PendingItem } from "@/components/PendingActions/PendingActionList";
+import { withoutAwaitingCompletionUnlessOperator } from "@/components/dashboard/awaitingCompletion";
 
 /** After sign-in, lists everything waiting on the user (requests, shares, payments, reviews) with a direct link to each. */
 export default function PendingActionsPrompt() {
@@ -39,16 +40,17 @@ export default function PendingActionsPrompt() {
   useEffect(() => {
     if (!eligible || !user?.id) return;
     if (location.pathname !== "/dashboard") return;
-    // Complete your profile and What's New come first after sign-in; this list follows once they are closed.
+    // Complete your profile comes first after sign-in; this list follows once it is closed.
     if (postLoginBusy || hasPendingActionsShownThisLogin(user.id) || inFlight.current) return;
 
     const uid = user.id;
+    const userType = user.user_type;
     const timer = window.setTimeout(async () => {
       inFlight.current = true;
       try {
         const res = await apiClient.getPendingActions();
         markPendingActionsShownThisLogin(uid);
-        const list = res.data?.items ?? [];
+        const list = withoutAwaitingCompletionUnlessOperator(res.data?.items ?? [], userType);
         if (list.length > 0) {
           setItems(list);
           setOpen(true);

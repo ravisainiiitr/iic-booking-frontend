@@ -70,11 +70,3 @@ export function resolveGuideAudience(
 ): GuideAudienceId | null {
   return resolveGuideAudienceForUser({ user_type: userType, user_type_alias: userTypeAlias });
 }
-
-/**
- * What's New opens after each sign-in for every role that has a guide. The server's `user_guide_viewed`
- * flag is not consulted: it was set once per account and would hide What's New from that user for good.
- */
-export function shouldAutoShowUserGuide(opts: { user: GuideUserLike | null | undefined }): boolean {
-  return resolveGuideAudienceForUser(opts.user) != null;
-}

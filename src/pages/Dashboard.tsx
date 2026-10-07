@@ -38,9 +38,11 @@ import PendingActionsSummary from "@/components/PendingActions/PendingActionsSum
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
 import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
-import BookingsAwaitingCompletionCard, {
+import BookingsAwaitingCompletionCard from "@/components/dashboard/BookingsAwaitingCompletionCard";
+import {
   BOOKINGS_AWAITING_COMPLETION_KEY,
-} from "@/components/dashboard/BookingsAwaitingCompletionCard";
+  showsBookingsAwaitingCompletion,
+} from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -3698,7 +3700,7 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={showsLabStyleDashboard ? [BOOKINGS_AWAITING_COMPLETION_KEY] : undefined} />
+      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} />
       {loginTip}
     </>
   );
@@ -3943,7 +3945,7 @@ const Dashboard = () => {
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
-        {showsLabStyleDashboard ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
+        {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div

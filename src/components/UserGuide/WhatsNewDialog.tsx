@@ -27,7 +27,7 @@ function unreadSummary(unread: number, total: number, counts: string): string {
   return `You're up to date. A recap: ${counts}.`;
 }
 
-/** "What's new for you": the role's latest changes, shown after each sign-in and from the profile menu. */
+/** "What's new for you": the role's latest changes, opened from the profile menu. */
 export default function WhatsNewDialog({ open, onClose, guide, userName, unreadIds, onOpenGuide, onTry }: WhatsNewDialogProps) {
   const gotItRef = useRef<HTMLButtonElement>(null);
   /** Set while handing focus to the guide window or a new page, so closing does not pull focus back. */

@@ -94,10 +94,17 @@ const ROLES: Array<[string, TestUser, GuideAudienceId]> = [
   ["Main Admin", account(20, "admin"), "admin"],
 ];
 
+const reopen = () => fireEvent.click(screen.getByRole("button", { name: "Reopen what's new" }));
+
 describe("What's New after sign-in", () => {
-  it.each(ROLES)("opens with their own items for: %s", async (_label, user, audience) => {
+  it.each(ROLES)("does not open by itself, and opens from the menu with their own items, for: %s", async (_label, user, audience) => {
     signIn(user);
     renderAt("/dashboard");
+    await waitPastAutoShow();
+    expect(screen.queryByTestId("whats-new-dialog")).toBeNull();
+    expect(screen.getByTestId("busy").textContent).toBe("false");
+
+    reopen();
     const dialog = await whatsNew();
     expect(within(dialog).getByRole("heading", { name: "What's new for you" })).toBeTruthy();
     expect(dialog.textContent).toContain(GUIDE_AUDIENCE_LABELS[audience]);
@@ -107,14 +114,10 @@ describe("What's New after sign-in", () => {
     expect(within(dialog).getByRole("button", { name: "Got it" })).toBeTruthy();
   });
 
-  it("opens once per sign-in and again after the next sign-in", async () => {
+  it("stays closed after the next sign-in too", async () => {
     const user = account(30, "student");
     signIn(user);
     const view = renderAt("/dashboard");
-    fireEvent.click(within(await whatsNew()).getByRole("button", { name: "Got it" }));
-    await waitFor(() => expect(screen.queryByTestId("whats-new-dialog")).toBeNull());
-
-    view.update();
     await waitPastAutoShow();
     expect(screen.queryByTestId("whats-new-dialog")).toBeNull();
 
@@ -123,27 +126,25 @@ describe("What's New after sign-in", () => {
     view.update();
     signIn(user);
     view.update();
-    expect(await whatsNew()).toBeTruthy();
-  });
-
-  it("waits for the dashboard and stays out of the staff Android app", async () => {
-    signIn(account(31, "manager"));
-    renderAt("/profile");
     await waitPastAutoShow();
     expect(screen.queryByTestId("whats-new-dialog")).toBeNull();
-    cleanup();
+    expect(screen.getByTestId("busy").textContent).toBe("false");
+  });
 
+  it("stays closed in the staff Android app", async () => {
     env.staffShell = true;
+    signIn(account(31, "manager"));
     renderAt("/dashboard");
     await waitPastAutoShow();
     expect(screen.queryByTestId("whats-new-dialog")).toBeNull();
     expect(screen.getByTestId("busy").textContent).toBe("false");
   });
 
-  it("holds other post-login prompts until What's New is closed", async () => {
+  it("releases other post-login prompts at once, and holds them while What's New is open from the menu", async () => {
     signIn(account(32, "admin"));
     renderAt("/dashboard");
-    expect(screen.getByTestId("busy").textContent).toBe("true");
+    await waitFor(() => expect(screen.getByTestId("busy").textContent).toBe("false"));
+    reopen();
     const dialog = await whatsNew();
     expect(screen.getByTestId("busy").textContent).toBe("true");
     fireEvent.click(within(dialog).getByRole("button", { name: "Got it" }));
@@ -153,6 +154,7 @@ describe("What's New after sign-in", () => {
   it("hands over to the user guide at its first chapter instead of stacking a second popup", async () => {
     signIn(account(33, "manager"));
     renderAt("/dashboard");
+    reopen();
     fireEvent.click(within(await whatsNew()).getByRole("button", { name: /Open user guide/ }));
     await waitFor(() => expect(screen.queryByTestId("whats-new-dialog")).toBeNull());
     const first = buildGuide({ audience: "oic" }).sections[0];
@@ -163,13 +165,14 @@ describe("What's New after sign-in", () => {
   it("marks only items not seen before as unread", async () => {
     signIn(account(34, "student"));
     renderAt("/dashboard");
+    reopen();
     let dialog = await whatsNew();
     const total = buildGuide({ audience: "student" }).whatsNew.items.length;
     expect(dialog.querySelectorAll("[data-unread]")).toHaveLength(total);
     fireEvent.click(within(dialog).getByRole("button", { name: "Got it" }));
     await waitFor(() => expect(screen.queryByTestId("whats-new-dialog")).toBeNull());
 
-    fireEvent.click(screen.getByRole("button", { name: "Reopen what's new" }));
+    reopen();
     dialog = await whatsNew();
     expect(dialog.querySelectorAll("[data-unread]")).toHaveLength(0);
     expect(screen.getByTestId("whats-new-unread-summary").textContent).toMatch(/up to date/);
@@ -178,7 +181,7 @@ describe("What's New after sign-in", () => {
 
     const seen: string[] = JSON.parse(localStorage.getItem("iic_whats_new_seen_34") || "[]");
     localStorage.setItem("iic_whats_new_seen_34", JSON.stringify(seen.filter((id) => id !== "quota-countdown")));
-    fireEvent.click(screen.getByRole("button", { name: "Reopen what's new" }));
+    reopen();
     dialog = await whatsNew();
     expect(dialog.querySelectorAll("[data-unread]")).toHaveLength(1);
     expect(screen.getByTestId("whats-new-unread-summary").textContent).toMatch(/^1 change since your last visit/);
@@ -187,6 +190,7 @@ describe("What's New after sign-in", () => {
   it("Try it opens the page and closes What's New", async () => {
     signIn(account(35, "student"));
     renderAt("/dashboard");
+    reopen();
     fireEvent.click(within(await whatsNew()).getByRole("button", { name: "Try it: Quota left and what used it" }));
     await waitFor(() => expect(screen.queryByTestId("whats-new-dialog")).toBeNull());
     expect(screen.getByTestId("where").textContent).toBe("/equipments");

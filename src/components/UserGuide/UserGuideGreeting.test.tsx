@@ -89,7 +89,6 @@ function OpenGuideButton() {
   );
 }
 
-/** Opens on /profile by default so the post-login What's New on /dashboard stays out of the way. */
 const renderProvider = (path = "/profile") => {
   const tree = () => (
     <MemoryRouter initialEntries={[path]}>
@@ -125,7 +124,7 @@ describe("UserGuideProvider greeting", () => {
     await waitFor(() => expect(greetingText()).toEqual(["Welcome, Prof. Ravi Saini."]));
   });
 
-  it("waits for the fresh profile before auto-opening, so a stale cached user is never greeted", async () => {
+  it("opens nothing by itself on the dashboard after sign-in, before or after the fresh profile arrives", async () => {
     const cached = faculty({ display_name: null, name: "", user_guide_viewed: false });
     auth.state = { user: cached, isAuthenticated: true, loading: true };
     const view = renderProvider("/dashboard");
@@ -136,7 +135,11 @@ describe("UserGuideProvider greeting", () => {
 
     auth.state = { user: faculty({ user_guide_viewed: false }), isAuthenticated: true, loading: false };
     view.update();
-    await waitFor(() => expect(greetingText()).toEqual(["Welcome, Prof. Ravi Saini."]), { timeout: 4000 });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+    expect(screen.queryByTestId("user-guide-greeting")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("greets IITR faculty with Prof. even when the cached user's name has no prefix", async () => {

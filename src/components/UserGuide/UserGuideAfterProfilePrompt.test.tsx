@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const state = vi.hoisted(() => ({
@@ -48,7 +48,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("post-login order", () => {
-  it("opens What's New only after the Complete your profile prompt closes, and holds back later prompts meanwhile", async () => {
+  it("holds back later prompts until the Complete your profile prompt closes, without opening What's New", async () => {
     state.blocking = true;
     const view = render(ui());
     await act(async () => {
@@ -59,6 +59,10 @@ describe("post-login order", () => {
 
     state.blocking = false;
     view.rerender(ui());
-    expect(await screen.findByTestId("whats-new-dialog", {}, { timeout: 4000 })).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("busy").textContent).toBe("false"));
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 1300));
+    });
+    expect(screen.queryByTestId("whats-new-dialog")).toBeNull();
   });
 });

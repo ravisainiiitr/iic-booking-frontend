@@ -77,7 +77,7 @@ export function staffViewBookingSection(g: Gate): GuideSection {
       g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),
     ]),
     tips: compact([
-      g.only(["oic", "operator"], "Bookings awaiting completion on the dashboard lists runs that are over and whose sample has been marked Sample Accepted (received), but are not completed, with when the sample was received and the date results are due; a reminder email goes out daily at 9:00 AM until they are, marking results that are overdue. Overdue by and Results due count from the slot end, or from the receipt if it came later. A booking whose sample was never received is not listed: it follows the Booking Not Utilized rule."),
+      g.only(["operator"], "Bookings awaiting completion on the dashboard lists runs that are over and whose sample has been marked Sample Accepted (received), but are not completed, with when the sample was received and the date results are due; a reminder email goes out daily at 9:00 AM until they are, marking results that are overdue. Overdue by and Results due count from the slot end, or from the receipt if it came later. A booking whose sample was never received is not listed: it follows the Booking Not Utilized rule."),
       g.only(["operator"], "Booking lists show the number of sample sets and samples under each booking ID, for example 3 sets · 12 samples."),
     ]),
   };
