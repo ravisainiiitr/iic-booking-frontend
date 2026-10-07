@@ -17,6 +17,7 @@ import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
 import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
 import { useLocation, useNavigate } from "react-router-dom";
+import { openRepeatSampleBooking } from "@/lib/repeatSample";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateTimeInput } from "@/components/ui/datetime-input";
@@ -1004,10 +1005,7 @@ export function BookingDetailCard({
       return;
     }
     onClose();
-    if (location.pathname === "/booking-management") {
-      navigate(`/booking-management?expand=${rid}`, { replace: true });
-    }
-    navigate(`/book-equipment?equipment_id=${booking.equipment}&mode=book&repeatOf=${rid}`);
+    openRepeatSampleBooking(navigate, location.pathname, booking.equipment, rid);
   };
 
   const openActionDialog = (type: ActionType, b: BookingDetailCardBooking) => {

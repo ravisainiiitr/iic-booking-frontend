@@ -21,6 +21,13 @@ import { FABRICATION_QUANTITY_KEY, PRINT_3D_SERVER_KEYS, fabricationJobQuantity 
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
 import { RepeatSampleUserCard } from "@/components/RepeatSampleUserCard";
+import {
+  repeatInputPayload as buildRepeatInputPayload,
+  repeatChangesSummary,
+  repeatParamsEditable,
+  repeatParamsLocked as isRepeatParamsLocked,
+  type RepeatInputChange,
+} from "@/lib/repeatSample";
 import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
 import { TemplateHealthAdvice, focusTemplateField } from "@/components/booking-templates/TemplateHealthAdvice";
 import { clampTemplateValues, templateApplyNotice, templateHealthBadge, templateSaveBlocker } from "@/lib/templateHealth";
@@ -1687,14 +1694,12 @@ const BookEquipment = () => {
     wallet_owner_name?: string | null;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
-  /** Repeat requested by the booking user: parameters stay exactly as in the original booking. */
-  const repeatParamsLocked = !!repeatSourceBooking && !repeatSourceBooking.booked_by_staff;
-  /** OIC / Admin repeat: parameters are prefilled from the original booking and can be edited. */
-  const repeatEditable = !!repeatSourceBooking?.booked_by_staff;
+  const repeatParamsLocked = isRepeatParamsLocked(repeatSourceBooking);
+  const repeatEditable = repeatParamsEditable(repeatSourceBooking);
   const [repeatPreview, setRepeatPreview] = useState<{
     loading: boolean;
     error: string | null;
-    changes: Array<{ key: string; label: string; old: string; new: string }>;
+    changes: RepeatInputChange[];
   }>({ loading: false, error: null, changes: [] });
   /** Input fields the original booking's values were last applied to (equipment detail reloads reset the form). */
   const repeatValuesAppliedForRef = useRef<unknown>(null);
@@ -3293,7 +3298,7 @@ const BookEquipment = () => {
   }, [repeatOfUrlValue, selectedEquipment?.id, userType, userId]);
 
   const repeatInputPayload = useMemo(
-    () => ({ ...withoutSampleSets(inputFieldValues as Record<string, unknown>), _sample_sets: sampleSets }),
+    () => buildRepeatInputPayload(inputFieldValues as Record<string, unknown>, sampleSets),
     [inputFieldValues, sampleSets],
   );
 
@@ -9623,7 +9628,7 @@ const BookEquipment = () => {
                       {repeatEditable && !repeatPreview.error && repeatPreview.changes.length > 0 && (
                         <div className="mt-1" data-testid="repeat-input-changes">
                           <span className="font-medium">Changed from the original booking:</span>{" "}
-                          {repeatPreview.changes.map((c) => `${c.label}: ${c.old} → ${c.new}`).join("; ")}
+                          {repeatChangesSummary(repeatPreview.changes)}
                         </div>
                       )}
                       {repeatBookableFromMs != null && (
