@@ -69,6 +69,12 @@ describe("laserPartsBlockReason", () => {
     expect(laserPartsBlockReason([part()])).toBeNull();
   });
 
+  it("does not check the sheet size when the user brings their own sheet", () => {
+    const big = part({ fit_error: "The part does not fit on the sheet." });
+    expect(laserPartsBlockReason([big], true)).toBeNull();
+    expect(laserPartsBlockReason([part({ material_id: null, fit_error: "x" })], true)).toBe("plate: choose a sheet material.");
+  });
+
   it("changes the parts key when quantity, material or the own-material choice changes", () => {
     const base = laserPartsKey([part()], false);
     expect(laserPartsKey([part({ quantity: 6 })], false)).not.toBe(base);
@@ -110,6 +116,52 @@ describe("LaserCutBookingPanel", () => {
 
     await waitFor(() => expect(api.updateLaserCutAnalysis).toHaveBeenCalledWith("p1", { quantity: 2 }));
     await waitFor(() => expect(screen.getByTestId("laser-part-cost").textContent).toContain("80.97"));
+  });
+
+  it("clears the oversize error when own material is ticked and brings it back when unticked", async () => {
+    const fitError = "The part is 3000 × 1500 mm, which does not fit on a 2438.4 × 1219.2 mm sheet of Acrylic 3 mm.";
+    api.analyzeEquipmentDxf.mockResolvedValue({
+      data: { id: "b1", status: "COMPLETED", items: [part({ width_mm: "3000.00", height_mm: "1500.00", fit_error: fitError })] },
+    });
+    const onReady = vi.fn();
+    render(<LaserCutBookingPanel equipmentId={12} materials={[acrylic]} ownMaterialCharge="250" onReady={onReady} />);
+    fireEvent.change(screen.getByTestId("laser-dxf-input"), { target: { files: [new File(["x"], "plate.dxf")] } });
+
+    expect((await screen.findByTestId("laser-part-fit-error")).textContent).toBe(fitError);
+    expect(screen.getByTestId("laser-block-reason").textContent).toContain("does not fit");
+    expect(screen.queryByTestId("laser-own-sheet-note")).toBeNull();
+    expect(onReady).toHaveBeenLastCalledWith(null);
+
+    fireEvent.click(screen.getByLabelText("I will bring my own sheet material"));
+    await waitFor(() => expect(screen.queryByTestId("laser-part-fit-error")).toBeNull());
+    expect(screen.queryByTestId("laser-block-reason")).toBeNull();
+    expect(screen.getByTestId("laser-own-sheet-note").textContent).toBe(
+      "Size not checked against IIC sheets — make sure your sheet is large enough.",
+    );
+    await waitFor(() =>
+      expect(onReady).toHaveBeenLastCalledWith(expect.objectContaining({ batchId: "b1", ownMaterial: true })),
+    );
+
+    fireEvent.click(screen.getByLabelText("I will bring my own sheet material"));
+    expect((await screen.findByTestId("laser-part-fit-error")).textContent).toBe(fitError);
+    expect(screen.getByTestId("laser-block-reason").textContent).toContain("does not fit");
+    expect(screen.queryByTestId("laser-own-sheet-note")).toBeNull();
+    await waitFor(() => expect(onReady).toHaveBeenLastCalledWith(null));
+  });
+
+  it("skips the sheet check in the replace dialog when the booking uses own material", async () => {
+    api.analyzeEquipmentDxf.mockResolvedValue({
+      data: { id: "b1", status: "COMPLETED", items: [part({ fit_error: "does not fit" })] },
+    });
+    const onReady = vi.fn();
+    render(
+      <LaserCutBookingPanel equipmentId={12} materials={[acrylic]} ownMaterialCharge={null} ownMaterialSelected onReady={onReady} />,
+    );
+    fireEvent.change(screen.getByTestId("laser-dxf-input"), { target: { files: [new File(["x"], "plate.dxf")] } });
+
+    await waitFor(() => expect(onReady).toHaveBeenLastCalledWith(expect.objectContaining({ batchId: "b1" })));
+    expect(screen.queryByTestId("laser-part-fit-error")).toBeNull();
+    expect(screen.getByTestId("laser-own-sheet-note")).toBeTruthy();
   });
 
   it("hides the own-material option when the equipment has no own-material charge", async () => {

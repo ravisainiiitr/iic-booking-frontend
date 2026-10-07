@@ -4379,7 +4379,7 @@ class ApiClient {
 
   async updateLaserCutAnalysis(
     analysisId: string,
-    data: { part_name?: string; quantity?: number; material_id?: number | null; units?: string },
+    data: { part_name?: string; quantity?: number; material_id?: number | null; units?: string; own_material?: boolean },
   ) {
     return this.request<LaserCutAnalysis>(`/laser-cut-analyses/${analysisId}/`, {
       method: "PATCH",

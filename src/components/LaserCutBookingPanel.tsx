@@ -33,6 +33,8 @@ interface LaserCutBookingPanelProps {
   materials?: LaserSheetMaterial[];
   /** Equipment's fixed own-material charge; null/undefined hides the option. */
   ownMaterialCharge?: string | number | null;
+  /** Own-material choice made outside the panel (booking file-replace dialog). */
+  ownMaterialSelected?: boolean;
   estimateUserType?: string;
   onReady: (values: LaserCutBookingValues | null) => void;
   onAnalyzingChange?: (analyzing: boolean) => void;
@@ -55,14 +57,19 @@ export function materialLabel(m: LaserSheetMaterial): string {
   return `${m.name} — ${formatRupees(m.sheet_rate)} per ${formatDim(m.sheet_width_mm)} × ${formatDim(m.sheet_height_mm)} mm sheet`;
 }
 
-/** Reason the parts cannot be booked yet, or null when every part is measured, priced and fits. */
-export function laserPartsBlockReason(parts: LaserCutAnalysis[]): string | null {
+export const OWN_SHEET_SIZE_NOTE = "Size not checked against IIC sheets — make sure your sheet is large enough.";
+
+/**
+ * Reason the parts cannot be booked yet, or null when every part is measured, priced and fits.
+ * With the user's own sheet, parts are not checked against the IIC sheet size.
+ */
+export function laserPartsBlockReason(parts: LaserCutAnalysis[], ownMaterial = false): string | null {
   if (!parts.length) return "Upload at least one DXF file.";
   for (const p of parts) {
     const label = p.display_part_name || p.part_name || p.dxf_filename || "A part";
     if (p.status !== "COMPLETED") return `${label}: the DXF could not be measured. Remove it or upload a corrected file.`;
     if (!p.material_id) return `${label}: choose a sheet material.`;
-    if (p.fit_error) return `${label}: ${p.fit_error}`;
+    if (p.fit_error && !ownMaterial) return `${label}: ${p.fit_error}`;
   }
   return null;
 }
@@ -83,6 +90,7 @@ export function LaserCutBookingPanel({
   equipmentId,
   materials: materialsProp,
   ownMaterialCharge,
+  ownMaterialSelected,
   estimateUserType,
   onReady,
   onAnalyzingChange,
@@ -145,7 +153,8 @@ export function LaserCutBookingPanel({
     () => Math.round(parts.reduce((s, p) => s + (Number(p.estimated_material_cost) || 0), 0) * 100) / 100,
     [parts],
   );
-  const blockReason = laserPartsBlockReason(parts);
+  const ownSheet = ownMaterial || Boolean(ownMaterialSelected);
+  const blockReason = laserPartsBlockReason(parts, ownSheet);
   const partsKey = laserPartsKey(parts, ownMaterial);
   const batchId = batch?.id ?? null;
   const onReadyRef = useRef(onReady);
@@ -328,8 +337,8 @@ export function LaserCutBookingPanel({
           materialName: material?.name ?? p.material_name ?? null,
           materialCode: material?.code ?? p.material_code_snapshot ?? null,
           materialFamily: material?.material_family ?? null,
-          sheetWidthMm: material ? Number(material.sheet_width_mm) || null : null,
-          sheetHeightMm: material ? Number(material.sheet_height_mm) || null : null,
+          sheetWidthMm: material && !ownSheet ? Number(material.sheet_width_mm) || null : null,
+          sheetHeightMm: material && !ownSheet ? Number(material.sheet_height_mm) || null : null,
           error: failed ? p.error_message || "This DXF could not be read." : null,
           metrics: failed
             ? []
@@ -344,10 +353,12 @@ export function LaserCutBookingPanel({
               }),
         };
       }),
-    [parts, materialById, geometries],
+    [parts, materialById, geometries, ownSheet],
   );
   const previewActiveId = parts.some((p) => p.id === previewId) ? previewId : parts[0]?.id ?? null;
   const controlsDisabled = disabled || uploading;
+  /** Sheet and unit changes are checked against the IIC sheet size unless the user brings their own sheet. */
+  const ownSheetFlag = ownSheet ? { own_material: true } : {};
 
   return (
     <Card className="mb-6 border-primary/20">
@@ -423,13 +434,14 @@ export function LaserCutBookingPanel({
               const draft = draftFor(p);
               const saving = savingIds.has(p.id);
               const failed = p.status === "FAILED";
+              const fitError = ownSheet ? null : p.fit_error;
               return (
                 <div
                   key={p.id}
                   data-testid={`laser-part-${p.id}`}
                   className={cn(
                     "space-y-2 rounded-md border p-3",
-                    (failed || p.fit_error) && "border-destructive/50 bg-destructive/5",
+                    (failed || fitError) && "border-destructive/50 bg-destructive/5",
                     previewActiveId === p.id && "ring-1 ring-primary/40",
                   )}
                 >
@@ -467,7 +479,7 @@ export function LaserCutBookingPanel({
                       <Label className="text-xs text-muted-foreground">Sheet material</Label>
                       <Select
                         value={p.material_id ? String(p.material_id) : ""}
-                        onValueChange={(v) => void savePart(p, { material_id: Number(v) })}
+                        onValueChange={(v) => void savePart(p, { material_id: Number(v), ...ownSheetFlag })}
                         disabled={controlsDisabled || failed || saving}
                       >
                         <SelectTrigger aria-label={`Sheet material for ${draft.name || p.dxf_filename}`}>
@@ -528,7 +540,7 @@ export function LaserCutBookingPanel({
                       <span>This drawing has no units set. Choose the unit it was drawn in:</span>
                       <Select
                         value={String(p.units || "mm")}
-                        onValueChange={(v) => void savePart(p, { units: v })}
+                        onValueChange={(v) => void savePart(p, { units: v, ...ownSheetFlag })}
                         disabled={controlsDisabled || saving}
                       >
                         <SelectTrigger className="h-7 w-36 bg-white" aria-label="Drawing units">
@@ -545,7 +557,11 @@ export function LaserCutBookingPanel({
                     </div>
                   )}
                   {failed && <p className="text-xs text-destructive">{p.error_message || "This DXF could not be read."}</p>}
-                  {p.fit_error && <p className="text-xs text-destructive">{p.fit_error}</p>}
+                  {fitError && (
+                    <p className="text-xs text-destructive" data-testid="laser-part-fit-error">
+                      {fitError}
+                    </p>
+                  )}
                   {(p.warnings ?? [])
                     .filter((w) => !(p.units_assumed && w.toLowerCase().includes("no units")))
                     .map((w) => (
@@ -581,6 +597,13 @@ export function LaserCutBookingPanel({
               </span>
             </span>
           </label>
+        )}
+
+        {ownSheet && (
+          <p className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300" data-testid="laser-own-sheet-note">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {OWN_SHEET_SIZE_NOTE}
+          </p>
         )}
 
         {parts.length > 0 && blockReason && !busy && (

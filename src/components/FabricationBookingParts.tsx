@@ -19,7 +19,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LaserCutBookingPanel, materialLabel, type LaserCutBookingValues } from "@/components/LaserCutBookingPanel";
+import {
+  LaserCutBookingPanel,
+  materialLabel,
+  OWN_SHEET_SIZE_NOTE,
+  type LaserCutBookingValues,
+} from "@/components/LaserCutBookingPanel";
 import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Print3DBookingPanel";
 
 const BookedStlPreview = lazy(() => import("@/components/BookedStlPreview"));
@@ -114,7 +119,7 @@ function filesLine(files: FabricationFileChange["new_files"]): string {
 }
 
 /** Preview of the DXFs attached to a booking; each drawing is fetched when it is first shown. */
-export function BookedDxfPreview({ parts }: { parts: FabricationPart[] }) {
+export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: FabricationPart[]; ownMaterial?: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(parts[0]?.analysis_id ?? null);
   const [geometries, setGeometries] = useState<Record<string, DxfGeometry | null>>({});
   const current = parts.some((p) => p.analysis_id === activeId) ? activeId : parts[0]?.analysis_id ?? null;
@@ -152,8 +157,8 @@ export function BookedDxfPreview({ parts }: { parts: FabricationPart[] }) {
         heightMm: num(p.height_mm),
         materialName: p.material_name || null,
         materialCode: p.material_code || null,
-        sheetWidthMm: num(p.sheet_width_mm),
-        sheetHeightMm: num(p.sheet_height_mm),
+        sheetWidthMm: ownMaterial ? null : num(p.sheet_width_mm),
+        sheetHeightMm: ownMaterial ? null : num(p.sheet_height_mm),
         metrics: laserPartMetrics({
           widthMm: p.width_mm,
           heightMm: p.height_mm,
@@ -163,7 +168,7 @@ export function BookedDxfPreview({ parts }: { parts: FabricationPart[] }) {
           thicknessMm: p.thickness_mm,
         }),
       })),
-    [parts, geometries],
+    [parts, geometries, ownMaterial],
   );
 
   return <DxfPreviewNavigator items={items} activeId={current} onActiveChange={setActiveId} />;
@@ -267,7 +272,7 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
           </Button>
           {previewOpen &&
             (isLaser ? (
-              <BookedDxfPreview parts={parts} />
+              <BookedDxfPreview parts={parts} ownMaterial={Boolean(booking.own_material)} />
             ) : (
               <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading preview" />}>
                 <BookedStlPreview parts={parts} />
@@ -561,6 +566,7 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                     equipmentId={booking.equipment}
                     estimateUserType={booking.user_type_snapshot || undefined}
                     ownMaterialCharge={null}
+                    ownMaterialSelected={ownMaterial}
                     onReady={setLaserValues}
                     onAnalyzingChange={setUploadBusy}
                     disabled={saving}
@@ -586,6 +592,11 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                   {state.own_material_fixed_charge ? ` (fixed charge ₹${Number(state.own_material_fixed_charge).toFixed(2)} instead of the material cost)` : ""}
                 </span>
               </label>
+            )}
+            {isLaser && ownMaterial && mode === "edit" && (
+              <p className="text-xs text-amber-800 dark:text-amber-300" data-testid="replace-own-sheet-note">
+                {OWN_SHEET_SIZE_NOTE}
+              </p>
             )}
           </div>
         )}
