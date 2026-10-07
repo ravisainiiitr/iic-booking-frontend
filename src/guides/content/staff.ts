@@ -139,6 +139,10 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
         title: "Confirm manually",
         body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking.",
       },
+      {
+        title: "Arrange a repeat sample",
+        body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Booking opens straight away for that user, with their details at the top and the original parameters filled in. Change the parameters or the number of samples if needed (the slot time follows them), pick slots and confirm. The repeat is free and does not count toward the user's limits; the original booking is marked as repeated, the user is emailed, and any changed parameters are recorded in the booking history.",
+      },
     ],
     rules: [
       "Any unbooked slot can be used, including weekends, holidays, closed, blocked and maintenance slots.",

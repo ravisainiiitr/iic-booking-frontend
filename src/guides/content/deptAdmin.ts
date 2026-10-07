@@ -84,7 +84,7 @@ export const deptAdminGuide: RoleGuide = {
         },
         {
           title: "Arrange a repeat sample",
-          body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Repeat samples keeps the record.",
+          body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Booking opens straight away for that user with the original parameters filled in; change them or the number of samples if needed, pick slots and confirm. The repeat is free, and Repeat samples keeps the record.",
         },
       ],
       rules: [
