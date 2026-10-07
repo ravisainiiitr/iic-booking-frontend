@@ -19,7 +19,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
     steps: compact([
       {
         title: "Find bookings",
-        body: "Use search, Status, dates and All equipment; More filters shows the rest. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. Click any column heading to sort.",
+        body: `Use search, Status, dates and All equipment; More filters shows the rest. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. Click any column heading to sort. Export downloads every booking matching the filters, search and sort (not just the page on screen) as Excel (.xlsx), CSV or PDF, up to 10,000 bookings at a time.${g.pick(
+          { operator: " Amounts are not included." },
+          " The file includes the amount."
+        )}`,
       },
       {
         title: "Check who booked",

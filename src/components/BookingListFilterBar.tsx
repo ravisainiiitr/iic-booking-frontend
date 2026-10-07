@@ -31,6 +31,8 @@ type BookingListFilterBarProps = {
   onClear?: () => void;
   moreFilters?: ReactNode;
   moreFiltersActiveCount?: number;
+  /** Extra controls after Clear (e.g. Export). */
+  actions?: ReactNode;
 };
 
 export function BookingListFilterBar({
@@ -50,6 +52,7 @@ export function BookingListFilterBar({
   onClear,
   moreFilters,
   moreFiltersActiveCount = 0,
+  actions,
 }: BookingListFilterBarProps) {
   return (
     <form
@@ -130,6 +133,7 @@ export function BookingListFilterBar({
           Clear
         </Button>
       ) : null}
+      {actions}
     </form>
   );
 }
