@@ -37,6 +37,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         title: "Act on a booking",
         body: "Complete, mark Not Utilized, apply a disruption, reschedule or refund from the booking's actions, as policy allows.",
       }),
+      g.only(["oic", "admin"], {
+        title: "Charge for IIC material used",
+        body: "When a user ticked I will bring my own sheet material or I will bring my own printing material but it was not enough, open the booking and click Charge for IIC material used. Choose the material, enter the sheets (0.5 for half a sheet) or grams used and the reason, then click Preview amount. The amount uses the material's price and GST like a booking, and Confirm charge deducts it from the wallet like Deduct Money, or adds it to the amount to pay if the balance is short. The user and the wallet owner get the wallet debit email and a notification, and the charge appears in the charge breakdown and history. Use Reverse on a charge made in error; a paid amount then waits for your Confirm refund.",
+      }),
       g.only(["oic", "admin", "operator"], {
         title: "Comment",
         body: "Use Add Comment and tick who should be notified: the user, the Officer In Charge and the Lab Operator.",
@@ -64,6 +68,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
     ]),
     rules: compact([
       g.only(["operator"], "Refunds, disruptions and reschedules are done by the Officer In Charge or Admin."),
+      g.only(
+        ["oic", "admin"],
+        "IIC material can be charged only on own-material 3D print and laser bookings that are not cancelled or refunded, including completed ones, by the equipment's Officer In Charge (or temporary OIC) and the Main Administrator. Only the Main Administrator can enter a different amount."
+      ),
       g.only(["dept_admin"], "Completion and exception handling stay with the Officer In Charge and Lab Operator."),
       "Cancelled and refunded bookings keep their original dates.",
       g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),

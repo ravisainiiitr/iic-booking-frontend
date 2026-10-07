@@ -61,6 +61,7 @@ import { printElement } from "@/lib/jobSheet";
 import InputEditPayCountdown from "@/components/InputEditPayCountdown";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
 import { Print3DBookingActuals } from "@/components/Print3DBookingActuals";
+import { OwnMaterialChargePanel } from "@/components/OwnMaterialChargePanel";
 import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
@@ -3589,6 +3590,23 @@ export function BookingDetailCard({
                 }
                 // Intentionally do NOT trigger parent list refresh here.
                 // Refreshing the list can make the detail panel jump/close, which blocks quick Refund/Deduct actions.
+              }}
+            />
+          )}
+
+          {!isJobSheetView && !isFinanceUser && isManagerOrAdmin && bookingPk != null && booking.own_material &&
+            (booking.equipment_profile_type === "PRINT_3D" || booking.equipment_profile_type === "LASER_CUT_2D") && (
+            <OwnMaterialChargePanel
+              bookingId={bookingPk}
+              profileType={booking.equipment_profile_type}
+              onUpdated={(updated) => {
+                if (updated) {
+                  setBooking(updated as BookingDetailCardBooking);
+                } else {
+                  void apiClient.getBooking(bookingPk).then((res) => {
+                    if (res.data) setBooking(res.data as BookingDetailCardBooking);
+                  });
+                }
               }}
             />
           )}

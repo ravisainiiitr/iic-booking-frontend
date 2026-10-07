@@ -1453,6 +1453,88 @@ interface ApiResponse<T> {
   istem_portal_url?: string;
 }
 
+export interface MaterialChargeOption {
+  id: number;
+  code: string;
+  name: string;
+  unit_price: string;
+  thickness_mm?: string;
+  sheet_width_mm?: string;
+  sheet_height_mm?: string;
+}
+
+export interface BookingMaterialChargeRow {
+  id: number;
+  line: string;
+  material_code: string;
+  material_name: string;
+  quantity: string;
+  unit: "sheet" | "g";
+  unit_label: string;
+  unit_price: string;
+  base_amount: string;
+  gst_percent: string;
+  gst_amount: string;
+  computed_amount: string;
+  amount: string;
+  amount_overridden: boolean;
+  reason: string;
+  created_at: string | null;
+  created_by_name: string;
+  deducted_from_wallet: boolean;
+  reversed: boolean;
+  reversed_at: string | null;
+  reversed_by_name: string;
+  reversal_reason: string;
+}
+
+export interface MaterialChargeOverview {
+  eligible: boolean;
+  ineligible_reason: string | null;
+  reversal_blocked_reason: string | null;
+  can_override_amount: boolean;
+  profile_type: string;
+  unit: "sheet" | "g" | "";
+  gst_percent: string;
+  discounted_profile: boolean;
+  pending_amount: string | null;
+  materials: MaterialChargeOption[];
+  charges: BookingMaterialChargeRow[];
+}
+
+export interface MaterialChargeRequest {
+  material_id: number;
+  quantity: string;
+  override_amount?: string;
+}
+
+export interface MaterialChargePreview {
+  material_id: number;
+  material_code: string;
+  material_name: string;
+  quantity: string;
+  unit: "sheet" | "g";
+  unit_label: string;
+  unit_price: string;
+  material_cost: string;
+  base_amount: string;
+  gst_percent: string;
+  gst_amount: string;
+  computed_amount: string;
+  amount: string;
+  amount_overridden: boolean;
+  discounted_profile: boolean;
+  can_confirm: boolean;
+  line: string;
+  message?: string;
+  collection: {
+    pending_before: string;
+    amount_to_collect: string;
+    mode: "deduct" | "pay_now" | "offset_refund";
+    message: string;
+  } | null;
+}
+
 export interface SupervisorInvite {
   id: number;
   email: string;
@@ -8904,6 +8986,35 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  /** IIC material charges of an own-material fabrication booking (OIC / substitute OIC / Main Admin). */
+  async getBookingMaterialCharges(bookingId: number) {
+    return this.request<MaterialChargeOverview>(`/bookings/${bookingId}/material-charges/`);
+  }
+
+  /** Price an IIC material charge without saving it. */
+  async previewBookingMaterialCharge(bookingId: number, data: MaterialChargeRequest) {
+    return this.request<MaterialChargePreview>(`/bookings/${bookingId}/material-charges/preview/`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Charge for IIC material used: deducted from the booking's wallet, or left as the amount to pay. */
+  async createBookingMaterialCharge(bookingId: number, data: MaterialChargeRequest & { reason: string }) {
+    return this.request<{ message: string; charge: BookingMaterialChargeRow; booking: any }>(
+      `/bookings/${bookingId}/material-charges/`,
+      { method: 'POST', body: JSON.stringify(data) }
+    );
+  }
+
+  /** Reverse an IIC material charge made in error (paid amounts become a refund the OIC confirms). */
+  async reverseBookingMaterialCharge(bookingId: number, chargeId: number, reason: string) {
+    return this.request<{ message: string; charge: BookingMaterialChargeRow; booking: any }>(
+      `/bookings/${bookingId}/material-charges/${chargeId}/reverse/`,
+      { method: 'POST', body: JSON.stringify({ reason }) }
+    );
   }
 
   /** Process pending refund after charge recalculation (credit wallet). */
