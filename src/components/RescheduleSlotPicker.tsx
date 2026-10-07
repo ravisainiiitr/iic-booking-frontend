@@ -2,12 +2,25 @@ import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
-import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
-import { isCompletedSlot } from "@/lib/slotDisplayStatus";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
+import {
+  resolveSlotCell,
+  slotCalendarLegend,
+  slotCalendarPalette,
+  type CalendarColorsInput,
+} from "@/lib/slotCalendarDisplay";
+import { cn } from "@/lib/utils";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
+import {
+  SLOT_CELL_CLASS,
+  SLOT_CELL_SELECTED_CLASS,
+  SlotCalendarLegend,
+  SlotWeekGrid,
+  SlotWeekNav,
+  slotCellStyle,
+} from "@/components/slot-calendar/SlotWeekGrid";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 
 /** Monday-start weeks that overlap [minDateStr, maxDateStr] (from slots API slot_window bounds). */
 function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: string): Date[] {
@@ -36,15 +49,6 @@ function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: str
     if (w > maxDate) break;
   }
   return weeks;
-}
-
-/** Return black or white for readable text on the given hex background. */
-function getContrastTextColor(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  if (Number.isNaN(n)) return "#1f2937";
-  const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#1f2937" : "#ffffff";
 }
 
 export interface RescheduleSlot {
@@ -196,6 +200,7 @@ export default function RescheduleSlotPicker({
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [slots, setSlots] = useState<RescheduleSlot[]>([]);
   const [holidays, setHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
+  const [calendarColors, setCalendarColors] = useState<CalendarColorsInput>(null);
   const [slotWindowMinDate, setSlotWindowMinDate] = useState<string | null>(null);
   const [slotWindowMaxDate, setSlotWindowMaxDate] = useState<string | null>(null);
   const [viewWindow, setViewWindow] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
@@ -393,6 +398,7 @@ export default function RescheduleSlotPicker({
       setSlots([]);
     }
     setHolidays(res.data?.holidays ?? {});
+    setCalendarColors(res.data?.calendar_colors ?? null);
     setSlotWindowMinDate(res.data?.slot_window_min_date ?? null);
     setSlotWindowMaxDate(res.data?.slot_window_max_date ?? null);
     setViewWindow({ from: res.data?.weekly_view_time_from ?? null, to: res.data?.weekly_view_time_to ?? null });
@@ -551,8 +557,26 @@ export default function RescheduleSlotPicker({
     onConfirm(startISO, endISO, isCrossEquipment ? targetEquipmentId : undefined);
   };
 
-  const days = [0, 1, 2, 3, 4, 5, 6].map((d) => addDays(weekStart, d));
   const currentBookingLines = currentBookingDetailLines(booking, slots);
+  const staffPicker = isUnrestrictedStaff();
+  const palette = slotCalendarPalette(calendarColors);
+  const allowedWeeks = getAllowedWeeks();
+  const currentWeekIndex = allowedWeeks.findIndex(
+    (week) =>
+      startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
+  );
+  const goToWeek = (step: -1 | 1) => {
+    if (staffPicker) {
+      setWeekStart(step < 0 ? subWeeks(weekStart, 1) : addWeeks(weekStart, 1));
+      setSelectedSlots([]);
+      return;
+    }
+    const target = allowedWeeks[currentWeekIndex + step];
+    if (currentWeekIndex >= 0 && target) {
+      setWeekStart(target);
+      setSelectedSlots([]);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -609,109 +633,43 @@ export default function RescheduleSlotPicker({
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (isUnrestrictedStaff()) {
-              setWeekStart(subWeeks(weekStart, 1));
-              setSelectedSlots([]);
-            } else {
-              const allowedWeeks = getAllowedWeeks();
-              const currentIndex = allowedWeeks.findIndex(week =>
-                startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
-              );
-              if (currentIndex > 0) {
-                setWeekStart(allowedWeeks[currentIndex - 1]);
-                setSelectedSlots([]);
-              }
-            }
-          }}
-          disabled={!isUnrestrictedStaff() && (() => {
-            const allowedWeeks = getAllowedWeeks();
-            const currentIndex = allowedWeeks.findIndex(week =>
-              startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
-            );
-            return currentIndex <= 0;
-          })()}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Previous week
-        </Button>
-        <div className="text-center">
-          <Label className="text-sm font-medium shrink-0">
-            {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d, yyyy")}
-          </Label>
-          {isUnrestrictedStaff() && (
-            <p className="text-xs text-muted-foreground mt-1">
-              No week restriction — navigate to any past or future week
-            </p>
-          )}
-          {userType && !isUnrestrictedStaff() && (normalizeUserType(userType) === 'student' || normalizeUserType(userType) === 'faculty') && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {slotWindowMinDate && slotWindowMaxDate ? (
-                <>
-                  Bookable dates: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
-                  {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
-                  {maintenanceExtraWeekBookingId != null ? (
-                    <span className="block mt-0.5">
-                      (Maintenance reschedule may add an extra week when the slot window rules allow.)
-                    </span>
-                  ) : null}
-                </>
-              ) : useExtendedDisruptionWeekNav ? (
-                "Available: Current week, next week, and one additional week (maintenance / operator-unavailable reschedule)."
-              ) : (
-                "Available: Current week and next week only"
-              )}
-            </p>
-          )}
-          {userType && !isUnrestrictedStaff() && normalizeUserType(userType) !== 'student' && normalizeUserType(userType) !== 'faculty' && (
-            <p className="text-xs text-muted-foreground mt-1">
-              {slotWindowMinDate && slotWindowMaxDate ? (
-                <>
-                  Available: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
-                  {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
-                </>
-              ) : (
-                "Available: Dates within the equipment booking window from the server"
-              )}
-            </p>
-          )}
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            if (isUnrestrictedStaff()) {
-              setWeekStart(addWeeks(weekStart, 1));
-              setSelectedSlots([]);
-            } else {
-              const allowedWeeks = getAllowedWeeks();
-              const currentIndex = allowedWeeks.findIndex(week =>
-                startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
-              );
-              if (currentIndex < allowedWeeks.length - 1) {
-                setWeekStart(allowedWeeks[currentIndex + 1]);
-                setSelectedSlots([]);
-              }
-            }
-          }}
-          disabled={!isUnrestrictedStaff() && (() => {
-            const allowedWeeks = getAllowedWeeks();
-            const currentIndex = allowedWeeks.findIndex(week =>
-              startOfWeek(week, { weekStartsOn: 1 }).getTime() === startOfWeek(weekStart, { weekStartsOn: 1 }).getTime()
-            );
-            return currentIndex >= allowedWeeks.length - 1;
-          })()}
-        >
-          Next week
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
+      <SlotWeekNav
+        weekStart={weekStart}
+        onPrevious={() => goToWeek(-1)}
+        onNext={() => goToWeek(1)}
+        canPrevious={staffPicker || currentWeekIndex > 0}
+        canNext={staffPicker || currentWeekIndex < allowedWeeks.length - 1}
+        subtitle={
+          staffPicker ? (
+            "No week restriction — navigate to any past or future week"
+          ) : userType && (normalizeUserType(userType) === "student" || normalizeUserType(userType) === "faculty") ? (
+            slotWindowMinDate && slotWindowMaxDate ? (
+              <>
+                Bookable dates: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
+                {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
+                {maintenanceExtraWeekBookingId != null ? (
+                  <span className="block mt-0.5">
+                    (Maintenance reschedule may add an extra week when the slot window rules allow.)
+                  </span>
+                ) : null}
+              </>
+            ) : useExtendedDisruptionWeekNav ? (
+              "Available: Current week, next week, and one additional week (maintenance / operator-unavailable reschedule)."
+            ) : (
+              "Available: Current week and next week only"
+            )
+          ) : userType ? (
+            slotWindowMinDate && slotWindowMaxDate ? (
+              <>
+                Available: {format(parseISO(slotWindowMinDate), "MMM d")} –{" "}
+                {format(parseISO(slotWindowMaxDate), "MMM d, yyyy")}
+              </>
+            ) : (
+              "Available: Dates within the equipment booking window from the server"
+            )
+          ) : null
+        }
+      />
 
       <NextWeekOpeningCountdown equipmentId={targetEquipmentId} className="mx-auto flex w-fit" />
 
@@ -728,186 +686,93 @@ export default function RescheduleSlotPicker({
           No slots available for this week. Try another week.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-[600px]">
-            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: `104px repeat(7, 1fr)` }}>
-              <div />
-              {days.map((day) => (
-                <div key={day.getTime()} className="text-center text-xs">
-                  <div className="font-medium">{format(day, "EEE")}</div>
-                  <div className="text-muted-foreground">{format(day, "MM/dd")}</div>
-                </div>
-              ))}
-            </div>
-            {timeSlots.map((timeStr) => (
-              <div
-                key={timeStr}
-                className="grid gap-1 mb-1"
-                style={{ gridTemplateColumns: `104px repeat(7, 1fr)` }}
-              >
-                <div className="text-xs flex items-center font-medium whitespace-nowrap tabular-nums">
-                  {slotTimeRangeLabel(timeStr, rowEndTimes.get(timeStr))}
-                </div>
-                {days.map((day) => {
-                  const slot = getSlotAt(day, timeStr);
-                  const dateStr = format(day, "yyyy-MM-dd");
-                  const available = slot && isAvailable(slot) && !isPast(slot);
-                  const selected = slot && isSelected(slot);
-                  const currentBooking = slot && isCurrentBooking(slot);
-                  const booked = slot && !isAvailable(slot);
-                  const past = slot && isPast(slot);
-                  const disabled =
-                    !slot ||
-                    past ||
-                    currentBooking ||
-                    (booked && !currentBookingSlotIds.has(slot.id)) ||
-                    (available &&
-                      !selected &&
-                      (selectedSlots.length >= requiredSlotCount ||
-                        (selectedSlots.length > 0 && !isConsecutive(slot, selectedSlots))));
+        <>
+          <SlotWeekGrid
+            weekStart={weekStart}
+            rows={timeSlots.map((timeStr) => ({
+              key: timeStr,
+              label: <span className="whitespace-nowrap">{slotTimeRangeLabel(timeStr, rowEndTimes.get(timeStr))}</span>,
+            }))}
+            singleDayOnMobile
+            dayHasFreeSlot={(day) =>
+              timeSlots.some((t) => {
+                const s = getSlotAt(day, t);
+                return Boolean(s && isAvailable(s) && !isPast(s) && !isCurrentBooking(s));
+              })
+            }
+            renderCell={(day, timeStr) => {
+              const slot = getSlotAt(day, timeStr);
+              const dateStr = format(day, "yyyy-MM-dd");
+              const available = slot && isAvailable(slot) && !isPast(slot);
+              const selected = slot && isSelected(slot);
+              const currentBooking = slot && isCurrentBooking(slot);
+              const booked = slot && !isAvailable(slot);
+              const past = slot && isPast(slot);
+              const disabled =
+                !slot ||
+                past ||
+                currentBooking ||
+                (booked && !currentBookingSlotIds.has(slot.id)) ||
+                (available &&
+                  !selected &&
+                  (selectedSlots.length >= requiredSlotCount ||
+                    (selectedSlots.length > 0 && !isConsecutive(slot, selectedSlots))));
 
-                  let label: string;
-                  let holidayHover: string | undefined;
-                  if (slot) {
-                    if (selected) label = "Selected";
-                    else if (currentBooking) label = "Current Booking";
-                    else if (booked && !currentBookingSlotIds.has(slot.id)) {
-                      // Build status label with special handling for BLOCKED and BOOKED
-                      let statusLabel = slot.booking_status_display || slot.status_display || "";
-                      if (!statusLabel && slot.status) {
-                        const statusMap: Record<string, string> = {
-                          "AVAILABLE": "Available",
-                          "NOT_AVAILABLE": "Not Available",
-                          "BOOKED": "Booked",
-                          "BLOCKED": "Blocked",
-                          "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent",
-                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
-                        };
-                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
-                      }
-                      
-                      // For BOOKED status, append booking ID if available
-                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
-                      if (slot.status === "BLOCKED") {
-                        statusLabel = slot.blocked_label || "Blocked";
-                      }
-                      
-                      label = statusLabel || "Unavailable";
-                    }
-                    else if (past) {
-                      const hasBooking = slot.status === "BOOKED" || slot.booking_id;
-                      if (hasBooking) {
-                        let statusLabel = slot.booking_status_display || slot.status_display || "";
-                        if (!statusLabel && slot.status) {
-                          const statusMap: Record<string, string> = {
-                            "AVAILABLE": "Available",
-                            "BOOKED": "Booked",
-                            "BLOCKED": "Blocked",
-                            "UNDER_MAINTENANCE": "Under Maintenance",
-                            "OPERATOR_ABSENT": "Operator Absent",
-                            "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
-                          };
-                          statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
-                        }
-                        if (slot.status === "BLOCKED") {
-                          statusLabel = slot.blocked_label || "Blocked";
-                        }
-                        label = statusLabel || "Unavailable";
-                      } else {
-                        label = "No Booking";
-                      }
-                    }
-                    else if (available) label = "Available";
-                    else {
-                      let statusLabel = slot.booking_status_display || slot.status_display || "";
-                      if (!statusLabel && slot.status) {
-                        const statusMap: Record<string, string> = {
-                          "AVAILABLE": "Available",
-                          "NOT_AVAILABLE": "Not Available",
-                          "BOOKED": "Booked",
-                          "BLOCKED": "Blocked",
-                          "UNDER_MAINTENANCE": "Under Maintenance",
-                          "OPERATOR_ABSENT": "Operator Absent",
-                          "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
-                        };
-                        statusLabel = statusMap[slot.status] || slot.status.charAt(0).toUpperCase() + slot.status.slice(1).toLowerCase();
-                      }
-                      // For BLOCKED status, use blocked_label if available, otherwise show "Blocked"
-                      if (slot.status === "BLOCKED") {
-                        statusLabel = slot.blocked_label || "Blocked";
-                      }
-                      label = statusLabel || "—";
-                    }
-                  } else {
-                    // No slot exists for this date/time - show holiday label if it's a holiday
-                    const raw = holidays[dateStr];
-                    const name = typeof raw === "string" ? raw : (raw && typeof raw === "object" && "label" in raw ? (raw as { label: string }).label : "");
-                    label = name ? holidayCellLabel(name) : "—";
-                    holidayHover = name ? holidayHoverText(name) : undefined;
-                  }
-
-                  const rawHoliday = holidays[dateStr];
-                  const holidayColorReschedule = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday && (rawHoliday as { color?: string }).color
-                    ? (rawHoliday as { color: string }).color
-                    : undefined;
-
-                  const restrictedToStaff = isOutsideVisibilityWindow(slot);
-                  const baseStyle: CSSProperties | undefined =
-                    !slot && holidayColorReschedule
-                      ? { backgroundColor: holidayColorReschedule, color: getContrastTextColor(holidayColorReschedule) }
-                      : undefined;
-                  const cell = (
-                    <button
-                      key={`${day.getTime()}-${timeStr}`}
-                      type="button"
-                      disabled={disabled}
-                      title={restrictedToStaff ? restrictedSlotHint(viewWindow.from, viewWindow.to) : holidayHover}
-                      onClick={() => slot && toggleSlot(slot)}
-                      className={`
-                        p-2 rounded text-xs transition-all min-h-[40px] flex items-center justify-center
-                        ${baseStyle ? "calendar-color-cell" : ""}
-                        ${!slot && !holidayColorReschedule ? "bg-muted/50 text-muted-foreground cursor-default" : ""}
-                        ${past && slot ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}
-                        ${currentBooking && slot ? "bg-blue-200 border-2 border-blue-500 text-blue-900 font-semibold pointer-events-none" : ""}
-                        ${booked && slot && !currentBookingSlotIds.has(slot.id)
-                          ? isCompletedSlot(slot)
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 cursor-not-allowed"
-                            : "bg-destructive/20 text-destructive cursor-not-allowed"
-                          : ""}
-                        ${selected ? "bg-primary text-primary-foreground cursor-pointer" : ""}
-                        ${available && !selected && !currentBooking ? "bg-green-100 hover:bg-green-200 text-green-800 cursor-pointer" : ""}
-                        ${available && disabled && !selected && !currentBooking ? "bg-green-100/60 text-green-800 cursor-not-allowed opacity-70" : ""}
-                      `}
-                      style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
+              const display = resolveSlotCell({
+                slot,
+                day,
+                holiday: holidays[dateStr],
+                palette,
+                staffView: staffPicker,
+              });
+              const restrictedToStaff = isOutsideVisibilityWindow(slot);
+              const baseStyle: CSSProperties | undefined =
+                selected || currentBooking ? undefined : slotCellStyle(display);
+              const label = selected ? "Selected" : currentBooking ? "Current Booking" : display.label;
+              const cell = (
+                <button
+                  type="button"
+                  disabled={Boolean(disabled)}
+                  title={restrictedToStaff ? restrictedSlotHint(viewWindow.from, viewWindow.to) : display.hover}
+                  onClick={() => slot && toggleSlot(slot)}
+                  className={cn(
+                    SLOT_CELL_CLASS,
+                    "transition-all",
+                    selected && SLOT_CELL_SELECTED_CLASS,
+                    currentBooking &&
+                      "pointer-events-none border-blue-500 bg-blue-200 font-semibold text-blue-900 dark:bg-blue-900/60 dark:text-blue-100",
+                    !disabled && !selected && "cursor-pointer hover:opacity-90 hover:shadow-md",
+                    disabled && !currentBooking && "cursor-not-allowed",
+                    available && disabled && !selected && !currentBooking && "opacity-70",
+                  )}
+                  style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
+                >
+                  {restrictedToStaff ? <Lock className="mr-1 h-3 w-3 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
+                  {label}
+                </button>
+              );
+              if (!currentBooking || currentBookingLines.length === 0) return cell;
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="grid cursor-help rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      tabIndex={0}
+                      aria-label={`Current booking. ${currentBookingLines.join(". ")}`}
                     >
-                      {restrictedToStaff ? <Lock className="mr-1 h-3 w-3 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
-                      {label}
-                    </button>
-                  );
-                  if (!currentBooking || currentBookingLines.length === 0) return cell;
-                  return (
-                    <Tooltip key={`${day.getTime()}-${timeStr}`}>
-                      <TooltipTrigger asChild>
-                        <div
-                          className="grid cursor-help rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                          tabIndex={0}
-                          aria-label={`Current booking. ${currentBookingLines.join(". ")}`}
-                        >
-                          {cell}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="z-[120] max-w-xs whitespace-pre-line text-left text-xs leading-5">
-                        <p className="mb-1 font-semibold">Current booking</p>
-                        {currentBookingLines.join("\n")}
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
+                      {cell}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="z-[120] max-w-xs whitespace-pre-line text-left text-xs leading-5">
+                    <p className="mb-1 font-semibold">Current booking</p>
+                    {currentBookingLines.join("\n")}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }}
+          />
+          <SlotCalendarLegend items={slotCalendarLegend(palette)} />
+        </>
       )}
 
       {selectedSlots.length > 0 && (

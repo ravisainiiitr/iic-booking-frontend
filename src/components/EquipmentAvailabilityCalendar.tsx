@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, Lock, RefreshCw } from "lucide-react";
+import { Loader2, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
+import {
+  SLOT_CELL_CLASS,
+  SlotCalendarLegend,
+  SlotWeekGrid,
+  SlotWeekNav,
+  slotCellStyle,
+} from "@/components/slot-calendar/SlotWeekGrid";
 import { apiClient } from "@/lib/api";
-import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
-import { isCompletedSlot } from "@/lib/slotDisplayStatus";
+import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette, type HolidayEntry } from "@/lib/slotCalendarDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
@@ -17,43 +23,10 @@ type CalendarSlot = SlotsPayload["slots"][number] & {
   mode_overlay_color?: string | null;
 };
 
-/** Same defaults as the booking weekly grid; admin-configured calendar colours override them. */
-const DEFAULT_SLOT_COLORS: Record<string, string> = {
-  AVAILABLE: "#22c55e",
-  BOOKED: "#ef4444",
-  COMPLETED: "#059669",
-  BLOCKED: "#64748b",
-  UNDER_MAINTENANCE: "#f97316",
-  OPERATOR_ABSENT: "#eab308",
-  BOOKING_NOT_UTILIZED: "#a855f7",
-  HOLD: "#f59e0b",
-  HOME_DEPARTMENT_ONLY: "#c4b5fd",
-  NON_HOME_RESERVED: "#06b6d4",
-  NOT_AVAILABLE: "#e2e8f0",
-};
-const PAST_SLOT_COLOR = "#94a3b8";
-const STATUS_LABELS: Record<string, string> = {
-  AVAILABLE: "Available",
-  NOT_AVAILABLE: "Not Available",
-  BOOKED: "Booked",
-  BOOKING_NOT_UTILIZED: "Booked",
-  BLOCKED: "Other Reasons",
-  UNDER_MAINTENANCE: "Under Maintenance",
-  OPERATOR_ABSENT: "Operator Absent",
-  HOLD: "On Hold",
-};
 /** Weeks to look ahead for the first week with a free slot when no booking window is returned (staff viewers). */
 const MAX_UNBOUNDED_WEEKS_AHEAD = 8;
 const INITIAL_SEEK_WEEKS = 4;
 const AUTO_REFRESH_MS = 60_000;
-
-function getContrastTextColor(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 0xff;
-  const g = (n >> 8) & 0xff;
-  const b = n & 0xff;
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? "#1f2937" : "#ffffff";
-}
 
 function normalizeTimeKey(raw: string | null | undefined): string {
   const s = String(raw || "").trim();
@@ -242,97 +215,27 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
 
   const rowKeys = useMemo(() => (payload ? buildRowKeys(payload) : []), [payload]);
   const slotDuration = payload?.slot_duration_minutes || 60;
-  const slotColors = { ...DEFAULT_SLOT_COLORS, ...(payload?.calendar_colors?.slot_colors || {}) };
-  const holidayDefault = payload?.calendar_colors?.holiday_default || "#f59e0b";
-  const saturdayColor = payload?.calendar_colors?.saturday_color || "#c7d2fe";
-  const sundayColor = payload?.calendar_colors?.sunday_color || "#fbcfe8";
-  const holidays = (payload?.holidays ?? {}) as Record<string, string | { label?: string; color?: string }>;
+  const palette = slotCalendarPalette(payload?.calendar_colors);
+  const holidays = (payload?.holidays ?? {}) as Record<string, HolidayEntry>;
   const now = new Date();
   const freeThisWeek = ((payload?.slots ?? []) as CalendarSlot[]).filter((s) => isFutureAvailable(s, now)).length;
 
   const renderCell = (day: Date, timeKey: string) => {
     const dateStr = format(day, "yyyy-MM-dd");
     const slot = slotIndex.get(`${dateStr}|${timeKey}`);
-    const dow = day.getDay();
-    const rawHoliday = holidays[dateStr];
-    const holidayName = typeof rawHoliday === "string" ? rawHoliday : rawHoliday?.label;
-    const holidayColor = typeof rawHoliday === "object" && rawHoliday?.color ? rawHoliday.color : undefined;
-    const closedDayColor = holidayColor || (dow === 6 ? saturdayColor : dow === 0 ? sundayColor : holidayDefault);
-
-    let label: string;
-    let bg: string;
-    let hover: string | undefined;
-    if (!slot) {
-      label = holidayName ? holidayCellLabel(holidayName) : "—";
-      hover = holidayName ? holidayHoverText(holidayName) : undefined;
-      bg = holidayName || dow === 6 || dow === 0 ? closedDayColor : slotColors.NOT_AVAILABLE;
-    } else {
-      const status = String(slot.status || "").toUpperCase();
-      let isPast = false;
-      try {
-        isPast = parseISO(slot.start_datetime) < now;
-      } catch {
-        isPast = false;
-      }
-      if (isCompletedSlot(slot)) {
-        label = "Completed";
-        bg = slotColors.COMPLETED;
-      } else if (status === "BOOKED" || status === "BOOKING_NOT_UTILIZED") {
-        label = "Booked";
-        bg = slotColors.BOOKED;
-      } else if (status === "NOT_AVAILABLE" && (holidayName || dow === 6 || dow === 0)) {
-        label = holidayName ? holidayCellLabel(holidayName) : "Weekend";
-        hover = holidayName ? holidayHoverText(holidayName) : `Weekend (${format(day, "EEEE")})`;
-        bg = closedDayColor;
-      } else if (isPast) {
-        label = "Past";
-        bg = PAST_SLOT_COLOR;
-      } else if (status === "AVAILABLE") {
-        const display = slot.status_display || "";
-        if (display === "Reserved for other departments" || (slot.home_department_only && !display)) {
-          label = display || "Reserved";
-          bg = slotColors.NON_HOME_RESERVED;
-        } else if (display === "Home department only") {
-          label = display;
-          bg = slotColors.HOME_DEPARTMENT_ONLY;
-        } else {
-          label = "Available";
-          bg = slot.mode_overlay_color || slotColors.AVAILABLE;
-        }
-      } else if (status === "BLOCKED") {
-        label = slot.blocked_label || STATUS_LABELS.BLOCKED;
-        bg = slotColors.BLOCKED;
-      } else {
-        label = slot.status_display || STATUS_LABELS[status] || "Not Available";
-        bg = slotColors[status] || slotColors.NOT_AVAILABLE;
-      }
-    }
-    const baseStyle: CSSProperties = { backgroundColor: bg, color: getContrastTextColor(bg) };
+    const display = resolveSlotCell({ slot, day, holiday: holidays[dateStr], palette, now });
     const restrictedToStaff = isOutsideVisibilityWindow(slot);
     return (
       <div
-        key={dateStr}
-        className="calendar-color-cell flex min-h-[48px] w-full items-center justify-center rounded-md border-2 border-white/50 p-2 text-center text-xs font-medium leading-tight shadow-sm sm:text-sm"
-        style={restrictedToStaff ? restrictedSlotStyle(baseStyle) : baseStyle}
-        title={restrictedToStaff ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to) : hover}
+        className={SLOT_CELL_CLASS}
+        style={restrictedToStaff ? restrictedSlotStyle(slotCellStyle(display)) : slotCellStyle(display)}
+        title={restrictedToStaff ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to) : display.hover}
       >
         {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
-        {label}
+        {display.label}
       </div>
     );
   };
-
-  const legend: Array<{ label: string; color: string }> = [
-    { label: "Available", color: slotColors.AVAILABLE },
-    { label: "Booked", color: slotColors.BOOKED },
-    { label: "Completed", color: slotColors.COMPLETED },
-    { label: "Past", color: PAST_SLOT_COLOR },
-    { label: "Maintenance", color: slotColors.UNDER_MAINTENANCE },
-    { label: "Not available", color: slotColors.NOT_AVAILABLE },
-    { label: "Saturday", color: saturdayColor },
-    { label: "Sunday", color: sundayColor },
-    { label: "Holiday", color: holidayDefault },
-  ];
 
   return (
     <div className="space-y-4">
@@ -341,24 +244,20 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         <span className="font-medium text-foreground">Book this equipment</span> to make a booking.
       </p>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="outline" size="sm" onClick={() => goToWeek(addWeeks(weekStart, -1))} disabled={!canGoPrev || loading}>
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Previous Week
-        </Button>
-        <div className="text-center">
-          <div className="font-semibold">
-            {format(weekStart, "MMM dd")} - {format(addDays(weekStart, 6), "MMM dd, yyyy")}
-          </div>
-          {!loading && payload ? (
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              {freeThisWeek > 0
-                ? `${freeThisWeek} free slot${freeThisWeek === 1 ? "" : "s"} this week`
-                : "No free slots this week"}
-            </div>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
+      <SlotWeekNav
+        weekStart={weekStart}
+        onPrevious={() => goToWeek(addWeeks(weekStart, -1))}
+        onNext={() => goToWeek(addWeeks(weekStart, 1))}
+        canPrevious={canGoPrev && !loading}
+        canNext={canGoNext && !loading}
+        subtitle={
+          !loading && payload
+            ? freeThisWeek > 0
+              ? `${freeThisWeek} free slot${freeThisWeek === 1 ? "" : "s"} this week`
+              : "No free slots this week"
+            : null
+        }
+        actions={
           <Button
             variant="ghost"
             size="icon"
@@ -370,12 +269,8 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
           >
             <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => goToWeek(addWeeks(weekStart, 1))} disabled={!canGoNext || loading}>
-            Next Week
-            <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       <NextWeekOpeningCountdown
         equipmentId={equipmentId}
@@ -403,47 +298,33 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
           No slots are set up for this week. Try another week.
         </div>
       ) : (
-        <div className={loading ? "relative opacity-60 transition-opacity" : "relative transition-opacity"}>
-          <div className="overflow-x-auto">
-            <div className="min-w-[800px]">
-              <div className="mb-2 grid grid-cols-8 gap-2">
-                <div className="p-2 text-sm font-semibold">{weeklyViewDisplay === "SLOT_ID" ? "Slot position" : "Time"}</div>
-                {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
-                  const day = addDays(weekStart, offset);
-                  return (
-                    <div key={offset} className="p-2 text-center text-sm font-semibold">
-                      <div>{format(day, "EEE")}</div>
-                      <div className="text-muted-foreground">{format(day, "MMM dd")}</div>
-                    </div>
-                  );
-                })}
-              </div>
-              {rowKeys.map((timeKey, index) => (
-                <div key={timeKey} className="mb-2 grid grid-cols-8 gap-2">
-                  <div className="flex items-center p-2 text-sm font-medium">
-                    {weeklyViewDisplay === "SLOT_ID" ? `Slot ${index + 1}` : formatRowLabel(timeKey, slotDuration)}
-                  </div>
-                  <div className="col-span-7 grid grid-cols-7 gap-2">
-                    {[0, 1, 2, 3, 4, 5, 6].map((offset) => renderCell(addDays(weekStart, offset), timeKey))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <SlotWeekGrid
+          className={loading ? "opacity-60 transition-opacity" : "transition-opacity"}
+          weekStart={weekStart}
+          timeHeader={weeklyViewDisplay === "SLOT_ID" ? "Slot position" : "Time"}
+          rows={rowKeys.map((timeKey, index) => ({
+            key: timeKey,
+            label: weeklyViewDisplay === "SLOT_ID" ? `Slot ${index + 1}` : formatRowLabel(timeKey, slotDuration),
+          }))}
+          renderCell={renderCell}
+          singleDayOnMobile
+          dayHasFreeSlot={(day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            return ((payload?.slots ?? []) as CalendarSlot[]).some(
+              (s) => slotDateKey(s) === dateStr && isFutureAvailable(s, now),
+            );
+          }}
+        />
       )}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-xs text-muted-foreground">
-        {legend.map((item) => (
-          <span key={item.label} className="inline-flex items-center gap-1.5">
-            <span className="calendar-color-cell h-3 w-3 rounded-sm border border-black/10 dark:border-white/20" style={{ backgroundColor: item.color }} />
-            {item.label}
-          </span>
-        ))}
-        {updatedAt ? (
-          <span className="ml-auto whitespace-nowrap">Updated {format(updatedAt, "hh:mm a")} · refreshes every minute</span>
-        ) : null}
-      </div>
+      <SlotCalendarLegend
+        items={slotCalendarLegend(palette)}
+        trailing={
+          updatedAt ? (
+            <span className="ml-auto whitespace-nowrap">Updated {format(updatedAt, "hh:mm a")} · refreshes every minute</span>
+          ) : null
+        }
+      />
     </div>
   );
 }

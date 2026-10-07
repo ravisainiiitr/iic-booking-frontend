@@ -23,7 +23,7 @@ export const operatorGuide: RoleGuide = {
         },
         {
           title: "Week calendar",
-          body: "Previous week, This week, Next week, Booked only and Refresh sit beside the equipment name and apply to every instrument shown. Calendar colours and Booking overview and follow-up range stay closed until you click them; the dashboard remembers whether you left them open.",
+          body: "It uses the same colours and labels as the booking calendar; a free slot whose time has passed shows No booking. Previous week, This week, Next week, Booked only and Refresh sit beside the equipment name and apply to every instrument shown. Calendar colours and Booking overview and follow-up range stay closed until you click them; the dashboard remembers whether you left them open.",
         },
         SHOW_ANDROID_APP_BANNER && {
           title: "Android app",

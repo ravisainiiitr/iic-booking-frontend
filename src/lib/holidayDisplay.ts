@@ -4,8 +4,8 @@ export const HOLIDAY_LABEL = "Holiday";
 /** The slots API also lists weekends as holidays, labelled with the weekday name. */
 const WEEKEND_LABELS = new Set(["saturday", "sunday"]);
 
-function isWeekendLabel(name: string): boolean {
-  return WEEKEND_LABELS.has(name.toLowerCase());
+export function isWeekendLabel(name: string): boolean {
+  return WEEKEND_LABELS.has(name.trim().toLowerCase());
 }
 
 export function holidayCellLabel(name?: string | null): string {

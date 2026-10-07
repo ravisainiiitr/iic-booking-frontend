@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { LabOperatorWeekCalendarGrid } from "./LabOperatorWeekCalendarGrid";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 
@@ -45,5 +45,62 @@ describe("LabOperatorWeekCalendarGrid heading", () => {
   it("shows only the name when no controls are given", () => {
     renderGrid({ headerActions: undefined });
     expect(screen.queryByRole("button", { name: "Next week" })).toBeNull();
+  });
+});
+
+const weekPayload = {
+  slots: [
+    { id: 1, date: "2020-01-06", slot_open_time: "09:30", start_datetime: "2020-01-06T09:30:00", status: "AVAILABLE" },
+    { id: 2, date: "2099-01-05", slot_open_time: "09:30", start_datetime: "2099-01-05T09:30:00", status: "AVAILABLE" },
+    {
+      id: 3,
+      date: "2099-01-06",
+      slot_open_time: "09:30",
+      start_datetime: "2099-01-06T09:30:00",
+      status: "BOOKED",
+      booking_id: "B-77",
+      real_booking_id: 77,
+      booking_user_name: "Test User",
+    },
+  ],
+  slot_duration_minutes: 30,
+} as unknown as LabWeekCalendarSlotsPayload;
+
+describe("LabOperatorWeekCalendarGrid cells", () => {
+  it("shows a past free slot as No booking, never Past", () => {
+    renderGrid({ weekStartIso: "2020-01-06", slotsPayload: weekPayload });
+    expect(screen.getByText("No booking")).toBeTruthy();
+    expect(screen.queryByText("Past")).toBeNull();
+  });
+
+  it("opens the booking when a booked slot is clicked", () => {
+    const onBookedSlotClick = vi.fn();
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: weekPayload, onBookedSlotClick });
+    fireEvent.click(screen.getByRole("button", { name: /Booking ID: B-77/ }));
+    expect(onBookedSlotClick).toHaveBeenCalledWith(77);
+  });
+
+  it("lets an OIC pick free slots when selection is enabled", () => {
+    const onToggle = vi.fn();
+    renderGrid({
+      weekStartIso: "2099-01-05",
+      slotsPayload: weekPayload,
+      selection: { selectedIds: new Set<number>(), canSelect: () => true, onToggle },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Available$/ }));
+    expect(onToggle).toHaveBeenCalledWith(expect.objectContaining({ id: 2 }));
+  });
+
+  it("marks selected slots and leaves free slots plain without selection", () => {
+    const { unmount } = renderGrid({
+      weekStartIso: "2099-01-05",
+      slotsPayload: weekPayload,
+      selection: { selectedIds: new Set([2]), canSelect: () => true, onToggle: vi.fn() },
+    });
+    expect(screen.getByRole("button", { name: /selected$/ }).getAttribute("aria-pressed")).toBe("true");
+    unmount();
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: weekPayload, headerActions: undefined });
+    expect(screen.queryByRole("button", { name: /Available/ })).toBeNull();
+    expect(screen.getByText("Available")).toBeTruthy();
   });
 });

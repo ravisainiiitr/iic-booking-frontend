@@ -170,7 +170,11 @@ export function slotStatusSection(g: Gate): GuideSection {
       },
       g.only(["oic", "admin"], {
         title: "Read the week",
-        body: "Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by the multi-mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
+        body: "The week uses the same colours and labels as the booking calendar, and a free slot whose time has passed shows No booking. Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by the multi-mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
+      }),
+      g.only(["oic"], {
+        title: "From your dashboard",
+        body: "On the dashboard week calendar, click upcoming free slots of your equipment to select them, choose Available, Other Reasons (with an optional reason), Under Maintenance or Operator Absent under Mark as, and click Apply. Booked slots still open the booking; change booked or past slots here in Change slot status.",
       }),
       g.only(["oic", "admin"], {
         title: "Repeat block",

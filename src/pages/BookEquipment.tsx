@@ -75,6 +75,25 @@ import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { formatINRAmount } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import {
+  NO_BOOKING_COLOR,
+  NO_BOOKING_LABEL,
+  holidayEntryInfo,
+  resolveSlotCell,
+  slotCalendarLegend,
+  slotCalendarPalette,
+} from "@/lib/slotCalendarDisplay";
+import {
+  SLOT_CELL_CLASS,
+  SLOT_CELL_SELECTED_CLASS,
+  SLOT_DAY_HEADER_CLASS,
+  SLOT_ROW_LABEL_CLASS,
+  SlotCalendarLegend,
+  SlotDayHeader,
+  SlotWeekGrid,
+  SlotWeekNav,
+  slotCellStyle,
+} from "@/components/slot-calendar/SlotWeekGrid";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
@@ -710,21 +729,6 @@ function isSlotWallStartInPast(slot: DailySlot): boolean {
   if (!t) return true;
   return t.getTime() < Date.now();
 }
-
-/** Default colors for slot statuses in Change slot status calendar (hex). */
-const DEFAULT_SLOT_STATUS_COLORS: Record<string, string> = {
-  AVAILABLE: "#dcfce7",
-  NOT_AVAILABLE: "#e5e7eb",
-  BOOKED: "#fecaca",
-  COMPLETED: "#a7f3d0",
-  BLOCKED: "#e5e7eb",
-  UNDER_MAINTENANCE: "#fed7aa",
-  OPERATOR_ABSENT: "#fde68a",
-  BOOKING_NOT_UTILIZED: "#e9d5ff",
-  HOLD: "#fef3c7",
-  HOME_DEPARTMENT_ONLY: "#c4b5fd",
-  NON_HOME_RESERVED: "#67e8f9",
-};
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "Available",
@@ -1617,18 +1621,6 @@ const BookEquipment = () => {
   const allowUrgentWeekExtension = isUrgentHoldMode || isRushReliefMode;
   /** Type B: hold slots for OIC/Admin review with 50% surcharge. */
   const isUrgentTypeBHoldMode = isUrgentHoldMode && !isRushReliefMode;
-  const [statusChangeSlotColors, setStatusChangeSlotColors] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem("slotStatusColors");
-      if (saved) {
-        const parsed = JSON.parse(saved) as Record<string, string>;
-        return { ...DEFAULT_SLOT_STATUS_COLORS, ...parsed };
-      }
-    } catch {
-      /* ignore */
-    }
-    return { ...DEFAULT_SLOT_STATUS_COLORS };
-  });
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const statusChangeDateClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusWeekSlotsFetchGenRef = useRef(0);
@@ -2866,18 +2858,6 @@ const BookEquipment = () => {
       toast.error("Failed to load year slots.");
     }
   }, [selectedEquipment?.id, statusChangeMonthStart]);
-
-  const setStatusChangeSlotColor = (status: string, hex: string) => {
-    setStatusChangeSlotColors((prev) => {
-      const next = { ...prev, [status]: hex };
-      try {
-        localStorage.setItem("slotStatusColors", JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  };
 
   const fetchEquipmentDetail = useCallback(async (
     equipmentId: number | string,
@@ -7848,53 +7828,25 @@ const BookEquipment = () => {
 
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
-          <div className="w-full max-w-none mx-auto mb-3 rounded-xl overflow-hidden border border-border/60 shadow-md">
-            {/* Compact week header */}
-            <div className="sticky top-0 z-20 bg-gradient-to-r from-brand via-brand to-brand-accent px-3 py-2 text-white">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
+          <div className="w-full max-w-none mx-auto mb-3 rounded-xl border border-border/70 bg-card shadow-sm">
+            {/* Week navigation and selection toolbar, laid out like the booking screen */}
+            <div className="sticky top-0 z-20 space-y-2 rounded-t-xl border-b border-border/60 bg-card/95 px-3 py-2 shadow-sm backdrop-blur-sm">
+              <SlotWeekNav
+                weekStart={statusChangePopupWeekStart}
+                onPrevious={goToPrevWeekInPopup}
+                onNext={goToNextWeekInPopup}
+                subtitle="Click slots to select them · time labels select rows · day headers select columns · double-click a date above to jump to its week"
+                actions={
                   <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
-                    onClick={goToPrevWeekInPopup}
-                    aria-label="Previous week"
-                    title="Previous week"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-3 text-xs font-medium"
+                    onClick={() => { setStatusChangePopupWeekStart(null); }}
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    Hide week view
                   </Button>
-                  <div className="text-center min-w-[220px]">
-                    <h3 className="text-base md:text-lg font-bold leading-tight tracking-tight drop-shadow-sm">
-                      Week of {format(statusChangePopupWeekStart, "MMM d")} – {format(addDays(statusChangePopupWeekStart, 6), "MMM d, yyyy")}
-                    </h3>
-                    <p className="text-white/90 text-[11px] mt-0.5">
-                      Use the arrows (or double-click a date above) to change week · click slots · time labels select rows · day headers select columns
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="h-8 w-8 touch-manipulation bg-white/20 hover:bg-white/30 border-0 text-white"
-                    onClick={goToNextWeekInPopup}
-                    aria-label="Next week"
-                    title="Next week"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="bg-white/20 hover:bg-white/30 border-0 text-white h-8 px-3 text-xs font-medium"
-                  onClick={() => { setStatusChangePopupWeekStart(null); }}
-                >
-                  Hide week view
-                </Button>
-              </div>
-            </div>
-
-            {/* Sticky selection toolbar */}
-            <div className="sticky top-[60px] z-20 border-b border-border/60 bg-card/95 backdrop-blur-sm px-3 py-2 shadow-sm">
+                }
+              />
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge variant="secondary" className="h-7 px-2.5 text-xs font-semibold tabular-nums">
                   {selectedSlotIdsForStatus.length} selected
@@ -8051,8 +8003,8 @@ const BookEquipment = () => {
               </div>
             </div>
 
-            <div className="overflow-auto max-h-[min(70dvh,720px)] p-2 md:p-3 bg-gradient-to-b from-background to-primary/5 dark:to-primary/10">
-              <NextWeekOpeningCountdown equipmentId={selectedEquipment.id} audience="staff" className="mb-2" />
+            <div className="overflow-auto max-h-[min(70dvh,720px)] p-2 md:p-3">
+              <NextWeekOpeningCountdown equipmentId={selectedEquipment.id} audience="staff" className="mx-auto mb-3 flex w-fit" />
               <p className="mb-2 text-[11px] text-muted-foreground sm:hidden">
                 Swipe sideways to view the full week calendar
               </p>
@@ -8092,325 +8044,252 @@ const BookEquipment = () => {
                 </div>
               ) : (
                 <TooltipProvider delayDuration={200}>
-                <div
-                  className="min-w-[640px] rounded-lg border border-border/60 bg-card overflow-hidden shadow-sm select-none"
-                  onPointerMove={extendStatusSlotDrag}
-                >
-                  <div className="grid gap-0 bg-slate-100 dark:bg-slate-800 sticky top-0 z-20 border-b-2 border-primary/30" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
-                    <div className="font-bold text-xs uppercase tracking-wide text-foreground px-1.5 py-2 border-r border-border/60 bg-slate-100 dark:bg-slate-800 sticky left-0 z-30 flex items-center">Time</div>
-                    {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                      const day = addDays(statusChangePopupWeekStart, dayOffset);
-                      const dateStr = format(day, "yyyy-MM-dd");
-                      const rawH = statusChangeHolidays[dateStr];
-                      const holidayLabel = typeof rawH === "string" ? rawH : (rawH && typeof rawH === "object" && "label" in rawH ? (rawH as { label: string }).label : undefined);
-                      const dow = day.getDay();
-                      const isSatHeader = dow === 6;
-                      const isSunHeader = dow === 0;
-                      const isDayFocused = statusBulkFocusDayOffset === dayOffset;
-                      return (
-                        <button
-                          key={dayOffset}
-                          type="button"
-                          title={`Select all slots on ${format(day, "EEE MMM d")} (this week)${holidayLabel ? ` · ${holidayHoverText(holidayLabel)}` : ""}`}
-                          onClick={() => {
-                            setStatusBulkFocusDayOffset(dayOffset);
-                            selectDayColumnForWeek(dayOffset);
-                          }}
-                          className={cn(
-                            "px-1 py-2 text-center border-r border-border/60 last:border-r-0 bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 dark:hover:bg-primary/20 transition-colors cursor-pointer",
-                            isSatHeader && "bg-indigo-100 dark:bg-indigo-950/50",
-                            isSunHeader && "bg-rose-100 dark:bg-rose-950/50",
-                            isDayFocused && "ring-2 ring-inset ring-primary",
-                          )}
-                        >
-                          <div className="text-sm font-extrabold text-foreground leading-none">
-                            <span className="xl:hidden">{format(day, "EEE")}</span>
-                            <span className="hidden xl:inline">{format(day, "EEEE")}</span>
-                          </div>
-                          <div className="text-xs font-bold text-foreground/90 mt-1 leading-none tabular-nums">
-                            <span className="xl:hidden">{format(day, "d MMM")}</span>
-                            <span className="hidden xl:inline">{format(day, "d MMM yyyy")}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {(() => {
-                    const timeSlots = getStatusChangeWeekTimeRows();
-                    const restrictedHint = restrictedSlotHint(
-                      equipmentDetail?.weekly_view_time_from,
-                      equipmentDetail?.weekly_view_time_to
-                    );
-                    const statusLabel = (slot: DailySlot) => {
-                      if (slot.status === "BOOKED") return slot.booking_status_display || "Booked";
-                      if (slot.status === "BLOCKED") return slot.blocked_label || "Other Reasons";
-                      if (slot.status === "BOOKING_NOT_UTILIZED") return "Booking Not Utilized";
-                      return slot.status_display || slot.status || "—";
-                    };
-                    const adminSaturdayColor = equipmentDetail?.calendar_colors?.saturday_color ?? "#c7d2fe";
-                    const adminSundayColor = equipmentDetail?.calendar_colors?.sunday_color ?? "#fbcfe8";
-                    const adminHolidayDefaultColor = equipmentDetail?.calendar_colors?.holiday_default ?? "#f59e0b";
-                    const canSelectSlot = statusChangeCanSelectSlot;
-                    const rowEndTimes = slotRowEndTimes(statusChangeSlots, timeKeyFromDailySlot, (s) =>
-                      normalizeSlotGridTimeKey(parseIsoDateAndTime(s.end_datetime).timeStr)
-                    );
-                    if (timeSlots.length === 0) {
-                      return (
-                        <div className="p-6 text-center text-muted-foreground text-sm">
+                {(() => {
+                  const timeSlots = getStatusChangeWeekTimeRows();
+                  const restrictedHint = restrictedSlotHint(
+                    equipmentDetail?.weekly_view_time_from,
+                    equipmentDetail?.weekly_view_time_to
+                  );
+                  const statusPalette = slotCalendarPalette(equipmentDetail?.calendar_colors);
+                  const legend = <SlotCalendarLegend items={slotCalendarLegend(statusPalette)} className="mt-3" />;
+                  const canSelectSlot = statusChangeCanSelectSlot;
+                  const rowEndTimes = slotRowEndTimes(statusChangeSlots, timeKeyFromDailySlot, (s) =>
+                    normalizeSlotGridTimeKey(parseIsoDateAndTime(s.end_datetime).timeStr)
+                  );
+                  if (timeSlots.length === 0) {
+                    return (
+                      <>
+                        <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground text-sm">
                           No slots for this week.
                         </div>
-                      );
-                    }
-                    return timeSlots.map((time, rowIndex) => {
-                      const rowRange = slotTimeRangeLabel(time, rowEndTimes.get(time), equipmentDetail?.slot_duration_minutes);
-                      return (
-                      <div key={time} className="grid gap-0 border-b border-border/40 last:border-b-0" style={{ gridTemplateColumns: "104px repeat(7, minmax(0, 1fr))" }}>
-                        <button
-                          type="button"
-                          title={`Select all slots at ${rowRange} (this week)`}
-                          onClick={() => {
-                            setStatusBulkFocusTime(time);
-                            selectTimeRowForWeek(time);
-                          }}
-                          className={cn(
-                            "flex items-center justify-center px-1 py-0.5 border-r border-border/50 bg-muted/20 sticky left-0 z-10 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer",
-                            statusBulkFocusTime === time && "ring-2 ring-inset ring-primary bg-primary/5 dark:bg-primary/15",
-                          )}
-                        >
-                          <span className="font-semibold text-[11px] tabular-nums leading-none whitespace-nowrap">{rowRange}</span>
-                        </button>
-                        {[0, 1, 2, 3, 4, 5, 6].map((dayOffset) => {
-                          const day = addDays(statusChangePopupWeekStart, dayOffset);
-                          const rawSlot = getStatusChangeSlotAt(day, time);
-                          const slot =
-                            slotVisibilityScope === "user" && isOutsideVisibilityWindow(rawSlot) ? null : rawSlot;
-                          const slotSelectable = canSelectSlot(slot);
-                          const isSelected = slot ? selectedSlotIdsForStatus.includes(slot.id) : false;
-                          const dateStr = format(day, "yyyy-MM-dd");
-                          const rawHoliday = statusChangeHolidays[dateStr];
-                          const holidayName = typeof rawHoliday === "string" ? rawHoliday : (rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday ? (rawHoliday as { label: string }).label : undefined);
-                          const holidayColorCell = typeof rawHoliday === "object" && rawHoliday !== null && "color" in rawHoliday ? (rawHoliday as { color?: string }).color : undefined;
-                          const dayJs = day.getDay();
-                          const isSaturdayCol = dayJs === 6;
-                          const isSundayCol = dayJs === 0;
-                          const isCalendarAccentDay = isSaturdayCol || isSundayCol || Boolean(holidayName);
-                          const slotStatusUpper = String(slot?.status ?? "").toUpperCase();
-                          /**
-                           * Closed days are generated Not Available, so they keep the admin calendar name and colour.
-                           * Available on such a day is always a staff override and must read as Available, as users see it.
-                           */
-                          const useCalendarDayStyling =
-                            isCalendarAccentDay && (!slot || slotStatusUpper === "NOT_AVAILABLE");
-                          const holidayOverride = Boolean(slot) && isCalendarAccentDay && slotStatusUpper === "AVAILABLE";
-                          const calendarDayLabel =
-                            holidayName && holidayName !== ""
-                              ? holidayCellLabel(holidayName)
-                              : isSaturdayCol
-                                ? "Sat"
-                                : isSundayCol
-                                  ? "Sun"
-                                  : "—";
-                          const calendarDayBg =
-                            (holidayName && (holidayColorCell ?? adminHolidayDefaultColor)) ||
-                            (isSaturdayCol ? adminSaturdayColor : isSundayCol ? adminSundayColor : adminHolidayDefaultColor);
-                          // Use calendar-colors (from equipment detail / admin settings) first, then localStorage overrides, then defaults
-                          const calendarSlotColors = equipmentDetail?.calendar_colors?.slot_colors;
-                          let statusForColor = String(slot?.booking_status ?? slot?.status ?? "").toUpperCase();
-                          if (slot?.status === "AVAILABLE") {
-                            if (slot.status_display === "Reserved for other departments" || slot.home_department_only) {
-                              statusForColor =
-                                slot.status_display === "Available (all departments)"
-                                  ? "AVAILABLE"
-                                  : "NON_HOME_RESERVED";
-                            } else if (slot.status_display === "Home department only") {
-                              statusForColor = "HOME_DEPARTMENT_ONLY";
-                            }
-                          }
-                          const statusBgResolved =
-                            calendarSlotColors?.[statusForColor] ??
-                            statusChangeSlotColors[statusForColor] ??
-                            DEFAULT_SLOT_STATUS_COLORS[statusForColor];
-                          const slotBgStatusOnly = statusBgResolved ?? "#e5e7eb";
-                          const displayBg = useCalendarDayStyling ? calendarDayBg : slotBgStatusOnly;
-                          const displayLabel = slot && useCalendarDayStyling ? calendarDayLabel : slot ? statusLabel(slot) : calendarDayLabel;
-                          const emptyCellBg =
-                            (holidayName && (holidayColorCell ?? adminHolidayDefaultColor)) ||
-                            (isSaturdayCol ? adminSaturdayColor : isSundayCol ? adminSundayColor : undefined);
-                          const cell3dStyle: CSSProperties = {
-                            boxShadow: "0 1px 2px rgba(15,23,42,0.06), inset 0 1px 0 rgba(255,255,255,0.3)",
-                            border: "1px solid rgba(148,163,184,0.3)",
-                            borderRadius: "4px",
-                          };
-                          const slotRestricted = isOutsideVisibilityWindow(slot);
-                          const usersBlockedReason = String(slot?.users_blocked_reason ?? "").trim();
-                          const lockedForUsers = slotRestricted || usersBlockedReason !== "";
-                          const holidayOverrideHint = holidayOverride
-                            ? `Opened on ${
-                                holidayName ? `a holiday (${holidayName})` : isSaturdayCol ? "a Saturday" : "a Sunday"
-                              }: users see this slot as Available.`
-                            : "";
-                          return (
-                            <div
-                              key={dayOffset}
-                              data-status-slot-cell
-                              data-day={dayOffset}
-                              data-row={rowIndex}
-                              onPointerDown={(e) => beginStatusSlotDrag(e, dayOffset, rowIndex, slot ?? undefined)}
-                              className="min-h-[32px] p-0.5 border-r border-border/30 last:border-r-0"
-                            >
-                              {slot ? (
-                                (() => {
-                                  const userDetailLines = slotStatusHoverLines(slot, {
-                                    holidayName,
-                                    isWeekend: isSaturdayCol || isSundayCol,
-                                  });
-                                  const extraLines = [
-                                    ...(usersBlockedReason
-                                      ? [`Users see: ${slot.users_blocked_label || "Not available"}`, usersBlockedReason]
-                                      : []),
-                                    ...(slotRestricted ? [restrictedHint] : []),
-                                    ...(holidayOverrideHint ? [holidayOverrideHint] : []),
-                                  ];
-                                  const hoverLines =
-                                    extraLines.length > 0 && userDetailLines.length === 0
-                                      ? [`Status: ${statusLabel(slot)}`, ...extraLines]
-                                      : [...userDetailLines, ...extraLines];
-                                  const cellInner = (
-                                    <div className="w-full h-full min-h-[28px] relative flex items-stretch">
+                        {legend}
+                      </>
+                    );
+                  }
+                  const now = new Date();
+                  const rowRanges = new Map(
+                    timeSlots.map((time) => [
+                      time,
+                      slotTimeRangeLabel(time, rowEndTimes.get(time), equipmentDetail?.slot_duration_minutes),
+                    ])
+                  );
+                  return (
+                    <>
+                    <SlotWeekGrid
+                      weekStart={statusChangePopupWeekStart}
+                      rows={timeSlots.map((time) => ({ key: time, label: rowRanges.get(time) ?? time }))}
+                      gridProps={{ className: "select-none", onPointerMove: extendStatusSlotDrag }}
+                      renderDayHeader={(day, dayOffset) => {
+                        const { name: holidayLabel } = holidayEntryInfo(statusChangeHolidays[format(day, "yyyy-MM-dd")]);
+                        return (
+                          <button
+                            type="button"
+                            aria-label={`Select all slots on ${format(day, "EEEE d MMMM")}`}
+                            title={`Select all slots on ${format(day, "EEE MMM d")} (this week)${holidayLabel ? ` · ${holidayHoverText(holidayLabel)}` : ""}`}
+                            onClick={() => {
+                              setStatusBulkFocusDayOffset(dayOffset);
+                              selectDayColumnForWeek(dayOffset);
+                            }}
+                            className={cn(
+                              SLOT_DAY_HEADER_CLASS,
+                              "w-full rounded-md transition-colors hover:bg-primary/10 dark:hover:bg-primary/20",
+                              statusBulkFocusDayOffset === dayOffset && "ring-2 ring-inset ring-primary",
+                            )}
+                          >
+                            <SlotDayHeader day={day} />
+                          </button>
+                        );
+                      }}
+                      renderRowLabel={(row) => {
+                        const rowRange = rowRanges.get(row.key) ?? row.key;
+                        return (
+                          <button
+                            type="button"
+                            title={`Select all slots at ${rowRange} (this week)`}
+                            onClick={() => {
+                              setStatusBulkFocusTime(row.key);
+                              selectTimeRowForWeek(row.key);
+                            }}
+                            className={cn(
+                              SLOT_ROW_LABEL_CLASS,
+                              "w-full whitespace-nowrap text-left transition-colors hover:bg-primary/10 dark:hover:bg-primary/20",
+                              statusBulkFocusTime === row.key && "ring-2 ring-inset ring-primary",
+                            )}
+                          >
+                            {rowRange}
+                          </button>
+                        );
+                      }}
+                      renderCell={(day, time, dayOffset, rowIndex) => {
+                        const rawSlot = getStatusChangeSlotAt(day, time);
+                        const slot =
+                          slotVisibilityScope === "user" && isOutsideVisibilityWindow(rawSlot) ? null : rawSlot;
+                        const slotSelectable = canSelectSlot(slot);
+                        const isSelected = slot ? selectedSlotIdsForStatus.includes(slot.id) : false;
+                        const holidayEntry = statusChangeHolidays[format(day, "yyyy-MM-dd")];
+                        const { name: holidayName } = holidayEntryInfo(holidayEntry);
+                        const dayJs = day.getDay();
+                        const isSaturdayCol = dayJs === 6;
+                        const isSundayCol = dayJs === 0;
+                        const isCalendarAccentDay = isSaturdayCol || isSundayCol || Boolean(holidayName);
+                        const slotStatusUpper = String(slot?.status ?? "").toUpperCase();
+                        const display = resolveSlotCell({
+                          slot,
+                          day,
+                          holiday: holidayEntry,
+                          palette: statusPalette,
+                          now,
+                          staffView: true,
+                        });
+                        /** Available on a weekend or holiday is a staff override: it reads as Available, as users see it, with a dot in the day colour. */
+                        const holidayOverride = Boolean(slot) && isCalendarAccentDay && slotStatusUpper === "AVAILABLE";
+                        const closedDayColor = holidayOverride
+                          ? resolveSlotCell({ slot: null, day, holiday: holidayEntry, palette: statusPalette, now }).background
+                          : undefined;
+                        const slotRestricted = isOutsideVisibilityWindow(slot);
+                        const usersBlockedReason = String(slot?.users_blocked_reason ?? "").trim();
+                        const lockedForUsers = slotRestricted || usersBlockedReason !== "";
+                        const holidayOverrideHint = holidayOverride
+                          ? `Opened on ${
+                              holidayName ? `a holiday (${holidayName})` : isSaturdayCol ? "a Saturday" : "a Sunday"
+                            }: users see this slot as Available.`
+                          : "";
+                        const baseStyle = slotCellStyle(display);
+                        return (
+                          <div
+                            data-status-slot-cell
+                            data-day={dayOffset}
+                            data-row={rowIndex}
+                            onPointerDown={(e) => beginStatusSlotDrag(e, dayOffset, rowIndex, slot ?? undefined)}
+                            className="h-full"
+                          >
+                            {slot ? (
+                              (() => {
+                                const userDetailLines = slotStatusHoverLines(slot, {
+                                  holidayName,
+                                  isWeekend: isSaturdayCol || isSundayCol,
+                                });
+                                const extraLines = [
+                                  ...(usersBlockedReason
+                                    ? [`Users see: ${slot.users_blocked_label || "Not available"}`, usersBlockedReason]
+                                    : []),
+                                  ...(slotRestricted ? [restrictedHint] : []),
+                                  ...(holidayOverrideHint ? [holidayOverrideHint] : []),
+                                ];
+                                const hoverLines =
+                                  extraLines.length > 0 && userDetailLines.length === 0
+                                    ? [`Status: ${display.label}`, ...extraLines]
+                                    : [...userDetailLines, ...extraLines];
+                                const cellInner = (
+                                  <div className="relative flex h-full w-full items-stretch">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (statusDragSuppressClickRef.current) return;
+                                        setStatusBulkFocusTime(time);
+                                        setStatusBulkFocusDayOffset(dayOffset);
+                                        if (slotSelectable) toggleStatusChangeSlotSelection(slot.id);
+                                      }}
+                                      disabled={!slotSelectable}
+                                      aria-pressed={isSelected}
+                                      title={display.hover && hoverLines.length === 0 ? display.hover : undefined}
+                                      className={cn(
+                                        SLOT_CELL_CLASS,
+                                        "transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                        isSelected && SLOT_CELL_SELECTED_CLASS,
+                                        !slotSelectable && "cursor-not-allowed opacity-70",
+                                        slotSelectable && !isSelected && "cursor-pointer hover:opacity-90",
+                                      )}
+                                      style={isSelected ? undefined : lockedForUsers ? restrictedSlotStyle(baseStyle) : baseStyle}
+                                    >
+                                      {isSelected ? (
+                                        <>
+                                          <Check className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+                                          <span className="truncate">Selected</span>
+                                        </>
+                                      ) : lockedForUsers ? (
+                                        <>
+                                          <Lock
+                                            className="mr-1 h-3.5 w-3.5 shrink-0"
+                                            aria-label={slotRestricted ? "Not visible to users" : "Users cannot book this slot"}
+                                          />
+                                          <span className="truncate">{display.label}</span>
+                                        </>
+                                      ) : (
+                                        display.label
+                                      )}
+                                    </button>
+                                    {holidayOverride && !isSelected && (
+                                      <span
+                                        role="img"
+                                        aria-label="Holiday override"
+                                        className="pointer-events-none absolute left-1 top-1 h-2 w-2 rounded-full ring-1 ring-slate-900/50"
+                                        style={{ backgroundColor: closedDayColor }}
+                                      />
+                                    )}
+                                    {slot.status === "BOOKED" && slot.booking_id && (
                                       <button
                                         type="button"
-                                        onClick={() => {
-                                          if (statusDragSuppressClickRef.current) return;
-                                          setStatusBulkFocusTime(time);
-                                          setStatusBulkFocusDayOffset(dayOffset);
-                                          if (slotSelectable) toggleStatusChangeSlotSelection(slot.id);
+                                        aria-label="View booking details"
+                                        className="absolute top-0.5 right-0.5 p-0.5 rounded opacity-80 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
+                                        style={isSelected ? undefined : { color: display.color }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          setExpandedSlotBooking(null);
+                                          setExpandedSlotBookingLoading(true);
+                                          apiClient
+                                            .getBookings({
+                                              booking_id:
+                                                (typeof slot.real_booking_id === "number"
+                                                  ? slot.real_booking_id
+                                                  : getRealBookingId({
+                                                      booking_id: slot.booking_id as string | number,
+                                                      real_booking_id: slot.real_booking_id,
+                                                    })) ?? undefined,
+                                              limit: 1,
+                                            })
+                                            .then((res) => {
+                                              const b = res.data?.bookings?.[0];
+                                              if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
+                                            })
+                                            .catch(() => toast.error("Failed to load booking details"))
+                                            .finally(() => setExpandedSlotBookingLoading(false));
                                         }}
-                                        disabled={!slotSelectable}
-                                        title={
-                                          holidayName && useCalendarDayStyling && hoverLines.length === 0
-                                            ? holidayHoverText(holidayName)
-                                            : undefined
-                                        }
-                                        className={cn(
-                                          "flex-1 min-h-[28px] px-1 py-0.5 text-[10px] font-medium text-left transition-all flex items-center justify-center rounded truncate",
-                                          !slotSelectable && "cursor-not-allowed opacity-70",
-                                          !isSelected && "calendar-color-cell",
-                                          slotSelectable && !isSelected && "hover:brightness-[0.97]",
-                                          isSelected && "ring-2 ring-primary ring-offset-1 bg-brand text-white hover:bg-brand/90"
-                                        )}
-                                        style={
-                                          !isSelected && slot
-                                            ? (() => {
-                                                const base: CSSProperties = {
-                                                  ...cell3dStyle,
-                                                  backgroundColor: displayBg,
-                                                  color: getContrastTextColor(displayBg),
-                                                };
-                                                return lockedForUsers ? restrictedSlotStyle(base) : base;
-                                              })()
-                                            : isSelected ? cell3dStyle : undefined
-                                        }
                                       >
-                                        {isSelected ? (
-                                          "✓"
-                                        ) : lockedForUsers ? (
-                                          <>
-                                            <Lock
-                                              className="mr-0.5 h-3 w-3 shrink-0"
-                                              aria-label={slotRestricted ? "Not visible to users" : "Users cannot book this slot"}
-                                            />
-                                            <span className="truncate">{displayLabel}</span>
-                                          </>
-                                        ) : (
-                                          displayLabel
-                                        )}
+                                        <ExternalLink className="h-3 w-3" />
                                       </button>
-                                      {holidayOverride && !isSelected && (
-                                        <span
-                                          role="img"
-                                          aria-label="Holiday override"
-                                          className="pointer-events-none absolute left-0.5 top-0.5 h-2 w-2 rounded-full ring-1 ring-slate-900/50"
-                                          style={{ backgroundColor: calendarDayBg }}
-                                        />
-                                      )}
-                                      {slot.status === "BOOKED" && slot.booking_id && (
-                                        <button
-                                          type="button"
-                                          aria-label="View booking details"
-                                          className="absolute top-0 right-0 p-0.5 rounded opacity-80 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring"
-                                          style={{ color: getContrastTextColor(displayBg) }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            e.preventDefault();
-                                            setExpandedSlotBooking(null);
-                                            setExpandedSlotBookingLoading(true);
-                                            apiClient
-                                              .getBookings({
-                                                booking_id:
-                                                  (typeof slot.real_booking_id === "number"
-                                                    ? slot.real_booking_id
-                                                    : getRealBookingId({
-                                                        booking_id: slot.booking_id as string | number,
-                                                        real_booking_id: slot.real_booking_id,
-                                                      })) ?? undefined,
-                                                limit: 1,
-                                              })
-                                              .then((res) => {
-                                                const b = res.data?.bookings?.[0];
-                                                if (b) setExpandedSlotBooking(b as BookingDetailCardBooking);
-                                              })
-                                              .catch(() => toast.error("Failed to load booking details"))
-                                              .finally(() => setExpandedSlotBookingLoading(false));
-                                          }}
-                                        >
-                                          <ExternalLink className="h-3 w-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  );
-                                  if (hoverLines.length === 0) return cellInner;
-                                  return (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className="w-full h-full">{cellInner}</div>
-                                      </TooltipTrigger>
-                                      <TooltipContent
-                                        side="top"
-                                        className="z-[120] max-w-xs text-left px-3 py-2"
-                                      >
-                                        <SlotHoverLines lines={hoverLines} />
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })()
-                              ) : (
-                                <div
-                                  className={cn(
-                                    "w-full min-h-[28px] px-1 py-0.5 rounded text-[10px] font-medium flex items-center justify-center truncate",
-                                    emptyCellBg && "calendar-color-cell",
-                                  )}
-                                  title={holidayName ? holidayHoverText(holidayName) : undefined}
-                                  style={
-                                    emptyCellBg
-                                      ? {
-                                          ...cell3dStyle,
-                                          backgroundColor: emptyCellBg,
-                                          color: getContrastTextColor(emptyCellBg),
-                                        }
-                                      : { ...cell3dStyle, color: "hsl(var(--muted-foreground))" }
-                                  }
-                                >
-                                  {calendarDayLabel}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      );
-                    });
-                  })()}
-                </div>
+                                    )}
+                                  </div>
+                                );
+                                if (hoverLines.length === 0) return cellInner;
+                                return (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="w-full h-full">{cellInner}</div>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                      side="top"
+                                      className="z-[120] max-w-xs text-left px-3 py-2"
+                                    >
+                                      <SlotHoverLines lines={hoverLines} />
+                                    </TooltipContent>
+                                  </Tooltip>
+                                );
+                              })()
+                            ) : (
+                              <div className={SLOT_CELL_CLASS} title={display.hover} style={baseStyle}>
+                                {display.label}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }}
+                    />
+                    {legend}
+                    </>
+                  );
+                })()}
                 </TooltipProvider>
               )}
 
@@ -11056,7 +10935,12 @@ const BookEquipment = () => {
                               displayStatus = "Selected";
                               isDisabled = false; // Allow deselecting
                             } else if (isPast) {
-                              displayStatus = considerBooked ? (slotDisplayLabel || slotStatusLabel || "Unavailable") : "No Booking";
+                              displayStatus =
+                                slotStatusUpper === "AVAILABLE"
+                                  ? NO_BOOKING_LABEL
+                                  : holidayName && slotStatusUpper === "NOT_AVAILABLE"
+                                    ? holidayCellLabel(holidayName)
+                                    : slotDisplayLabel || slotStatusLabel || "Unavailable";
                               isDisabled = !isAdminOrOIC();
                             } else if (
                               slotData &&
@@ -11094,6 +10978,7 @@ const BookEquipment = () => {
                             !isAdminOrOIC() &&
                             !considerBooked &&
                             !isSelected &&
+                            !isPast &&
                             !isDailySlotSelectableForUserBooking(slotData!);
 
                           // Sat/Sun/holidays: use calendar slot-status colors when the cell has a real slot row,
@@ -11155,8 +11040,10 @@ const BookEquipment = () => {
                                 : (isSaturdayCol ? saturdayColor : isSundayCol ? sundayColor : holidayDefault);
                             cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                           } else if (slotExists) {
+                            if (isPast && !considerBooked && slotStatusUpper === "AVAILABLE") {
+                              cellStyle = { backgroundColor: NO_BOOKING_COLOR, color: getContrastTextColor(NO_BOOKING_COLOR) };
+                            } else if (slotData?.mode_overlay_color) {
                             // Multi-mode overlay (exclusive parent / child outside schedule)
-                            if (slotData?.mode_overlay_color) {
                               const bg = slotData.mode_overlay_color;
                               cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                             } else {
@@ -11175,11 +11062,7 @@ const BookEquipment = () => {
                             else if (slotStatus === "BOOKED" && slotData?.booking_status) statusForColor = String(slotData.booking_status).toUpperCase();
                             const status = statusForColor || "AVAILABLE";
                             const bg = slotColors[status] ?? (considerBooked ? slotColors.BOOKED : slotColors.AVAILABLE);
-                            if (isPast && !isAdminOrOIC()) {
-                              cellStyle = { backgroundColor: "#94a3b8", color: "#ffffff" };
-                            } else {
-                              cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
-                            }
+                            cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
                             }
                           } else {
                             // No slot (weekend/holiday): always use admin-configured weekend colors for Sat/Sun so they match /calendar-colors

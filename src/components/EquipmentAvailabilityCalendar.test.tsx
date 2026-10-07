@@ -52,4 +52,24 @@ describe("EquipmentAvailabilityCalendar", () => {
     // One open booking plus the legend entry.
     expect(screen.getAllByText("Booked")).toHaveLength(2);
   });
+
+  it("shows a past free slot as No booking instead of Past", async () => {
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, monday, { status: "AVAILABLE", start_datetime: "2000-01-03T09:00:00+05:30" }),
+          slot(2, addDays(monday, 6), { status: "AVAILABLE", start_datetime: "2099-01-01T09:00:00+05:30" }),
+        ],
+        slot_master_times: ["09:00:00"],
+        slot_duration_minutes: 60,
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    // The cell plus the legend entry.
+    await waitFor(() => expect(screen.getAllByText("No booking")).toHaveLength(2));
+    expect(screen.queryByText("Past")).toBeNull();
+  });
 });

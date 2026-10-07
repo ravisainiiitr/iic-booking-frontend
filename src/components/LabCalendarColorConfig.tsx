@@ -15,11 +15,12 @@ export const LAB_BOOKING_COLOR_KEYS = [
 
 export type LabBookingColorKey = (typeof LAB_BOOKING_COLOR_KEYS)[number]["key"];
 
+/** Same as the booking screen's calendar colours; external bookings keep their own colour. */
 export const DEFAULT_LAB_BOOKING_COLORS: Record<LabBookingColorKey, string> = {
-  BOOKED_INTERNAL: "#3b82f6",
-  BOOKED_EXTERNAL: "#ea580c",
-  AVAILABLE: "#86efac",
-  COMPLETED: "#34d399",
+  BOOKED_INTERNAL: "#ef4444",
+  BOOKED_EXTERNAL: "#2563eb",
+  AVAILABLE: "#22c55e",
+  COMPLETED: "#059669",
 };
 
 type Props = {
@@ -65,12 +66,9 @@ export function LabCalendarColorConfig({
       try {
         const res = await apiClient.getLabDashboardCalendarColors(equipmentId);
         if (cancelled) return;
-        const next = {
-          ...DEFAULT_LAB_BOOKING_COLORS,
-          ...(res.data?.slot_colors || {}),
-        };
-        setColors(next);
-        onColorsChange?.(next);
+        const saved = res.data?.slot_colors || {};
+        setColors({ ...DEFAULT_LAB_BOOKING_COLORS, ...saved });
+        onColorsChange?.(saved);
       } catch (e) {
         console.error("Failed to load lab calendar colours:", e);
         if (!cancelled) toast.error("Failed to load calendar colours");

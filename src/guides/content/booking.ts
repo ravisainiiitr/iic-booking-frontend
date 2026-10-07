@@ -31,7 +31,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Select slots",
-        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days.",
+        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days, and a free slot whose time has passed shows No booking.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
       },

@@ -54,13 +54,17 @@ import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
 import { formatUserDisplayName, formatWelcomeGreeting } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
-import { LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import { EXTERNAL_BOOKED_COLOR, LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
+import { LabCalendarColorConfig } from "@/components/LabCalendarColorConfig";
 import {
-  LabCalendarColorConfig,
-  DEFAULT_LAB_BOOKING_COLORS,
-} from "@/components/LabCalendarColorConfig";
+  LabCalendarSlotActions,
+  isDashboardSelectableSlot,
+  type LabCalendarSlotOperation,
+} from "@/components/dashboard/LabCalendarSlotActions";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
+import { slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
+import { SlotCalendarLegend } from "@/components/slot-calendar/SlotWeekGrid";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -479,9 +483,12 @@ const Dashboard = () => {
   const [labSlotsLoading, setLabSlotsLoading] = useState(false);
   const [labSlotsRefresh, setLabSlotsRefresh] = useState(0);
   const [labCalendarBookedOnly, setLabCalendarBookedOnly] = useState(false);
-  const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({
-    ...DEFAULT_LAB_BOOKING_COLORS,
-  });
+  /** Calendar colours the lab changed (live preview before saving); the rest come from the calendar settings. */
+  const [labBookingLegendColors, setLabBookingLegendColors] = useState<Record<string, string>>({});
+  /** OIC: equipment whose slots this user may change (own and active temporary-OIC equipment), as on Change slot status. */
+  const [labManageableEquipmentIds, setLabManageableEquipmentIds] = useState<ReadonlySet<number>>(() => new Set());
+  const [labSelectedSlotIds, setLabSelectedSlotIds] = useState<Record<number, number[]>>({});
+  const [labSlotActionBusy, setLabSlotActionBusy] = useState(false);
   /** Week slot grid: expanded by default for Lab Operator and OIC (slots load only when expanded). */
   const [labWeekCalendarExpanded, setLabWeekCalendarExpanded] = useState(() =>
     ["operator", "manager"].includes(String(user?.user_type ?? "").toLowerCase())
@@ -1020,7 +1027,7 @@ const Dashboard = () => {
                   ...(payload.calendar_colors?.slot_colors || {}),
                   ...overrides,
                 },
-                holiday_default: payload.calendar_colors?.holiday_default || "#e9d5ff",
+                holiday_default: payload.calendar_colors?.holiday_default || "",
                 saturday_color: payload.calendar_colors?.saturday_color,
                 sunday_color: payload.calendar_colors?.sunday_color,
               },
@@ -1071,7 +1078,7 @@ const Dashboard = () => {
               ...(payload.calendar_colors?.slot_colors || {}),
               ...slotColors,
             },
-            holiday_default: payload.calendar_colors?.holiday_default || "#e9d5ff",
+            holiday_default: payload.calendar_colors?.holiday_default || "",
             saturday_color: payload.calendar_colors?.saturday_color,
             sunday_color: payload.calendar_colors?.sunday_color,
           },
@@ -1079,6 +1086,66 @@ const Dashboard = () => {
       };
     });
   }, []);
+
+  useEffect(() => {
+    if (!isOicUser || !labWeekCalendarExpanded) return;
+    let cancelled = false;
+    apiClient
+      .getSlotStatusPicker()
+      .then((res) => {
+        if (cancelled || res.error || !res.data) return;
+        setLabManageableEquipmentIds(new Set(res.data.equipment.map((e) => e.equipment_id)));
+      })
+      .catch(() => {
+        if (!cancelled) setLabManageableEquipmentIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOicUser, labWeekCalendarExpanded]);
+
+  useEffect(() => {
+    setLabSelectedSlotIds({});
+  }, [labOperatorDash?.week_start, labDashEquipmentFilter, labCalendarBookedOnly, labWeekCalendarExpanded]);
+
+  const toggleLabSlotSelection = useCallback((equipmentId: number, slotId: number) => {
+    setLabSelectedSlotIds((prev) => {
+      const current = prev[equipmentId] ?? [];
+      const next = current.includes(slotId) ? current.filter((id) => id !== slotId) : [...current, slotId];
+      return { ...prev, [equipmentId]: next };
+    });
+  }, []);
+
+  const labSelectedSlotCount = Object.values(labSelectedSlotIds).reduce((n, ids) => n + ids.length, 0);
+
+  const applyLabSlotStatus = useCallback(
+    async (status: LabCalendarSlotOperation, blockedLabel: string | null) => {
+      const batches = Object.entries(labSelectedSlotIds).filter(([, ids]) => ids.length > 0);
+      if (batches.length === 0) return;
+      setLabSlotActionBusy(true);
+      let updated = 0;
+      const failures: string[] = [];
+      for (const [equipmentId, ids] of batches) {
+        try {
+          const res = await apiClient.adminEquipmentBulkSlotStatus(Number(equipmentId), {
+            status,
+            slot_ids: ids,
+            ...(status === "BLOCKED" ? { blocked_label: blockedLabel } : {}),
+          });
+          if (res.error) failures.push(res.error);
+          else updated += res.data?.updated ?? ids.length;
+        } catch (e) {
+          failures.push(e instanceof Error ? e.message : "Failed to update slots");
+        }
+      }
+      setLabSlotActionBusy(false);
+      if (updated > 0) toast.success(`Updated ${updated} slot${updated === 1 ? "" : "s"}.`);
+      if (failures.length > 0) toast.error(failures[0]);
+      setLabSelectedSlotIds({});
+      setLabSlotsRefresh((x) => x + 1);
+    },
+    [labSelectedSlotIds],
+  );
 
   const labColorConfigEquipmentId = useMemo(() => {
     if (typeof labDashEquipmentFilter === "number") return labDashEquipmentFilter;
@@ -3721,12 +3788,18 @@ const Dashboard = () => {
           ? ADMIN_MENU_SECTION_ORDER
           : [];
 
+  const labLegendPayload = labSlotByEquipment[labEquipmentSummariesForScope[0]?.equipment_id ?? -1];
+  const labLegendPalette = slotCalendarPalette({
+    ...labLegendPayload?.calendar_colors,
+    slot_colors: { ...(labLegendPayload?.calendar_colors?.slot_colors || {}), ...labBookingLegendColors },
+  });
   const labCalendarLegend = [
-    { label: "Internal booked", color: labBookingLegendColors.BOOKED_INTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_INTERNAL },
-    { label: "External booked", color: labBookingLegendColors.BOOKED_EXTERNAL || DEFAULT_LAB_BOOKING_COLORS.BOOKED_EXTERNAL },
-    { label: "Completed", color: labBookingLegendColors.COMPLETED || DEFAULT_LAB_BOOKING_COLORS.COMPLETED },
-    { label: "Available", color: labBookingLegendColors.AVAILABLE || DEFAULT_LAB_BOOKING_COLORS.AVAILABLE },
-    { label: "Maintenance / Blocked", color: "#9ca3af" },
+    {
+      label: "Internal booked",
+      color: labLegendPalette.slotColors.BOOKED_INTERNAL || labLegendPalette.slotColors.BOOKED,
+    },
+    { label: "External booked", color: labLegendPalette.slotColors.BOOKED_EXTERNAL || EXTERNAL_BOOKED_COLOR },
+    ...slotCalendarLegend(labLegendPalette).filter((item) => item.label !== "Booked"),
   ];
 
   /** One set of week controls for the whole calendar, shown beside the first equipment name. */
@@ -4374,6 +4447,15 @@ const Dashboard = () => {
                                   slotsPayload={labSlotByEquipment[eq.equipment_id] ?? null}
                                   onBookedSlotClick={selectLabBookingForDetail}
                                   bookedSlotsOnly={labCalendarBookedOnly}
+                                  selection={
+                                    isOicUser && labManageableEquipmentIds.has(eq.equipment_id)
+                                      ? {
+                                          selectedIds: new Set(labSelectedSlotIds[eq.equipment_id] ?? []),
+                                          canSelect: isDashboardSelectableSlot,
+                                          onToggle: (slot) => toggleLabSlotSelection(eq.equipment_id, slot.id),
+                                        }
+                                      : undefined
+                                  }
                                   headerActions={
                                     <>
                                       <NextWeekOpeningCountdown equipmentId={eq.equipment_id} audience="staff" />
@@ -4384,22 +4466,21 @@ const Dashboard = () => {
                               ))
                             )}
                           </div>
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-tight text-muted-foreground">
-                            {labCalendarLegend.map(({ label, color }) => (
-                              <span key={label} className="inline-flex items-center gap-1">
-                                <span
-                                  className="inline-block h-2.5 w-2.5 rounded-sm border border-black/10"
-                                  style={{ backgroundColor: color }}
-                                  aria-hidden
-                                />
-                                {label}
-                              </span>
-                            ))}
-                          </div>
+                          {isOicUser &&
+                          !labCalendarBookedOnly &&
+                          labEquipmentSummariesForScope.some((eq) => labManageableEquipmentIds.has(eq.equipment_id)) ? (
+                            <LabCalendarSlotActions
+                              selectedCount={labSelectedSlotCount}
+                              busy={labSlotActionBusy}
+                              onApply={(status, blockedLabel) => void applyLabSlotStatus(status, blockedLabel)}
+                              onClear={() => setLabSelectedSlotIds({})}
+                            />
+                          ) : null}
+                          <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
                           <LabCalendarColorConfig
                             equipmentId={labColorConfigEquipmentId}
                             equipmentLabel={labColorConfigEquipmentLabel}
-                            onColorsChange={(c) => setLabBookingLegendColors((prev) => ({ ...prev, ...c }))}
+                            onColorsChange={setLabBookingLegendColors}
                             onSaved={applyLabBookingColors}
                             open={labColorsOpen}
                             onOpenChange={setLabColorsOpen}

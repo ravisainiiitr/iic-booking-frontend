@@ -1,9 +1,17 @@
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { Check } from "lucide-react";
 import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
-import { HOLIDAY_LABEL, holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
+import { contrastTextColor, isSlotInPast, resolveSlotCell, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
+import { cn } from "@/lib/utils";
+import {
+  SLOT_CELL_CLASS,
+  SLOT_CELL_SELECTED_CLASS,
+  SlotWeekGrid,
+  slotCellStyle,
+} from "@/components/slot-calendar/SlotWeekGrid";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -59,15 +67,6 @@ function timeKeyFromDailySlot(slot: LabCalendarSlot): string {
   return normalizeSlotGridTimeKey(k);
 }
 
-function getContrastTextColor(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const r = (n >> 16) & 0xff;
-  const g = (n >> 8) & 0xff;
-  const b = n & 0xff;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#1f2937" : "#ffffff";
-}
-
 function getTimeSlotsFromEquipmentWindow(
   slotStartTime: string | null | undefined,
   slotEndTime: string | null | undefined,
@@ -108,30 +107,14 @@ function resolveSlotBookingPk(slot: LabCalendarSlot | undefined): number | null 
 
 const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
-/** Soft Navy Ocean defaults for lab/OIC weekly calendar (forced over legacy DB colours). */
-const DEFAULT_SLOT_COLORS: Record<string, string> = {
-  AVAILABLE: "#86efac",
-  BOOKED: "#60a5fa",
-  BOOKED_INTERNAL: "#3b82f6",
-  BOOKED_EXTERNAL: "#ea580c", // Distinct orange — clearly separate from internal blue
-  COMPLETED: "#34d399", // Soft emerald green
-  BLOCKED: "#9ca3af", // Default grey
-  UNDER_MAINTENANCE: "#9ca3af", // Default grey (same as blocked)
-  OPERATOR_ABSENT: "#9ca3af",
-  BOOKING_NOT_UTILIZED: "#c4b5fd",
-  HOLD: "#fdba74",
-  NOT_AVAILABLE: "#e5e7eb",
-  CANCELLED: "#fca5a5",
-  REFUNDED: "#fca5a5",
-  ABSENT: "#9ca3af",
-};
+/** External bookings keep their own colour on staff calendars; labs can change it under Calendar colours. */
+export const EXTERNAL_BOOKED_COLOR = "#2563eb";
 
-/** Maintenance / blocked stay grey; booking colours come from CalendarColorSetting (lab/OIC configurable). */
-const FORCED_LAB_CALENDAR_COLORS: Partial<Record<string, string>> = {
-  UNDER_MAINTENANCE: DEFAULT_SLOT_COLORS.UNDER_MAINTENANCE,
-  BLOCKED: DEFAULT_SLOT_COLORS.BLOCKED,
-  OPERATOR_ABSENT: DEFAULT_SLOT_COLORS.OPERATOR_ABSENT,
-};
+export interface LabCalendarSelection {
+  selectedIds: ReadonlySet<number>;
+  canSelect: (slot: LabCalendarSlot) => boolean;
+  onToggle: (slot: LabCalendarSlot) => void;
+}
 
 export interface LabOperatorWeekCalendarGridProps {
   weekStartIso: string;
@@ -142,6 +125,8 @@ export interface LabOperatorWeekCalendarGridProps {
   bookedSlotsOnly?: boolean;
   /** Controls shown on the right of the equipment name (stacked under it on narrow screens). */
   headerActions?: ReactNode;
+  /** OIC: free slots can be picked to block or open them (Change slot status rules). */
+  selection?: LabCalendarSelection;
 }
 
 function buildRowKeysAndLabels(slotsPayload: LabWeekCalendarSlotsPayload): { key: string; label: string }[] {
@@ -191,7 +176,8 @@ function buildRowKeysAndLabels(slotsPayload: LabWeekCalendarSlotsPayload): { key
 }
 
 /**
- * Read-only weekly grid aligned with Book Equipment Step 3: Select Time Slots (time rows × Mon–Sun).
+ * Weekly grid for Lab Operator / OIC dashboards and the staff app, in the same look as the booking screen.
+ * Booked cells show the booking ID and user and open the booking; an OIC can also pick free slots.
  */
 export function LabOperatorWeekCalendarGrid({
   weekStartIso,
@@ -200,6 +186,7 @@ export function LabOperatorWeekCalendarGrid({
   onBookedSlotClick,
   bookedSlotsOnly = false,
   headerActions,
+  selection,
 }: LabOperatorWeekCalendarGridProps) {
   const currentWeekStart = parseISO(weekStartIso.length >= 10 ? weekStartIso.slice(0, 10) : weekStartIso);
 
@@ -253,22 +240,8 @@ export function LabOperatorWeekCalendarGrid({
     return [0, 1, 2, 3, 4, 5, 6].filter((i) => set.has(i));
   }, [bookedSlotsOnly, rowsToRender, currentWeekStart, getSlotData]);
 
-  const slotColors = useMemo(
-    () => ({
-      ...DEFAULT_SLOT_COLORS,
-      ...(slotsPayload?.calendar_colors?.slot_colors || {}),
-      ...FORCED_LAB_CALENDAR_COLORS,
-    }),
-    [slotsPayload]
-  );
-  const holidayDefault = slotsPayload?.calendar_colors?.holiday_default || "#e9d5ff";
-  const saturdayColor = slotsPayload?.calendar_colors?.saturday_color || "#e2e8f0";
-  const sundayColor = slotsPayload?.calendar_colors?.sunday_color || "#e9d5ff";
+  const palette = useMemo(() => slotCalendarPalette(slotsPayload?.calendar_colors), [slotsPayload]);
   const holidays = slotsPayload?.holidays || {};
-
-  const gridColsStyle: CSSProperties = {
-    gridTemplateColumns: `minmax(6.5rem, 8rem) repeat(${visibleDayOffsets.length}, minmax(0, 1fr))`,
-  };
 
   const heading = (
     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -296,285 +269,166 @@ export function LabOperatorWeekCalendarGrid({
     );
   }
 
+  const now = new Date();
+
+  const renderCell = (day: Date, rowKey: string, rowLabel: string) => {
+    const slotData = getSlotData(day, rowKey);
+    const slotStatusUpper = String(slotData?.status ?? "").toUpperCase();
+    const dateStr = format(day, "yyyy-MM-dd");
+
+    if (bookedSlotsOnly && slotStatusUpper !== "BOOKED") {
+      return (
+        <div
+          className="flex min-h-[48px] items-center justify-center rounded-md border-2 border-transparent bg-muted/20 p-2 text-sm font-medium text-muted-foreground/35"
+          aria-hidden
+        >
+          —
+        </div>
+      );
+    }
+
+    const display = resolveSlotCell({ slot: slotData, day, holiday: holidays[dateStr], palette, now, staffView: true });
+    const bookingPk = resolveSlotBookingPk(slotData);
+    const displayRef =
+      slotData?.booking_id != null && String(slotData.booking_id).trim() !== ""
+        ? String(slotData.booking_id).trim()
+        : bookingPk != null
+          ? String(bookingPk)
+          : "";
+    const userName = String(slotData?.booking_user_name || "").trim();
+    const isOpenBooking = slotStatusUpper === "BOOKED" && display.kind === "booked";
+
+    let background = display.background;
+    let content: ReactNode = display.label;
+    if (isOpenBooking && slotData) {
+      const bookingSt = String(slotData.booking_status || "").toUpperCase();
+      if (bookingSt !== "CANCELLED" && bookingSt !== "REFUNDED") {
+        const isExternal = slotData.booking_is_external === true || isExternalBookingUserType(slotData.booking_user_type);
+        background = isExternal
+          ? palette.slotColors.BOOKED_EXTERNAL || EXTERNAL_BOOKED_COLOR
+          : palette.slotColors.BOOKED_INTERNAL || palette.slotColors.BOOKED;
+      }
+      if (displayRef || userName) {
+        content = (
+          <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
+            {displayRef ? (
+              <span className="w-full truncate text-[11px] font-extrabold tracking-tight sm:text-xs">{displayRef}</span>
+            ) : null}
+            {userName ? <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">{userName}</span> : null}
+          </span>
+        );
+      }
+    }
+    const style = slotCellStyle({ background, color: contrastTextColor(background) });
+
+    const canOpenBooking = slotStatusUpper === "BOOKED" && bookingPk != null;
+    if (canOpenBooking && slotData) {
+      const deptName = String(slotData.booking_user_department_name || slotData.booking_user_department_code || "").trim();
+      const bookingStatusText = String(
+        slotData.booking_status_display || slotData.booking_status || display.label || ""
+      ).trim();
+      const sampleStatusText = String(slotData.booking_sample_status_display || "").trim();
+      const start = slotData.start_datetime ? parseIsoDateAndTime(slotData.start_datetime).timeStr : rowLabel;
+      const end = slotData.end_datetime ? parseIsoDateAndTime(slotData.end_datetime).timeStr : "";
+      const slotTimeText = start && end ? `${start} – ${end}` : start || rowLabel || "";
+      const tooltipLines = [
+        displayRef ? `Booking ID: ${displayRef}` : null,
+        userName ? `User: ${userName}` : null,
+        deptName ? `Department: ${deptName}` : null,
+        bookingStatusText ? `Status: ${bookingStatusText}` : null,
+        slotTimeText ? `Slot: ${slotTimeText}` : null,
+        sampleStatusText ? `Sample: ${sampleStatusText}` : null,
+        equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
+      ].filter((line): line is string => Boolean(line));
+      return (
+        <button
+          type="button"
+          aria-label={tooltipLines.join(". ")}
+          onClick={() => onBookedSlotClick(bookingPk)}
+          className={cn(
+            SLOT_CELL_CLASS,
+            "group relative cursor-pointer transition-all hover:-translate-y-px hover:shadow-md hover:ring-2 hover:ring-primary/35",
+          )}
+          style={style}
+        >
+          {content}
+          <span
+            className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-[11px] font-normal leading-snug text-foreground shadow-lg group-hover:block group-focus-visible:block"
+            role="tooltip"
+          >
+            {tooltipLines.map((line) => (
+              <span key={line} className="block whitespace-nowrap">
+                {line}
+              </span>
+            ))}
+          </span>
+        </button>
+      );
+    }
+
+    if (selection && slotData && selection.canSelect(slotData)) {
+      const selected = selection.selectedIds.has(slotData.id);
+      const when = `${format(day, "EEE d MMM")}, ${rowLabel}`;
+      return (
+        <button
+          type="button"
+          aria-pressed={selected}
+          aria-label={`${when}: ${display.label}${selected ? ", selected" : ""}`}
+          title={display.hover}
+          onClick={() => selection.onToggle(slotData)}
+          className={cn(
+            SLOT_CELL_CLASS,
+            "cursor-pointer transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            selected && SLOT_CELL_SELECTED_CLASS,
+          )}
+          style={selected ? undefined : style}
+        >
+          {selected ? (
+            <>
+              <Check className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span className="truncate">Selected</span>
+            </>
+          ) : (
+            content
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <div className={SLOT_CELL_CLASS} style={style} title={display.hover}>
+        {content}
+      </div>
+    );
+  };
+
+  const rowLabels = new Map(rowsToRender.map((row) => [row.key, row.label]));
+
   return (
     <div className="space-y-2">
       {heading}
-      <div className="overflow-x-auto relative rounded-xl border border-border/70 bg-card/40 p-2 shadow-sm sm:p-3">
-        <div className={bookedSlotsOnly ? "min-w-[320px]" : "min-w-[720px] max-w-full"}>
-          <div className="grid gap-1.5 sm:gap-2 mb-2" style={gridColsStyle}>
-            <div className="font-semibold text-xs sm:text-sm p-2 text-muted-foreground">Time</div>
-            {visibleDayOffsets.map((dayOffset) => {
-              const day = addDays(currentWeekStart, dayOffset);
-              return (
-                <div key={dayOffset} className="font-semibold text-xs sm:text-sm p-2 text-center">
-                  <div className="text-foreground">{format(day, "EEE")}</div>
-                  <div className="text-muted-foreground font-medium">{format(day, "MMM dd")}</div>
-                </div>
-              );
-            })}
-          </div>
-
-          {rowsToRender.map((row) => {
-            const rowKey = row.key;
-            const rowLabel = row.label;
-            return (
-              <div key={rowKey} className="grid gap-1.5 sm:gap-2 mb-1.5 sm:mb-2" style={gridColsStyle}>
-                <div className="text-xs sm:text-sm p-2 font-semibold tabular-nums text-muted-foreground flex items-center whitespace-nowrap">{rowLabel}</div>
-                {visibleDayOffsets.map((dayOffset) => {
-                  const day = addDays(currentWeekStart, dayOffset);
-                  const slotData = getSlotData(day, rowKey);
-                  const slotExists = slotData !== undefined;
-                  const slotStatus = slotData?.status ?? "";
-                  const slotStatusUpper = String(slotStatus || "").toUpperCase();
-                  const dateStr = format(day, "yyyy-MM-dd");
-                  const dayOfWeekJs = day.getDay();
-                  const rawHoliday = holidays[dateStr];
-                  const holidayLabel =
-                    typeof rawHoliday === "string"
-                      ? rawHoliday
-                      : rawHoliday && typeof rawHoliday === "object" && "label" in rawHoliday
-                        ? (rawHoliday as { label: string }).label
-                        : undefined;
-                  const holidayColor =
-                    typeof rawHoliday === "object" &&
-                    rawHoliday !== null &&
-                    "color" in rawHoliday &&
-                    (rawHoliday as { color?: string }).color
-                      ? (rawHoliday as { color: string }).color
-                      : undefined;
-                  const holidayName = holidayLabel;
-                  const isWeekendDay = dayOfWeekJs === 6 || dayOfWeekJs === 0;
-                  const namedHoliday =
-                    holidayName && holidayCellLabel(holidayName) === HOLIDAY_LABEL ? holidayName : undefined;
-                  const closedDayLabel = namedHoliday ? HOLIDAY_LABEL : isWeekendDay ? "Weekend" : undefined;
-                  const closedDayHover = namedHoliday
-                    ? holidayHoverText(namedHoliday)
-                    : isWeekendDay
-                      ? `Weekend (${format(day, "EEEE")})`
-                      : undefined;
-                  const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
-                  const bookingStatusDisplay = hasBookedStatus
-                    ? (slotData?.booking_status_display ?? null)
-                    : null;
-                  const bookingPk = resolveSlotBookingPk(slotData);
-
-                  if (bookedSlotsOnly && slotStatusUpper !== "BOOKED") {
-                    return (
-                      <div
-                        key={dayOffset}
-                        className="p-3 rounded-md text-sm min-h-[48px] flex items-center justify-center font-medium border-2 border-transparent text-muted-foreground/35 bg-muted/20"
-                        aria-hidden
-                      >
-                        —
-                      </div>
-                    );
-                  }
-
-                  let rawSlotStatusLabel = slotData?.status_display || "";
-                  if (!rawSlotStatusLabel && slotStatus) {
-                    const statusMap: Record<string, string> = {
-                      AVAILABLE: "Available",
-                      NOT_AVAILABLE: "Not Available",
-                      BOOKED: "Booked",
-                      BLOCKED: "Blocked",
-                      UNDER_MAINTENANCE: "Under Maintenance",
-                      OPERATOR_ABSENT: "Operator Absent",
-                      BOOKING_NOT_UTILIZED: "Booking Not Utilized",
-                      HOLD: "Hold",
-                      COMPLETED: "Completed",
-                      CANCELLED: "Cancelled",
-                    };
-                    rawSlotStatusLabel =
-                      statusMap[slotStatus] ||
-                      slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
-                  }
-                  let slotStatusLabel = rawSlotStatusLabel;
-                  const displayRef =
-                    slotData?.booking_id != null && String(slotData.booking_id).trim() !== ""
-                      ? String(slotData.booking_id).trim()
-                      : bookingPk != null
-                        ? String(bookingPk)
-                        : "";
-                  if (slotStatus === "BOOKED" && displayRef) {
-                    slotStatusLabel = `${rawSlotStatusLabel} #${displayRef}`;
-                  }
-                  if (slotStatus === "BLOCKED") {
-                    slotStatusLabel = slotData?.blocked_label || "Blocked";
-                  }
-                  const slotDisplayLabel = bookingStatusDisplay || slotStatusLabel;
-
-                  const userName = String(slotData?.booking_user_name || "").trim();
-                  const deptName = String(
-                    slotData?.booking_user_department_name ||
-                      slotData?.booking_user_department_code ||
-                      ""
-                  ).trim();
-                  const bookingStatusText = String(
-                    slotData?.booking_status_display ||
-                      slotData?.booking_status ||
-                      slotDisplayLabel ||
-                      ""
-                  ).trim();
-                  const sampleStatusText = String(slotData?.booking_sample_status_display || "").trim();
-                  const slotTimeText = (() => {
-                    const start = slotData?.start_datetime
-                      ? parseIsoDateAndTime(slotData.start_datetime).timeStr
-                      : rowLabel;
-                    const end = slotData?.end_datetime
-                      ? parseIsoDateAndTime(slotData.end_datetime).timeStr
-                      : "";
-                    if (start && end) return `${start} – ${end}`;
-                    return start || rowLabel || "";
-                  })();
-
-                  let displayStatus: ReactNode = closedDayLabel ?? "—";
-                  const considerBooked = hasBookedStatus;
-                  const showsClosedDay =
-                    Boolean(closedDayLabel) && (!slotExists || slotStatusUpper === "NOT_AVAILABLE");
-
-                  const bookingCompleted = bookingStatusText.toUpperCase() === "COMPLETED";
-                  if (slotExists) {
-                    if (bookingCompleted) {
-                      displayStatus = "Completed";
-                    } else if (considerBooked && slotStatusUpper === "BOOKED" && (displayRef || userName)) {
-                      displayStatus = (
-                        <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
-                          {displayRef ? (
-                            <span className="w-full truncate text-[11px] font-extrabold tracking-tight sm:text-xs">
-                              {displayRef}
-                            </span>
-                          ) : null}
-                          {userName ? (
-                            <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">
-                              {userName}
-                            </span>
-                          ) : null}
-                        </span>
-                      );
-                    } else if (showsClosedDay) {
-                      displayStatus = closedDayLabel;
-                    } else {
-                      displayStatus = slotDisplayLabel || slotStatusLabel || "Unavailable";
-                    }
-                  } else {
-                    displayStatus = closedDayLabel ?? "—";
-                  }
-
-                  const statusOverridesHolidayBg =
-                    slotExists && slotStatusUpper !== "" && slotStatusUpper !== "NOT_AVAILABLE";
-                  const useHolidayBg = Boolean(
-                    holidayColor && !considerBooked && !statusOverridesHolidayBg
-                  );
-                  const isWeekendCell = !slotExists && (dayOfWeekJs === 6 || dayOfWeekJs === 0);
-
-                  let cellStyle: CSSProperties | undefined;
-                  if (useHolidayBg && holidayColor && !isWeekendCell) {
-                    cellStyle = { backgroundColor: holidayColor, color: getContrastTextColor(holidayColor) };
-                  } else if (slotExists) {
-                    let statusForColor = slotStatus;
-                    if (slotStatus === "NOT_AVAILABLE") statusForColor = "NOT_AVAILABLE";
-                    const bookingSt = String(slotData?.booking_status || "").toUpperCase();
-                    // Completed must win over internal/external and any legacy purple keys from colour settings.
-                    if (considerBooked && bookingSt === "COMPLETED") {
-                      statusForColor = "COMPLETED";
-                    } else if (slotStatus === "BOOKED" && bookingSt) {
-                      statusForColor = bookingSt;
-                    }
-                    if (
-                      considerBooked &&
-                      bookingSt !== "COMPLETED" &&
-                      (statusForColor === "BOOKED" || slotStatusUpper === "BOOKED")
-                    ) {
-                      if (bookingSt === "CANCELLED" || bookingSt === "REFUNDED") {
-                        statusForColor = bookingSt;
-                      } else {
-                        const isExt =
-                          slotData?.booking_is_external === true ||
-                          isExternalBookingUserType(slotData?.booking_user_type);
-                        statusForColor = isExt ? "BOOKED_EXTERNAL" : "BOOKED_INTERNAL";
-                      }
-                    }
-                    const st = statusForColor || "AVAILABLE";
-                    const bg =
-                      (FORCED_LAB_CALENDAR_COLORS[st] as string | undefined) ||
-                      slotColors[st] ||
-                      (st === "BOOKED_EXTERNAL"
-                        ? DEFAULT_SLOT_COLORS.BOOKED_EXTERNAL
-                        : considerBooked
-                          ? slotColors.BOOKED
-                          : slotColors.AVAILABLE);
-                    cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
-                  } else {
-                    const bg =
-                      dayOfWeekJs === 6
-                        ? saturdayColor
-                        : dayOfWeekJs === 0
-                          ? sundayColor
-                          : holidayColor || holidayDefault;
-                    cellStyle = { backgroundColor: bg, color: getContrastTextColor(bg) };
-                  }
-
-                  const canOpenBooking = slotStatusUpper === "BOOKED" && bookingPk != null;
-                  const tooltipLines =
-                    slotStatusUpper === "BOOKED"
-                      ? [
-                          displayRef ? `Booking ID: ${displayRef}` : null,
-                          userName ? `User: ${userName}` : null,
-                          deptName ? `Department: ${deptName}` : null,
-                          bookingStatusText ? `Status: ${bookingStatusText}` : null,
-                          slotTimeText ? `Slot: ${slotTimeText}` : null,
-                          sampleStatusText ? `Sample: ${sampleStatusText}` : null,
-                          equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
-                        ].filter(Boolean)
-                      : [];
-                  const showsStyledTooltip = canOpenBooking && tooltipLines.length > 0;
-
-                  return (
-                    <button
-                      key={dayOffset}
-                      type="button"
-                      title={
-                        showsStyledTooltip
-                          ? undefined
-                          : tooltipLines.length
-                            ? tooltipLines.join("\n")
-                            : showsClosedDay
-                              ? closedDayHover
-                              : undefined
-                      }
-                      aria-label={showsStyledTooltip ? tooltipLines.join(". ") : undefined}
-                      onClick={() => {
-                        if (canOpenBooking) onBookedSlotClick(bookingPk);
-                      }}
-                      disabled={!canOpenBooking}
-                      className={`
-                          calendar-color-cell group relative p-2 sm:p-2.5 rounded-lg text-sm transition-all min-h-[52px] sm:min-h-[58px] flex items-center justify-center border border-white/40 shadow-sm
-                          ${!slotExists ? "cursor-default" : ""}
-                          ${canOpenBooking ? "cursor-pointer hover:shadow-md hover:ring-2 hover:ring-primary/35 hover:-translate-y-px" : ""}
-                          ${!canOpenBooking && slotExists ? "cursor-default" : ""}
-                        `}
-                      style={cellStyle}
-                    >
-                      {displayStatus}
-                      {showsStyledTooltip ? (
-                        <span
-                          className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-[11px] font-normal leading-snug text-foreground shadow-lg group-hover:block group-focus-visible:block"
-                          role="tooltip"
-                        >
-                          {tooltipLines.map((line) => (
-                            <span key={String(line)} className="block whitespace-nowrap">
-                              {line}
-                            </span>
-                          ))}
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
+      <div className="rounded-xl border border-border/70 bg-card/40 p-2 shadow-sm sm:p-3">
+        <SlotWeekGrid
+          weekStart={currentWeekStart}
+          rows={rowsToRender}
+          dayOffsets={visibleDayOffsets}
+          renderCell={(day, rowKey) => renderCell(day, rowKey, rowLabels.get(rowKey) ?? rowKey)}
+          renderRowLabel={(row) => (
+            <div className="sticky left-0 z-10 flex items-center whitespace-nowrap rounded-md bg-muted/90 p-2 text-xs font-medium tabular-nums dark:bg-background/95 sm:text-sm">
+              {row.label}
+            </div>
+          )}
+          singleDayOnMobile
+          dayHasFreeSlot={(day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            return (slotsPayload?.slots ?? []).some(
+              (s) =>
+                calendarDateStrFromSlot(s) === dateStr &&
+                String(s.status).toUpperCase() === "AVAILABLE" &&
+                !isSlotInPast(s, now),
             );
-          })}
-        </div>
+          }}
+        />
       </div>
     </div>
   );
