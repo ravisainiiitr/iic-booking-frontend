@@ -16,7 +16,7 @@ import { isExternalBookingUserType } from "@/lib/userTypes";
 import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
 import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateTimeInput } from "@/components/ui/datetime-input";
@@ -752,6 +752,7 @@ export function BookingDetailCard({
   const [analysisBusy, setAnalysisBusy] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   /** Reload full booking (includes sample_trace, slots, status) after lifecycle API updates. */
   const refreshBookingDetail = useCallback(async (opts?: { silent?: boolean }) => {
@@ -1003,7 +1004,10 @@ export function BookingDetailCard({
       return;
     }
     onClose();
-    navigate(`/book-equipment?equipment_id=${booking.equipment}&repeatOf=${rid}`);
+    if (location.pathname === "/booking-management") {
+      navigate(`/booking-management?expand=${rid}`, { replace: true });
+    }
+    navigate(`/book-equipment?equipment_id=${booking.equipment}&mode=book&repeatOf=${rid}`);
   };
 
   const openActionDialog = (type: ActionType, b: BookingDetailCardBooking) => {
@@ -2712,7 +2716,7 @@ export function BookingDetailCard({
                   size="sm"
                   variant="outline"
                   onClick={handleCreateRepeatBooking}
-                  title="Mark this booking as repeated and book a free repeat for the user with the same parameters. The user is emailed a confirmation."
+                  title="Opens slot booking for this user with the original parameters prefilled (you can edit them). On confirm the booking is marked as repeated, the repeat is free and the user is emailed."
                 >
                   <CopyPlus className="h-4 w-4 mr-2" />
                   Mark as repeat &amp; book (free)

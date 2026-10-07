@@ -20,6 +20,7 @@ import {
 import { FABRICATION_QUANTITY_KEY, PRINT_3D_SERVER_KEYS, fabricationJobQuantity } from "@/lib/fabricationProfiles";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
+import { RepeatSampleUserCard } from "@/components/RepeatSampleUserCard";
 import { TemplateSlotSettings } from "@/components/booking-templates/TemplateSlotSettings";
 import { TemplateHealthAdvice, focusTemplateField } from "@/components/booking-templates/TemplateHealthAdvice";
 import { clampTemplateValues, templateApplyNotice, templateHealthBadge, templateSaveBlocker } from "@/lib/templateHealth";
@@ -1677,15 +1678,35 @@ const BookEquipment = () => {
     /** OIC/Admin marking another user's booking as repeat and booking it for them. */
     booked_by_staff?: boolean;
     user_label?: string | null;
+    user?: number | string | null;
+    user_name?: string | null;
+    user_email?: string | null;
+    user_phone?: string | null;
+    user_department?: string | null;
+    user_profile_picture?: string | null;
+    wallet_owner_name?: string | null;
   } | null>(null);
   const [repeatSourceLoading, setRepeatSourceLoading] = useState(false);
+  /** Repeat requested by the booking user: parameters stay exactly as in the original booking. */
+  const repeatParamsLocked = !!repeatSourceBooking && !repeatSourceBooking.booked_by_staff;
+  /** OIC / Admin repeat: parameters are prefilled from the original booking and can be edited. */
+  const repeatEditable = !!repeatSourceBooking?.booked_by_staff;
+  const [repeatPreview, setRepeatPreview] = useState<{
+    loading: boolean;
+    error: string | null;
+    changes: Array<{ key: string; label: string; old: string; new: string }>;
+  }>({ loading: false, error: null, changes: [] });
+  /** Input fields the original booking's values were last applied to (equipment detail reloads reset the form). */
+  const repeatValuesAppliedForRef = useRef<unknown>(null);
+  const repeatPreviewKeyRef = useRef("");
+  const repeatMinutesRef = useRef<number | null>(null);
   /** The equipment's "Allow samples with different parameters" switch (on unless the main admin turned it off). */
   const sampleSetsAllowed = sampleSetsAllowedFor(equipmentDetail);
-  /** A saved template keeps its sets after the switch is turned off: they can be changed or removed, not added to. */
-  const keepExistingSampleSets = isTemplateFlow && !isFabricationProfile(equipmentDetail?.profile_type);
+  /** A saved template (or a repeat's original booking) keeps its sets after the switch is turned off: they can be changed or removed, not added to. */
+  const keepExistingSampleSets = (isTemplateFlow || repeatEditable) && !isFabricationProfile(equipmentDetail?.profile_type);
   const sampleSetsOffered =
     (sampleSetsAllowed || (keepExistingSampleSets && sampleSets.length > 0)) &&
-    !repeatSourceBooking &&
+    !repeatParamsLocked &&
     !isProformaFlow &&
     (equipmentDetail?.input_fields?.length ?? 0) > 0;
   const showSampleSetOneHeader = sampleSetsOffered && sampleSets.length > 0;
@@ -3152,16 +3173,18 @@ const BookEquipment = () => {
     }).catch(() => setRewardSummary(null));
   }, [selectedEquipment?.id, isCalculateChargesFlow]);
 
-  // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (read-only params, zero charge, user picks slots)
+  // Repeat-sample flow: when repeatOf is in URL, load that booking and prefill form (zero charge, user picks slots;
+  // parameters are fixed for the booking user and editable for OIC / Admin).
+  const repeatOfUrlValue = (searchParams.get("repeatOf") || "").trim();
   useEffect(() => {
-    const repeatOfRaw = (searchParams.get("repeatOf") || "").trim();
+    const repeatOfRaw = repeatOfUrlValue;
     if (!repeatOfRaw || !selectedEquipment) {
       setRepeatSourceBooking(null);
       return;
     }
     if (!userType || !userId) return;
     const viewerType = String(userType).toLowerCase();
-    const viewerIsRepeatManager = viewerType === "admin" || viewerType === "manager";
+    const viewerIsRepeatManager = viewerType === "admin" || viewerType === "manager" || viewerType === "dept_admin";
     let cancelled = false;
     setRepeatSourceLoading(true);
     setRepeatSourceBooking(null);
@@ -3188,7 +3211,12 @@ const BookEquipment = () => {
         toast.error("Repeat source booking not found.");
         return;
       }
-      const b = bookingsRes.data.bookings[0];
+      const b = bookingsRes.data.bookings[0] as (typeof bookingsRes.data.bookings)[number] & {
+        user_phone?: string | null;
+        user_department?: string | null;
+        user_profile_picture?: string | null;
+        wallet_owner_name?: string | null;
+      };
       const bookedByStaff = viewerIsRepeatManager && String(b.user) !== String(userId);
       const eligibilityRes = bookedByStaff ? null : await apiClient.getRepeatSampleEligibility(bid);
       if (cancelled) return;
@@ -3228,7 +3256,22 @@ const BookEquipment = () => {
         extra_week_granted: !!eligibilityRes?.data?.extra_week_granted,
         booked_by_staff: bookedByStaff,
         user_label: bookedByStaff ? String(b.user_name || b.user_email || "").trim() || null : null,
+        user: b.user ?? null,
+        user_name: b.user_name ?? null,
+        user_email: b.user_email ?? null,
+        user_phone: b.user_phone ?? null,
+        user_department: b.user_department ?? null,
+        user_profile_picture: b.user_profile_picture ?? null,
+        wallet_owner_name: b.wallet_owner_name ?? null,
       });
+      if (bookedByStaff) {
+        // Input fields reload for the booking user's type; the repeat-values effect fills them in after each load.
+        repeatValuesAppliedForRef.current = null;
+        repeatPreviewKeyRef.current = "";
+        setAdminBookForUserId(String(b.user));
+        setRepeatPreview({ loading: false, error: null, changes: [] });
+        return;
+      }
       setInputFieldValues(b.input_values || {});
       setChargeCalculated(true);
       setCalculatedCharge({
@@ -3246,11 +3289,87 @@ const BookEquipment = () => {
       setLastFetchedWeek(null);
     })();
     return () => { cancelled = true; };
-  }, [searchParams, selectedEquipment?.id, userType, userId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeatOfUrlValue, selectedEquipment?.id, userType, userId]);
+
+  const repeatInputPayload = useMemo(
+    () => ({ ...withoutSampleSets(inputFieldValues as Record<string, unknown>), _sample_sets: sampleSets }),
+    [inputFieldValues, sampleSets],
+  );
+
+  // Staff repeat: (re)fill Step 1 with the original booking's parameters after each input-field load.
+  useEffect(() => {
+    if (!repeatSourceBooking?.booked_by_staff || loadingEquipmentDetail || !equipmentDetail) return;
+    const loadedFields: unknown = equipmentDetail.input_fields ?? equipmentDetail;
+    if (repeatValuesAppliedForRef.current === loadedFields) return;
+    repeatValuesAppliedForRef.current = loadedFields;
+    const original = (repeatSourceBooking.input_values || {}) as Record<string, unknown>;
+    const minutes = repeatSourceBooking.total_time_minutes || 0;
+    repeatMinutesRef.current = minutes;
+    setInputFieldValues(withoutSampleSets(original) as typeof inputFieldValues);
+    setSampleSets(readSampleSets(original));
+    setChargeCalculated(true);
+    setCalculatedCharge({
+      total_charge: "0",
+      total_time_minutes: minutes,
+      charge_breakdown: repeatSourceBooking.charge_breakdown,
+      base_charge: "0",
+      gst_percent: 0,
+      gst_amount: "0",
+    });
+    setShowSlots(true);
+    setChargeCalculationFailed(false);
+    setSelectedSlots([]);
+    setAutoSlotSelection(false);
+    setLastFetchedWeek(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repeatSourceBooking, equipmentDetail, loadingEquipmentDetail]);
+
+  // Staff repeat: check edited parameters on the server (same limits as a booking) and size the slots to them.
+  useEffect(() => {
+    if (!repeatEditable || !repeatSourceBooking || loadingEquipmentDetail || repeatValuesAppliedForRef.current == null) return;
+    const key = JSON.stringify(repeatInputPayload);
+    if (repeatPreviewKeyRef.current === key) {
+      setRepeatPreview((p) => (p.loading ? { ...p, loading: false } : p));
+      return;
+    }
+    setRepeatPreview((p) => ({ ...p, loading: true }));
+    let cancelled = false;
+    const bookingPk = repeatSourceBooking.real_booking_id;
+    const breakdown = repeatSourceBooking.charge_breakdown;
+    const timer = setTimeout(async () => {
+      const res = await apiClient.previewRepeatBooking(bookingPk, repeatInputPayload);
+      if (cancelled) return;
+      repeatPreviewKeyRef.current = key;
+      if (res.error || !res.data) {
+        setRepeatPreview({ loading: false, error: String(res.error || "Could not check these parameters."), changes: [] });
+        return;
+      }
+      setRepeatPreview({ loading: false, error: null, changes: res.data.input_changes || [] });
+      const minutes = Number(res.data.total_time_minutes) || 0;
+      if (minutes !== repeatMinutesRef.current) {
+        repeatMinutesRef.current = minutes;
+        setCalculatedCharge({
+          total_charge: "0",
+          total_time_minutes: minutes,
+          charge_breakdown: breakdown,
+          base_charge: "0",
+          gst_percent: 0,
+          gst_amount: "0",
+        });
+        setSelectedSlots([]);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [repeatEditable, repeatSourceBooking, repeatInputPayload, loadingEquipmentDetail]);
 
   // When landing with mode=status or mode=book, sync manage mode from URL (including switching mode on same equipment)
+  // (a repeat sample link always opens booking on behalf of the original user).
   useEffect(() => {
-    const mode = searchParams.get('mode');
+    const mode = searchParams.get('mode') || (searchParams.get('repeatOf') ? 'book' : null);
     if (!mode || !selectedEquipment || !canAccessManageEquipmentModes()) return;
     const urlKey = `${selectedEquipment.id}:${mode}`;
     if (appliedModeUrlKeyRef.current === urlKey) return;
@@ -6052,7 +6171,7 @@ const BookEquipment = () => {
 
   // Handle input field changes - charge will auto-calculate via useEffect
   const handleInputFieldChange = (fieldKey: string, value: string | boolean | string[] | number) => {
-    if (repeatSourceBooking) return;
+    if (repeatParamsLocked) return;
     const changedField = equipmentDetail?.input_fields?.find(
       (f: any) => String(f?.field_key || "").toUpperCase() === String(fieldKey || "").toUpperCase()
     );
@@ -6121,7 +6240,7 @@ const BookEquipment = () => {
   /** A field's max can depend on other fields (options.max_formula, e.g. A <= B*4); lowering B must pull A back within the new max. */
   useEffect(() => {
     const fields = equipmentDetail?.input_fields;
-    if (!Array.isArray(fields) || fields.length === 0 || repeatSourceBooking) return;
+    if (!Array.isArray(fields) || fields.length === 0 || repeatParamsLocked) return;
     const clamps: Array<{ key: string; label: string; value: string | number; max: number }> = [];
     const seen = new Set<string>();
     for (const field of fields) {
@@ -6165,7 +6284,7 @@ const BookEquipment = () => {
     for (const c of clamps) {
       toast.info(`${c.label} adjusted to ${formatNumericBound(c.max)} (maximum for the current selection).`);
     }
-  }, [equipmentDetail, inputFieldValues, repeatSourceBooking]);
+  }, [equipmentDetail, inputFieldValues, repeatParamsLocked]);
 
   const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
     if (!values) {
@@ -6652,6 +6771,7 @@ const BookEquipment = () => {
         String(userType ?? "").toLowerCase() === "admin" &&
         adminManageMode === "book" &&
         adminBookForUserId &&
+        !repeatSourceBooking &&
         adminTargetIstemAcknowledged !== true
       ) {
         toast.error(
@@ -6670,9 +6790,28 @@ const BookEquipment = () => {
         toast.error("Please select valid time slots");
         return;
       }
+      let repeatInputs: Record<string, unknown> | undefined;
+      if (repeatEditable) {
+        const localError = missingStep1Fields.length
+          ? `Fill in ${missingStep1Fields.map((f) => f.label).join(", ")} in Step 1.`
+          : sampleSetLimitError || numericInputLimitError || sampleSetFieldError;
+        if (localError) {
+          toast.error(String(localError));
+          return;
+        }
+        if (repeatPreview.loading || repeatPreviewKeyRef.current !== JSON.stringify(repeatInputPayload)) {
+          toast.error("Checking the edited parameters. Please try again in a moment.");
+          return;
+        }
+        if (repeatPreview.error) {
+          toast.error(repeatPreview.error);
+          return;
+        }
+        repeatInputs = repeatInputPayload;
+      }
       setIsSubmittingBooking(true);
       try {
-        const res = await apiClient.createRepeatBooking(repeatSourceBooking.real_booking_id, slotIds);
+        const res = await apiClient.createRepeatBooking(repeatSourceBooking.real_booking_id, slotIds, repeatInputs);
         if (res.error) {
           toast.error(res.error);
           return;
@@ -6702,6 +6841,11 @@ const BookEquipment = () => {
           bookingDisplayId: repeatView,
         });
         setRepeatSourceBooking(null);
+        setSearchParams((prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete("repeatOf");
+          return p;
+        }, { replace: true });
       } catch (e) {
         setBookingResultDialog({
           open: true,
@@ -9028,8 +9172,19 @@ const BookEquipment = () => {
                     </PeakCollapsible>
                   )}
 
+                {repeatOfUrlValue && canBookForOtherUsers() && adminManageMode === 'book' && !isCalculateChargesFlow && (
+                  <RepeatSampleUserCard
+                    loading={repeatSourceLoading}
+                    source={repeatSourceBooking}
+                    onBack={() => {
+                      const rid = repeatSourceBooking?.real_booking_id ?? repeatOfUrlValue;
+                      navigate(`/booking-management?expand=${encodeURIComponent(String(rid))}`);
+                    }}
+                  />
+                )}
+
                 {/* Admin: select user when booking on behalf (searchable + filter by type) */}
-                {canBookForOtherUsers() && adminManageMode === 'book' && !isCalculateChargesFlow && (
+                {canBookForOtherUsers() && adminManageMode === 'book' && !isCalculateChargesFlow && !repeatOfUrlValue && (
                   <div className="mb-6 p-4 rounded-lg border bg-muted/30 space-y-4">
                     {canChangeSlotStatus() && (
                       <div className="flex justify-end">
@@ -9313,7 +9468,7 @@ const BookEquipment = () => {
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
                     onSizeBlockChange={setPrint3dSizeBlock}
-                    disabled={!!repeatSourceBooking}
+                    disabled={repeatParamsLocked}
                   />
                 )}
 
@@ -9457,8 +9612,20 @@ const BookEquipment = () => {
                   {repeatSourceBooking && (
                     <div className="mb-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-800 dark:text-amber-200">
                       {repeatSourceBooking.booked_by_staff
-                        ? `Repeat sample${repeatSourceBooking.user_label ? ` for ${repeatSourceBooking.user_label}` : ""}: parameters are fixed from the original booking. No charges apply and it does not count toward the user's limits. Choose slots in Step 3; the original booking is marked as repeated and the user is emailed a confirmation.`
+                        ? "Repeat sample: parameters are prefilled from the original booking and can be edited (the slot time follows them). No charges apply and it does not count toward the user's limits. Choose slots in Step 3; the original booking is marked as repeated and the user is emailed a confirmation."
                         : "Repeat sample: parameters are fixed from the original booking and cannot be changed. No charges apply. Choose slots in Step 3. This booking will not count toward your weekly or monthly limit."}
+                      {repeatEditable && repeatPreview.loading && (
+                        <div className="mt-1 text-xs">Checking the edited parameters…</div>
+                      )}
+                      {repeatEditable && !repeatPreview.loading && repeatPreview.error && (
+                        <div className="mt-1 font-medium text-destructive" role="alert">{repeatPreview.error}</div>
+                      )}
+                      {repeatEditable && !repeatPreview.error && repeatPreview.changes.length > 0 && (
+                        <div className="mt-1" data-testid="repeat-input-changes">
+                          <span className="font-medium">Changed from the original booking:</span>{" "}
+                          {repeatPreview.changes.map((c) => `${c.label}: ${c.old} → ${c.new}`).join("; ")}
+                        </div>
+                      )}
                       {repeatBookableFromMs != null && (
                         <div className="mt-1 font-medium">
                           Approved repeat: choose slots starting on or after{" "}
@@ -9514,7 +9681,7 @@ const BookEquipment = () => {
                                     onChange={(e) => handleInputFieldChange(field.field_key, e.target.value)}
                                     required={field.is_required}
                                     placeholder={field.default_value || ''}
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                     className={dynamicFieldControlWidth(fieldType, field.field_label)}
                                   />
                                 );
@@ -9544,7 +9711,7 @@ const BookEquipment = () => {
                                         ? field.default_value || formatNumericBound(bounds.min)
                                         : "Optional"
                                     }
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                   />
                                 );
                               }
@@ -9555,7 +9722,7 @@ const BookEquipment = () => {
                                     value={inputFieldValues[field.field_key] as string || field.default_value || ''}
                                     onValueChange={(value) => handleInputFieldChange(field.field_key, value)}
                                     required={field.is_required}
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                     aria-label={String(field.field_label || field.field_key)}
                                     className="flex flex-wrap items-center gap-x-5 gap-y-2"
                                   >
@@ -9586,7 +9753,7 @@ const BookEquipment = () => {
                                     value={inputFieldValues[field.field_key] as string || field.default_value || ''}
                                     onValueChange={(value) => handleInputFieldChange(field.field_key, value)}
                                     required={field.is_required}
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                   >
                                     <SelectTrigger id={field.field_key} className={dynamicFieldControlWidth(fieldType)}>
                                       <SelectValue placeholder="Select an option" />
@@ -9638,7 +9805,7 @@ const BookEquipment = () => {
                                                   handleInputFieldChange(field.field_key, currentValues.filter(v => v !== optionValue));
                                                 }
                                               }}
-                                              disabled={!!repeatSourceBooking}
+                                              disabled={repeatParamsLocked}
                                             />
                                             <Label
                                               htmlFor={`${field.field_key}-${optionValue}`}
@@ -9662,7 +9829,7 @@ const BookEquipment = () => {
                                     checked={inputFieldValues[field.field_key] === true || inputFieldValues[field.field_key] === 'true'}
                                     onCheckedChange={(checked) => handleInputFieldChange(field.field_key, checked)}
                                     required={field.is_required}
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                   />
                                 );
 
@@ -9679,7 +9846,7 @@ const BookEquipment = () => {
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      disabled={!!repeatSourceBooking}
+                                      disabled={repeatParamsLocked}
                                       onClick={() => {
                                         setPeriodicTableFieldKey(field.field_key);
                                         setSelectedPeriodicSymbols(new Set([...allowedList, ...Array.from(preselectedSet)]));
@@ -9715,7 +9882,7 @@ const BookEquipment = () => {
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={loadingAvailableIcpmsStandards || !!repeatSourceBooking}
+                                        disabled={loadingAvailableIcpmsStandards || repeatParamsLocked}
                                         onClick={async () => {
                                           try {
                                             setAvailableIcpmsStandardsDialogOpen(true);
@@ -9947,7 +10114,7 @@ const BookEquipment = () => {
                                                         value={row[ci] ?? ''}
                                                         onChange={(e) => setCell(ri, ci, e.target.value)}
                                                         placeholder=""
-                                                        disabled={!!repeatSourceBooking}
+                                                        disabled={repeatParamsLocked}
                                                       />
                                                     )}
                                                   </td>
@@ -9962,7 +10129,7 @@ const BookEquipment = () => {
                                                       onClick={() => deleteRow(ri)}
                                                       title="Delete row"
                                                       aria-label={`Delete row ${ri + 1}`}
-                                                      disabled={!!repeatSourceBooking}
+                                                      disabled={repeatParamsLocked}
                                                     >
                                                       <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -9976,7 +10143,7 @@ const BookEquipment = () => {
                                     </div>
                                     {!rowCountDriven && (
                                       <div className="flex gap-2">
-                                        <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={!!repeatSourceBooking}>
+                                        <Button type="button" variant="outline" size="sm" onClick={addRow} disabled={repeatParamsLocked}>
                                           <Plus className="h-4 w-4 mr-1" />
                                           Add row
                                         </Button>
@@ -10001,7 +10168,7 @@ const BookEquipment = () => {
                                     config={typedConfig}
                                     value={inputFieldValues[field.field_key]}
                                     onChange={(rows) => handleInputFieldChange(field.field_key, rows as any)}
-                                    disabled={!!repeatSourceBooking}
+                                    disabled={repeatParamsLocked}
                                     scope="primary"
                                     linkLabel={typedLinkField ? String(typedLinkField.field_label || typedLinkKey) : undefined}
                                     idPrefix={typedTableDomId(field.field_key)}

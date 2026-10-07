@@ -9232,13 +9232,26 @@ class ApiClient {
   }
 
   /** Create repeat booking (replica of completed booking). Only when enabled by admin/OIC. Pass slot_ids to use chosen slots; omit to use first-available (legacy). */
-  async createRepeatBooking(bookingId: number, slotIds?: number[]) {
-    const body: { slot_ids?: number[] } = {};
+  async createRepeatBooking(bookingId: number, slotIds?: number[], inputValues?: Record<string, unknown>) {
+    const body: { slot_ids?: number[]; input_values?: Record<string, unknown> } = {};
     if (slotIds != null && slotIds.length > 0) body.slot_ids = slotIds;
+    if (inputValues) body.input_values = inputValues;
     return this.request<{ message: string; booking: any; virtual_booking_id: string }>(
       `/bookings/${bookingId}/create-repeat-booking/`,
       { method: 'POST', body: JSON.stringify(body) }
     );
+  }
+
+  /** Staff repeat sample: validate edited parameters and get the slot time they need (always free). */
+  async previewRepeatBooking(bookingId: number, inputValues: Record<string, unknown>) {
+    return this.request<{
+      total_time_minutes: number;
+      input_changes: Array<{ key: string; label: string; old: string; new: string }>;
+      total_charge: string;
+    }>(`/bookings/${bookingId}/repeat-booking-preview/`, {
+      method: 'POST',
+      body: JSON.stringify({ input_values: inputValues }),
+    });
   }
 
   /** Enable repeat sample for a completed booking. Admin/OIC only. */
