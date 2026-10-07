@@ -197,6 +197,35 @@ describe("StlModelPreview", () => {
     expect(stage.dispose).toHaveBeenCalled();
   });
 
+  it("turns the build volume red when the model is larger than the printer's maximum size", async () => {
+    resetWebGLCache(true);
+    three.print.exceedsBed = true;
+    const { rerender } = render(
+      <StlModelPreview
+        buffer={boxStl(300, 10, 5)}
+        bedSize={{ x: 220, y: 220, z: 250 }}
+        sizeCheck={{ tooLarge: true, rotated: false, limitLabel: "220 × 220 × 250 mm" }}
+      />,
+    );
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    expect(three.buildPrintScene.mock.calls[0][5]).toEqual({ overLimit: true });
+    expect(screen.getByTestId("stl-preview-too-large").textContent).toBe(
+      "Too large for this printer (maximum 220 × 220 × 250 mm).",
+    );
+    expect(screen.queryByTestId("stl-preview-exceeds")).toBeNull();
+
+    rerender(
+      <StlModelPreview
+        buffer={boxStl(300, 10, 5)}
+        bedSize={{ x: 220, y: 220, z: 250 }}
+        sizeCheck={{ tooLarge: false, rotated: true, limitLabel: "220 × 220 × 250 mm" }}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByTestId("stl-preview-too-large")).toBeNull());
+    expect(screen.getByTestId("stl-preview-rotated").textContent).toContain("when turned");
+    expect(three.buildPrintScene.mock.calls.at(-1)?.[5]).toEqual({ overLimit: false });
+  });
+
   it("does not auto-rotate for people who prefer reduced motion", async () => {
     resetWebGLCache(true);
     mockMatchMedia(["prefers-reduced-motion"]);

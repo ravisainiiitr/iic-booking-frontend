@@ -24,7 +24,15 @@ import {
 } from "@/lib/api";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
-import { ChevronLeft, ChevronRight, FileUp, Upload, X } from "lucide-react";
+import {
+  checkStlSize,
+  formatPrintSizeLimit,
+  previewBedSize,
+  printSizeLimitFrom,
+  type MaxPrintSizePayload,
+  type StlSizeCheck,
+} from "@/lib/printSizeLimit";
+import { AlertTriangle, ChevronLeft, ChevronRight, FileUp, Ruler, Upload, X } from "lucide-react";
 
 // three.js viewer: loaded only when a model is previewed (this module is also imported for helpers).
 const StlModelPreview = lazy(() =>
@@ -80,6 +88,8 @@ interface Print3DBookingPanelProps {
   equipmentId: number | string;
   materials?: PrintMaterial[];
   bedSize?: { x: number; y: number; z: number };
+  /** Equipment's maximum print size (`max_print_size` of the detail API); when omitted it comes with the materials. */
+  maxPrintSize?: MaxPrintSizePayload | null;
   /** When set (charge estimate), load materials for this user type without login. */
   estimateUserType?: string;
   /** Equipment's fixed own-material charge; null/undefined hides the option. */
@@ -208,7 +218,8 @@ function buildItemsFromBatch(batch: PrintAnalysisBatchResult): Print3DFileItem[]
 export function Print3DBookingPanel({
   equipmentId,
   materials: materialsProp,
-  bedSize = { x: 220, y: 220, z: 250 },
+  bedSize: defaultBedSize = { x: 220, y: 220, z: 250 },
+  maxPrintSize,
   estimateUserType,
   ownMaterialCharge,
   onReady,
@@ -243,6 +254,19 @@ export function Print3DBookingPanel({
   const ownMaterialRef = useRef(false);
   ownMaterialRef.current = ownMaterial;
   const lastReadyRef = useRef<{ items: Print3DFileItem[]; code: string } | null>(null);
+  const [fetchedMaxPrintSize, setFetchedMaxPrintSize] = useState<MaxPrintSizePayload | null>(null);
+  const [sizeChecks, setSizeChecks] = useState<StlSizeCheck[]>([]);
+  const [serverSizeError, setServerSizeError] = useState<string | null>(null);
+  const initialPreviewIndexRef = useRef(0);
+
+  const sizeLimit = useMemo(
+    () => printSizeLimitFrom(maxPrintSize !== undefined ? maxPrintSize : fetchedMaxPrintSize),
+    [maxPrintSize, fetchedMaxPrintSize],
+  );
+  const bedSize = previewBedSize(sizeLimit) ?? defaultBedSize;
+  const sizeErrors = sizeChecks.filter((c) => c.error);
+  const sizeWarnings = sizeChecks.filter((c) => c.warning);
+  const tooLarge = sizeErrors.length > 0;
 
   const ownMaterialAvailable =
     ownMaterialCharge !== null && ownMaterialCharge !== undefined && String(ownMaterialCharge) !== "";
@@ -300,6 +324,7 @@ export function Print3DBookingPanel({
     if (materialsProp?.length) return;
     const userTypeOpts = estimateUserType ? { user_type: estimateUserType } : undefined;
     void apiClient.getEquipmentPrintMaterials(equipmentId, userTypeOpts).then((res) => {
+      setFetchedMaxPrintSize(res.data?.max_print_size ?? null);
       if (res.data?.materials?.length) {
         setMaterials(res.data.materials);
         setMaterialId(String(res.data.materials[0].id));
@@ -479,6 +504,7 @@ export function Print3DBookingPanel({
       analysisIdRef.current = null;
       batchIdRef.current = null;
       setPartDrafts({});
+      setServerSizeError(null);
       clearReady();
 
       try {
@@ -488,6 +514,11 @@ export function Print3DBookingPanel({
           density_percent: density,
         });
         if (res.error || !res.data) {
+          setProgress(0);
+          if ("code" in res && res.code === "PRINT_SIZE_EXCEEDED") {
+            setServerSizeError(res.error || "The model is larger than this printer's maximum print size.");
+            return;
+          }
           toast.error(res.error || "Analysis failed");
           return;
         }
@@ -629,18 +660,23 @@ export function Print3DBookingPanel({
       return;
     }
     skipSettingsRecalcRef.current = true;
+    pollRef.current?.cancel();
     setIsZipUpload(zip);
     setFile(selected);
     setZipStlEntries([]);
     setPreviewIndex(0);
+    setSizeChecks([]);
+    setServerSizeError(null);
+    let entries: ZipStlEntry[];
     if (stl) {
       setStlBuffer(null);
       const buf = await selected.arrayBuffer();
       setStlBuffer(buf);
+      entries = [{ filename: selected.name, buffer: buf }];
     } else {
       setStlBuffer(null);
       try {
-        const entries = await extractStlFilesFromZip(selected);
+        entries = await extractStlFilesFromZip(selected);
         setZipStlEntries(entries);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not read ZIP file.");
@@ -649,6 +685,20 @@ export function Print3DBookingPanel({
         if (inputRef.current) inputRef.current.value = "";
         return;
       }
+    }
+    const checks = entries.map((e) => checkStlSize(e.filename, e.buffer, sizeLimit));
+    setSizeChecks(checks);
+    const firstTooLarge = checks.findIndex((c) => c.error);
+    if (firstTooLarge >= 0) {
+      // Not sent for analysis: the server would refuse it, and the user fixes the model first.
+      setAnalysis(null);
+      setBatch(null);
+      analysisIdRef.current = null;
+      batchIdRef.current = null;
+      clearReady();
+      initialPreviewIndexRef.current = firstTooLarge;
+      setPreviewIndex(firstTooLarge);
+      return;
     }
     void runFullAnalysis(selected);
   };
@@ -668,6 +718,8 @@ export function Print3DBookingPanel({
     setBatch(null);
     setProgress(0);
     setPartDrafts({});
+    setSizeChecks([]);
+    setServerSizeError(null);
     clearReady();
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -700,6 +752,7 @@ export function Print3DBookingPanel({
 
   const currentPreviewBuffer = previewEntries[previewIndex]?.buffer ?? null;
   const currentPreviewFilename = previewEntries[previewIndex]?.filename ?? "";
+  const currentSizeCheck = sizeChecks[previewIndex];
   const currentPreviewItem =
     completedItems.find((i) => i.filename.toLowerCase() === currentPreviewFilename.toLowerCase()) ??
     (completedItems.length === 1 && previewEntries.length === 1 ? completedItems[0] : undefined);
@@ -709,7 +762,8 @@ export function Print3DBookingPanel({
   const previewColor = (selectedMaterial as { color?: string; colour?: string; color_hex?: string } | undefined);
 
   useEffect(() => {
-    setPreviewIndex(0);
+    setPreviewIndex(initialPreviewIndexRef.current);
+    initialPreviewIndexRef.current = 0;
   }, [file?.name, previewEntries.length]);
 
   const goToPreview = (index: number) => {
@@ -764,10 +818,25 @@ export function Print3DBookingPanel({
           />
         </div>
 
+        {sizeLimit && (
+          <p className="flex items-start gap-2 text-sm text-muted-foreground" data-testid="print-max-size">
+            <Ruler className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              Maximum print size:{" "}
+              <span className="font-medium text-foreground tabular-nums">{formatPrintSizeLimit(sizeLimit)}</span> (W × D × H).{" "}
+              {sizeLimit.allowRotation
+                ? "A model that fits when turned is accepted; the lab re-orients it."
+                : "The model must fit as it is oriented in the file."}{" "}
+              STL sizes are read in millimetres.
+            </span>
+          </p>
+        )}
+
         <div
           className={cn(
             "border-2 border-dashed rounded-lg p-6 text-center",
             file && "border-primary/40 bg-muted/20",
+            file && (tooLarge || serverSizeError) && "border-destructive bg-destructive-subtle",
           )}
         >
           <input
@@ -787,11 +856,22 @@ export function Print3DBookingPanel({
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={disabled || analyzingStl}
+                  disabled={disabled || analyzingStl || tooLarge}
                   onClick={() => file && void runFullAnalysis(file)}
                 >
                   Re-analyze
                 </Button>
+                {(tooLarge || serverSizeError) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={disabled || analyzingStl}
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Choose another file
+                  </Button>
+                )}
                 <Button type="button" variant="ghost" size="sm" onClick={clear} disabled={analyzingStl}>
                   <X className="h-4 w-4 mr-1" />
                   Remove
@@ -811,6 +891,48 @@ export function Print3DBookingPanel({
             </div>
           )}
         </div>
+
+        {(tooLarge || serverSizeError) && (
+          <div
+            role="alert"
+            data-testid="print-size-error"
+            className="flex gap-2 rounded-md border border-destructive-border bg-destructive-subtle p-3 text-sm text-destructive-subtle-foreground"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="space-y-1">
+              <p className="font-medium">
+                {sizeErrors.length > 1
+                  ? `${sizeErrors.length} models are too large for this printer, so the files were not uploaded.`
+                  : "This model is too large for this printer, so it was not uploaded."}
+              </p>
+              {tooLarge ? (
+                <ul className="list-disc space-y-1 pl-4">
+                  {sizeErrors.map((c) => (
+                    <li key={c.filename}>{c.error}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{serverSizeError}</p>
+              )}
+            </div>
+          </div>
+        )}
+        {!tooLarge && sizeWarnings.length > 0 && (
+          <div
+            data-testid="print-size-warning"
+            className="flex gap-2 rounded-md border border-warning-border bg-warning-subtle p-3 text-sm text-warning-subtle-foreground"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <div className="space-y-1">
+              {sizeWarnings.map((c) => (
+                <p key={c.filename}>
+                  {sizeWarnings.length > 1 ? `${c.filename}: ` : ""}
+                  {c.warning}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {busy && (
           <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
@@ -866,6 +988,15 @@ export function Print3DBookingPanel({
                 materialCode={selectedMaterial?.code ?? null}
                 colorHint={previewColor?.color_hex ?? previewColor?.color ?? previewColor?.colour ?? null}
                 layerHeightMm={Number.isFinite(previewLayerHeight) && previewLayerHeight > 0 ? previewLayerHeight : null}
+                sizeCheck={
+                  sizeLimit && currentSizeCheck?.size
+                    ? {
+                        tooLarge: !!currentSizeCheck.error,
+                        rotated: currentSizeCheck.rotated,
+                        limitLabel: formatPrintSizeLimit(sizeLimit),
+                      }
+                    : null
+                }
                 stats={
                   currentPreviewItem
                     ? {

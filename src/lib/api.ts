@@ -22,6 +22,7 @@ import { myBookingAttemptsQuery, type MyBookingAttemptsPage, type MyBookingAttem
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
+import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 import type {
   OicBulkAssignment,
   OicBulkRowError,
@@ -369,6 +370,11 @@ export interface FabricationEquipmentRow {
   fabrication_notification_emails: string[];
   own_material_fixed_charge: string | null;
   fabrication_replace_window_hours?: number;
+  /** 3D printers only; null means no limit on that axis. */
+  max_print_size_x_mm?: string | null;
+  max_print_size_y_mm?: string | null;
+  max_print_size_z_mm?: string | null;
+  allow_print_rotation_to_fit?: boolean;
   /** Materials added for this equipment (it may edit them). */
   print_materials?: PrintMaterial[];
   laser_sheet_materials?: LaserSheetMaterial[];
@@ -4281,7 +4287,11 @@ class ApiClient {
     const endpoint = qs
       ? `/equipments/${equipmentId}/print-materials/?${qs}`
       : `/equipments/${equipmentId}/print-materials/`;
-    return this.request<{ materials: PrintMaterial[]; no_materials_message?: string }>(endpoint);
+    return this.request<{
+      materials: PrintMaterial[];
+      no_materials_message?: string;
+      max_print_size?: MaxPrintSizePayload | null;
+    }>(endpoint);
   }
 
   async analyzeEquipmentStl(
@@ -4306,7 +4316,8 @@ class ApiClient {
     const res = await fetch(url, { method: "POST", headers, body: formData });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+      const body = data as { error?: string; code?: string };
+      return { error: body.error || `HTTP ${res.status}`, code: body.code };
     }
     if (Array.isArray((data as PrintAnalysisBatchResult).items)) {
       return { data: data as PrintAnalysisBatchResult };
@@ -10163,6 +10174,10 @@ class ApiClient {
     own_material_fixed_charge?: string | null;
     fabrication_replace_window_hours?: number;
     supported_material_ids?: number[];
+    max_print_size_x_mm?: string | null;
+    max_print_size_y_mm?: string | null;
+    max_print_size_z_mm?: string | null;
+    allow_print_rotation_to_fit?: boolean;
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",

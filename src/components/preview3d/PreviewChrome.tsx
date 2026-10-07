@@ -153,11 +153,24 @@ export function PreviewLoading({ label, value }: { label: string; value: number 
   );
 }
 
-export function PreviewNotice({ children, testId }: { children: ReactNode; testId?: string }) {
+export function PreviewNotice({
+  children,
+  testId,
+  tone = "warning",
+}: {
+  children: ReactNode;
+  testId?: string;
+  tone?: "warning" | "destructive";
+}) {
   return (
     <p
       data-testid={testId}
-      className="rounded-md border border-warning-border bg-warning-subtle px-2 py-1 text-[11px] text-warning-subtle-foreground"
+      className={cn(
+        "rounded-md border px-2 py-1 text-[11px]",
+        tone === "destructive"
+          ? "border-destructive-border bg-destructive-subtle font-medium text-destructive-subtle-foreground"
+          : "border-warning-border bg-warning-subtle text-warning-subtle-foreground",
+      )}
     >
       {children}
     </p>

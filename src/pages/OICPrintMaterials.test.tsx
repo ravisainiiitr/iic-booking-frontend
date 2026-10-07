@@ -76,6 +76,50 @@ describe("OICPrintMaterials lab settings", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("from 1 to 168")));
     expect(api.updateFabricationMaterialEquipment).not.toHaveBeenCalled();
   });
+
+  it("saves the maximum print size and the rotation choice; blank axes mean no limit", async () => {
+    api.updateFabricationMaterialEquipment.mockResolvedValue({
+      data: {
+        equipment: {
+          ...row,
+          max_print_size_x_mm: "250.0",
+          max_print_size_y_mm: "210.0",
+          max_print_size_z_mm: null,
+          allow_print_rotation_to_fit: false,
+        },
+      },
+    });
+    renderPage();
+
+    const x = (await screen.findByLabelText("X (width)")) as HTMLInputElement;
+    expect(x.value).toBe("");
+    expect(screen.getByRole("switch", { name: "Allow rotation to fit" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.change(x, { target: { value: "250" } });
+    fireEvent.change(screen.getByLabelText("Y (depth)"), { target: { value: "210" } });
+    fireEvent.click(screen.getByRole("switch", { name: "Allow rotation to fit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() =>
+      expect(api.updateFabricationMaterialEquipment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          equipment_id: 21,
+          max_print_size_x_mm: "250",
+          max_print_size_y_mm: "210",
+          max_print_size_z_mm: null,
+          allow_print_rotation_to_fit: false,
+        }),
+      ),
+    );
+    await waitFor(() => expect((screen.getByLabelText("X (width)") as HTMLInputElement).value).toBe("250"));
+  });
+
+  it("refuses a maximum print size of zero", async () => {
+    renderPage();
+    fireEvent.change(await screen.findByLabelText("Z (height)"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Maximum print size Z")));
+    expect(api.updateFabricationMaterialEquipment).not.toHaveBeenCalled();
+  });
 });
 
 function master(id: number, code: string, name: string, extra: Partial<MasterPrintMaterial> = {}): MasterPrintMaterial {

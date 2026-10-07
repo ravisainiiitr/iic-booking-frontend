@@ -61,6 +61,13 @@ export interface PrintSceneResult {
   exceedsBed: boolean;
 }
 
+export interface PrintSceneOptions {
+  /** The model is larger than the printer's maximum print size: the build volume and model turn red. */
+  overLimit?: boolean;
+}
+
+const OVER_LIMIT_RED = 0xdc2626;
+
 /** Model on a textured build plate (to scale) inside a faint build-volume frame. */
 export function buildPrintScene(
   stage: PreviewStage,
@@ -68,13 +75,19 @@ export function buildPrintScene(
   appearance: PrintAppearance,
   bed: BedSize | null | undefined,
   layerHeightMm?: number | null,
+  options: PrintSceneOptions = {},
 ): PrintSceneResult {
+  const overLimit = !!options.overLimit;
   const size = new THREE.Vector3(mesh.max[0] - mesh.min[0], mesh.max[1] - mesh.min[1], mesh.max[2] - mesh.min[2]);
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(mesh.positions, 3));
   geometry.setAttribute("normal", new THREE.BufferAttribute(mesh.normals, 3));
   geometry.computeBoundingSphere();
   const material = createPrintMaterial(appearance, Math.max(size.x, size.y, size.z), layerHeightMm);
+  if (overLimit) {
+    material.emissive = new THREE.Color(OVER_LIMIT_RED);
+    material.emissiveIntensity = 0.35;
+  }
   const model = new THREE.Mesh(geometry, material);
   model.position.set(-(mesh.min[0] + mesh.max[0]) / 2, -mesh.min[1], -(mesh.min[2] + mesh.max[2]) / 2);
   model.castShadow = true;
@@ -84,10 +97,12 @@ export function buildPrintScene(
   const modelBox = new THREE.Box3(new THREE.Vector3(-size.x / 2, 0, -size.z / 2), new THREE.Vector3(size.x / 2, size.y, size.z / 2));
   const plateW = bed?.x && bed.x > 0 ? bed.x : Math.max(100, Math.ceil((size.x * 1.6) / 10) * 10);
   const plateD = bed?.y && bed.y > 0 ? bed.y : Math.max(100, Math.ceil((size.z * 1.6) / 10) * 10);
-  const exceedsBed = !!bed && (size.x > bed.x + 0.01 || size.z > bed.y + 0.01 || (bed.z > 0 && size.y > bed.z + 0.01));
+  const exceedsBed =
+    !!bed &&
+    ((bed.x > 0 && size.x > bed.x + 0.01) || (bed.y > 0 && size.z > bed.y + 0.01) || (bed.z > 0 && size.y > bed.z + 0.01));
 
   const plateThickness = Math.max(3, Math.min(8, Math.max(plateW, plateD) * 0.025));
-  const side = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.38, metalness: 0.85 });
+  const side = new THREE.MeshStandardMaterial({ color: overLimit ? OVER_LIMIT_RED : 0x9aa3ad, roughness: 0.38, metalness: overLimit ? 0.2 : 0.85 });
   const top = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.72, metalness: 0.05 });
   const plateTex = buildPlateTexture(plateW, plateD);
   if (plateTex) top.map = plateTex;
@@ -100,7 +115,9 @@ export function buildPrintScene(
   if (bed && bed.z > 0) {
     const frame = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(plateW, bed.z, plateD)),
-      new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.28 }),
+      overLimit
+        ? new THREE.LineBasicMaterial({ color: OVER_LIMIT_RED, transparent: true, opacity: 0.95 })
+        : new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.28 }),
     );
     frame.position.y = bed.z / 2;
     stage.content.add(frame);

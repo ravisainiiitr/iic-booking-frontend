@@ -20,7 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Loader2, Plus, Printer, Scissors, Settings2, Table2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { ArrowLeft, Loader2, Plus, Printer, Ruler, Scissors, Settings2, Table2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -122,6 +123,38 @@ function rowKey(payload: { id: number | null }): string {
   return payload.id == null ? "" : String(payload.id);
 }
 
+const PRINT_SIZE_AXES = ["x", "y", "z"] as const;
+type PrintSizeAxis = (typeof PRINT_SIZE_AXES)[number];
+type PrintSizeDraft = Record<PrintSizeAxis, string>;
+const PRINT_SIZE_LABEL: Record<PrintSizeAxis, string> = { x: "X (width)", y: "Y (depth)", z: "Z (height)" };
+const MAX_PRINT_SIZE_LIMIT_MM = 10000;
+
+function sizeText(value: string | null | undefined): string {
+  if (value == null || value === "") return "";
+  const n = Number(value);
+  return Number.isFinite(n) ? String(n) : String(value);
+}
+
+function printSizeDraftOf(row: FabricationEquipmentRow | null): PrintSizeDraft {
+  return {
+    x: sizeText(row?.max_print_size_x_mm),
+    y: sizeText(row?.max_print_size_y_mm),
+    z: sizeText(row?.max_print_size_z_mm),
+  };
+}
+
+/** Blank means no limit on that axis. */
+function maxPrintSizeError(draft: PrintSizeDraft): string | null {
+  for (const axis of PRINT_SIZE_AXES) {
+    const text = draft[axis].trim();
+    if (!text) continue;
+    const n = Number(text);
+    if (!Number.isFinite(n) || n <= 0) return `Maximum print size ${axis.toUpperCase()} must be a number above 0 mm, or empty for no limit.`;
+    if (n > MAX_PRINT_SIZE_LIMIT_MM) return `Maximum print size ${axis.toUpperCase()} must be at most ${MAX_PRINT_SIZE_LIMIT_MM} mm.`;
+  }
+  return null;
+}
+
 export default function OICPrintMaterials() {
   const navigate = useNavigate();
 
@@ -139,6 +172,8 @@ export default function OICPrintMaterials() {
   const [emailsText, setEmailsText] = useState("");
   const [ownCharge, setOwnCharge] = useState("");
   const [replaceHours, setReplaceHours] = useState(String(DEFAULT_REPLACE_WINDOW_HOURS));
+  const [printSize, setPrintSize] = useState<PrintSizeDraft>({ x: "", y: "", z: "" });
+  const [allowRotation, setAllowRotation] = useState(true);
   const [busy, setBusy] = useState<null | "materials" | "settings" | "delete">(null);
 
   const byTab = useMemo(
@@ -204,6 +239,8 @@ export default function OICPrintMaterials() {
     setEmailsText(emails.join("\n"));
     setOwnCharge(selected?.own_material_fixed_charge ?? "");
     setReplaceHours(String(selected?.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS));
+    setPrintSize(printSizeDraftOf(selected));
+    setAllowRotation(selected?.allow_print_rotation_to_fit !== false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.equipment_id, loadVersion]);
 
@@ -224,16 +261,27 @@ export default function OICPrintMaterials() {
 
   const savedEmails = (selected?.fabrication_notification_emails ?? []).join("\n");
   const savedReplaceHours = String(selected?.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS);
+  const isPrinter = selected?.profile_type === TAB_PROFILE.print;
+  const savedPrintSize = printSizeDraftOf(selected);
+  const printSizeDirty =
+    isPrinter &&
+    (PRINT_SIZE_AXES.some((a) => printSize[a].trim() !== savedPrintSize[a]) ||
+      allowRotation !== (selected?.allow_print_rotation_to_fit !== false));
   const settingsDirty =
     !!selected &&
     (parseEmailList(emailsText).join("\n") !== savedEmails ||
       ownCharge.trim() !== (selected.own_material_fixed_charge ?? "") ||
-      replaceHours.trim() !== savedReplaceHours);
+      replaceHours.trim() !== savedReplaceHours ||
+      printSizeDirty);
 
   const onSaveSettings = async () => {
     if (!selected) return;
     const emails = parseEmailList(emailsText);
-    const error = emailListError(emails) || ownChargeError(ownCharge) || replaceWindowHoursError(replaceHours);
+    const error =
+      emailListError(emails) ||
+      ownChargeError(ownCharge) ||
+      replaceWindowHoursError(replaceHours) ||
+      (isPrinter ? maxPrintSizeError(printSize) : null);
     if (error) {
       toast.error(error);
       return;
@@ -244,6 +292,14 @@ export default function OICPrintMaterials() {
       fabrication_notification_emails: emails,
       own_material_fixed_charge: ownCharge.trim() === "" ? null : ownCharge.trim(),
       fabrication_replace_window_hours: Number(replaceHours.trim()),
+      ...(isPrinter
+        ? {
+            max_print_size_x_mm: printSize.x.trim() || null,
+            max_print_size_y_mm: printSize.y.trim() || null,
+            max_print_size_z_mm: printSize.z.trim() || null,
+            allow_print_rotation_to_fit: allowRotation,
+          }
+        : {}),
     });
     setBusy(null);
     if (res.error) {
@@ -258,6 +314,8 @@ export default function OICPrintMaterials() {
       setEmailsText(updated.fabrication_notification_emails.join("\n"));
       setOwnCharge(updated.own_material_fixed_charge ?? "");
       setReplaceHours(String(updated.fabrication_replace_window_hours ?? DEFAULT_REPLACE_WINDOW_HOURS));
+      setPrintSize(printSizeDraftOf(updated));
+      setAllowRotation(updated.allow_print_rotation_to_fit !== false);
     }
     toast.success("Settings saved.");
   };
@@ -433,8 +491,8 @@ export default function OICPrintMaterials() {
                   <Settings2 className="h-5 w-5" /> Lab settings
                 </CardTitle>
                 <CardDescription>
-                  Who receives uploaded files, the bring-your-own-material charge, and how long users have to replace
-                  rejected files.
+                  Who receives uploaded files, the bring-your-own-material charge, how long users have to replace
+                  rejected files{t === "print" ? ", and the largest model the printer can make" : ""}.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -489,6 +547,53 @@ export default function OICPrintMaterials() {
                     </p>
                   </div>
                 </div>
+                {t === "print" && (
+                  <fieldset className="space-y-3 rounded-lg border p-4" data-testid="max-print-size">
+                    <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+                      <Ruler className="h-4 w-4" aria-hidden /> Maximum print size (mm)
+                    </legend>
+                    <p className="text-xs text-muted-foreground">
+                      The largest model this printer can make. Users see it when they upload, and STL files larger
+                      than this are refused straight away, so they are not uploaded and rejected later. Leave an axis
+                      empty for no limit on it. STL sizes are read in millimetres; 0.5 mm over is still accepted.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {PRINT_SIZE_AXES.map((axis) => (
+                        <div key={axis} className="space-y-1">
+                          <Label htmlFor={`max-print-size-${axis}`}>{PRINT_SIZE_LABEL[axis]}</Label>
+                          <Input
+                            id={`max-print-size-${axis}`}
+                            type="number"
+                            inputMode="decimal"
+                            min="0.1"
+                            max={MAX_PRINT_SIZE_LIMIT_MM}
+                            step="0.1"
+                            value={printSize[axis]}
+                            disabled={disabled}
+                            placeholder="No limit"
+                            onChange={(e) => setPrintSize((prev) => ({ ...prev, [axis]: e.target.value }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Switch
+                        id="allow-print-rotation"
+                        checked={allowRotation}
+                        disabled={disabled}
+                        onCheckedChange={setAllowRotation}
+                      />
+                      <div className="space-y-1">
+                        <Label htmlFor="allow-print-rotation">Allow rotation to fit</Label>
+                        <p className="text-xs text-muted-foreground">
+                          On (recommended): a model is accepted if it fits after turning it on its side, e.g. a
+                          60 × 250 × 40 mm part on a 250 × 210 × 200 mm printer, because the lab can re-orient it on the
+                          plate. Turn off if parts must be printed exactly as oriented in the file.
+                        </p>
+                      </div>
+                    </div>
+                  </fieldset>
+                )}
                 <Button type="button" onClick={() => void onSaveSettings()} disabled={disabled || !settingsDirty}>
                   {busy === "settings" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save settings

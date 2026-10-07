@@ -61,6 +61,10 @@ export const adminGuide: RoleGuide = {
             title: "Fabrication materials",
             body: "Fabrication Materials is the master list of 3D print materials and laser cutting sheets. For each 3D printer or laser cutter, tick its Supported materials from the master list of the same kind and save; users see a material only when it is supported and enabled, otherwise No materials configured — contact the OIC. Disabling a material hides it everywhere but keeps it supported; bookings already made keep their price.",
           },
+          {
+            title: "Maximum print size",
+            body: "In Fabrication Materials, choose any 3D printer and under Lab settings → Maximum print size (mm) enter its largest X, Y and Z, choose Allow rotation to fit (on by default, so a model that fits when turned is accepted) and click Save settings; its Officer In Charge can do the same. An empty axis has no limit. Users see the maximum at the STL upload, and larger models (each file of a ZIP, and replaced files too) are refused on upload and again when booking, with a 0.5 mm allowance.",
+          },
           { title: "Communications and CMS", body: "Keep Communication templates and Home Page content accurate." },
           { title: "Legacy user sync", body: "Map a user to their old-portal ID, run a test sync, then sync wallet balance and legacy bookings." },
         ],

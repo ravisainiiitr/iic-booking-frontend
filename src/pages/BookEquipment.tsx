@@ -95,6 +95,7 @@ import {
   getUserTypeDisplayName,
 } from "@/lib/userTypes";
 import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
+import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 import { LaserCutBookingPanel, type LaserCutBookingValues } from "@/components/LaserCutBookingPanel";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import { Button } from "@/components/ui/button";
@@ -9417,6 +9418,7 @@ const BookEquipment = () => {
                         : (equipmentDetail as { bookable_print_materials?: PrintMaterial[] }).bookable_print_materials
                     }
                     estimateUserType={isCalculateChargesFlow ? chargeEstimateUserType : undefined}
+                    maxPrintSize={(equipmentDetail as { max_print_size?: MaxPrintSizePayload | null }).max_print_size}
                     ownMaterialCharge={(equipmentDetail as { own_material_fixed_charge?: string | null }).own_material_fixed_charge ?? null}
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}

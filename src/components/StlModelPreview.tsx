@@ -38,6 +38,16 @@ interface StlModelPreviewProps {
   layerHeightMm?: number | null;
   /** Estimated weight / time, shown when known. */
   stats?: StlPreviewStats | null;
+  /** The printer's maximum-size check for this model; replaces the generic build-volume notice. */
+  sizeCheck?: StlPreviewSizeCheck | null;
+}
+
+export interface StlPreviewSizeCheck {
+  tooLarge: boolean;
+  /** Fits only after turning it; the lab re-orients it on the plate. */
+  rotated: boolean;
+  /** e.g. "220 × 220 × 250 mm". */
+  limitLabel: string;
 }
 
 const PHASE_LABEL: Record<StlMeshPhase, string> = {
@@ -81,7 +91,9 @@ export function StlModelPreview({
   colorHint,
   layerHeightMm,
   stats,
+  sizeCheck,
 }: StlModelPreviewProps) {
+  const overLimit = !!sizeCheck?.tooLarge;
   const frameRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<PreviewStage | null>(null);
@@ -148,7 +160,7 @@ export function StlModelPreview({
     }
     stageRef.current = stage;
     try {
-      const result = buildPrintScene(stage, mesh, appearance, bedSize, layerHeightMm);
+      const result = buildPrintScene(stage, mesh, appearance, bedSize, layerHeightMm, { overLimit });
       materialsRef.current = result.materials as unknown as Array<{ wireframe: boolean }>;
       setExceedsBed(result.exceedsBed);
       setReady(true);
@@ -166,7 +178,7 @@ export function StlModelPreview({
     };
     // bedSize is compared by value: callers often pass a new object literal each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [use3d, mesh, appearance, bedSize?.x, bedSize?.y, bedSize?.z, layerHeightMm]);
+  }, [use3d, mesh, appearance, bedSize?.x, bedSize?.y, bedSize?.z, layerHeightMm, overLimit]);
 
   useEffect(() => {
     for (const m of materialsRef.current) m.wireframe = wireframe;
@@ -234,7 +246,17 @@ export function StlModelPreview({
           {webgl && webglFailed && (
             <PreviewNotice testId="stl-preview-webgl-off">The 3D view stopped working on this device. Showing a still view.</PreviewNotice>
           )}
-          {exceedsBed && bedSize && use3d && (
+          {sizeCheck?.tooLarge && (
+            <PreviewNotice testId="stl-preview-too-large" tone="destructive">
+              Too large for this printer (maximum {sizeCheck.limitLabel}).
+            </PreviewNotice>
+          )}
+          {sizeCheck && !sizeCheck.tooLarge && sizeCheck.rotated && (
+            <PreviewChip testId="stl-preview-rotated">
+              Fits the {sizeCheck.limitLabel} maximum when turned; the lab re-orients it on the plate.
+            </PreviewChip>
+          )}
+          {!sizeCheck && exceedsBed && bedSize && use3d && (
             <PreviewNotice testId="stl-preview-exceeds">
               Larger than the {bedSize.x} × {bedSize.y} × {bedSize.z} mm build volume.
             </PreviewNotice>
