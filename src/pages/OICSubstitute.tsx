@@ -58,6 +58,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Dialog,
   DialogContent,
@@ -1275,15 +1276,23 @@ export default function OICSubstitute() {
             )}
 
             <section className="space-y-3" aria-labelledby="oic-sub-granted">
-              <div>
-                <h2 id="oic-sub-granted" className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                  <Users className="h-5 w-5 text-primary" aria-hidden />
-                  Substitutes you assigned
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Grouped by substitute. Tick several to revoke or cancel them together; a reason is required. Access also
-                  ends automatically when the period is over.
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 id="oic-sub-granted" className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                    <Users className="h-5 w-5 text-primary" aria-hidden />
+                    Substitutes you assigned
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Grouped by substitute. Tick several to revoke or cancel them together; a reason is required. Access also
+                    ends automatically when the period is over.
+                  </p>
+                </div>
+                <ExportMenu
+                  report="oic-substitutes"
+                  noun="substitutions"
+                  description="Substitutions you assigned, those assigned to you, and their history"
+                  disabled={loading}
+                />
               </div>
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-label="Loading" />
@@ -1319,14 +1328,22 @@ export default function OICSubstitute() {
                   scheduled one, or several together.
                 </p>
               </div>
-              <div className="relative w-full sm:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                <Input
-                  value={adminSearch}
-                  onChange={(e) => setAdminSearch(e.target.value)}
-                  placeholder="Equipment, OIC or substitute"
-                  aria-label="Search substitutions"
-                  className="pl-9"
+              <div className="flex w-full items-center gap-2 sm:w-auto">
+                <div className="relative w-full sm:w-72">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                  <Input
+                    value={adminSearch}
+                    onChange={(e) => setAdminSearch(e.target.value)}
+                    placeholder="Equipment, OIC or substitute"
+                    aria-label="Search substitutions"
+                    className="pl-9"
+                  />
+                </div>
+                <ExportMenu
+                  report="oic-substitutes"
+                  noun="substitutions"
+                  description="All substitutions matching the search, with their history"
+                  getParams={() => ({ search: adminSearch.trim() || undefined })}
                 />
               </div>
             </div>

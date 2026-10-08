@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { apiClient, type FacultyWalletExpenseReportData } from "@/lib/api";
+import { apiClient, type FacultyWalletExpenseReportData, type ReportExportParams } from "@/lib/api";
 import { hasRbacPermission } from "@/lib/rbac";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import DashboardHeader from "@/components/DashboardHeader";
+import { ExportMenu } from "@/components/ExportMenu";
 import { StandaloneOnly } from "@/components/PageShell";
 import FinanceReports from "@/pages/FinanceReports";
 import { useToast } from "@/hooks/use-toast";
@@ -128,6 +129,33 @@ function formatReportDateTime(iso: string | null | undefined): string {
 }
 
 type EquipmentReportData = Awaited<ReturnType<typeof apiClient.getEquipmentReportData>>["data"];
+
+function ReportSectionHeader({
+  title,
+  description,
+  table,
+  getParams,
+}: {
+  title: string;
+  description: string;
+  table: string;
+  getParams: () => ReportExportParams;
+}) {
+  return (
+    <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+      <div className="space-y-1.5">
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </div>
+      <ExportMenu
+        report="equipment-performance"
+        table={table}
+        getParams={getParams}
+        description={`${title}: the complete table for this period`}
+      />
+    </CardHeader>
+  );
+}
 
 function ReportBanner({ header }: { header: NonNullable<EquipmentReportData>["report_header"] }) {
   const fullTitle = header.report_title || "";
@@ -368,6 +396,12 @@ const Reports = () => {
     void loadFacultyExpenseReport();
   }, [isFacultyUser, isLabInchargeUser, loadFacultyExpenseReport]);
 
+  const equipmentReportParams = () => ({
+    date_from: dateFrom || undefined,
+    date_to: dateTo || undefined,
+    equipment_id: equipmentId && equipmentId !== "all" ? equipmentId : undefined,
+  });
+
   const handleDownloadPdf = async () => {
     setDownloadingPdf(true);
     const params: { date_from?: string; date_to?: string; equipment_id?: number[] } = {};
@@ -532,6 +566,15 @@ const Reports = () => {
                   {facultyReportLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Refresh
                 </Button>
+                <ExportMenu
+                  report="faculty-expense-report"
+                  description="Wallet expense report for this period"
+                  getParams={() => ({
+                    date_from: facultyDateFrom,
+                    date_to: facultyDateTo,
+                    equipment_id: facultyEquipmentId !== "all" ? facultyEquipmentId : undefined,
+                  })}
+                />
               </div>
 
               {facultyReportLoading && !facultyReportData ? (
@@ -1029,14 +1072,26 @@ const Reports = () => {
 
         {!isLabInchargeUser && (
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Booking Status Breakdown</CardTitle>
-            <CardDescription>
-              {stats.totalBookings} booking(s) across all statuses ·{" "}
-              <Link to="/reports/bookings" className="text-primary hover:underline font-medium">
-                View complete list of bookings with amount spent →
-              </Link>
-            </CardDescription>
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+            <div className="space-y-1.5">
+              <CardTitle>Booking Status Breakdown</CardTitle>
+              <CardDescription>
+                {stats.totalBookings} booking(s) across all statuses ·{" "}
+                <Link to="/reports/bookings" className="text-primary hover:underline font-medium">
+                  View complete list of bookings with amount spent →
+                </Link>
+              </CardDescription>
+            </div>
+            <ExportMenu
+              report={isAdmin && !isLabInchargeUser ? "reports-statistics" : "booking-statistics"}
+              label={isAdmin && !isLabInchargeUser ? "Export full report" : "Export"}
+              description={
+                isAdmin && !isLabInchargeUser
+                  ? "Booking statistics and the equipment performance report below (same period and equipment)"
+                  : "Booking statistics and status breakdown"
+              }
+              getParams={isAdmin && !isLabInchargeUser ? equipmentReportParams : undefined}
+            />
           </CardHeader>
           <CardContent>
             {Object.keys(stats.statusCounts).length === 0 ? (
@@ -1119,14 +1174,28 @@ const Reports = () => {
                   {equipmentLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Generate report
                 </Button>
-                <Button variant="outline" onClick={handleDownloadPdf} disabled={downloadingPdf || equipmentLoading}>
-                  {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileDown className="h-4 w-4 mr-2" />}
-                  Download PDF
-                </Button>
-                <Button variant="outline" onClick={handleDownloadExcel} disabled={downloadingExcel || equipmentLoading}>
-                  {downloadingExcel ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
-                  Download Excel
-                </Button>
+                <ExportMenu
+                  report="equipment-performance"
+                  label="Export report"
+                  size="default"
+                  description="Equipment performance report: summary, revenue, utilization, equipment-wise tables and ratings"
+                  getParams={equipmentReportParams}
+                  disabled={equipmentLoading}
+                  extraItems={[
+                    {
+                      label: downloadingPdf ? "Preparing…" : "Per-equipment PDF (as emailed)",
+                      icon: FileDown,
+                      onSelect: () => void handleDownloadPdf(),
+                      disabled: downloadingPdf,
+                    },
+                    {
+                      label: downloadingExcel ? "Preparing…" : "Per-equipment Excel (as emailed)",
+                      icon: FileSpreadsheet,
+                      onSelect: () => void handleDownloadExcel(),
+                      disabled: downloadingExcel,
+                    },
+                  ]}
+                />
               </CardContent>
             </Card>
 
@@ -1243,10 +1312,12 @@ const Reports = () => {
                 {equipmentReportData.financial && (
                   <div className="grid lg:grid-cols-2 gap-6 mb-6">
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Revenue by user type</CardTitle>
-                        <CardDescription>Internal + external category distribution</CardDescription>
-                      </CardHeader>
+                      <ReportSectionHeader
+                        title="Revenue by user type"
+                        description="Internal + external category distribution"
+                        table="revenue_user_type"
+                        getParams={equipmentReportParams}
+                      />
                       <CardContent className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -1270,10 +1341,12 @@ const Reports = () => {
                     </Card>
 
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Revenue by department</CardTitle>
-                        <CardDescription>Internal department split (where available)</CardDescription>
-                      </CardHeader>
+                      <ReportSectionHeader
+                        title="Revenue by department"
+                        description="Internal department split (where available)"
+                        table="revenue_department"
+                        getParams={equipmentReportParams}
+                      />
                       <CardContent className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -1301,10 +1374,12 @@ const Reports = () => {
                 {equipmentReportData.financial && (
                   <div className="grid lg:grid-cols-2 gap-6 mb-6">
                     <Card>
-                      <CardHeader>
-                        <CardTitle>Revenue by equipment</CardTitle>
-                        <CardDescription>Completed bookings revenue per equipment</CardDescription>
-                      </CardHeader>
+                      <ReportSectionHeader
+                        title="Revenue by equipment"
+                        description="Completed bookings revenue per equipment"
+                        table="revenue_equipment"
+                        getParams={equipmentReportParams}
+                      />
                       <CardContent className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -1330,10 +1405,12 @@ const Reports = () => {
                     </Card>
 
                     <Card>
-                      <CardHeader>
-                        <CardTitle>External revenue by category</CardTitle>
-                        <CardDescription>RND / Industry / Educational Institute / Other</CardDescription>
-                      </CardHeader>
+                      <ReportSectionHeader
+                        title="External revenue by category"
+                        description="RND / Industry / Educational Institute / Other"
+                        table="revenue_external"
+                        getParams={equipmentReportParams}
+                      />
                       <CardContent className="overflow-x-auto">
                         <Table>
                           <TableHeader>
@@ -1360,10 +1437,12 @@ const Reports = () => {
 
                 <div className="mb-6 grid gap-6">
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Overall equipment utilization</CardTitle>
-                      <CardDescription>Share of hours by category (pie chart)</CardDescription>
-                    </CardHeader>
+                    <ReportSectionHeader
+                      title="Overall equipment utilization"
+                      description="Share of hours by category (pie chart)"
+                      table="utilization"
+                      getParams={equipmentReportParams}
+                    />
                     <CardContent>
                       {utilizationPieData.length === 0 || (utilizationPieData.length === 1 && utilizationPieData[0].hours === 0) ? (
                         <p className="text-center text-muted-foreground py-8">No slot data in this period</p>

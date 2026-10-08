@@ -36,6 +36,7 @@ import { openQuotaBreakdown } from "@/lib/quotaBreakdown";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
+import { ExportMenu } from "@/components/ExportMenu";
 
 /** Format date string for display; returns fallback if invalid. */
 function formatDateSafe(
@@ -617,11 +618,26 @@ const BookingAttemptLogs = () => {
                   className="mt-1"
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
                 <Button onClick={handleApplyFilters}>
                   <Search className="h-4 w-4 mr-2" />
                   Apply filters
                 </Button>
+                <ExportMenu
+                  report="booking-attempt-logs"
+                  noun="log entries"
+                  size="default"
+                  description="All log entries matching these filters"
+                  getParams={() => ({
+                    equipment_id: filters.equipment_id || undefined,
+                    user_id: !isLabInchargeUser ? filters.user_id || undefined : undefined,
+                    department_id: !isLabInchargeUser ? filters.department_id || undefined : undefined,
+                    outcome: filters.outcome !== "ALL" ? filters.outcome : undefined,
+                    date_from: filters.date_from || undefined,
+                    date_to: filters.date_to || undefined,
+                    failure_reason_contains: filters.failure_reason_contains || undefined,
+                  })}
+                />
               </div>
             </div>
           </CardHeader>

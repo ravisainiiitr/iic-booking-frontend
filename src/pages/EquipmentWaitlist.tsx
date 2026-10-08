@@ -20,6 +20,7 @@ import { StandaloneOnly } from "@/components/PageShell";
 import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialog";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
 import { StaffListFilterRow, useStaffListFilters } from "@/components/StaffListFilters";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ClampedText, InlineDateTime, StackedDateTime, StatusChip, type StatusChipTone } from "@/components/StaffListCells";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { formatDurationMinutes } from "@/lib/jobSheet";
@@ -303,7 +304,15 @@ export default function EquipmentWaitlist() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 px-4 sm:px-5">
-            <StaffListFilterRow filters={filters} equipmentOptions={equipmentOptions} />
+            <StaffListFilterRow filters={filters} equipmentOptions={equipmentOptions}>
+              <ExportMenu
+                report="waitlist"
+                noun="entries"
+                className="sm:ml-auto"
+                description="All waitlist entries for this department and equipment"
+                getParams={() => ({ department_id: filters.query.departmentId, equipment_id: filters.query.equipmentId })}
+              />
+            </StaffListFilterRow>
 
             {loadingWaitlist && (
               <div className="flex items-center gap-2 text-muted-foreground">

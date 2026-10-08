@@ -28,6 +28,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
@@ -379,7 +380,20 @@ const UrgentRequests = () => {
         {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
         <Card className="mb-20 overflow-hidden rounded-xl border border-border/60 shadow-sm">
           <CardHeader className="space-y-3 border-b border-border/40 bg-muted/20 px-4 py-3 dark:bg-muted/10">
-            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
+            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions}>
+              <ExportMenu
+                report="urgent-requests"
+                noun="requests"
+                className="sm:ml-auto"
+                description="All urgent requests in this view and filter"
+                getParams={() => ({
+                  status: statusFilter || undefined,
+                  request_type: isAdminView ? undefined : "REVIEWER_URGENT",
+                  department_id: departmentId,
+                  equipment_id: equipmentId,
+                })}
+              />
+            </StaffListFilterRow>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter urgent requests">
                 {URGENT_VIEWS.map(({ value, label }) => (
