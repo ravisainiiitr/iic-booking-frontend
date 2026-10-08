@@ -7,6 +7,7 @@ import type { MyBookingAttempt, MyBookingAttemptsPage } from "@/lib/myBookingAtt
 import { formatRequestedAt, openQuotaBreakdown } from "@/lib/quotaBreakdown";
 import { PageHero, PageShell, StandaloneOnly, heroButtonClass } from "@/components/PageShell";
 import { preloadQuotaBreakdown } from "@/components/quota/QuotaBreakdownHost";
+import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
@@ -163,6 +164,13 @@ export default function MyBookingAttempts() {
               </Button>
             )}
             <p className="ml-auto text-xs text-muted-foreground">Times are in Indian time (IST).</p>
+            <ExportMenu
+              report="my-booking-attempts"
+              noun="attempts"
+              description="All unsuccessful attempts between these dates"
+              disabled={total === 0}
+              getParams={() => ({ outcome: "FAILED", date_from: dateFrom || undefined, date_to: dateTo || undefined })}
+            />
           </div>
           <CardContent className="p-0">
             {loading ? (

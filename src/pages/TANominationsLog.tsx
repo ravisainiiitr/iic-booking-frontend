@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
+import { ExportMenu } from "@/components/ExportMenu";
 import { formatProgramme } from "@/lib/programmeLabel";
 import { ArrowLeft, Loader2, ClipboardList, Check, X, Download } from "lucide-react";
 import { format } from "date-fns";
@@ -205,6 +206,13 @@ export default function TANominationsLog() {
                       <SelectItem value="REJECTED">Rejected</SelectItem>
                     </SelectContent>
                   </Select>
+                  <ExportMenu
+                    report="ta-nominations-log"
+                    noun="nominations"
+                    size="default"
+                    description="All nominations for the selected semester and status"
+                    getParams={() => ({ semester_id: filterSemesterId || undefined, status: filterStatus || undefined })}
+                  />
                 </div>
               </div>
             </CardHeader>

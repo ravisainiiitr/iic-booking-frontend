@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiClient, extractAdminListItems, type EquipmentNomination } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
+import { ExportMenu } from "@/components/ExportMenu";
 import { useAuth } from "@/contexts/AuthContext";
 import { hasRbacPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
@@ -164,6 +165,16 @@ export default function AdminStudentNominations() {
               <Button aria-label="Refresh list" variant="outline" size="icon" onClick={fetchRows} title="Refresh">
                 <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
+              <ExportMenu
+                report="student-equipment-nominations"
+                noun="nominations"
+                size="default"
+                description="All nominations for the selected semester and status"
+                getParams={() => ({
+                  semester_id: semesterFilter !== "__all__" ? semesterFilter : undefined,
+                  status: statusFilter !== "__all__" ? statusFilter : undefined,
+                })}
+              />
             </div>
           </CardHeader>
           <CardContent>

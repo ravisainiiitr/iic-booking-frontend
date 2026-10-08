@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   Dialog,
   DialogContent,
@@ -481,6 +482,7 @@ const UrgentRequestsWallet = () => {
             </p>
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
               <TabsList className="grid w-full max-w-md grid-cols-3">
                 <TabsTrigger value="pending" className="flex items-center gap-1.5">
                   <Clock className="h-4 w-4" />
@@ -495,6 +497,13 @@ const UrgentRequestsWallet = () => {
                   Rejected
                 </TabsTrigger>
               </TabsList>
+              <ExportMenu
+                report="urgent-requests-wallet"
+                noun="requests"
+                description="All urgent requests in this tab"
+                getParams={() => ({ status: tab })}
+              />
+              </div>
               <TabsContent value={tab} className="mt-4">
                 {loading ? (
                   <div className="flex items-center justify-center py-12">

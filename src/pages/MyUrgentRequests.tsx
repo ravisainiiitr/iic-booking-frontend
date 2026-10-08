@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
+import { ExportMenu } from "@/components/ExportMenu";
 import { Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
@@ -688,16 +689,21 @@ const MyUrgentRequests = () => {
 
         {/* Urgent request status */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Your urgent request status
-            </CardTitle>
-            <CardDescription>
-              {totalCount === 0
-                ? "You have not submitted any urgent booking requests."
-                : `You have ${totalCount} urgent request${totalCount !== 1 ? "s" : ""}.`}
-            </CardDescription>
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+            <div className="space-y-1.5">
+              <CardTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5" />
+                Your urgent request status
+              </CardTitle>
+              <CardDescription>
+                {totalCount === 0
+                  ? "You have not submitted any urgent booking requests."
+                  : `You have ${totalCount} urgent request${totalCount !== 1 ? "s" : ""}.`}
+              </CardDescription>
+            </div>
+            {totalCount > 0 ? (
+              <ExportMenu report="my-urgent-requests" noun="requests" description="All your urgent requests" />
+            ) : null}
           </CardHeader>
           <CardContent>
             {loading ? (

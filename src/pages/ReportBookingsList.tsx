@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import DashboardHeader from "@/components/DashboardHeader";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
 import { type BookingRef } from "@/lib/bookingRef";
 import { StandaloneOnly } from "@/components/PageShell";
@@ -166,12 +167,20 @@ const ReportBookingsList = () => {
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle>Bookings ({totalCount})</CardTitle>
-                <CardDescription>
-                  Amount and hours per booking
-                  {bookings.length < totalCount ? ` · showing ${bookings.length} of ${totalCount}` : ""}
-                </CardDescription>
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+                <div className="space-y-1.5">
+                  <CardTitle>Bookings ({totalCount})</CardTitle>
+                  <CardDescription>
+                    Amount and hours per booking
+                    {bookings.length < totalCount ? ` · showing ${bookings.length} of ${totalCount}` : ""}
+                  </CardDescription>
+                </div>
+                <ExportMenu
+                  report="report-bookings"
+                  noun="bookings"
+                  description="Every booking in this list, not just the rows loaded"
+                  getParams={() => ({ status: statusFilter })}
+                />
               </CardHeader>
               <CardContent>
                 {bookings.length === 0 ? (

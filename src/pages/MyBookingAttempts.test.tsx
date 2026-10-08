@@ -7,9 +7,15 @@ import type { MyBookingAttempt, MyBookingAttemptsPage } from "@/lib/myBookingAtt
 const listMyBookingAttempts = vi.fn();
 const openQuotaBreakdown = vi.fn();
 
+const downloadReportExport = vi.fn();
+
 vi.mock("@/lib/api", () => ({
-  apiClient: { listMyBookingAttempts: (...args: unknown[]) => listMyBookingAttempts(...args) },
+  apiClient: {
+    listMyBookingAttempts: (...args: unknown[]) => listMyBookingAttempts(...args),
+    downloadReportExport: (...args: unknown[]) => downloadReportExport(...args),
+  },
 }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/lib/quotaBreakdown", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/quotaBreakdown")>()),
   openQuotaBreakdown: (...args: unknown[]) => openQuotaBreakdown(...args),
@@ -96,6 +102,25 @@ describe("MyBookingAttempts", () => {
     await waitFor(() =>
       expect(listMyBookingAttempts).toHaveBeenLastCalledWith(expect.objectContaining({ date_from: "2026-09-01", offset: 0 })),
     );
+  });
+
+  it("exports every unsuccessful attempt between the chosen dates", async () => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+    listMyBookingAttempts.mockResolvedValue(page([attempt()], 45));
+    downloadReportExport.mockResolvedValue({ rowCount: 45 });
+    renderPage();
+    await screen.findByText(/of 45/);
+    fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-09-01" } });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /PDF/ }));
+    await waitFor(() =>
+      expect(downloadReportExport).toHaveBeenCalledWith("my-booking-attempts", "pdf", {
+        outcome: "FAILED",
+        date_from: "2026-09-01",
+        date_to: undefined,
+      }),
+    );
+    vi.unstubAllGlobals();
   });
 
   it("says when there is nothing to show and when loading fails", async () => {

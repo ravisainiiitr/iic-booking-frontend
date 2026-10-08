@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ArrowLeft, Loader2, FileUp, Download, ClipboardList } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -122,6 +123,14 @@ export default function MyNominationRequests() {
                     Manage equipment operating nominations. Upload your resume for each request so OIC/Admin can review.
                   </CardDescription>
                 </div>
+                {nominations.length > 0 ? (
+                  <ExportMenu
+                    report="my-nominations-student"
+                    noun="nominations"
+                    className="ml-auto"
+                    description="All your nomination requests"
+                  />
+                ) : null}
               </div>
             </CardHeader>
             <CardContent className="p-0">

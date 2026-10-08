@@ -2175,6 +2175,11 @@ export type BookingListFilters = {
 };
 
 export type BookingExportFormat = "xlsx" | "csv" | "pdf";
+export type ReportExportFormat = "xlsx" | "csv" | "pdf";
+export type ReportExportParams = Record<
+  string,
+  string | number | boolean | null | undefined | Array<string | number>
+>;
 
 export function bookingListFilterQuery(params?: BookingListFilters): URLSearchParams {
   const queryParams = new URLSearchParams();
@@ -7967,6 +7972,57 @@ class ApiClient {
     const blob = await res.blob();
     const name =
       res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i)?.[1] || bookingExportFilename(format);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    const count = Number(res.headers.get('X-Export-Row-Count'));
+    return { rowCount: Number.isFinite(count) && res.headers.has('X-Export-Row-Count') ? count : undefined };
+  }
+
+  /**
+   * Download a list or report as xlsx / csv / pdf from GET /exports/<report>/. The backend runs the page's own
+   * list endpoint with these params, so the file has exactly the rows the user can see with these filters.
+   */
+  async downloadReportExport(
+    report: string,
+    format: ReportExportFormat,
+    params?: ReportExportParams,
+  ): Promise<{ error?: string; rowCount?: number }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(params ?? {})) {
+      if (value == null || value === '') continue;
+      if (Array.isArray(value)) value.forEach((v) => q.append(key, String(v)));
+      else q.set(key, String(value));
+    }
+    q.set('export_format', format);
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    let res: Response;
+    try {
+      res = await fetch(`${base}/exports/${encodeURIComponent(report)}/?${q.toString()}`, {
+        headers: { Authorization: `Token ${token}` },
+      });
+    } catch {
+      return { error: 'Could not reach the server. Check your connection and try again.' };
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      try {
+        const j = JSON.parse(text) as { error?: string; detail?: string };
+        return { error: j.error || j.detail || res.statusText || 'Export failed' };
+      } catch {
+        return { error: res.statusText || 'Export failed' };
+      }
+    }
+    const blob = await res.blob();
+    const name =
+      res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/i)?.[1] || `${report}.${format}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
