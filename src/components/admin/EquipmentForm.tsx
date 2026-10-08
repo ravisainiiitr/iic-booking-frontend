@@ -3092,7 +3092,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             }}
           />
           <p className="text-muted-foreground text-xs">
-            Hours after the last slot ends before Lab/OIC/Admin may mark Booking Not Utilized (no refund), only when lifecycle has no update or only &quot;Sample Sent&quot;. Set to 0 to hide this action for this equipment.
+            Hours after the last slot ends before a booking can be marked Booking Not Utilized (no refund), only when the sample lifecycle has no update or only &quot;Sample Sent&quot;. Applies to the automatic daily check (never earlier than 24 hours) and to the Lab/OIC/Admin action. Set to 0 to turn Booking Not Utilized off for this equipment.
           </p>
         </div>
         <div className="space-y-2" data-testid="equipment-results-deadline">
