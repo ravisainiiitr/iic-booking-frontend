@@ -42,6 +42,8 @@ import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { BookingExportMenu } from "@/components/BookingExportMenu";
+import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
+import { useRowsPerPage } from "@/hooks/use-rows-per-page";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
@@ -124,7 +126,7 @@ interface Booking extends BookingRef {
   charge_recalculation_pending_amount?: string | null;
 }
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
 /** Pseudo status: open bookings past the equipment's results deadline (sent as results_overdue=1). */
 const RESULTS_OVERDUE_FILTER = "RESULTS_OVERDUE";
 
@@ -148,6 +150,7 @@ const BookingManagement = () => {
   const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useRowsPerPage("view-booking", user?.id, DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -290,10 +293,10 @@ const BookingManagement = () => {
     try {
       if (!opts?.silent) setLoadingBookings(true);
       const currentPage = pageOverride ?? page;
-      const offset = (currentPage - 1) * PAGE_SIZE;
+      const offset = (currentPage - 1) * pageSize;
       const response = await apiClient.getBookings({
         ...listFilters(),
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
         list_view: true,
       });
@@ -330,8 +333,8 @@ const BookingManagement = () => {
     }).catch(() => {});
   }, [isOperatorOrManager, isAuthenticated]);
 
-  // Filters apply as soon as they change (search and name boxes after a short pause): any change
-  // goes back to page 1, and fetchBookings ignores responses that a newer request has overtaken.
+  // Filters and rows per page apply as soon as they change (search and name boxes after a short pause):
+  // any change goes back to page 1, and fetchBookings ignores responses that a newer request has overtaken.
   const canLoadBookings = !authLoading && isAuthenticated && user?.id != null && isOperatorOrManager;
   const filterKey = JSON.stringify([
     statusFilter,
@@ -345,6 +348,7 @@ const BookingManagement = () => {
     istemFbrFilter,
     ordering,
     clearNonce,
+    pageSize,
   ]);
   const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
@@ -467,11 +471,11 @@ const BookingManagement = () => {
       </>
     );
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const hasNextPage = page < totalPages;
   const hasPrevPage = page > 1;
   const rangeStart = totalCount === 0 ? 0 : bookingsOffset + 1;
-  const rangeEnd = Math.min(bookingsOffset + PAGE_SIZE, totalCount);
+  const rangeEnd = Math.min(bookingsOffset + bookings.length, totalCount);
 
   const showBookingDetail = (booking: Booking) => {
     const bookingId = booking.booking_id;
@@ -658,11 +662,19 @@ const BookingManagement = () => {
                 </Table>
               </CardContent>
               {totalCount > 0 && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/20">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-t bg-muted/20">
                   <p className="text-sm text-muted-foreground">
                     Showing {rangeStart}–{rangeEnd} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RowsPerPageSelect
+                      value={pageSize}
+                      onChange={(size) => {
+                        setPageSize(size);
+                        closeDetail();
+                      }}
+                      disabled={loadingBookings}
+                    />
                     <Button
                       variant="outline"
                       size="sm"
