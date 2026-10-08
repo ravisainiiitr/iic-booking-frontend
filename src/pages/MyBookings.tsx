@@ -55,6 +55,8 @@ import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { BookingExportMenu } from "@/components/BookingExportMenu";
+import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
+import { useRowsPerPage } from "@/hooks/use-rows-per-page";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
@@ -266,7 +268,7 @@ function getReductionFieldMeta(booking: Booking): { key: string; label: string }
   return { key, label: field?.field_label || (key === "A" ? "Number of samples" : "Number of slots") };
 }
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
 
 const MY_BOOKING_STATUS_OPTIONS = [
   { value: "all", label: "All status" },
@@ -323,6 +325,7 @@ const MyBookings = () => {
   const skipNextFilterFetchRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useRowsPerPage("my-bookings", user?.id, DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
@@ -699,10 +702,12 @@ const MyBookings = () => {
     }
   }, [editInputsParam, setSearchParams]);
 
-  // Filters apply as soon as they change (search after a short pause) and go back to page 1;
-  // fetchBookings ignores responses that a newer request has overtaken.
+  // Filters and rows per page apply as soon as they change (search after a short pause) and go back to
+  // page 1; fetchBookings ignores responses that a newer request has overtaken.
   const [clearFiltersNonce, setClearFiltersNonce] = useState(0);
-  const filterKey = JSON.stringify([statusFilter, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce]);
+  const filterKey = JSON.stringify([
+    statusFilter, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce, pageSize,
+  ]);
   const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
     if (loadedFilterKeyRef.current === filterKey) return;
@@ -764,12 +769,12 @@ const MyBookings = () => {
     try {
       setLoading(true);
       const currentPage = pageOverride ?? page;
-      const offset = (currentPage - 1) * PAGE_SIZE;
+      const offset = (currentPage - 1) * pageSize;
       const effectiveOrdering = overrides?.ordering ?? ordering;
       const status = overrides?.status ?? statusFilter;
       const response = await apiClient.getBookings({
         ...listFilters(status, effectiveOrdering),
-        limit: PAGE_SIZE,
+        limit: pageSize,
         offset,
         list_view: true,
       });
@@ -1779,11 +1784,12 @@ const MyBookings = () => {
                 </ul>
               </CardContent>
               {totalCount > 0 && (
-                <div className="flex items-center justify-between gap-4 px-4 py-3 border-t bg-muted/20">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 border-t bg-muted/20">
                   <p className="text-sm text-muted-foreground">
-                    Showing {totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
+                    Showing {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount} booking{totalCount !== 1 ? "s" : ""}
                   </p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <RowsPerPageSelect value={pageSize} onChange={setPageSize} disabled={loading} />
                     <Button
                       variant="outline"
                       size="sm"
@@ -1798,7 +1804,7 @@ const MyBookings = () => {
                       Previous
                     </Button>
                     <span className="text-sm text-muted-foreground px-2">
-                      Page {page} of {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
+                      Page {page} of {Math.max(1, Math.ceil(totalCount / pageSize))}
                     </span>
                     <Button
                       variant="outline"
@@ -1809,7 +1815,7 @@ const MyBookings = () => {
                         closeDetail();
                         fetchBookings(undefined, nextPage);
                       }}
-                      disabled={page >= Math.ceil(totalCount / PAGE_SIZE)}
+                      disabled={page >= Math.ceil(totalCount / pageSize)}
                     >
                       Next
                       <ChevronRight className="h-4 w-4 ml-1" />
