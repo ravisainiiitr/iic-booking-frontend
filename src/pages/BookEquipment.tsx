@@ -270,6 +270,7 @@ import { BookingFallbackOptions, NO_SLOT_ALTERNATE_HINT } from "@/components/boo
 import { PeakCollapsible } from "@/components/booking/PeakCollapsible";
 import { ClampedNote } from "@/components/booking/ClampedNote";
 import { BookingActionBar } from "@/components/booking/BookingActionBar";
+import { URGENT_REASON_MIN_LENGTH, UrgentTypeBRequestPanel } from "@/components/booking/UrgentTypeBRequestPanel";
 import { InfoTip } from "@/components/booking/InfoTip";
 import { useDisruptionPrompt } from "@/components/disruptions/useDisruptionPrompt";
 import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOperations";
@@ -1598,22 +1599,13 @@ const BookEquipment = () => {
   const [autoSlotGuardPending, setAutoSlotGuardPending] = useState<
     "clear" | "calendar" | null
   >(null);
-  const [urgentHoldBookingId, setUrgentHoldBookingId] = useState<number | null>(null);
-  /** Slots chosen in urgent flow but not yet submitted: hold is created only when user clicks Submit request in the dialog. */
-  const [pendingHoldSelection, setPendingHoldSelection] = useState<{
-    slotIds: number[];
-    inputValues: Record<string, string | boolean | string[] | number>;
-    totalCharge: number;
-    totalTimeMinutes: number;
-  } | null>(null);
   const [urgentRequestType, setUrgentRequestType] = useState<'NO_SLOT' | 'REVIEWER_URGENT'>('NO_SLOT');
   const [urgentDisclaimerAccepted, setUrgentDisclaimerAccepted] = useState(false);
   const urgentDisclaimerAcceptedRef = useRef(false);
   const [urgentEvidenceFile, setUrgentEvidenceFile] = useState<File | null>(null);
   const [urgentReviewerComment, setUrgentReviewerComment] = useState("");
-  const [urgentNumberSamples, setUrgentNumberSamples] = useState(1);
-  const [urgentSlotsRequested, setUrgentSlotsRequested] = useState(1);
   const [urgentSubmitting, setUrgentSubmitting] = useState(false);
+  const [urgentPreferredSchedule, setUrgentPreferredSchedule] = useState("");
   /** Unsuccessful booking attempts for current equipment (past 2 weeks), shown when reason is "Unable to get slot despite repeated trials". */
   const [myUnsuccessfulAttempts, setMyUnsuccessfulAttempts] = useState<Array<{
     id: number;
@@ -1625,12 +1617,12 @@ const BookEquipment = () => {
     duration_minutes: number | null;
   }>>([]);
   const [myUnsuccessfulAttemptsLoading, setMyUnsuccessfulAttemptsLoading] = useState(false);
-  /** True when user came from "Select Slot" in urgent dialog: show "Submit Request" and create hold booking (no debit). */
+  /** Urgent flow from My Urgent Requests or the urgent dialog (Type A with rush_relief=1, else Type B). */
   const isUrgentHoldMode = searchParams.get('urgent') === '1';
   /** Type A rush relief: book advance week at normal rates (no hold, no urgent surcharge). */
   const isRushReliefMode = searchParams.get("rush_relief") === "1";
   const allowUrgentWeekExtension = isUrgentHoldMode || isRushReliefMode;
-  /** Type B: hold slots for OIC/Admin review with 50% surcharge. */
+  /** Type B: the user describes the requirement (no slot calendar); the OIC allocates slots. 50% surcharge. */
   const isUrgentTypeBHoldMode = isUrgentHoldMode && !isRushReliefMode;
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const statusChangeDateClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -6766,7 +6758,76 @@ const BookEquipment = () => {
     });
   };
 
+  const leaveUrgentTypeBMode = () => {
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.delete("urgent");
+      return p;
+    });
+    setUrgentReviewerComment("");
+    setUrgentEvidenceFile(null);
+    setUrgentPreferredSchedule("");
+    setUrgentDisclaimerAccepted(false);
+    urgentDisclaimerAcceptedRef.current = false;
+  };
+
+  /** Type B urgent request without slots: send the Step 1 inputs; the OIC allocates slots later. */
+  const handleUrgentTypeBSubmit = async () => {
+    if (!selectedEquipment || !calculatedCharge) return;
+    const localError = missingStep1Fields.length
+      ? `Fill in ${missingStep1Fields.map((f) => f.label).join(", ")} in Step 1.`
+      : sampleSetLimitError || numericInputLimitError || sampleSetFieldError;
+    if (localError) {
+      toast.error(String(localError));
+      return;
+    }
+    const inputValues = withSampleSets({ ...inputFieldValues }, sampleSets);
+    if (equipmentDetail?.input_fields) {
+      const tableProblem = firstTypedTableProblem(equipmentDetail.input_fields, inputValues);
+      if (tableProblem) {
+        toast.error(tableProblem.message);
+        focusTypedTableProblem(tableProblem);
+        return;
+      }
+    }
+    if (urgentReviewerComment.trim().length < URGENT_REASON_MIN_LENGTH) {
+      toast.error(`Reason must be at least ${URGENT_REASON_MIN_LENGTH} characters.`);
+      return;
+    }
+    setUrgentSubmitting(true);
+    try {
+      const res = await apiClient.createUrgentBookingRequest({
+        equipment_id: Number(selectedEquipment.id),
+        request_type: "REVIEWER_URGENT",
+        disclaimer_accepted: true,
+        number_of_samples: 1,
+        duration_minutes: calculatedCharge.total_time_minutes,
+        input_values: inputValues,
+        preferred_schedule: urgentPreferredSchedule.trim() || undefined,
+        reviewer_comment: urgentReviewerComment.trim(),
+        evidence_file: urgentEvidenceFile ?? undefined,
+        evidence_original_name: urgentEvidenceFile?.name,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(res.data?.message || "Type B urgent request submitted.");
+      const rt = searchParams.get("return_to");
+      leaveUrgentTypeBMode();
+      navigate(rt === "urgent-requests-wallet" ? "/urgent-requests-wallet" : "/my-urgent-requests", { replace: true });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to submit request.");
+    } finally {
+      setUrgentSubmitting(false);
+    }
+  };
+
   const handleBooking = async () => {
+    if (isUrgentTypeBHoldMode) {
+      await handleUrgentTypeBSubmit();
+      return;
+    }
     if (!userId || !selectedEquipment || (selectedSlots.length === 0 && !canSubmitWithoutSlots)) {
       toast.error("Please select at least one time slot");
       return;
@@ -6916,11 +6977,6 @@ const BookEquipment = () => {
       .filter((id): id is number => typeof id === "number");
     const canUseSlotIds = slotIds.length === selectedSlots.length && slotIds.length > 0;
 
-    if (isUrgentTypeBHoldMode && !canUseSlotIds) {
-      toast.error("Please select one or more slots from the grid for your urgent request.");
-      return;
-    }
-
     if (equipmentDetail?.profile_type === "PRINT_3D" && print3dSizeBlock) {
       toast.error(print3dSizeBlock);
       return;
@@ -7045,71 +7101,6 @@ const BookEquipment = () => {
       const totalCost = calculatedCharge ? Number(calculatedCharge.total_charge) : 0;
 
       if (canUseSlotIds) {
-        if (isUrgentTypeBHoldMode) {
-          const rt = searchParams.get("return_to");
-          const returnToPage =
-            rt === "my-urgent-requests" || rt === "urgent-requests-wallet" || rt === "dashboard";
-          if (returnToPage) {
-            // Create hold and redirect to dashboard to complete urgent request form
-            const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
-            const weekEnd = addDays(weekStart, 6);
-            const res = await apiClient.bookEquipment(selectedEquipment.id, {
-              slot_ids: finalSlotIds,
-              total_hours: totalHours,
-              total_cost: totalCost,
-              status: "pending",
-              input_values: withSampleSets(inputFieldValues, sampleSets),
-              ...(bookingAsExternalTarget ? { sample_return_after_analysis: sampleReturnAfterAnalysis } : {}),
-          atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
-              ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
-              create_as_hold: true,
-              waitlist_on_failure: waitlistIntentEffective,
-              book_any_available_slots: bookingAsExternalTarget ? false : bookAnyAvailableSlots,
-              book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
-              ...(isRushReliefMode ? { rush_relief: true } : {}),
-              ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
-              ...fabricationBookExtras,
-            });
-            if (res.error) {
-              toast.error((res as { error: string }).error);
-              return;
-            }
-            logBookingServerTimings(res);
-            const resData = (res as { data?: { booking_id?: number; id?: number; virtual_booking_id?: string | null } }).data;
-            const holdId = resData?.booking_id ?? resData?.id;
-            const holdVirtualId = resData?.virtual_booking_id ?? null;
-            setSelectedSlots([]);
-            if (holdId != null) {
-              const qs = new URLSearchParams({
-                urgent_equipment_id: String(selectedEquipment.id),
-                hold_booking_id: String(holdId),
-              });
-              if (holdVirtualId) qs.set("hold_virtual_booking_id", holdVirtualId);
-              const returnPath = rt === "urgent-requests-wallet" ? "/urgent-requests-wallet" : "/my-urgent-requests";
-              navigate(`${returnPath}?${qs.toString()}`, { replace: true });
-              toast.success("Slots held. Complete and submit your urgent request on the page.");
-            } else {
-              toast.error("Could not create hold.");
-            }
-            return;
-          }
-          // Legacy: store selection and open urgent dialog (when not coming from dashboard)
-          setPendingHoldSelection({
-            slotIds: finalSlotIds,
-            inputValues: withSampleSets({ ...inputFieldValues }, sampleSets),
-            totalCharge: totalCost,
-            totalTimeMinutes: Math.round(totalHours * 60),
-          });
-          setSearchParams((prev) => {
-            const p = new URLSearchParams(prev);
-            p.delete("urgent");
-            return p;
-          });
-          setSelectedSlots([]);
-          setUrgentDialogOpen(true);
-          toast.success("Slot selection saved. Complete and submit your urgent request below to hold the slots. If you close without submitting, slots stay available.");
-          return;
-        }
         const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
         const offerGroupAlternatives =
@@ -10500,7 +10491,13 @@ const BookEquipment = () => {
                       <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
                         <p className="font-semibold">Urgent booking charges</p>
                         <p className="mt-0.5 leading-relaxed">
-                          Type B: selecting slots here holds them at <strong>50% surcharge</strong> — they are not auto-confirmed. Students need their supervisor&apos;s approval first, then the OIC gives final approval; your wallet is charged only after that final approval. Type A rush relief uses advance-week booking at normal rates (no surcharge).
+                          {isUrgentTypeBHoldMode ? (
+                            <>
+                              Type B: this amount includes the <strong>50% surcharge</strong>. You do not pick slots — the OIC allocates the day and time. Students need their supervisor&apos;s approval first; your wallet is charged only when the OIC allocates the booking.
+                            </>
+                          ) : (
+                            <>Type A rush relief uses advance-week booking at normal rates (no surcharge).</>
+                          )}
                         </p>
                       </div>
                     )}
@@ -10634,8 +10631,47 @@ const BookEquipment = () => {
                 )}
                 </>
 
-                {/* Step 3: Slot Selection (only shown after charge calculation) */}
-                {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && (
+                {isUrgentTypeBHoldMode && chargeCalculated && calculatedCharge && !chargeCalculationFailed &&
+                  !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && (
+                  <UrgentTypeBRequestPanel
+                    requiredMinutes={calculatedCharge.total_time_minutes}
+                    totalCharge={calculatedCharge.total_charge}
+                    chargeBreakdown={calculatedCharge.charge_breakdown}
+                    showBreakdown={calculatedCharge.show_charge_breakdown !== false}
+                    walletStatus={walletStatus}
+                    blocker={
+                      !selectedEquipmentIsOperational
+                        ? "Requests are disabled while the equipment is not operational."
+                        : walletLinkRequired
+                        ? "Link your supervisor's wallet before raising an urgent request."
+                        : missingStep1Fields.length
+                        ? `Fill in ${missingStep1Fields.map((f) => f.label).join(", ")} in Step 1.`
+                        : null
+                    }
+                    preferredSchedule={urgentPreferredSchedule}
+                    onPreferredScheduleChange={setUrgentPreferredSchedule}
+                    reason={urgentReviewerComment}
+                    onReasonChange={setUrgentReviewerComment}
+                    evidenceFile={urgentEvidenceFile}
+                    onEvidenceFileChange={setUrgentEvidenceFile}
+                    disclaimerAccepted={urgentDisclaimerAccepted}
+                    onDisclaimerChange={(v) => {
+                      setUrgentDisclaimerAccepted(v);
+                      urgentDisclaimerAcceptedRef.current = v;
+                    }}
+                    submitting={urgentSubmitting}
+                    onSubmit={() => void handleUrgentTypeBSubmit()}
+                    onCancel={() => {
+                      const rt = searchParams.get("return_to");
+                      leaveUrgentTypeBMode();
+                      if (rt === "my-urgent-requests") navigate("/my-urgent-requests");
+                      else if (rt === "urgent-requests-wallet") navigate("/urgent-requests-wallet");
+                    }}
+                  />
+                )}
+
+                {/* Step 3: Slot Selection (only shown after charge calculation); Type B urgent requests have no slot step. */}
+                {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && !isUrgentTypeBHoldMode && (
                   <>
                     <div className="mb-2">
                       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -11682,12 +11718,6 @@ const BookEquipment = () => {
                           <>
                             {isRushReliefMode
                               ? "Confirm Type A booking"
-                              : isUrgentTypeBHoldMode
-                              ? ((["my-urgent-requests", "urgent-requests-wallet", "dashboard"].includes(
-                                    searchParams.get("return_to") || ""
-                                  ))
-                                  ? <>Hold slots and return ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>
-                                  : <>Submit Request ({selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""})</>)
                               : (waitlistIntentEffective && selectedSlots.length === 0
                                   ? <>Confirm Waitlisted Booking</>
                                   : groupAlternativeSearchWithoutSlots
@@ -11859,7 +11889,6 @@ const BookEquipment = () => {
         <Dialog open={urgentDialogOpen} onOpenChange={(open) => {
           setUrgentDialogOpen(open);
           if (!open) {
-            setPendingHoldSelection(null);
             setUrgentRequestType('NO_SLOT');
             setUrgentDisclaimerAccepted(false);
             urgentDisclaimerAcceptedRef.current = false;
@@ -11907,47 +11936,31 @@ const BookEquipment = () => {
                 </RadioGroup>
               </div>
 
-              {selectedEquipment && (
-                <div className="flex flex-col gap-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="default"
-                    className="w-full h-10 text-base"
-                    disabled={urgentHoldBookingId != null || pendingHoldSelection != null || noSlotNoAttempts}
-                    onClick={() => {
-                      if (urgentHoldBookingId != null || pendingHoldSelection != null) return;
-                      setSearchParams((prev) => {
-                        const p = new URLSearchParams(prev);
-                        p.set('urgent', '1');
-                        return p;
-                      });
-                      setUrgentDialogOpen(false);
-                    }}
-                  >
-                    Select Slot
-                  </Button>
-                  <p className="text-sm text-muted-foreground">Pick slot(s) on the calendar, then return here. Slots are held only when you submit below.</p>
-                  {urgentHoldBookingId != null && (
-                    <p className="text-sm text-green-600 dark:text-green-500 font-medium">Slot held (Booking #{urgentHoldBookingId}).</p>
-                  )}
-                  {pendingHoldSelection != null && urgentHoldBookingId == null && (
-                    <p className="text-sm text-green-600 dark:text-green-500 font-medium">{pendingHoldSelection.slotIds.length} slot(s) selected. Submit below to hold.</p>
-                  )}
-                </div>
-              )}
-
               {urgentRequestType === 'NO_SLOT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
                     Type A is only for IIT Roorkee users when no slots are available and you have tried at least {RUSH_RELIEF_MIN_PEAK_ATTEMPTS} times without getting a slot when booking opened. You can also use Book advance week from My Urgent Requests. After you use Type A, the 14-day count starts again.
                     {noSlotNoAttempts && " You do not qualify yet — use Type B (urgent with reason) instead."}
                   </p>
-                  <p className="text-sm text-muted-foreground bg-muted/30 rounded-lg p-4 border border-border/60">I am unable to get any booking despite repeated trials and my requirement is genuine and urgent.</p>
-                  <div className="flex items-center space-x-3">
-                    <Checkbox id="urgent-disclaimer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" disabled={noSlotNoAttempts} />
-                    <Label htmlFor="urgent-disclaimer" className={`text-base cursor-pointer ${noSlotNoAttempts ? "cursor-not-allowed opacity-60" : ""}`}>I confirm the above.</Label>
-                  </div>
+                  {selectedEquipment && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-10 text-base"
+                      disabled={noSlotNoAttempts}
+                      onClick={() => {
+                        setSearchParams((prev) => {
+                          const p = new URLSearchParams(prev);
+                          p.set('urgent', '1');
+                          p.set('rush_relief', '1');
+                          return p;
+                        });
+                        setUrgentDialogOpen(false);
+                      }}
+                    >
+                      Book advance week (Type A — normal rates)
+                    </Button>
+                  )}
                   {selectedEquipment && (
                     <div className="space-y-3 mt-4">
                       <p className="text-base font-medium text-foreground">Your unsuccessful booking attempts for this equipment (past 2 weeks)</p>
@@ -11995,115 +12008,31 @@ const BookEquipment = () => {
               {urgentRequestType === 'REVIEWER_URGENT' && (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground border border-amber-200 dark:border-amber-800 rounded-lg p-4 bg-amber-50/50 dark:bg-amber-950/20">
-                    Explain why the booking is urgent. A <strong>50% surcharge</strong> applies. Slots are NOT auto-confirmed — OIC/Admin will review and may reschedule (including weekends). After approval, submit your sample at the earliest.
+                    You do not pick slots. Fill in your sample details on the booking page; you will see the required time and the amount (with the <strong>50% surcharge</strong>) before you submit. The OIC then allocates a day and time (any day, including weekends) and you get the booking confirmation by email. After allocation, submit your sample at the earliest.
                   </p>
-                  <div className="flex items-center space-x-3">
-                    <Checkbox id="urgent-disclaimer-reviewer" checked={urgentDisclaimerAccepted} onCheckedChange={(c) => { const v = c === true; setUrgentDisclaimerAccepted(v); urgentDisclaimerAcceptedRef.current = v; }} className="h-5 w-5" />
-                    <Label htmlFor="urgent-disclaimer-reviewer" className="text-base cursor-pointer">I confirm my reason is genuine and accept the 50% urgent surcharge.</Label>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="urgent-reviewer-comment-be" className="text-base">Reason (required)</Label>
-                    <Textarea
-                      id="urgent-reviewer-comment-be"
-                      value={urgentReviewerComment}
-                      onChange={(e) => setUrgentReviewerComment(e.target.value)}
-                      placeholder="Why is this booking urgent? (min. 10 characters)"
-                      rows={3}
-                      className="text-base"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="urgent-evidence" className="text-base">Supporting document (optional)</Label>
-                    <Input
-                      id="urgent-evidence"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-                      className="h-10 text-base"
-                      onChange={(e) => setUrgentEvidenceFile(e.target.files?.[0] ?? null)}
-                    />
-                    {urgentEvidenceFile && <p className="text-sm text-muted-foreground">Selected: {urgentEvidenceFile.name}</p>}
-                  </div>
+                  {selectedEquipment && (
+                    <Button
+                      type="button"
+                      className="w-full h-10 text-base"
+                      onClick={() => {
+                        setSearchParams((prev) => {
+                          const p = new URLSearchParams(prev);
+                          p.set('urgent', '1');
+                          p.delete('rush_relief');
+                          return p;
+                        });
+                        setUrgentDialogOpen(false);
+                      }}
+                    >
+                      Continue: describe your requirement
+                    </Button>
+                  )}
                 </div>
               )}
 
             </div>
             <DialogFooter className="shrink-0 border-t pt-4 mt-2 gap-3">
               <Button variant="outline" onClick={() => setUrgentDialogOpen(false)} className="text-base">Cancel</Button>
-              <Button
-                disabled={
-                  (!urgentDisclaimerAccepted && !urgentDisclaimerAcceptedRef.current) ||
-                  urgentSubmitting ||
-                  (urgentRequestType === 'REVIEWER_URGENT' && urgentReviewerComment.trim().length < 10) ||
-                  (urgentHoldBookingId == null && pendingHoldSelection == null) ||
-                  noSlotNoAttempts
-                }
-                onClick={async () => {
-                  if (!selectedEquipment) return;
-                  if (urgentRequestType === 'REVIEWER_URGENT' && urgentReviewerComment.trim().length < 10) {
-                    toast.error("Reason must be at least 10 characters.");
-                    return;
-                  }
-                  setUrgentSubmitting(true);
-                  try {
-                    let holdBookingId: number | undefined = urgentHoldBookingId ?? undefined;
-                    if (pendingHoldSelection != null) {
-                      const res = await apiClient.bookEquipment(selectedEquipment.id, {
-                        slot_ids: pendingHoldSelection.slotIds,
-                        total_hours: pendingHoldSelection.totalTimeMinutes / 60,
-                        total_cost: pendingHoldSelection.totalCharge,
-                        status: "pending",
-                        input_values: pendingHoldSelection.inputValues as Record<string, string | boolean | string[]>,
-                        create_as_hold: true,
-                        atmosphere_sensitive_sample: atmosphereSensitiveForBooking,
-                        ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
-                      });
-                      if (res.error) {
-                        toast.error(res.error);
-                        return;
-                      }
-                      logBookingServerTimings(res);
-                      const resData = (res as { data?: { booking_id?: number; id?: number } }).data;
-                      holdBookingId = resData?.booking_id ?? resData?.id;
-                      if (holdBookingId == null) {
-                        toast.error("Could not create hold booking.");
-                        return;
-                      }
-                      setPendingHoldSelection(null);
-                    }
-                    const res = await apiClient.createUrgentBookingRequest({
-                      equipment_id: selectedEquipment.id,
-                      request_type: urgentRequestType,
-                      disclaimer_accepted: true,
-                      number_of_samples: pendingHoldSelection ? 1 : urgentNumberSamples,
-                      slots_requested: pendingHoldSelection ? pendingHoldSelection.slotIds.length : (urgentSlotsRequested || 1),
-                      duration_minutes: calculatedCharge?.total_time_minutes ?? undefined,
-                      evidence_file: urgentRequestType === 'REVIEWER_URGENT' ? urgentEvidenceFile ?? undefined : undefined,
-                      evidence_original_name: urgentEvidenceFile?.name,
-                      reviewer_comment: urgentRequestType === 'REVIEWER_URGENT' ? urgentReviewerComment.trim() : undefined,
-                      hold_booking_id: holdBookingId,
-                    });
-                    if (res.error) {
-                      toast.error(res.error);
-                      return;
-                    }
-                    toast.success(res.data?.message || "Urgent request submitted.");
-                    setUrgentHoldBookingId(null);
-                    setUrgentDialogOpen(false);
-                    setUrgentRequestType('NO_SLOT');
-                    setUrgentDisclaimerAccepted(false);
-                    urgentDisclaimerAcceptedRef.current = false;
-                    setUrgentEvidenceFile(null);
-                    setUrgentReviewerComment("");
-                  } catch (e: any) {
-                    toast.error(e.message || "Failed to submit request.");
-                  } finally {
-                    setUrgentSubmitting(false);
-                  }
-                }}
-              >
-                {urgentSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Submit request
-              </Button>
             </DialogFooter>
             </>
               );

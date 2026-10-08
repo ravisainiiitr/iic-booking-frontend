@@ -12,8 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -29,8 +27,9 @@ import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Loader2, AlertCircle, Clock, CheckCircle, XCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
-import { toast } from "sonner";
 import { isExternalBookingUserType } from "@/lib/userTypes";
+import { formatINRAmount } from "@/lib/money";
+import { formatRequiredTime } from "@/components/booking/UrgentTypeBRequestPanel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +51,11 @@ type MyUrgentRequestRow = {
   decided_at: string | null;
   expiry_at: string | null;
   pending_wallet_approval: boolean;
+  requires_slot_allocation?: boolean;
+  required_minutes?: number | null;
+  estimated_charge?: string | null;
+  preferred_schedule?: string;
+  booking_display_id?: string | null;
 };
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -103,12 +107,6 @@ const MyUrgentRequests = () => {
   const [loadingUrgentEquipments, setLoadingUrgentEquipments] = useState(false);
   const [urgentSelectedEquipmentId, setUrgentSelectedEquipmentId] = useState<string>("");
   const [urgentRequestType, setUrgentRequestType] = useState<"" | "NO_SLOT" | "REVIEWER_URGENT">("");
-  const [urgentDisclaimerAccepted, setUrgentDisclaimerAccepted] = useState(false);
-  const [urgentEvidenceFile, setUrgentEvidenceFile] = useState<File | null>(null);
-  const [urgentReviewerComment, setUrgentReviewerComment] = useState("");
-  const [urgentSubmitting, setUrgentSubmitting] = useState(false);
-  const [urgentHoldBookingId, setUrgentHoldBookingId] = useState<number | null>(null);
-  const [urgentHoldVirtualBookingId, setUrgentHoldVirtualBookingId] = useState<string | null>(null);
   const [myUnsuccessfulAttempts, setMyUnsuccessfulAttempts] = useState<Array<{ id: number; requested_at: string | null; outcome: string; failure_reason: string; number_of_samples: number; slots_requested: number }>>([]);
   const [myUnsuccessfulAttemptsLoading, setMyUnsuccessfulAttemptsLoading] = useState(false);
   const [rushReliefQualified, setRushReliefQualified] = useState(false);
@@ -117,17 +115,12 @@ const MyUrgentRequests = () => {
   const [loadingSlotsAvailable, setLoadingSlotsAvailable] = useState(false);
   const [noAttemptsDialogOpen, setNoAttemptsDialogOpen] = useState(false);
 
-  // Pre-fill from URL when returning from book-equipment (Hold slots and return)
+  // Pre-fill the equipment from the URL (links back from the booking page)
   useEffect(() => {
     const eqId = searchParams.get("urgent_equipment_id");
     const holdId = searchParams.get("hold_booking_id");
     const holdVirtualId = searchParams.get("hold_virtual_booking_id");
     if (eqId) setUrgentSelectedEquipmentId(eqId);
-    if (holdId) {
-      setUrgentHoldBookingId(parseInt(holdId, 10) || null);
-      setUrgentRequestType("REVIEWER_URGENT");
-    }
-    if (holdVirtualId) setUrgentHoldVirtualBookingId(holdVirtualId);
     if (eqId || holdId || holdVirtualId) {
       setSearchParams((prev) => {
         const p = new URLSearchParams(prev);
@@ -374,9 +367,6 @@ const MyUrgentRequests = () => {
         open={noAttemptsDialogOpen}
         onOpenChange={(open) => {
           setNoAttemptsDialogOpen(open);
-          if (!open) {
-            setUrgentDisclaimerAccepted(false);
-          }
         }}
       >
         <AlertDialogContent>
@@ -440,10 +430,6 @@ const MyUrgentRequests = () => {
                 setUrgentRequestType("");
                 setRushReliefQualified(false);
                 setPeakQualifiedAttempts(0);
-                setUrgentDisclaimerAccepted(false);
-                setUrgentEvidenceFile(null);
-                setUrgentReviewerComment("");
-                setUrgentHoldBookingId(null);
                 setNoAttemptsDialogOpen(false);
               }}
               defaultDepartmentName="Institute Instrumentation Centre"
@@ -463,10 +449,6 @@ const MyUrgentRequests = () => {
                   setUrgentRequestType("");
                 setRushReliefQualified(false);
                 setPeakQualifiedAttempts(0);
-                  setUrgentDisclaimerAccepted(false);
-                  setUrgentEvidenceFile(null);
-                  setUrgentReviewerComment("");
-                  setUrgentHoldBookingId(null);
                   setNoAttemptsDialogOpen(false);
                 }}
                 disabled={!urgentDepartmentReady || loadingUrgentEquipments}
@@ -550,135 +532,26 @@ const MyUrgentRequests = () => {
                 )}
 
                 {!loadingSlotsAvailable && slotsAvailableThisWeek === false && (typeAEligible || showTypeBForm) && (
-                  <div className="space-y-4 border-t border-amber-200/80 dark:border-amber-800 pt-4">
+                  <div className="space-y-3 border-t border-amber-200/80 dark:border-amber-800 pt-4">
                     <div>
                       <p className="text-sm font-semibold">Type B — Urgent with reason (50% surcharge)</p>
                       <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                        Select slots to hold, then submit. Slots are <strong>not auto-confirmed</strong>. OIC or main Admin will review and may
-                        accept, reject, or reschedule (including Saturdays/Sundays) based on operator availability. After approval, submit your sample at the earliest.
+                        You do not pick slots. On the booking page, fill in your sample details: you will see the required time and the
+                        amount (with the 50% surcharge) before you submit, together with your reason. Students need their supervisor&apos;s
+                        approval first. The OIC then allocates a day and time (any day, including Saturdays/Sundays) and books it for you;
+                        your wallet is charged only then, and you and your supervisor get the booking confirmation by email.
                       </p>
                     </div>
-
-                    <div className="space-y-1.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setUrgentRequestType("REVIEWER_URGENT");
-                          navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}&urgent=1&return_to=my-urgent-requests`);
-                        }}
-                      >
-                        Select Slot
-                      </Button>
-                      <p className="text-xs text-muted-foreground">Pick slot(s) on the booking page, then return here to submit. Slots are held on submit.</p>
-                      {urgentHoldBookingId != null && (
-                        <p className="text-xs text-green-600 dark:text-green-500 font-medium">
-                          Slot held ({urgentHoldVirtualBookingId || `Booking #${urgentHoldBookingId}`}).
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="urgent-disclaimer-reviewer-page"
-                          checked={urgentDisclaimerAccepted}
-                          onChange={(e) => {
-                            setUrgentDisclaimerAccepted(e.target.checked);
-                            setUrgentRequestType("REVIEWER_URGENT");
-                          }}
-                          className="h-4 w-4 rounded border-input"
-                        />
-                        <Label htmlFor="urgent-disclaimer-reviewer-page" className="text-sm cursor-pointer">
-                          I confirm my reason is genuine and accept the 50% urgent surcharge and OIC/Admin review.
-                        </Label>
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="urgent-reviewer-comment-page" className="text-sm">Reason (required)</Label>
-                        <Textarea
-                          id="urgent-reviewer-comment-page"
-                          value={urgentReviewerComment}
-                          onChange={(e) => {
-                            setUrgentReviewerComment(e.target.value);
-                            setUrgentRequestType("REVIEWER_URGENT");
-                          }}
-                          placeholder="Why is this booking urgent? (min. 10 characters)"
-                          rows={4}
-                          className="max-w-xl"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="urgent-evidence-page" className="text-sm">Supporting document (optional)</Label>
-                        <Input
-                          id="urgent-evidence-page"
-                          type="file"
-                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-                          className="h-9 text-sm max-w-md"
-                          onChange={(e) => setUrgentEvidenceFile(e.target.files?.[0] ?? null)}
-                        />
-                        {urgentEvidenceFile && <p className="text-xs text-muted-foreground">Selected: {urgentEvidenceFile.name}</p>}
-                      </div>
-                    </div>
-
                     <Button
+                      type="button"
                       size="sm"
                       className="bg-amber-600 hover:bg-amber-700"
-                      disabled={
-                        !urgentDisclaimerAccepted ||
-                        urgentSubmitting ||
-                        urgentReviewerComment.trim().length < 10
-                      }
-                      onClick={async () => {
-                        const eqId = parseInt(urgentSelectedEquipmentId, 10);
-                        if (Number.isNaN(eqId)) return;
-                        if (urgentReviewerComment.trim().length < 10) {
-                          toast.error("Please enter a reason (at least 10 characters).");
-                          return;
-                        }
-                        setUrgentSubmitting(true);
-                        try {
-                          const res = await apiClient.createUrgentBookingRequest({
-                            equipment_id: eqId,
-                            request_type: "REVIEWER_URGENT",
-                            disclaimer_accepted: true,
-                            number_of_samples: 1,
-                            slots_requested: 1,
-                            evidence_file: urgentEvidenceFile ?? undefined,
-                            evidence_original_name: urgentEvidenceFile?.name,
-                            reviewer_comment: urgentReviewerComment.trim(),
-                            hold_booking_id: urgentHoldBookingId ?? undefined,
-                          });
-                          if (res.error) {
-                            toast.error(res.error);
-                            return;
-                          }
-                          toast.success(res.data?.message || "Type B urgent request submitted for review.");
-                          setUrgentHoldBookingId(null);
-                          setUrgentHoldVirtualBookingId(null);
-                          setUrgentRequestType("");
-                          setRushReliefQualified(false);
-                          setPeakQualifiedAttempts(0);
-                          setUrgentDisclaimerAccepted(false);
-                          setUrgentEvidenceFile(null);
-                          setUrgentReviewerComment("");
-                          setLoading(true);
-                          const listRes = await apiClient.listMyUrgentBookingRequests({ limit: 50, offset: 0 });
-                          if (listRes.data?.urgent_requests) {
-                            setList(listRes.data.urgent_requests);
-                            setTotalCount(listRes.data.total_count ?? listRes.data.urgent_requests.length);
-                          }
-                          setLoading(false);
-                        } catch (e: any) {
-                          toast.error(e?.message || "Failed to submit request.");
-                        } finally {
-                          setUrgentSubmitting(false);
-                        }
+                      onClick={() => {
+                        setUrgentRequestType("REVIEWER_URGENT");
+                        navigate(`/book-equipment?equipment_id=${urgentSelectedEquipmentId}&urgent=1&return_to=my-urgent-requests`);
                       }}
                     >
-                      {urgentSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Submit Type B request
+                      Enter requirement (Type B)
                     </Button>
                   </div>
                 )}
@@ -742,6 +615,17 @@ const MyUrgentRequests = () => {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {REQUEST_TYPE_LABELS[row.request_type] || row.request_type}
+                        {row.requires_slot_allocation ? (
+                          <div className="mt-1 text-xs text-foreground/80" data-testid={`my-urgent-requirement-${row.id}`}>
+                            {row.required_minutes ? <>Required time {formatRequiredTime(row.required_minutes)}</> : null}
+                            {row.estimated_charge != null ? <> · Amount {formatINRAmount(row.estimated_charge)}</> : null}
+                            {row.booking_display_id ? (
+                              <> · Booking {row.booking_display_id}</>
+                            ) : statusUpper === "PENDING" ? (
+                              <> · Waiting for the OIC to allocate a slot</>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
                       <TableCell className="text-sm font-mono">

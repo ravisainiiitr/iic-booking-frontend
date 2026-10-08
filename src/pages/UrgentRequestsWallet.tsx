@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type UrgentRequestRequirement } from "@/lib/api";
+import { UrgentRequirementSummary } from "@/components/urgent/UrgentRequirementSummary";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -102,6 +102,8 @@ type UrgentRequestDetail = {
     input_fields?: BookingInputFieldDef[];
     charge_breakdown?: Array<{ description: string; amount: number }> | null;
   } | null;
+  requires_slot_allocation?: boolean;
+  requirement?: UrgentRequestRequirement | null;
 };
 
 const WALLET_DISCLAIMER =
@@ -151,20 +153,12 @@ const UrgentRequestsWallet = () => {
   const [facultyEquipList, setFacultyEquipList] = useState<Array<{ equipment_id: number; code: string; name: string }>>([]);
   const [facultyEquipLoading, setFacultyEquipLoading] = useState(false);
   const [facultyEquipId, setFacultyEquipId] = useState("");
-  const [facultyReviewerComment, setFacultyReviewerComment] = useState("");
-  const [facultyDisclaimerOk, setFacultyDisclaimerOk] = useState(false);
-  const [facultyEvidence, setFacultyEvidence] = useState<File | null>(null);
-  const [facultyHoldId, setFacultyHoldId] = useState<number | null>(null);
-  const [facultyHoldVirtualId, setFacultyHoldVirtualId] = useState<string | null>(null);
-  const [facultySubmitting, setFacultySubmitting] = useState(false);
 
   useEffect(() => {
     const eqId = searchParams.get("urgent_equipment_id");
     const holdId = searchParams.get("hold_booking_id");
     const holdVirtualId = searchParams.get("hold_virtual_booking_id");
     if (eqId) setFacultyEquipId(eqId);
-    if (holdId) setFacultyHoldId(parseInt(holdId, 10) || null);
-    if (holdVirtualId) setFacultyHoldVirtualId(holdVirtualId);
     if (eqId || holdId || holdVirtualId) {
       setSearchParams(
         (prev) => {
@@ -313,7 +307,7 @@ const UrgentRequestsWallet = () => {
             <CardHeader>
               {pageTitleRow("Submit new urgent request")}
               <CardDescription>
-                Raise an &quot;Urgent comment from reviewer&quot; request from this page. You may select slot(s) on the booking page first, then return here to attach your comment, evidence, and submit.
+                Raise a Type B urgent request: choose the equipment, then enter the requirement, reason and evidence on the booking page. The OIC allocates the slots.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -327,11 +321,6 @@ const UrgentRequestsWallet = () => {
                   onValueChange={(v) => {
                     const next = v === "__none__" ? "" : v;
                     setFacultyEquipId(next);
-                    setFacultyDisclaimerOk(false);
-                    setFacultyEvidence(null);
-                    setFacultyReviewerComment("");
-                    setFacultyHoldId(null);
-                    setFacultyHoldVirtualId(null);
                   }}
                 >
                   <SelectTrigger className="w-full max-w-md">
@@ -348,114 +337,19 @@ const UrgentRequestsWallet = () => {
                 </Select>
               </div>
               {facultyEquipId && (
-                <div className="space-y-4 rounded-lg border border-border p-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="faculty-urgent-disclaimer-wallet"
-                      checked={facultyDisclaimerOk}
-                      onChange={(e) => setFacultyDisclaimerOk(e.target.checked)}
-                      className="h-4 w-4 rounded border-input"
-                    />
-                    <Label htmlFor="faculty-urgent-disclaimer-wallet" className="text-sm cursor-pointer">
-                      I have read the disclaimer above and confirm my reviewer comment and documentary evidence are genuine and accurate.
-                    </Label>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="faculty-reviewer-comment" className="text-sm font-medium">
-                      Reviewer comment (required)
-                    </Label>
-                    <Textarea
-                      id="faculty-reviewer-comment"
-                      value={facultyReviewerComment}
-                      onChange={(e) => setFacultyReviewerComment(e.target.value)}
-                      placeholder="Summarize reviewer feedback, deadlines, or why standard booking is insufficient (minimum 10 characters)."
-                      rows={4}
-                      className="max-w-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="faculty-evidence-wallet" className="text-sm">
-                      Documentary evidence (required)
-                    </Label>
-                    <Input
-                      id="faculty-evidence-wallet"
-                      type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-                      className="h-9 text-sm max-w-md"
-                      onChange={(e) => setFacultyEvidence(e.target.files?.[0] ?? null)}
-                    />
-                    {facultyEvidence && <p className="text-xs text-muted-foreground">Selected: {facultyEvidence.name}</p>}
-                  </div>
-                  <div className="space-y-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate(`/book-equipment?equipment_id=${facultyEquipId}&urgent=1&return_to=urgent-requests-wallet`)}
-                    >
-                      Select slot
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Optional: hold slot(s) on the booking page, then return here to submit. If you skip this, you can still submit without a held slot.
-                    </p>
-                    {facultyHoldId != null && (
-                      <p className="text-xs text-green-600 dark:text-green-500 font-medium">
-                        Slot held ({facultyHoldVirtualId || `Booking #${facultyHoldId}`}).
-                      </p>
-                    )}
-                  </div>
+                <div className="space-y-3 rounded-lg border border-border p-4">
+                  <p className="text-sm text-muted-foreground">
+                    You do not pick slots. On the booking page, fill in the sample details: you will see the required time and the
+                    amount (with the 50% surcharge) before you submit, together with your reason and evidence. The OIC then allocates
+                    a day and time and books it; the wallet is charged only then.
+                  </p>
                   <Button
+                    type="button"
                     size="sm"
                     className="bg-amber-600 hover:bg-amber-700"
-                    disabled={
-                      !facultyDisclaimerOk ||
-                      facultySubmitting ||
-                      !facultyEvidence ||
-                      facultyReviewerComment.trim().length < 10
-                    }
-                    onClick={async () => {
-                      const eqId = parseInt(facultyEquipId, 10);
-                      if (Number.isNaN(eqId) || !facultyEvidence) {
-                        toast.error("Choose equipment and upload evidence.");
-                        return;
-                      }
-                      if (facultyReviewerComment.trim().length < 10) {
-                        toast.error("Reviewer comment must be at least 10 characters.");
-                        return;
-                      }
-                      setFacultySubmitting(true);
-                      try {
-                        const res = await apiClient.createUrgentBookingRequest({
-                          equipment_id: eqId,
-                          request_type: "REVIEWER_URGENT",
-                          disclaimer_accepted: true,
-                          number_of_samples: 1,
-                          slots_requested: 1,
-                          evidence_file: facultyEvidence,
-                          evidence_original_name: facultyEvidence.name,
-                          reviewer_comment: facultyReviewerComment.trim(),
-                          hold_booking_id: facultyHoldId ?? undefined,
-                        });
-                        if (res.error) {
-                          toast.error(res.error);
-                          return;
-                        }
-                        toast.success(res.data?.message || "Urgent request submitted.");
-                        setFacultyDisclaimerOk(false);
-                        setFacultyEvidence(null);
-                        setFacultyReviewerComment("");
-                        setFacultyHoldId(null);
-                        setFacultyHoldVirtualId(null);
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : "Failed to submit.");
-                      } finally {
-                        setFacultySubmitting(false);
-                      }
-                    }}
+                    onClick={() => navigate(`/book-equipment?equipment_id=${facultyEquipId}&urgent=1&return_to=urgent-requests-wallet`)}
                   >
-                    {facultySubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Submit urgent request
+                    Enter requirement (Type B)
                   </Button>
                 </div>
               )}
@@ -687,6 +581,7 @@ const UrgentRequestsWallet = () => {
                     </>
                   )}
                 </div>
+                {detailRow.requirement ? <UrgentRequirementSummary requirement={detailRow.requirement} /> : null}
                 {detailRow.hold_booking_id != null && detailRow.hold_booking_summary && (
                   <div className="flex items-center gap-2">
                     <Button

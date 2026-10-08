@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/lib/api";
+import { apiClient, type UrgentRequestRequirement } from "@/lib/api";
+import UrgentAllocateDialog, { type UrgentAllocateTarget } from "@/components/UrgentAllocateDialog";
+import { UrgentRequirementSummary } from "@/components/urgent/UrgentRequirementSummary";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -106,7 +108,14 @@ type UrgentRequestRow = {
     input_fields?: BookingInputFieldDef[];
     charge_breakdown?: Array<{ description: string; amount: number }> | null;
   } | null;
+  /** Type B without slots: the OIC chooses the slots with Approve & allocate. */
+  requires_slot_allocation?: boolean;
+  requirement?: UrgentRequestRequirement | null;
 };
+
+/** Type B request whose slots the OIC still has to choose (no held slots). */
+const needsSlotAllocation = (row: Pick<UrgentRequestRow, "requires_slot_allocation" | "hold_booking_id">) =>
+  !!row.requires_slot_allocation && row.hold_booking_id == null;
 
 type UrgentView = "needs_action" | "awaiting_supervisor" | "approved" | "rejected" | "expired" | "all";
 
@@ -148,6 +157,7 @@ const UrgentRequests = () => {
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
   const [viewParamsOpen, setViewParamsOpen] = useState(false);
+  const [allocateTarget, setAllocateTarget] = useState<UrgentAllocateTarget | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [validityDays, setValidityDays] = useState<number>(1);
   const [validityDaysEditing, setValidityDaysEditing] = useState(false);
@@ -260,7 +270,14 @@ const UrgentRequests = () => {
         toast.error(res.error);
         return;
       }
-      toast.success(newStatus === "APPROVED" ? "Request approved." : "Request rejected. Hold released and slots freed.");
+      const noHold = detailRow?.id === id && detailRow.hold_booking_id == null;
+      toast.success(
+        newStatus === "APPROVED"
+          ? "Request approved."
+          : noHold
+            ? "Request rejected. No charge was made."
+            : "Request rejected. Hold released and slots freed."
+      );
       setDetailRow(null);
       setAdminNotes("");
       fetchList();
@@ -336,6 +353,9 @@ const UrgentRequests = () => {
       <div className="leading-tight">
         <div className="whitespace-nowrap font-medium">{code}</div>
         {note ? <div className="whitespace-nowrap text-xs text-muted-foreground">{note}</div> : null}
+        {needsSlotAllocation(row) ? (
+          <div className="whitespace-nowrap text-xs font-medium text-amber-700 dark:text-amber-300">No slots · you allocate</div>
+        ) : null}
       </div>
     );
   };
@@ -631,9 +651,11 @@ const UrgentRequests = () => {
                   ? "Expired without a decision. The held slots were released."
                   : detailRow?.status === "PENDING" && detailRow?.pending_wallet_approval
                     ? "Waiting for the supervisor. You can reject now; Accept unlocks after supervisor approval."
-                    : detailRow?.status === "PENDING"
-                      ? "Accept confirms the held slots at the category rate + 50% urgent surcharge. Reject releases them with no charge."
-                      : null}
+                    : detailRow?.status === "PENDING" && needsSlotAllocation(detailRow)
+                      ? "The user did not choose slots. Approve & allocate lets you pick the day and time (any day); the amount and the wallet are checked before booking. Reject makes no charge."
+                      : detailRow?.status === "PENDING"
+                        ? "Accept confirms the held slots at the category rate + 50% urgent surcharge. Reject releases them with no charge."
+                        : null}
               </DialogDescription>
             </DialogHeader>
             {detailRow && (
@@ -698,6 +720,8 @@ const UrgentRequests = () => {
                     <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-2 text-sm">{detailRow.reviewer_comment}</p>
                   </div>
                 ) : null}
+
+                {detailRow.requirement ? <UrgentRequirementSummary requirement={detailRow.requirement} /> : null}
 
                 <div className="flex flex-wrap items-center gap-2">
                   {detailRow.evidence_file_url || detailRow.evidence_original_name ? (
@@ -776,20 +800,54 @@ const UrgentRequests = () => {
                     {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
                     Reject
                   </Button>
-                  <Button
-                    disabled={actionLoading || (detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval)}
-                    onClick={() => detailRow && handleApproveReject(detailRow.id, "APPROVED")}
-                    title={detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Accept and allocate held slots (urgent charge includes 50% surcharge)"}
-                  >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                    Accept &amp; allocate
-                  </Button>
+                  {needsSlotAllocation(detailRow) && detailRow.requirement ? (
+                    <Button
+                      disabled={actionLoading || detailRow.pending_wallet_approval}
+                      onClick={() =>
+                        detailRow.requirement &&
+                        setAllocateTarget({
+                          id: detailRow.id,
+                          user_name: detailRow.user_name,
+                          user_email: detailRow.user_email,
+                          equipment_name: detailRow.equipment_name,
+                          requirement: detailRow.requirement,
+                        })
+                      }
+                      title={detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Choose slots on any day and book them for the user"}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Approve &amp; allocate
+                    </Button>
+                  ) : (
+                    <Button
+                      disabled={actionLoading || (detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval)}
+                      onClick={() => detailRow && handleApproveReject(detailRow.id, "APPROVED")}
+                      title={detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Accept and allocate held slots (urgent charge includes 50% surcharge)"}
+                    >
+                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                      Accept &amp; allocate
+                    </Button>
+                  )}
                 </>
               )}
               </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <UrgentAllocateDialog
+          open={allocateTarget != null}
+          onOpenChange={(open) => {
+            if (!open) setAllocateTarget(null);
+          }}
+          request={allocateTarget}
+          onAllocated={() => {
+            setAllocateTarget(null);
+            setDetailRow(null);
+            setAdminNotes("");
+            fetchList();
+          }}
+        />
 
         <Dialog open={viewParamsOpen} onOpenChange={setViewParamsOpen}>
           <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">

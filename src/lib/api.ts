@@ -1502,6 +1502,78 @@ interface ApiResponse<T> {
   istem_portal_url?: string;
 }
 
+/** Type B urgent request without slots: what the user asked for (shown to the OIC). */
+export interface UrgentRequestRequirement {
+  input_values_by_key: BookingInputValues;
+  input_fields: BookingInputFieldDef[];
+  input_summary: Array<{ key: string; label: string; value: string }>;
+  required_minutes: number | null;
+  required_slots: number | null;
+  estimated_charge: string | null;
+  estimated_charge_breakdown: Array<{ description: string; amount: number }>;
+  preferred_schedule: string;
+}
+
+export interface UrgentRequestCreated {
+  message: string;
+  id: number;
+  requires_slot_allocation?: boolean;
+  required_minutes?: number | null;
+  estimated_charge?: string | null;
+  estimated_charge_breakdown?: Array<{ description: string; amount: number }>;
+}
+
+export interface UrgentAllocationSlot {
+  id: number;
+  start_datetime: string | null;
+  end_datetime: string | null;
+  status: string;
+  status_display: string;
+  selectable: boolean;
+  notes: string[];
+  booked_by: string | null;
+}
+
+export interface UrgentAllocationSlotsResponse {
+  date: string;
+  is_weekend: boolean;
+  holiday: string | null;
+  slot_duration_minutes: number;
+  required_minutes: number | null;
+  required_slots: number | null;
+  slots: UrgentAllocationSlot[];
+}
+
+export interface UrgentAllocationQuote {
+  required_minutes: number;
+  required_slots: number;
+  slot_duration_minutes: number;
+  total_charge: string;
+  urgent_surcharge_amount: string;
+  gst_percent: number;
+  gst_amount: string;
+  charge_breakdown: Array<{ description: string; amount: number }>;
+  slot_minutes: number;
+  covers_required_time: boolean;
+  slot_ids: number[];
+  slot_times: Array<{ id: number; start: string | null; end: string | null }>;
+  warnings: string[];
+  submitted_estimate: string | null;
+  amount_changed: boolean;
+  wallet: { has_wallet: boolean; available: string; sufficient: boolean; shortfall: string; message: string };
+  can_allocate: boolean;
+}
+
+export interface UrgentAllocationResult {
+  message: string;
+  id: number;
+  status: string;
+  booking_id: number;
+  booking_display_id: string;
+  total_charge: string;
+  slot_times: Array<{ id: number; start: string | null; end: string | null }>;
+}
+
 export interface MaterialChargeOption {
   id: number;
   code: string;
@@ -9639,8 +9711,13 @@ class ApiClient {
     reviewer_comment?: string;
     /** When user selected a slot via "Select Slot", pass the hold booking id returned by the hold booking API. */
     hold_booking_id?: number;
+    /** Type B without slots: the booking-form inputs; the OIC allocates slots later. */
+    input_values?: Record<string, unknown>;
+    selected_parameters?: unknown[];
+    /** Type B without slots: preferred dates / notes for the OIC (free text). */
+    preferred_schedule?: string;
   }) {
-    const isReviewerUrgent = data.request_type === 'REVIEWER_URGENT' && data.evidence_file;
+    const isReviewerUrgent = data.request_type === 'REVIEWER_URGENT';
     if (isReviewerUrgent) {
       const form = new FormData();
       form.append('equipment_id', String(data.equipment_id));
@@ -9649,20 +9726,26 @@ class ApiClient {
       form.append('number_of_samples', String(data.number_of_samples ?? 1));
       form.append('slots_requested', String(data.slots_requested ?? 1));
       if (data.duration_minutes != null) form.append('duration_minutes', String(data.duration_minutes));
-      form.append('evidence_file', data.evidence_file);
+      if (data.evidence_file) form.append('evidence_file', data.evidence_file);
       if (data.reviewer_comment != null && data.reviewer_comment !== '') {
         form.append('reviewer_comment', data.reviewer_comment);
       }
       if (data.evidence_original_name) form.append('evidence_original_name', data.evidence_original_name);
       if (data.hold_booking_id != null) form.append('hold_booking_id', String(data.hold_booking_id));
+      if (data.input_values != null) form.append('input_values', JSON.stringify(data.input_values));
+      if (data.selected_parameters != null) form.append('selected_parameters', JSON.stringify(data.selected_parameters));
+      if (data.preferred_schedule) form.append('preferred_schedule', data.preferred_schedule);
       const url = `${this.baseURL}/urgent-booking-requests/create/`;
       const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
       const res = await fetch(url, { method: 'POST', headers, body: form });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) return { error: (json as { error?: string }).error || `HTTP ${res.status}` };
-      return { data: json as { message: string; id: number } };
+      if (!res.ok) {
+        const body = json as { error?: string; code?: string };
+        return { error: body.error || `HTTP ${res.status}`, errorCode: body.code, status: res.status };
+      }
+      return { data: json as UrgentRequestCreated };
     }
-    return this.request<{ message: string; id: number }>('/urgent-booking-requests/create/', {
+    return this.request<UrgentRequestCreated>('/urgent-booking-requests/create/', {
       method: 'POST',
       body: JSON.stringify({
         equipment_id: data.equipment_id,
@@ -9672,8 +9755,67 @@ class ApiClient {
         slots_requested: data.slots_requested ?? 1,
         duration_minutes: data.duration_minutes,
         hold_booking_id: data.hold_booking_id,
+        input_values: data.input_values,
+        selected_parameters: data.selected_parameters,
+        preferred_schedule: data.preferred_schedule,
       }),
     });
+  }
+
+  /** OIC: every slot of one date (any status) to allocate a Type B request without slots. */
+  async getUrgentAllocationSlots(requestId: number, date: string) {
+    return this.request<UrgentAllocationSlotsResponse>(
+      `/urgent-booking-requests/${requestId}/allocation-slots/?date=${encodeURIComponent(date)}`,
+      { method: 'GET' }
+    );
+  }
+
+  /** OIC: amount for the chosen slots (worked out now) and whether the requester's wallet can pay it. */
+  async quoteUrgentAllocation(requestId: number, slotIds: number[]) {
+    return this.postUrgentAllocation<UrgentAllocationQuote>(
+      `/urgent-booking-requests/${requestId}/allocation-quote/`,
+      { slot_ids: slotIds }
+    );
+  }
+
+  /** OIC: approve a Type B request without slots by booking the chosen slots (wallet debited, usual emails). */
+  async allocateUrgentRequest(
+    requestId: number,
+    data: { slot_ids: number[]; expected_total?: string; admin_notes?: string }
+  ) {
+    return this.postUrgentAllocation<UrgentAllocationResult>(
+      `/urgent-booking-requests/${requestId}/allocate/`,
+      data
+    );
+  }
+
+  /** POST that keeps the whole error body (code, quote with wallet shortfall) for the allocation dialog. */
+  private async postUrgentAllocation<T>(
+    path: string,
+    body: Record<string, unknown>
+  ): Promise<{ data?: T; error?: string; errorCode?: string; quote?: UrgentAllocationQuote }> {
+    try {
+      const res = await fetch(`${this.baseURL}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.token ? { Authorization: `Token ${this.token}` } : {}),
+        },
+        body: JSON.stringify(body),
+        credentials: 'omit',
+      });
+      const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        return {
+          error: typeof json.error === 'string' ? json.error : `HTTP ${res.status}`,
+          errorCode: typeof json.code === 'string' ? json.code : undefined,
+          quote: (json.quote as UrgentAllocationQuote | undefined) ?? undefined,
+        };
+      }
+      return { data: json as T };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Network error' };
+    }
   }
 
   /** List urgent booking requests (admin, Department Administrator, OIC). Server limits rows to the user's equipment. */
@@ -9738,6 +9880,8 @@ class ApiClient {
           input_fields?: BookingInputFieldDef[];
           charge_breakdown?: Array<{ description: string; amount: number }> | null;
         } | null;
+        requires_slot_allocation?: boolean;
+        requirement?: UrgentRequestRequirement | null;
       }>;
       total_count: number;
       limit: number;
@@ -9800,6 +9944,8 @@ class ApiClient {
         input_fields?: BookingInputFieldDef[];
         charge_breakdown?: Array<{ description: string; amount: number }> | null;
       } | null;
+      requires_slot_allocation?: boolean;
+      requirement?: UrgentRequestRequirement | null;
     }>(`/urgent-booking-requests/${requestId}/detail/`);
   }
 
@@ -9822,6 +9968,11 @@ class ApiClient {
         decided_at: string | null;
         expiry_at: string | null;
         pending_wallet_approval: boolean;
+        requires_slot_allocation?: boolean;
+        required_minutes?: number | null;
+        estimated_charge?: string | null;
+        preferred_schedule?: string;
+        booking_display_id?: string | null;
       }>;
       total_count: number;
       limit: number;
