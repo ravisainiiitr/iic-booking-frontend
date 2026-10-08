@@ -130,6 +130,35 @@ describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
     expect(firstCard.textContent).toContain("S.No51");
   });
 
+  it("starts at 50 rows, switches to 100 from page 1 and remembers the choice", async () => {
+    Element.prototype.scrollIntoView ??= vi.fn();
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.releasePointerCapture ??= vi.fn();
+    window.localStorage.clear();
+    api.getBookings.mockImplementation(async (params: Params) => page(params, 260));
+    renderPage();
+    await screen.findAllByText("XRD202600001");
+    const rowsBox = () => screen.getByRole("combobox", { name: "Rows per page" });
+    expect(rowsBox().textContent).toBe("50");
+    expect(lastCall()).toMatchObject({ limit: 50, offset: 0 });
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    await screen.findAllByText("XRD202600051");
+    fireEvent.keyDown(rowsBox(), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: "100" }));
+    await waitFor(() => expect(lastCall()).toMatchObject({ limit: 100, offset: 0 }));
+    await screen.findAllByText("XRD202600100");
+    expect(window.localStorage.getItem("iic.rowsPerPage.my-bookings.7")).toBe("100");
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    await waitFor(() => expect(lastCall()).toMatchObject({ limit: 100, offset: 100 }));
+    const table = screen.getByRole("table");
+    await waitFor(() =>
+      expect(within(within(table).getAllByRole("row")[1]).getAllByRole("cell")[0].textContent).toBe("101"),
+    );
+    window.localStorage.clear();
+  });
+
   it("exports with the filters and search the list is using, without paging", async () => {
     const search = renderPage();
     await screen.findAllByText("XRD202600001");
