@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState, useCallback, useRef } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { normalizeUserTypeCode } from "@/lib/userTypes";
+import { changeSlotStatusPath } from "@/lib/changeSlotStatus";
 import { RichTextContent } from "@/components/RichTextContent";
 import { richTextToPlain } from "@/lib/richText";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -392,7 +393,7 @@ const EquipmentProfile = () => {
 
   const handleChangeSlotStatusClick = () => {
     if (!equipment) return;
-    navigate(`/book-equipment?equipment_id=${equipment.equipment_id}&mode=status`);
+    navigate(changeSlotStatusPath(equipment.equipment_id));
   };
 
   const handleCalculateChargesClick = () => {

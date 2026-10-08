@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   apiClient,
@@ -1006,7 +1006,12 @@ function isNonChargeAffectingInputField(field: {
   return false;
 }
 
-const BookEquipment = () => {
+type BookEquipmentProps = {
+  /** Change slot status page: Department / Equipment filters shown above the slot status calendar (opens in status mode). */
+  slotStatusFilters?: ReactNode;
+};
+
+const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const embedded = useEmbeddedMode();
@@ -1199,7 +1204,9 @@ const BookEquipment = () => {
   const lastCalculatedValuesRef = useRef<string>('');
   const chargeRequestSeqRef = useRef(0);
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
-  const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(null);
+  const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(() =>
+    slotStatusFilters && searchParams.get("mode") !== "book" ? "status" : null
+  );
   useEffect(() => {
     if (equipmentCatalogOnly) setAdminManageMode(null);
   }, [equipmentCatalogOnly]);
@@ -1494,15 +1501,17 @@ const BookEquipment = () => {
     String(equipmentDetail?.name || selectedEquipment?.name || "").trim() ||
     String(equipmentDetail?.code || "").trim();
 
+  // On Change slot status the Equipment filter names the equipment, so the workspace keeps its own title.
+  const showSlotStatusFilters = Boolean(slotStatusFilters) && adminManageMode === "status";
   useEffect(() => {
-    if (!isEmbedFlow || !workspaceEquipmentTitle) return;
+    if (!isEmbedFlow || !workspaceEquipmentTitle || showSlotStatusFilters) return;
     publishWorkspaceTitle(
       isTemplateFlow
         ? `${editTemplateId ? "Edit" : "Create"} booking template — ${workspaceEquipmentTitle}`
         : workspaceEquipmentTitle
     );
     return () => publishWorkspaceTitle(null);
-  }, [isEmbedFlow, workspaceEquipmentTitle, isTemplateFlow, editTemplateId]);
+  }, [isEmbedFlow, workspaceEquipmentTitle, isTemplateFlow, editTemplateId, showSlotStatusFilters]);
 
   useEffect(() => {
     if (!bookingAsExternalTarget) return;
@@ -3369,7 +3378,7 @@ const BookEquipment = () => {
   // When landing with mode=status or mode=book, sync manage mode from URL (including switching mode on same equipment)
   // (a repeat sample link always opens booking on behalf of the original user).
   useEffect(() => {
-    const mode = searchParams.get('mode') || (searchParams.get('repeatOf') ? 'book' : null);
+    const mode = searchParams.get('mode') || (searchParams.get('repeatOf') ? 'book' : null) || (slotStatusFilters ? 'status' : null);
     if (!mode || !selectedEquipment || !canAccessManageEquipmentModes()) return;
     const urlKey = `${selectedEquipment.id}:${mode}`;
     if (appliedModeUrlKeyRef.current === urlKey) return;
@@ -7585,6 +7594,7 @@ const BookEquipment = () => {
       <div className={isEmbedFlow ? "relative" : "page-shell"}>
         {!isEmbedFlow && <DashboardHeader />}
         <main className={isEmbedFlow ? "w-full px-0 py-2" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-8"}>
+          {showSlotStatusFilters ? <div className="mb-3">{slotStatusFilters}</div> : null}
           <Card className="rounded-2xl shadow-[var(--shadow-card)]">
             <CardContent className="py-12 text-center">
               {isLoadingFromUrl ? (
@@ -7630,6 +7640,8 @@ const BookEquipment = () => {
                   ? `Calculate charges — ${selectedEquipment.name}`
                   : isTemplateFlow
                   ? `${editTemplateId ? "Edit" : "Create"} booking template — ${selectedEquipment.name}`
+                  : showSlotStatusFilters
+                    ? "Change slot status"
                   : canAccessManageEquipmentModes()
                     ? `Manage ${selectedEquipment.name}`
                     : selectedEquipment.name}
@@ -7739,6 +7751,8 @@ const BookEquipment = () => {
             )}
           </div>
         )}
+
+        {showSlotStatusFilters && !isCalculateChargesFlow ? <div className="mb-3">{slotStatusFilters}</div> : null}
 
         {/* Admin: slot status change UI – month calendar with day/week/month selection */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (

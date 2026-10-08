@@ -155,7 +155,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/equipment-waitlist": { title: "Equipment Waitlist", description: "Users waiting for a slot on your equipment." },
   "/change-slot-status": {
     title: "Change Slot Status",
-    description: "Pick an equipment to mark its slots available, blocked or under maintenance.",
+    description: "Choose the equipment at the top, then mark its slots available, blocked or under maintenance.",
   },
   "/oic/equipment-settings": {
     title: "Equipment Booking Configuration",
@@ -3070,8 +3070,8 @@ const Dashboard = () => {
                     <CardTitle className="text-lg">Change slot status</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       {isAdmin
-                        ? "Pick a department and equipment, then mark slots available, blocked or under maintenance"
-                        : "Pick one of your equipment, then mark slots available, blocked or under maintenance"}
+                        ? "Mark slots available, blocked or under maintenance; switch department and equipment at the top"
+                        : "Mark slots available, blocked or under maintenance; switch between your equipment at the top"}
                     </CardDescription>
                   </div>
                 </div>

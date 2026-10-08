@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient } from "@/lib/api";
+import { changeSlotStatusPath } from "@/lib/changeSlotStatus";
 import {
   DEFAULT_EXCLUSIVE_LABEL,
   DEFAULT_GREY,
@@ -116,9 +117,7 @@ function equipmentLabel(e: { code?: string | null; name?: string | null }): stri
 }
 
 function openChangeSlotStatus(navigate: ReturnType<typeof useNavigate>, equipmentId: number, monthIso?: string) {
-  const params = new URLSearchParams({ equipment_id: String(equipmentId), mode: "status" });
-  if (monthIso && /^\d{4}-\d{2}/.test(monthIso)) params.set("month", monthIso.slice(0, 7));
-  navigate(`/book-equipment?${params.toString()}`);
+  navigate(changeSlotStatusPath(equipmentId, monthIso));
 }
 
 export default function MultiModeEquipment() {

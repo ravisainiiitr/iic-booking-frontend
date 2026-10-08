@@ -175,11 +175,11 @@ export function slotStatusSection(g: Gate): GuideSection {
     steps: compact([
       g.only(["admin"], {
         title: "Open it",
-        body: "In the dashboard menu, choose Change slot status, pick the Department/Centre (IIC first) and then the equipment, and click Change slot status. The equipment page menu has it too.",
+        body: "In the dashboard menu, choose Change slot status: the slot calendar opens straight away. Switch the Department/Centre (IIC first) and the equipment with the two filters at the top. The equipment page menu has it too.",
       }),
       g.only(["oic"], {
         title: "Open it",
-        body: "In the dashboard menu, choose Change slot status, pick one of your equipment (including equipment you cover as temporary OIC) and click Change slot status. The equipment page menu has it too.",
+        body: "In the dashboard menu, choose Change slot status: the slot calendar of your first equipment opens straight away. Switch to another of your equipment (including equipment you cover as temporary OIC) with the Equipment filter at the top. The equipment page menu has it too.",
       }),
       {
         title: "Pick the week",

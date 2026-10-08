@@ -1,149 +1,261 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, CalendarClock, Loader2 } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Loader2, Package } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient, type SlotStatusPickerEquipment, type StaffListFiltersMeta } from "@/lib/api";
+import { apiClient, type SlotStatusPickerEquipment } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DashboardHeader from "@/components/DashboardHeader";
-import { StandaloneOnly } from "@/components/PageShell";
-import { StaffListFilterRow, useStaffListFilters } from "@/components/StaffListFilters";
-import { StatusChip, type StatusChipTone } from "@/components/StaffListCells";
+import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
+import { DEFAULT_CATALOG_DEPARTMENT_NAME } from "@/lib/catalogCache";
+import { catalogDepartmentFromParam } from "@/lib/equipmentCatalog";
+
+const BookEquipment = lazy(() => import("@/pages/BookEquipment"));
 
 /** Main Admin and OIC change slot status (the backend limits an OIC to their own and temporary-OIC equipment). */
 const CHANGE_SLOT_STATUS_ROLES = ["admin", "manager"];
 
-function changeSlotStatusPath(equipmentId: number): string {
-  return `/book-equipment?equipment_id=${equipmentId}&mode=status`;
-}
+const positiveInt = (raw: string | null): number | null => {
+  const n = raw ? Number(raw) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
 
-function statusTone(status: string): StatusChipTone {
-  const s = (status || "").toUpperCase();
-  if (s === "ACTIVE") return "green";
-  if (s === "REPAIR" || s === "INACTIVE" || s === "MAINTENANCE") return "amber";
-  return "gray";
-}
+const isOperational = (status: string) => (status || "").toUpperCase() === "ACTIVE";
 
+/**
+ * Change slot status: Department (Main Admin only, IIC by default) and Equipment on one row above the
+ * equipment's slot calendar. `?equipment_id=` preselects that equipment and its department; otherwise
+ * the first equipment of the list opens.
+ */
 export default function ChangeSlotStatus() {
   const navigate = useNavigate();
+  const embedded = useEmbeddedMode();
   const { user } = useAuth();
   const userType = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const canView = CHANGE_SLOT_STATUS_ROLES.includes(userType);
+  const showDepartment = userType === "admin";
 
-  const filters = useStaffListFilters();
-  const { departmentReady, reconcileEquipment } = filters;
-  const { departmentId, equipmentId } = filters.query;
-  const [equipmentOptions, setEquipmentOptions] = useState<StaffListFiltersMeta["equipment_options"]>([]);
-  const [rows, setRows] = useState<SlotStatusPickerEquipment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const equipmentParam = positiveInt(searchParams.get("equipment_id"));
+  const [urlDepartment] = useState(() => catalogDepartmentFromParam(searchParams.get("dept")));
+  const [linkedEquipment] = useState(() => equipmentParam);
+  const [departmentId, setDepartmentId] = useState<DepartmentFilterValue>(() => urlDepartment ?? "all");
+  const [departmentReady, setDepartmentReady] = useState(() => !showDepartment || urlDepartment != null);
+  // Main Admin opening a linked equipment: look up its department before the IIC default applies.
+  const [departmentLookupDone, setDepartmentLookupDone] = useState(
+    () => !showDepartment || urlDepartment != null || linkedEquipment == null,
+  );
+  const [rows, setRows] = useState<SlotStatusPickerEquipment[] | null>(null);
 
   useEffect(() => {
     if (!canView) navigate("/dashboard");
   }, [canView, navigate]);
 
-  const loadSeq = useRef(0);
-  const load = useCallback(async () => {
-    const seq = ++loadSeq.current;
-    setLoading(true);
-    try {
-      const res = await apiClient.getSlotStatusPicker({ departmentId, equipmentId });
-      if (seq !== loadSeq.current) return;
-      if (res.error || !res.data) {
-        toast.error(res.error || "Failed to load equipment");
-        setRows([]);
-        return;
-      }
-      setRows(res.data.equipment);
-      setEquipmentOptions(res.data.filters.equipment_options);
-      reconcileEquipment(res.data.filters.equipment_options);
-    } catch {
-      if (seq === loadSeq.current) {
-        toast.error("Failed to load equipment");
-        setRows([]);
-      }
-    } finally {
-      if (seq === loadSeq.current) setLoading(false);
-    }
-  }, [departmentId, equipmentId, reconcileEquipment]);
+  const writeDepartment = useCallback(
+    (value: DepartmentFilterValue, dropEquipment: boolean) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          params.set("dept", String(value));
+          if (dropEquipment) {
+            params.delete("equipment_id");
+            params.delete("mode");
+            params.delete("month");
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
+    if (!canView || departmentLookupDone || linkedEquipment == null) return;
+    let cancelled = false;
+    void apiClient
+      .getSlotStatusPicker({ equipmentId: linkedEquipment })
+      .then((res) => {
+        if (cancelled) return;
+        const dept = res.data?.equipment.find((r) => r.equipment_id === linkedEquipment)?.department_id;
+        if (dept != null) {
+          setDepartmentId(dept);
+          setDepartmentReady(true);
+          writeDepartment(dept, false);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setDepartmentLookupDone(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canView, departmentLookupDone, linkedEquipment, writeDepartment]);
+
+  const loadSeq = useRef(0);
+  useEffect(() => {
     if (!canView || !departmentReady) return;
-    void load();
-  }, [canView, departmentReady, load]);
+    const seq = ++loadSeq.current;
+    setRows(null);
+    const query = showDepartment && departmentId !== "all" ? { departmentId } : {};
+    void apiClient
+      .getSlotStatusPicker(query)
+      .then((res) => {
+        if (seq !== loadSeq.current) return;
+        if (res.error || !res.data) toast.error(res.error || "Failed to load equipment");
+        setRows(res.data?.equipment ?? []);
+      })
+      .catch(() => {
+        if (seq !== loadSeq.current) return;
+        toast.error("Failed to load equipment");
+        setRows([]);
+      });
+  }, [canView, departmentReady, departmentId, showDepartment]);
+
+  const selectedId = rows && equipmentParam != null && rows.some((r) => r.equipment_id === equipmentParam) ? equipmentParam : null;
+
+  const selectEquipment = useCallback(
+    (id: number) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (params.get("equipment_id") !== String(id)) {
+            params.delete("mode");
+            params.delete("month");
+          }
+          params.set("equipment_id", String(id));
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  // Open the first equipment when none (or one outside the list) is in the URL.
+  useEffect(() => {
+    if (!rows || selectedId != null) return;
+    if (rows.length > 0) selectEquipment(rows[0].equipment_id);
+    else if (equipmentParam != null) {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          params.delete("equipment_id");
+          return params;
+        },
+        { replace: true },
+      );
+    }
+  }, [rows, selectedId, equipmentParam, selectEquipment, setSearchParams]);
 
   if (!canView) return null;
 
-  return (
-    <div className="page-shell">
-      <DashboardHeader />
-      <main className="container mx-auto max-w-5xl px-4 py-5">
-        <StandaloneOnly>
-          <div className="mb-6 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-6 text-white shadow-xl">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/dashboard")}
-              className="-ml-2 mb-3 text-white/90 hover:bg-white/20 hover:text-white"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Dashboard
-            </Button>
-            <h1 className="text-2xl font-semibold tracking-tight">Change slot status</h1>
-            <p className="mt-2 text-sm text-white/85">
-              Pick an equipment to open its slot calendar and mark slots Available, Blocked, Under maintenance and so on.
-            </p>
+  const loading = rows == null;
+  const filterRow = (
+    <div className="flex flex-wrap items-center gap-2" data-testid="slot-status-filters">
+      {showDepartment ? (
+        departmentLookupDone ? (
+          <DepartmentFilter
+            value={departmentId}
+            onChange={(value) => {
+              setDepartmentId(value);
+              writeDepartment(value, true);
+            }}
+            onResolved={(value) => {
+              setDepartmentId(value);
+              setDepartmentReady(true);
+            }}
+            defaultDepartmentName={urlDepartment == null ? DEFAULT_CATALOG_DEPARTMENT_NAME : undefined}
+            hideLabel
+            compactTrigger
+            className="w-full sm:w-auto sm:shrink-0"
+            triggerClassName="h-9 min-w-0 w-full gap-2 rounded-lg text-sm font-semibold shadow-sm sm:w-auto sm:min-w-[10rem] [&_span]:whitespace-nowrap"
+          />
+        ) : (
+          <div className="flex h-9 w-full items-center gap-2 rounded-lg border px-3 text-sm text-muted-foreground shadow-sm sm:w-40">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            Department…
           </div>
-        </StandaloneOnly>
-        <Card className="mb-20 rounded-xl border-border/70 shadow-sm">
-          <CardHeader className="px-4 pb-3 sm:px-5">
-            <CardTitle className="text-base">Equipment</CardTitle>
-            <CardDescription>
-              {filters.showDepartment
-                ? "Choose a department and equipment, then open Change slot status."
-                : "Equipment you are Officer In-charge of, including equipment you are covering as temporary OIC."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 px-4 sm:px-5">
-            <StaffListFilterRow filters={filters} equipmentOptions={equipmentOptions} />
-
+        )
+      ) : null}
+      <Select
+        value={selectedId != null ? String(selectedId) : ""}
+        onValueChange={(v) => selectEquipment(Number(v))}
+        disabled={loading || rows.length === 0}
+      >
+        <SelectTrigger
+          className="h-9 w-full min-w-0 rounded-lg text-sm font-semibold shadow-sm sm:w-[26rem] sm:max-w-full"
+          aria-label="Equipment"
+        >
+          <div className="flex min-w-0 items-center gap-2">
             {loading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading equipment…
-              </div>
-            ) : rows.length === 0 ? (
-              <p className="text-muted-foreground">No equipment found.</p>
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
             ) : (
-              <ul className="divide-y divide-border/60 rounded-lg border border-border/70" aria-label="Equipment">
-                {rows.map((row) => (
-                  <li key={row.equipment_id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium" title={row.name}>
-                        {row.name}
-                        {row.code && !row.name.toLowerCase().includes(row.code.toLowerCase()) ? (
-                          <span className="ml-1.5 font-mono text-xs text-muted-foreground">{row.code}</span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        <StatusChip tone={statusTone(row.status)}>{row.status_display || row.status || "—"}</StatusChip>
-                        {row.temporary_oic ? <StatusChip tone="gray">Temporary OIC</StatusChip> : null}
-                        {filters.showDepartment && (row.department_code || row.department_name) ? (
-                          <span title={row.department_name}>{row.department_code || row.department_name}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <Button size="sm" onClick={() => navigate(changeSlotStatusPath(row.equipment_id))}>
-                      <CalendarClock className="mr-1.5 h-4 w-4" />
-                      Change slot status
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+              <Package className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             )}
-          </CardContent>
-        </Card>
+            <SelectValue placeholder={loading ? "Loading equipment…" : "No equipment"} className="truncate" />
+          </div>
+        </SelectTrigger>
+        <SelectContent className="max-w-[min(100vw-2rem,32rem)]">
+          {(rows ?? []).map((row) => (
+            <SelectItem key={row.equipment_id} value={String(row.equipment_id)}>
+              <span className="whitespace-normal break-words">
+                {row.name || row.code}
+                {!isOperational(row.status) && row.status_display ? (
+                  <span className="ml-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">· {row.status_display}</span>
+                ) : null}
+                {row.temporary_oic ? (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">· Temporary OIC</span>
+                ) : null}
+                {showDepartment && departmentId === "all" && row.department_code ? (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">· {row.department_code}</span>
+                ) : null}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const shell = (body: ReactNode) => (
+    <div className={embedded ? "relative" : "page-shell"}>
+      <DashboardHeader />
+      <main className={embedded ? "w-full space-y-3 px-0 py-2" : "mx-auto w-full max-w-[1800px] space-y-3 px-4 py-4 md:px-6 md:py-6"}>
+        {filterRow}
+        {body}
       </main>
     </div>
+  );
+
+  const loadingCard = (
+    <Card className="rounded-2xl">
+      <CardContent className="flex items-center justify-center gap-2 py-12 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+        Loading equipment…
+      </CardContent>
+    </Card>
+  );
+
+  if (selectedId == null) {
+    if (loading || rows.length > 0) return shell(loadingCard);
+    return shell(
+      <Card className="rounded-2xl">
+        <CardContent className="py-12 text-center text-muted-foreground">
+          {showDepartment
+            ? "No equipment in this department. Choose another Department/Centre."
+            : "You are not Officer In-charge of any equipment right now, including as temporary OIC."}
+        </CardContent>
+      </Card>,
+    );
+  }
+
+  return (
+    <Suspense fallback={shell(loadingCard)}>
+      <BookEquipment key={selectedId} slotStatusFilters={filterRow} />
+    </Suspense>
   );
 }
