@@ -12,6 +12,7 @@ import {
   SlotWeekGrid,
   slotCellStyle,
 } from "@/components/slot-calendar/SlotWeekGrid";
+import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 
 /** Parse "HH:mm" or "HH:mm:ss" to minutes from midnight. */
 function parseTimeToMinutes(timeStr: string): number {
@@ -341,28 +342,20 @@ export function LabOperatorWeekCalendarGrid({
         equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
       ].filter((line): line is string => Boolean(line));
       return (
-        <button
-          type="button"
-          aria-label={tooltipLines.join(". ")}
-          onClick={() => onBookedSlotClick(bookingPk)}
-          className={cn(
-            SLOT_CELL_CLASS,
-            "group relative cursor-pointer transition-all hover:-translate-y-px hover:shadow-md hover:ring-2 hover:ring-primary/35",
-          )}
-          style={style}
-        >
-          {content}
-          <span
-            className="pointer-events-none absolute bottom-[calc(100%+6px)] left-1/2 z-30 hidden w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-[11px] font-normal leading-snug text-foreground shadow-lg group-hover:block group-focus-visible:block"
-            role="tooltip"
+        <SlotHoverCard lines={tooltipLines}>
+          <button
+            type="button"
+            aria-label={tooltipLines.join(". ")}
+            onClick={() => onBookedSlotClick(bookingPk)}
+            className={cn(
+              SLOT_CELL_CLASS,
+              "cursor-pointer transition-all hover:-translate-y-px hover:shadow-md hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            )}
+            style={style}
           >
-            {tooltipLines.map((line) => (
-              <span key={line} className="block whitespace-nowrap">
-                {line}
-              </span>
-            ))}
-          </span>
-        </button>
+            {content}
+          </button>
+        </SlotHoverCard>
       );
     }
 

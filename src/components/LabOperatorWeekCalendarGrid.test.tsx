@@ -80,6 +80,17 @@ describe("LabOperatorWeekCalendarGrid cells", () => {
     expect(onBookedSlotClick).toHaveBeenCalledWith(77);
   });
 
+  it("shows the booking hover card outside the grid so edge cells aren't cut off", () => {
+    const { container } = renderGrid({ weekStartIso: "2099-01-05", slotsPayload: weekPayload });
+    fireEvent.focus(screen.getByRole("button", { name: /Booking ID: B-77/ }));
+    const card = document.body.querySelector("[data-slot-hover-card]");
+    expect(card).not.toBeNull();
+    expect(container.contains(card)).toBe(false);
+    expect(card?.textContent).toContain("Booking ID: B-77");
+    expect(card?.textContent).toContain("User: Test User");
+    expect(card?.textContent).toContain("Equipment: Powder X-Ray Diffractometer (PXRD) [A]");
+  });
+
   it("lets an OIC pick free slots when selection is enabled", () => {
     const onToggle = vi.fn();
     renderGrid({

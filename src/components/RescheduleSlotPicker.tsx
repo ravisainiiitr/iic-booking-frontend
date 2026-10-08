@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
 
@@ -753,21 +753,15 @@ export default function RescheduleSlotPicker({
               );
               if (!currentBooking || currentBookingLines.length === 0) return cell;
               return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className="grid cursor-help rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                      tabIndex={0}
-                      aria-label={`Current booking. ${currentBookingLines.join(". ")}`}
-                    >
-                      {cell}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="z-[120] max-w-xs whitespace-pre-line text-left text-xs leading-5">
-                    <p className="mb-1 font-semibold">Current booking</p>
-                    {currentBookingLines.join("\n")}
-                  </TooltipContent>
-                </Tooltip>
+                <SlotHoverCard lines={["Current booking", ...currentBookingLines]} boldFirst>
+                  <div
+                    className="grid cursor-help rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    tabIndex={0}
+                    aria-label={`Current booking. ${currentBookingLines.join(". ")}`}
+                  >
+                    {cell}
+                  </div>
+                </SlotHoverCard>
               );
             }}
           />

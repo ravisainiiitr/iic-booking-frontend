@@ -102,6 +102,7 @@ import {
   SlotWeekNav,
   slotCellStyle,
 } from "@/components/slot-calendar/SlotWeekGrid";
+import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
@@ -160,12 +161,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   Collapsible,
   CollapsibleContent,
@@ -543,18 +539,6 @@ function slotStatusHoverLines(
   if (slot.mode_overlay) lines.push(`Mode: ${slot.mode_overlay}`);
   if (hasBooking || status === "BOOKED") lines.push(...bookedSlotUserDetailLines(slot));
   return lines;
-}
-
-function SlotHoverLines({ lines }: { lines: string[] }) {
-  return (
-    <div className="space-y-0.5 text-xs">
-      {lines.map((line, i) => (
-        <div key={i} className={i === 0 ? "font-semibold" : undefined}>
-          {line}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 /** Normalize grid row keys so "9:00" / "09:00:00" / ISO fragments all match `getSlotData` lookups. */
@@ -8413,17 +8397,9 @@ const BookEquipment = () => {
                                 );
                                 if (hoverLines.length === 0) return cellInner;
                                 return (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className="w-full h-full">{cellInner}</div>
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                      side="top"
-                                      className="z-[120] max-w-xs text-left px-3 py-2"
-                                    >
-                                      <SlotHoverLines lines={hoverLines} />
-                                    </TooltipContent>
-                                  </Tooltip>
+                                  <SlotHoverCard lines={hoverLines} boldFirst>
+                                    <div className="w-full h-full">{cellInner}</div>
+                                  </SlotHoverCard>
                                 );
                               })()
                             ) : (
@@ -11388,17 +11364,9 @@ const BookEquipment = () => {
                           }
 
                           return (
-                            <Tooltip key={dayOffset}>
-                              <TooltipTrigger asChild>
-                                <div className="w-full h-full">{cellButton}</div>
-                              </TooltipTrigger>
-                              <TooltipContent
-                                side="top"
-                                className="z-[120] max-w-xs text-left px-3 py-2"
-                              >
-                                {staffStatusLines.length > 0 ? <SlotHoverLines lines={hoverLines} /> : unavailableReason}
-                              </TooltipContent>
-                            </Tooltip>
+                            <SlotHoverCard key={dayOffset} lines={hoverLines} boldFirst>
+                              <div className="w-full h-full">{cellButton}</div>
+                            </SlotHoverCard>
                           );
                         })}
                         </div>
