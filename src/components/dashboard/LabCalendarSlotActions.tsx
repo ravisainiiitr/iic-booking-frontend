@@ -56,6 +56,7 @@ export function LabCalendarSlotActions({ selectedCount, busy = false, onApply, o
     <div
       role="region"
       aria-label="Change selected slots"
+      data-floating-clearance=""
       className="sticky bottom-2 z-20 flex flex-col gap-2 rounded-xl border border-primary/25 bg-card/95 p-3 shadow-lg backdrop-blur-sm sm:flex-row sm:flex-wrap sm:items-center"
     >
       <span className="text-sm font-semibold text-foreground">

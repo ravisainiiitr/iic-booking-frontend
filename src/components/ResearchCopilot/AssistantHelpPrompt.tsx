@@ -1,6 +1,7 @@
 import { LifeBuoy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { helpPromptText, type AssistantHelpDetail } from "@/lib/assistantHelp";
+import { panelBottomFor, useAssistantFabPosition } from "./assistantFabStore";
 
 type Props = {
   detail: AssistantHelpDetail;
@@ -10,11 +11,14 @@ type Props = {
 
 /** Small dismissible card above the assistant button, shown after a booking or charge error. */
 export function AssistantHelpPrompt({ detail, onAccept, onDismiss }: Props) {
+  const { position, vw, vh } = useAssistantFabPosition();
   return (
     <div
       role="status"
       aria-live="polite"
-      className="floating-launcher fixed bottom-[calc(5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(0.75rem,env(safe-area-inset-right))] z-[9999] w-[min(340px,calc(100vw-1.5rem))] rounded-xl border bg-card p-3 text-card-foreground shadow-xl sm:right-6"
+      data-fab-side={position.side}
+      style={{ "--panel-bottom": `${panelBottomFor(position, vw, vh)}px` } as React.CSSProperties}
+      className="assistant-panel floating-launcher fixed z-[9999] w-[min(340px,calc(100vw-1.5rem))] rounded-xl border bg-card p-3 text-card-foreground shadow-xl"
     >
       <div className="flex items-start gap-2">
         <LifeBuoy className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden="true" />

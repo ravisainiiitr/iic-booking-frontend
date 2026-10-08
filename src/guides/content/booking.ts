@@ -161,7 +161,7 @@ export function assistantSection(g: Gate): GuideSection | null {
     icon: "bot",
     group: booker ? GROUP : "Tools",
     intro: compact([
-      "Open Booking Assistant (bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data.",
+      "Open Booking Assistant (the round sparkle button, bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data. If it covers something, drag it up or to the left edge; it remembers the spot.",
       g.when(!booker, "It answers look-ups; booking management stays on View Booking and your role's pages."),
     ]),
     steps: booker

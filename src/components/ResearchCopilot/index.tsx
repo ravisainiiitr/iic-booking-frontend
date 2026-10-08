@@ -26,6 +26,8 @@ import { CopilotMarkdown } from "./CopilotMarkdown";
 import { safeHref } from "./markdown";
 import { INTELLIGENCE_CARD_TYPES, IntelligenceCard, renderedChoiceKeys } from "./IntelligenceCards";
 import { isViteCopilotEnabled } from "./softGate";
+import { AssistantFab } from "./AssistantFab";
+import { panelBottomFor, useAssistantFabPosition } from "./assistantFabStore";
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return "";
@@ -745,6 +747,7 @@ export default function ResearchCopilot({
     location.pathname.startsWith("/analysis-launch") ||
     location.pathname.startsWith("/analysis-workspace");
   const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
+  const fab = useAssistantFabPosition();
   const [open, setOpen] = useState(initialOpen);
   const [loading, setLoading] = useState(false);
   const [slowReply, setSlowReply] = useState(false);
@@ -1254,23 +1257,24 @@ export default function ResearchCopilot({
 
   return (
     <>
-      <Button
-        type="button"
-        aria-label={open ? "Close Booking Assistant" : "Open Booking Assistant"}
-        onClick={() => setOpen((o) => !o)}
-        className="floating-launcher fixed bottom-[calc(1.5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(1.5rem,calc(env(safe-area-inset-right)+0.75rem))] z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900"
-      >
-        {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-        <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
-      </Button>
+      <AssistantFab
+        label={open ? "Close Booking Assistant" : "Open Booking Assistant"}
+        icon={open ? <X className="h-5 w-5" aria-hidden /> : <Sparkles className="h-5 w-5" aria-hidden />}
+        onActivate={() => setOpen((o) => !o)}
+        expanded={open}
+      />
 
       {open && (
         <div
-          className="fixed bottom-[calc(5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(0.75rem,env(safe-area-inset-right))] z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl sm:right-6"
-          style={{
-            height:
-              "min(640px, calc(var(--viewport-h, 100vh) - 7rem - env(safe-area-inset-top) - max(var(--booking-action-bar-h, 0px), env(safe-area-inset-bottom))))",
-          }}
+          data-fab-side={fab.position.side}
+          className="assistant-panel fixed z-[9998] flex w-[min(720px,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border bg-card shadow-2xl"
+          style={
+            {
+              "--panel-bottom": `${panelBottomFor(fab.position, fab.vw, fab.vh)}px`,
+              height:
+                "min(640px, calc(var(--viewport-h, 100vh) - var(--panel-bottom) - 2rem - env(safe-area-inset-top) - var(--fab-lift)))",
+            } as React.CSSProperties
+          }
         >
           {/* History (signed-in only) */}
           {isAuthenticated ? (
@@ -1391,6 +1395,9 @@ export default function ResearchCopilot({
               ) : null}
               <Button type="button" size="icon" variant="ghost" onClick={() => void copyLastAssistant()} aria-label="Copy reply">
                 <Copy className="h-4 w-4" />
+              </Button>
+              <Button type="button" size="icon" variant="ghost" onClick={() => setOpen(false)} aria-label="Close chat panel">
+                <X className="h-4 w-4" />
               </Button>
             </div>
 

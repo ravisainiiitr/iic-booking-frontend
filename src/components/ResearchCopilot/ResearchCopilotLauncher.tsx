@@ -1,18 +1,15 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Loader2, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { ASSISTANT_OFFER_HELP_EVENT, normalizeHelpCode, type AssistantHelpDetail } from "@/lib/assistantHelp";
+import { AssistantFab } from "./AssistantFab";
 import { AssistantHelpPrompt } from "./AssistantHelpPrompt";
 import { isViteCopilotEnabled } from "./softGate";
 
 const loadCopilot = () => import("./index");
 const ResearchCopilot = lazy(loadCopilot);
-
-const FAB_CLASS =
-  "floating-launcher fixed bottom-[calc(1.5rem+max(var(--booking-action-bar-h,0px),env(safe-area-inset-bottom)))] right-[max(1.5rem,calc(env(safe-area-inset-right)+0.75rem))] z-[9999] h-12 gap-2 rounded-full px-4 shadow-lg bg-slate-900 text-amber-100 hover:bg-slate-800 dark:bg-amber-100 dark:text-slate-900";
 
 const HELP_PROMPT_MS = 45_000;
 /** Don't re-offer the same help (same failure on the same equipment) for a while after "No thanks". */
@@ -104,10 +101,7 @@ export default function ResearchCopilotLauncher() {
         {prompt}
         <Suspense
           fallback={
-            <Button type="button" aria-label="Loading Booking Assistant" disabled className={FAB_CLASS}>
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
-            </Button>
+            <AssistantFab label="Loading Booking Assistant" disabled icon={<Loader2 className="h-5 w-5 animate-spin" />} />
           }
         >
           <ResearchCopilot initialOpen initialBackendEnabled={backendEnabled} helpRequest={helpRequest} />
@@ -122,17 +116,12 @@ export default function ResearchCopilotLauncher() {
   return (
     <>
       {prompt}
-      <Button
-        type="button"
-        aria-label="Open Booking Assistant"
-        onClick={() => setActivated(true)}
-        onPointerEnter={() => void loadCopilot()}
-        onFocus={() => void loadCopilot()}
-        className={FAB_CLASS}
-      >
-        <Sparkles className="h-5 w-5" />
-        <span className="hidden sm:inline text-sm font-semibold">Booking Assistant</span>
-      </Button>
+      <AssistantFab
+        label="Open Booking Assistant"
+        icon={<Sparkles className="h-5 w-5" aria-hidden />}
+        onActivate={() => setActivated(true)}
+        onPreload={() => void loadCopilot()}
+      />
     </>
   );
 }

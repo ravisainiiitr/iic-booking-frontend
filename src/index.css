@@ -1032,6 +1032,80 @@ body:has([data-vaul-drawer][data-state="open"]) .floating-launcher {
   visibility: hidden;
 }
 
+/* Booking Assistant button: dragged to either side edge; --fab-bottom is the saved height. It rises above the
+   booking action bar, marked sticky bars ([data-floating-clearance]) and the home indicator. */
+.assistant-fab,
+.assistant-panel {
+  --fab-lift: max(var(--booking-action-bar-h, 0px), var(--floating-bar-clearance, 0px), env(safe-area-inset-bottom));
+}
+.assistant-fab {
+  bottom: calc(var(--fab-bottom, 1.5rem) + var(--fab-lift));
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+.assistant-fab[data-fab-side="right"] {
+  right: max(1rem, calc(env(safe-area-inset-right) + 0.75rem));
+}
+.assistant-fab[data-fab-side="left"] {
+  left: max(1rem, calc(env(safe-area-inset-left) + 0.75rem));
+}
+.assistant-fab[data-dragging] {
+  right: auto;
+  bottom: auto;
+}
+@media (min-width: 640px) {
+  .assistant-fab[data-fab-side="right"] {
+    right: max(1.5rem, calc(env(safe-area-inset-right) + 0.75rem));
+  }
+  .assistant-fab[data-fab-side="left"] {
+    left: max(1.5rem, calc(env(safe-area-inset-left) + 0.75rem));
+  }
+}
+.assistant-fab-hide {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms;
+}
+.assistant-fab[data-fab-side="right"] .assistant-fab-hide {
+  left: -0.375rem;
+}
+.assistant-fab[data-fab-side="left"] .assistant-fab-hide {
+  right: -0.375rem;
+}
+.assistant-fab[data-reveal] .assistant-fab-hide,
+.assistant-fab:focus-within .assistant-fab-hide {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: hover) {
+  .assistant-fab:hover:not([data-dragging]) .assistant-fab-hide {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+/* Chat panel and "Need help?" card open on the button's side, just above it. */
+.assistant-panel {
+  bottom: calc(var(--panel-bottom, 5rem) + var(--fab-lift));
+}
+.assistant-panel[data-fab-side="right"] {
+  right: max(0.75rem, env(safe-area-inset-right));
+}
+.assistant-panel[data-fab-side="left"] {
+  left: max(0.75rem, env(safe-area-inset-left));
+}
+@media (min-width: 640px) {
+  .assistant-panel[data-fab-side="right"] {
+    right: max(1.5rem, env(safe-area-inset-right));
+  }
+  .assistant-panel[data-fab-side="left"] {
+    left: max(1.5rem, env(safe-area-inset-left));
+  }
+}
+/* Lets the last rows, pagination and action buttons scroll clear of the button. */
+body:has(.assistant-fab) {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
 /* When pages load with ?embed=1 inside the dashboard workspace iframe */
 body:has([data-embed-chrome]),
 .dashboard-embed-iframe-body {

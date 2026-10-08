@@ -8446,7 +8446,7 @@ const BookEquipment = () => {
         )}
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && (
-          <div className="sticky bottom-2 sm:bottom-3 z-30 w-full max-w-none mx-auto mb-3 rounded-xl border border-primary/25 bg-card/95 shadow-lg backdrop-blur-sm">
+          <div data-floating-clearance="" className="sticky bottom-2 sm:bottom-3 z-30 w-full max-w-none mx-auto mb-3 rounded-xl border border-primary/25 bg-card/95 shadow-lg backdrop-blur-sm">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-primary/15 bg-primary/5 px-3 py-1.5 dark:border-primary/40 dark:bg-primary/10">
               <h3 className="text-sm font-semibold text-foreground">Apply changes</h3>
               {selectedDatesForStatus.length > 0 || selectedSlotIdsForStatus.length > 0 || statusChangeSelectedMonths.length > 0 ? (
