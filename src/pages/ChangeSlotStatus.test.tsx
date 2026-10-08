@@ -20,7 +20,7 @@ vi.mock("@/components/DepartmentFilter", () => ({
     defaultDepartmentName,
   }: {
     value: "all" | number;
-    onChange: (v: number) => void;
+    onChange: (v: "all" | number) => void;
     onResolved?: (v: "all" | number) => void;
     defaultDepartmentName?: string;
   }) => {
@@ -33,7 +33,13 @@ vi.mock("@/components/DepartmentFilter", () => ({
       } else onResolved?.(value);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    return <div data-testid="department-filter" />;
+    return (
+      <div data-testid="department-filter">
+        <button type="button" onClick={() => onChange("all")}>
+          All departments
+        </button>
+      </div>
+    );
   },
 }));
 vi.mock("@/components/ui/select", async () => {
@@ -154,6 +160,18 @@ describe("Change slot status", () => {
     expect(screen.getByTestId("department-filter")).toBeTruthy();
     await screen.findByTestId("slot-status-calendar");
     expect(where()).toBe("/change-slot-status?dept=5&equipment_id=11");
+  });
+
+  it("keeps All departments once the Main Administrator picks it", async () => {
+    auth.state = { user: { id: 1, user_type: "admin" } };
+    renderPage();
+    await screen.findByTestId("slot-status-calendar");
+    fireEvent.click(screen.getByRole("button", { name: "All departments" }));
+    await waitFor(() => expect(api.getSlotStatusPicker).toHaveBeenLastCalledWith({}));
+    await waitFor(() => expect(where()).toBe("/change-slot-status?dept=all&equipment_id=11"));
+    await screen.findByTestId("slot-status-calendar");
+    expect(departmentFilter.value).toBe("all");
+    expect(api.getSlotStatusPicker).toHaveBeenLastCalledWith({});
   });
 
   it("opens a linked equipment in its own department for the Main Administrator", async () => {

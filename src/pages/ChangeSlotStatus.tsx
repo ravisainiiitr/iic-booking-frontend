@@ -168,7 +168,7 @@ export default function ChangeSlotStatus() {
               setDepartmentId(value);
               setDepartmentReady(true);
             }}
-            defaultDepartmentName={urlDepartment == null ? DEFAULT_CATALOG_DEPARTMENT_NAME : undefined}
+            defaultDepartmentName={!departmentReady && urlDepartment == null ? DEFAULT_CATALOG_DEPARTMENT_NAME : undefined}
             hideLabel
             compactTrigger
             className="w-full sm:w-auto sm:shrink-0"
