@@ -1,4 +1,5 @@
 import { slotsNeededForAnalysisTime } from "@/lib/slotAllocation";
+import { slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import { WEEKDAY_NAMES, type PreferredSlotDraft } from "@/lib/templatePreferredSlot";
 
 /** One row of the weekly slot template (same for every bookable weekday; times are local wall-clock). */
@@ -118,7 +119,7 @@ export function buildWeeklySlotRows(
   }
 
   return rows.map((r, i) => {
-    const timeRange = `${minutesToKey(r.start)} – ${minutesToKey(r.end)}`;
+    const timeRange = slotTimeRangeLabel(minutesToKey(r.start), minutesToKey(r.end));
     return {
       key: minutesToKey(r.start),
       start: r.start,
@@ -200,7 +201,9 @@ export function describeWeeklySelection(weekday: number, run: readonly WeeklySlo
     ? run.length === 1
       ? first.label
       : `${first.label} – ${last.label}`
-    : `${minutesToKey(first.start)}–${minutesToKey(last.end)}`;
+    : last.end - first.start >= 1440
+      ? slotTimeRangeLabel(minutesToKey(first.start), null, last.end - first.start)
+      : `${minutesToKey(first.start)}–${minutesToKey(last.end)}`;
   return `Every ${WEEKDAY_NAMES[weekday] ?? "?"}, ${span} (${run.length} slot${run.length === 1 ? "" : "s"})`;
 }
 

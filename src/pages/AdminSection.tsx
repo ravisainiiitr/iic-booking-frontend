@@ -3,6 +3,7 @@ import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS, flattenApiErrorMessage } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { richTextToPlain } from "@/lib/richText";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { unlimitedQuotaConfigHint } from "@/lib/bookingQuota";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2855,7 +2856,7 @@ export default function AdminSection() {
                     <Label className="text-right">Time</Label>
                     <div className="col-span-3 text-sm text-muted-foreground">
                       {formData.start_datetime != null && formData.end_datetime != null
-                        ? `${String(formData.start_datetime).slice(11, 16)} – ${String(formData.end_datetime).slice(11, 16)}`
+                        ? slotSpanLabel(String(formData.start_datetime), String(formData.end_datetime))
                         : "—"}
                     </div>
                   </div>

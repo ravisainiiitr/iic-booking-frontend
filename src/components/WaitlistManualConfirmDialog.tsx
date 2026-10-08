@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -164,8 +165,10 @@ export default function WaitlistManualConfirmDialog({ open, onOpenChange, equipm
                     disabled={!s.selectable}
                     onCheckedChange={() => toggle(s.id)}
                   />
-                  <span className="w-28 font-medium tabular-nums">
-                    {timeLabel(s.start_datetime)} – {timeLabel(s.end_datetime)}
+                  <span className="min-w-28 font-medium tabular-nums">
+                    {s.start_datetime && s.end_datetime
+                      ? slotSpanLabel(s.start_datetime, s.end_datetime)
+                      : `${timeLabel(s.start_datetime)} – ${timeLabel(s.end_datetime)}`}
                   </span>
                   <Badge variant="outline" className={STATUS_TONE[s.status] ?? ""}>
                     {s.status_display || s.status}

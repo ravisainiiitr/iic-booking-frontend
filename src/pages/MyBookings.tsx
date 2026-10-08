@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, type BookingListFilters } from "@/lib/api";
 import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
@@ -2269,7 +2270,7 @@ const MyBookings = () => {
                                 const slotDisabled = !allowStartedSlots && started;
                                 const checked = cancelSlotIds.includes(slot.id);
                                 const slotLabel = shouldShowTimeDisplay(selectedBooking)
-                                  ? `${new Date(slot.start_datetime).toLocaleString()} – ${new Date(slot.end_datetime).toLocaleTimeString()}`
+                                  ? `${new Date(slot.start_datetime).toLocaleDateString()}, ${slotSpanLabel(slot.start_datetime, slot.end_datetime)}`
                                   : formatDMY(slot.start_datetime);
                                 return (
                                   <label

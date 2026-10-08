@@ -185,7 +185,7 @@ import { periodicTableElements, parsePeriodicHelpText, mergePeriodicDisplaySymbo
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
 import RecurringBlockRules from "@/components/slot-status/RecurringBlockRules";
 import { cn } from "@/lib/utils";
-import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
+import { slotRowEndTimes, slotSpanLabel, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
   resolveTableColumns,
   resolveTableRowCountSourceKey,
@@ -348,7 +348,7 @@ interface DailySlot {
 
 function describeGroupSlotWindow(start: string, end: string): string {
   try {
-    return `${format(parseISO(start), "EEE d MMM yyyy, HH:mm")} – ${format(parseISO(end), "HH:mm")}`;
+    return `${format(parseISO(start), "EEE d MMM yyyy")}, ${slotSpanLabel(parseISO(start), parseISO(end))}`;
   } catch {
     return `${start} – ${end}`;
   }
@@ -11434,12 +11434,14 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                               : [];
 
                           const slotStartLabel = slotData?.start_datetime ? format(parseISO(slotData.start_datetime), "HH:mm") : rowLabel;
-                          const slotEndLabel = slotData?.end_datetime ? format(parseISO(slotData.end_datetime), "HH:mm") : null;
-                          const slotWhen = `${format(day, "EEE d MMM")}, ${slotEndLabel ? `${slotStartLabel}–${slotEndLabel}` : slotStartLabel}`;
+                          const slotSpan = slotData?.start_datetime && slotData?.end_datetime
+                            ? slotSpanLabel(parseISO(slotData.start_datetime), parseISO(slotData.end_datetime), "–")
+                            : null;
+                          const slotWhen = `${format(day, "EEE d MMM")}, ${slotSpan ?? slotStartLabel}`;
                           const accessibleLabel = slotAccessibleLabel({
                             date: day,
-                            start: slotStartLabel,
-                            end: slotEndLabel,
+                            start: slotSpan ?? slotStartLabel,
+                            end: null,
                             state: isSelected ? "selected" : isDisabled ? "unavailable" : "available",
                             shortReason: isDisabled ? shortSlotReason(unavailableReason) : null,
                           });

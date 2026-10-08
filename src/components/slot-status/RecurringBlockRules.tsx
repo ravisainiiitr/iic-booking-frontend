@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
   WEEKDAY_LABELS,
   describeRule,
@@ -77,7 +78,7 @@ function SkippedBookedTable({ rows, total }: { rows: SkippedBookedSlot[]; total:
                 {r.weekday} {formatRuleDate(r.date)}
               </td>
               <td className="px-2 py-1 whitespace-nowrap tabular-nums">
-                {r.start_time}–{r.end_time}
+                {slotTimeRangeLabel(r.start_time, r.end_time)}
               </td>
               <td className="px-2 py-1 font-mono">{r.booking_reference || "—"}</td>
               <td className="px-2 py-1">{r.user_name || "—"}</td>
@@ -113,7 +114,7 @@ function SkippedOtherTable({ rows, total }: { rows: SkippedOtherSlot[]; total: n
                 {r.weekday} {formatRuleDate(r.date)}
               </td>
               <td className="px-2 py-1 whitespace-nowrap tabular-nums">
-                {r.start_time}–{r.end_time}
+                {slotTimeRangeLabel(r.start_time, r.end_time)}
               </td>
               <td className="px-2 py-1">
                 {r.reason}
@@ -422,11 +423,11 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                       key={t.time}
                       type="button"
                       aria-pressed={times.includes(t.time)}
-                      title={`${t.name}: ${t.time}–${t.end_time}`}
+                      title={`${t.name}: ${slotTimeRangeLabel(t.time, t.end_time)}`}
                       className={cn(CHIP_CLASS, "tabular-nums", times.includes(t.time) ? CHIP_ON_CLASS : CHIP_OFF_CLASS)}
                       onClick={() => setTimes((prev) => toggle(prev, t.time))}
                     >
-                      {t.time}–{t.end_time}
+                      {slotTimeRangeLabel(t.time, t.end_time)}
                     </button>
                   ))}
                 </div>

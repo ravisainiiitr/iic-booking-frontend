@@ -39,6 +39,15 @@ describe("buildWeeklySlotRows", () => {
     expect(rows[1]).toMatchObject({ start: 1320, end: 1500 });
   });
 
+  it("treats Close = Open as a full 24-hour slot", () => {
+    const rows = buildWeeklySlotRows({ slot_duration_minutes: 60, slot_masters: masters([["00:00:00", "00:00:00"]]) });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ key: "00:00", start: 0, end: 1440, timeRange: "00:00 – 24:00 (24 h)" });
+    const run = consecutiveRun(rows, 0, 1);
+    expect(run.ok && run.minutes).toBe(1440);
+    expect(describeWeeklySelection(0, rows.slice(0, 1))).toBe("Every Monday, 00:00 – 24:00 (24 h) (1 slot)");
+  });
+
   it("falls back to slot master open times plus the slot duration", () => {
     const rows = buildWeeklySlotRows({ slot_duration_minutes: 45, slot_master_times: ["09:00:00", "09:45:00"] });
     expect(rows.map((r) => [r.key, r.end])).toEqual([

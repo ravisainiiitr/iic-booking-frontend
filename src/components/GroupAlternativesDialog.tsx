@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, CalendarClock, Loader2, Microscope } from "lucide-react";
 import type { GroupAlternative, GroupAlternativesPayload } from "@/lib/api";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +31,7 @@ function formatWindow(start: string, end: string): string {
   try {
     const s = parseISO(start);
     const e = parseISO(end);
-    return `${format(s, "EEE d MMM yyyy, HH:mm")} – ${format(e, "HH:mm")}`;
+    return `${format(s, "EEE d MMM yyyy")}, ${slotSpanLabel(s, e)}`;
   } catch {
     return `${start} – ${end}`;
   }

@@ -348,7 +348,7 @@ export function LabOperatorWeekCalendarGrid({
       const sampleStatusText = String(slotData.booking_sample_status_display || "").trim();
       const start = slotData.start_datetime ? parseIsoDateAndTime(slotData.start_datetime).timeStr : rowLabel;
       const end = slotData.end_datetime ? parseIsoDateAndTime(slotData.end_datetime).timeStr : "";
-      const slotTimeText = start && end ? `${start} – ${end}` : start || rowLabel || "";
+      const slotTimeText = start && end ? slotTimeRangeLabel(start, end) : start || rowLabel || "";
       const tooltipLines = [
         displayRef ? `Booking ID: ${displayRef}` : null,
         userName ? `User: ${userName}` : null,

@@ -23,6 +23,7 @@ import {
 import { Loader2, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
+import { SLOT_MASTER_CLOSE_TIME_HELP, slotMasterRangeLabel, slotMastersError } from "@/lib/slotTimeRange";
 import {
   applyNumericLimitDraft,
   MIN_BELOW_ONE_MESSAGE,
@@ -1071,6 +1072,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         toast.error(fabricationError);
         return;
       }
+    }
+    const slotError = slotMastersError(formData.slot_masters ?? []);
+    if (slotError) {
+      toast.error(`Slot Masters: ${slotError}`);
+      return;
     }
     const payload: EquipmentFormData = {
       name: formData.name || undefined,
@@ -3929,9 +3935,14 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       <FormSection
         id="eq-sec-slot-masters"
         title="Slot Masters"
-        description="Named booking slots for this equipment (slot number, name, open/close time). Matches Django SlotMasterInline."
+        description={`Named booking slots for this equipment (slot number, name, open/close time). Matches Django SlotMasterInline. ${SLOT_MASTER_CLOSE_TIME_HELP}`}
         defaultOpen
       >
+        {slotMastersError(formData.slot_masters ?? []) && (
+          <p className="text-sm text-destructive" role="alert" data-testid="slot-masters-error">
+            {slotMastersError(formData.slot_masters ?? [])}
+          </p>
+        )}
         <div className="flex justify-end">
           <Button
             type="button"
@@ -4011,7 +4022,11 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                       return { ...p, slot_masters: arr };
                     })
                   }
+                  title={SLOT_MASTER_CLOSE_TIME_HELP}
                 />
+                {slotMasterRangeLabel(s.open_time, s.close_time) && (
+                  <p className="text-xs text-muted-foreground">{slotMasterRangeLabel(s.open_time, s.close_time)}</p>
+                )}
               </div>
               <div className="flex items-center gap-2 pb-1">
                 <label className="flex items-center gap-1.5 text-sm">
