@@ -8786,7 +8786,9 @@ class ApiClient {
       total_bookings: number;
       status_counts: Record<string, number>;
       charged_bookings?: number;
-      total_spent: number;
+      /** Money keys are omitted when revenue_visible is false (Lab Operators). */
+      revenue_visible?: boolean;
+      total_spent?: number;
       total_hours: number;
       average_cost?: number;
       refunded_amount?: number;
@@ -12831,6 +12833,8 @@ class ApiClient {
         };
       }>;
       utilization_pie: Array<{ name: string; value: number; hours: number }>;
+      /** False for Lab Operators: revenue_* summary keys and financial are omitted. */
+      revenue_visible?: boolean;
       summary: {
         total_equipment: number;
         total_hours?: number;

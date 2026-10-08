@@ -462,6 +462,8 @@ const Reports = () => {
 
   const isStaffScope = ["equipment", "department", "institute"].includes(stats.scope);
   const spentLabel = isStaffScope ? "Total Charged" : "Total Spent";
+  /** Lab Operators see usage only; the API also omits revenue for them. */
+  const showRevenue = !isLabInchargeUser && equipmentReportData?.revenue_visible !== false;
   const scopeDescription: Record<string, string> = {
     personal: "Your bookings",
     wallet_group: "Your bookings and your linked students' bookings",
@@ -1178,7 +1180,11 @@ const Reports = () => {
                   report="equipment-performance"
                   label="Export report"
                   size="default"
-                  description="Equipment performance report: summary, revenue, utilization, equipment-wise tables and ratings"
+                  description={
+                    showRevenue
+                      ? "Equipment performance report: summary, revenue, utilization, equipment-wise tables and ratings"
+                      : "Equipment performance report: summary, utilization, equipment-wise tables and ratings"
+                  }
                   getParams={equipmentReportParams}
                   disabled={equipmentLoading}
                   extraItems={[
@@ -1224,36 +1230,40 @@ const Reports = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <IndianRupee className="h-4 w-4" />
-                        Revenue (total)
-                      </CardTitle>
-                      <CardDescription>Completed bookings in period</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold">
-                      ₹{Number(equipmentReportData.summary.revenue_total || 0).toFixed(2)}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Revenue (internal)</CardTitle>
-                      <CardDescription>Students / faculty</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold">
-                      ₹{Number(equipmentReportData.summary.revenue_internal || 0).toFixed(2)}
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Revenue (external)</CardTitle>
-                      <CardDescription>External categories combined</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-2xl font-semibold">
-                      ₹{Number(equipmentReportData.summary.revenue_external || 0).toFixed(2)}
-                    </CardContent>
-                  </Card>
+                  {showRevenue && (
+                    <>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <IndianRupee className="h-4 w-4" />
+                            Revenue (total)
+                          </CardTitle>
+                          <CardDescription>Completed bookings in period</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-2xl font-semibold">
+                          ₹{Number(equipmentReportData.summary.revenue_total || 0).toFixed(2)}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Revenue (internal)</CardTitle>
+                          <CardDescription>Students / faculty</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-2xl font-semibold">
+                          ₹{Number(equipmentReportData.summary.revenue_internal || 0).toFixed(2)}
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base">Revenue (external)</CardTitle>
+                          <CardDescription>External categories combined</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-2xl font-semibold">
+                          ₹{Number(equipmentReportData.summary.revenue_external || 0).toFixed(2)}
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -1309,7 +1319,7 @@ const Reports = () => {
                   </Card>
                 </div>
 
-                {equipmentReportData.financial && (
+                {showRevenue && equipmentReportData.financial && (
                   <div className="grid lg:grid-cols-2 gap-6 mb-6">
                     <Card>
                       <ReportSectionHeader
@@ -1371,7 +1381,7 @@ const Reports = () => {
                   </div>
                 )}
 
-                {equipmentReportData.financial && (
+                {showRevenue && equipmentReportData.financial && (
                   <div className="grid lg:grid-cols-2 gap-6 mb-6">
                     <Card>
                       <ReportSectionHeader
