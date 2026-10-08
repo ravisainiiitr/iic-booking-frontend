@@ -176,7 +176,9 @@ export function weekdayRange(days: number[]): string {
 
 /** Header-line text for a mode: "Mon–Fri · next Wed 21 Oct", "Mon–Fri · full until Wed 21 Oct" or "not scheduled". */
 export function modeSummaryText(
-  m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_opening"> & { next_available: { date: string } | null },
+  m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_opening"> & {
+    next_available: { date: string; free_slots?: number } | null;
+  },
 ): string {
   let status: string;
   if (m.state === "maintenance") status = "maintenance";
@@ -200,7 +202,7 @@ export type ModeSummaryPart = { id: number; code: string; text: string; color: s
 export function modeSummaryParts(
   modes: Array<
     Pick<ModeAvailabilityMode, "equipment_id" | "code" | "role" | "weekdays" | "state" | "next_opening"> & {
-      next_available: { date: string } | null;
+      next_available: { date: string; free_slots?: number } | null;
     }
   >,
   currentId: number,
