@@ -108,6 +108,11 @@ function resolveSlotBookingPk(slot: LabCalendarSlot | undefined): number | null 
 
 const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
+/** Slot statuses that still belong to a booking staff can open (Booked, Completed, Booking Not Utilized). */
+function isBookingSlotStatus(status: string): boolean {
+  return status === "BOOKED" || status === "BOOKING_NOT_UTILIZED";
+}
+
 /** External bookings keep their own colour on staff calendars; labs can change it under Calendar colours. */
 export const EXTERNAL_BOOKED_COLOR = "#2563eb";
 
@@ -122,7 +127,7 @@ export interface LabOperatorWeekCalendarGridProps {
   equipmentTitle: string;
   slotsPayload: LabWeekCalendarSlotsPayload | null;
   onBookedSlotClick: (bookingId: number) => void;
-  /** When true, only time rows and weekdays that have at least one BOOKED slot; other cells are muted placeholders. */
+  /** When true, only time rows and weekdays that have at least one booked (or not utilized) slot; other cells are muted placeholders. */
   bookedSlotsOnly?: boolean;
   /** Controls shown on the right of the equipment name (stacked under it on narrow screens). */
   headerActions?: ReactNode;
@@ -178,7 +183,7 @@ function buildRowKeysAndLabels(slotsPayload: LabWeekCalendarSlotsPayload): { key
 
 /**
  * Weekly grid for Lab Operator / OIC dashboards and the staff app, in the same look as the booking screen.
- * Booked cells show the booking ID and user and open the booking; an OIC can also pick free slots.
+ * Booked and Booking Not Utilized cells show the booking ID and user and open the booking; an OIC can also pick free slots.
  */
 export function LabOperatorWeekCalendarGrid({
   weekStartIso,
@@ -222,7 +227,7 @@ export function LabOperatorWeekCalendarGrid({
       for (let d = 0; d < 7; d++) {
         const day = addDays(currentWeekStart, d);
         const s = getSlotData(day, row.key);
-        if (s && String(s.status).toUpperCase() === "BOOKED") return true;
+        if (s && isBookingSlotStatus(String(s.status).toUpperCase())) return true;
       }
       return false;
     });
@@ -235,7 +240,7 @@ export function LabOperatorWeekCalendarGrid({
       for (let d = 0; d < 7; d++) {
         const day = addDays(currentWeekStart, d);
         const s = getSlotData(day, row.key);
-        if (s && String(s.status).toUpperCase() === "BOOKED") set.add(d);
+        if (s && isBookingSlotStatus(String(s.status).toUpperCase())) set.add(d);
       }
     }
     return [0, 1, 2, 3, 4, 5, 6].filter((i) => set.has(i));
@@ -277,7 +282,7 @@ export function LabOperatorWeekCalendarGrid({
     const slotStatusUpper = String(slotData?.status ?? "").toUpperCase();
     const dateStr = format(day, "yyyy-MM-dd");
 
-    if (bookedSlotsOnly && slotStatusUpper !== "BOOKED") {
+    if (bookedSlotsOnly && !isBookingSlotStatus(slotStatusUpper)) {
       return (
         <div
           className="flex min-h-[48px] items-center justify-center rounded-md border-2 border-transparent bg-muted/20 p-2 text-sm font-medium text-muted-foreground/35"
@@ -298,9 +303,21 @@ export function LabOperatorWeekCalendarGrid({
           : "";
     const userName = String(slotData?.booking_user_name || "").trim();
     const isOpenBooking = slotStatusUpper === "BOOKED" && display.kind === "booked";
+    const isNotUtilized = display.kind === "not-utilized";
 
     let background = display.background;
     let content: ReactNode = display.label;
+    if (isNotUtilized && (displayRef || userName)) {
+      content = (
+        <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
+          {displayRef ? (
+            <span className="w-full truncate text-[11px] font-extrabold tracking-tight sm:text-xs">{displayRef}</span>
+          ) : null}
+          {userName ? <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">{userName}</span> : null}
+          <span className="w-full truncate text-[10px] opacity-90">Not utilized</span>
+        </span>
+      );
+    }
     if (isOpenBooking && slotData) {
       const bookingSt = String(slotData.booking_status || "").toUpperCase();
       if (bookingSt !== "CANCELLED" && bookingSt !== "REFUNDED") {
@@ -322,12 +339,12 @@ export function LabOperatorWeekCalendarGrid({
     }
     const style = slotCellStyle({ background, color: contrastTextColor(background) });
 
-    const canOpenBooking = slotStatusUpper === "BOOKED" && bookingPk != null;
+    const canOpenBooking = isBookingSlotStatus(slotStatusUpper) && bookingPk != null;
     if (canOpenBooking && slotData) {
       const deptName = String(slotData.booking_user_department_name || slotData.booking_user_department_code || "").trim();
-      const bookingStatusText = String(
-        slotData.booking_status_display || slotData.booking_status || display.label || ""
-      ).trim();
+      const bookingStatusText = isNotUtilized
+        ? display.label
+        : String(slotData.booking_status_display || slotData.booking_status || display.label || "").trim();
       const sampleStatusText = String(slotData.booking_sample_status_display || "").trim();
       const start = slotData.start_datetime ? parseIsoDateAndTime(slotData.start_datetime).timeStr : rowLabel;
       const end = slotData.end_datetime ? parseIsoDateAndTime(slotData.end_datetime).timeStr : "";

@@ -115,3 +115,79 @@ describe("LabOperatorWeekCalendarGrid cells", () => {
     expect(screen.getByText("Available")).toBeTruthy();
   });
 });
+
+const notUtilizedPayload = {
+  slots: [
+    { id: 4, date: "2099-01-05", slot_open_time: "09:30", start_datetime: "2099-01-05T09:30:00", status: "AVAILABLE" },
+    {
+      id: 5,
+      date: "2099-01-06",
+      slot_open_time: "09:30",
+      start_datetime: "2099-01-06T09:30:00",
+      end_datetime: "2099-01-06T10:00:00",
+      status: "BOOKING_NOT_UTILIZED",
+      booking_id: "NU-88",
+      real_booking_id: 88,
+      booking_status: "BOOKING_NOT_UTILIZED",
+      booking_user_name: "Idle User",
+      booking_user_department_name: "Physics",
+    },
+  ],
+  slot_duration_minutes: 30,
+} as unknown as LabWeekCalendarSlotsPayload;
+
+describe("LabOperatorWeekCalendarGrid Booking Not Utilized cells", () => {
+  it("shows the booking ID and user in the cell and opens the booking on click", () => {
+    const onBookedSlotClick = vi.fn();
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: notUtilizedPayload, onBookedSlotClick });
+    const cell = screen.getByRole("button", { name: /Booking ID: NU-88/ });
+    expect(cell.textContent).toContain("NU-88");
+    expect(cell.textContent).toContain("Idle User");
+    expect(cell.textContent).toContain("Not utilized");
+    fireEvent.click(cell);
+    expect(onBookedSlotClick).toHaveBeenCalledWith(88);
+  });
+
+  it("shows the booking hover card with status Booking Not Utilized", () => {
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: notUtilizedPayload });
+    fireEvent.focus(screen.getByRole("button", { name: /Booking ID: NU-88/ }));
+    const card = document.body.querySelector("[data-slot-hover-card]");
+    expect(card?.textContent).toContain("Booking ID: NU-88");
+    expect(card?.textContent).toContain("User: Idle User");
+    expect(card?.textContent).toContain("Department: Physics");
+    expect(card?.textContent).toContain("Status: Booking Not Utilized");
+    expect(card?.textContent).toContain("Slot: 09:30 – 10:00");
+    expect(card?.textContent).toContain("Equipment: Powder X-Ray Diffractometer (PXRD) [A]");
+  });
+
+  it("opens the booking instead of toggling selection when OIC selection is on", () => {
+    const onBookedSlotClick = vi.fn();
+    const onToggle = vi.fn();
+    renderGrid({
+      weekStartIso: "2099-01-05",
+      slotsPayload: notUtilizedPayload,
+      onBookedSlotClick,
+      selection: { selectedIds: new Set<number>(), canSelect: (s) => s.status === "AVAILABLE", onToggle },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Booking ID: NU-88/ }));
+    expect(onBookedSlotClick).toHaveBeenCalledWith(88);
+    expect(onToggle).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Available$/ }));
+    expect(onToggle).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }));
+  });
+
+  it("stays visible under Booked only", () => {
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: notUtilizedPayload, bookedSlotsOnly: true });
+    expect(screen.getByRole("button", { name: /Booking ID: NU-88/ })).toBeTruthy();
+  });
+
+  it("stays a plain cell when the slot has no booking reference", () => {
+    const payloadNoRef = {
+      ...notUtilizedPayload,
+      slots: [{ ...notUtilizedPayload.slots[1], booking_id: null, real_booking_id: null, booking_user_name: null }],
+    } as unknown as LabWeekCalendarSlotsPayload;
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: payloadNoRef, headerActions: undefined });
+    expect(screen.getByText("Booking Not Utilized")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+});

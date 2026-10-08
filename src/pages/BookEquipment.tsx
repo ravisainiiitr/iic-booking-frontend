@@ -8360,7 +8360,7 @@ const BookEquipment = () => {
                                         style={{ backgroundColor: closedDayColor }}
                                       />
                                     )}
-                                    {slot.status === "BOOKED" && slot.booking_id && (
+                                    {(slotStatusUpper === "BOOKED" || slotStatusUpper === "BOOKING_NOT_UTILIZED") && slot.booking_id && (
                                       <button
                                         type="button"
                                         aria-label="View booking details"

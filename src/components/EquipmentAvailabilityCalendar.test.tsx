@@ -72,4 +72,32 @@ describe("EquipmentAvailabilityCalendar", () => {
     await waitFor(() => expect(screen.getAllByText("No booking")).toHaveLength(2));
     expect(screen.queryByText("Past")).toBeNull();
   });
+
+  it("shows another user's Booking Not Utilized slot as plain Booked, with no booking details or link", async () => {
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, monday, {
+            status: "BOOKING_NOT_UTILIZED",
+            booking_id: "NU-41",
+            real_booking_id: 41,
+            booking_user_name: "Other Person",
+          }),
+          slot(2, addDays(monday, 6), { status: "AVAILABLE", start_datetime: "2099-01-01T09:00:00+05:30" }),
+        ],
+        slot_master_times: ["09:00:00"],
+        slot_duration_minutes: 60,
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    // The cell plus the legend entry.
+    await waitFor(() => expect(screen.getAllByText("Booked")).toHaveLength(2));
+    expect(screen.queryByText(/NU-41/)).toBeNull();
+    expect(screen.queryByText(/Other Person/)).toBeNull();
+    expect(screen.queryByText(/Not Utilized/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /NU-41|Booking ID/ })).toBeNull();
+  });
 });
