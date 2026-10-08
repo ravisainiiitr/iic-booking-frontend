@@ -61,7 +61,7 @@ export function ResultsDeadlineNotice({
         )}
         <div className="min-w-0">
           <p className="font-semibold">
-            {deadline.overdue ? "Results overdue" : "Results due"}: {deadline.due_display}
+            {deadline.overdue ? "Results deadline passed" : "Results deadline"}: {deadline.due_display}
           </p>
           <p className={deadline.overdue ? "text-xs" : "text-xs text-muted-foreground"}>
             Results deadline: {deadline.label}

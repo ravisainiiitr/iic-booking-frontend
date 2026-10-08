@@ -140,3 +140,25 @@ describe("Equipment Booking Configuration: waitlist and urgent request depth", (
     expect(payload).not.toHaveProperty("max_surcharge_urgent_requests_per_week");
   });
 });
+
+describe("Equipment Booking Configuration: results overdue time", () => {
+  it("defaults to 24 hours, refuses 0 and saves the hours and the user countdown switch", async () => {
+    renderAs("manager");
+    const hours = (await screen.findByLabelText("Results overdue after (hours)")) as HTMLInputElement;
+    expect(hours.value).toBe("24");
+    expect(screen.getByTestId("oic-results-overdue").textContent).toContain("plus the booked");
+
+    fireEvent.change(hours, { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    expect(await screen.findByText("Enter a value between 1 and 720 hours.")).toBeTruthy();
+    expect(api.update).not.toHaveBeenCalled();
+
+    fireEvent.change(hours, { target: { value: "48" } });
+    fireEvent.click(screen.getByLabelText("Show results countdown to users"));
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => expect(api.update).toHaveBeenCalledTimes(1));
+    const payload = api.update.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.results_overdue_after_hours).toBe(48);
+    expect(payload.show_results_countdown_to_users).toBe(true);
+  });
+});

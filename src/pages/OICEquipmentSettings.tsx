@@ -42,11 +42,14 @@ type Draft = Record<IntField | TimeField | DepthField, string> & {
   results_deadline_value: string;
   results_deadline_unit: ResultsDeadlineUnit;
   show_results_deadline_to_users: boolean;
+  results_overdue_after_hours: string;
+  show_results_countdown_to_users: boolean;
   important_instruction: string;
   important_instruction_by_user_type: Record<string, string>;
 };
 
 const RESULTS_DEADLINE_MAX: Record<ResultsDeadlineUnit, number> = { WORKING_DAYS: 60, HOURS: 720 };
+const RESULTS_OVERDUE_HOURS = { min: 1, max: 720, default: 24 };
 
 type QuotaMinutesField =
   | "internal_individual_quota_minutes"
@@ -177,6 +180,8 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     results_deadline_value: String(settings.results_deadline_value ?? 0),
     results_deadline_unit: settings.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
     show_results_deadline_to_users: Boolean(settings.show_results_deadline_to_users),
+    results_overdue_after_hours: String(settings.results_overdue_after_hours ?? RESULTS_OVERDUE_HOURS.default),
+    show_results_countdown_to_users: Boolean(settings.show_results_countdown_to_users),
     sample_submission_lead_hours: String(settings.sample_submission_lead_hours ?? 0),
     sample_collect_deadline_hours: String(settings.sample_collect_deadline_hours ?? 0),
     waitlist_queue_depth: String(settings.waitlist_queue_depth ?? 0),
@@ -239,6 +244,16 @@ function toPayload(
     payload.results_deadline_unit = draft.results_deadline_unit;
   }
   payload.show_results_deadline_to_users = draft.show_results_deadline_to_users;
+  const overdueRaw = draft.results_overdue_after_hours.trim();
+  const overdueHours = Number(overdueRaw);
+  if (overdueRaw === "" || !Number.isInteger(overdueHours)) {
+    errors.results_overdue_after_hours = "Enter a whole number of hours.";
+  } else if (overdueHours < RESULTS_OVERDUE_HOURS.min || overdueHours > RESULTS_OVERDUE_HOURS.max) {
+    errors.results_overdue_after_hours = `Enter a value between ${RESULTS_OVERDUE_HOURS.min} and ${RESULTS_OVERDUE_HOURS.max} hours.`;
+  } else {
+    payload.results_overdue_after_hours = overdueHours;
+  }
+  payload.show_results_countdown_to_users = draft.show_results_countdown_to_users;
   if (draft.weekly_view_time_from && draft.weekly_view_time_to && draft.weekly_view_time_from >= draft.weekly_view_time_to) {
     errors.weekly_view_time_to = "'Time to' must be later than 'Time from'.";
   }
@@ -748,12 +763,13 @@ export default function OICEquipmentSettings() {
                             Sample Accepted time if the sample is received after the slot. No deadline applies until the
                             sample is received. Working days skip
                             Saturdays, Sundays and institute holidays (results are due by the end of the last working
-                            day); use hours for fast instruments. Bookings still open after it appear as Results overdue
-                            for you and the Lab Operators. If the sample is still with the lab and no results are
+                            day); use hours for fast instruments. Bookings still open after it show Results deadline
+                            passed (the overdue counter, Results overdue list and reminders follow Results overdue
+                            after, below). If the sample is still with the lab and no results are
                             shared, the booking enters the Operator Absent flow (user chooses refund or reschedule); if
                             the run was abandoned after work started, the user gets a full refund. Use Extend results
-                            deadline on a booking for a genuine delay. 0 = no deadline (no overdue list and no
-                            automatic safeguard).
+                            deadline on a booking for a genuine delay (it also moves the results overdue time). 0 = no
+                            deadline (no automatic safeguard).
                           </p>
                           {fieldError("results_deadline_value")}
                           {fieldError("results_deadline_unit")}
@@ -768,6 +784,44 @@ export default function OICEquipmentSettings() {
                               <span className="block text-xs text-muted-foreground">
                                 Off by default. When on, the sample submission policy lists this equipment with its
                                 results time and the booking details show &quot;Results expected by&quot; a date.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                        <div className="space-y-1.5" data-testid="oic-results-overdue">
+                          <Label htmlFor="oic-setting-results-overdue">Results overdue after (hours)</Label>
+                          <Input
+                            id="oic-setting-results-overdue"
+                            type="number"
+                            inputMode="numeric"
+                            min={RESULTS_OVERDUE_HOURS.min}
+                            max={RESULTS_OVERDUE_HOURS.max}
+                            step={1}
+                            className="w-28"
+                            value={draft.results_overdue_after_hours}
+                            onChange={(e) => setField("results_overdue_after_hours", e.target.value)}
+                            aria-invalid={Boolean(errors.results_overdue_after_hours)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Counted from the booking end, or from the sample receipt (Sample Accepted) plus the booked
+                            time if that is later. Until then a booking whose sample the lab has is shown as &quot;Results
+                            due by&quot; a time, with no overdue counter, no Results overdue listing and no reminder.
+                            After it, Lab Operators (and you) see &quot;Overdue by&quot; counted from that time, the booking
+                            appears under Results overdue, and the 9:00 AM completion reminder includes it every day
+                            until it is completed. 1 to 720 hours; 24 by default.
+                          </p>
+                          {fieldError("results_overdue_after_hours")}
+                          <label className="flex items-start gap-2 pt-1 text-sm">
+                            <Checkbox
+                              checked={draft.show_results_countdown_to_users}
+                              onCheckedChange={(c) => setField("show_results_countdown_to_users", c === true)}
+                              aria-label="Show results countdown to users"
+                            />
+                            <span>
+                              Show results countdown to users
+                              <span className="block text-xs text-muted-foreground">
+                                Off by default. When on, the booking details tell the user &quot;Results expected
+                                by&quot; this time and, once it has passed, &quot;Results overdue by&quot; the hours.
                               </span>
                             </span>
                           </label>

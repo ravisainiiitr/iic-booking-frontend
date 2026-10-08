@@ -4,6 +4,7 @@ import {
   apiClient,
   type BookingLabMessageThread,
   type BookingResultsDeadline,
+  type BookingResultsOverdue,
   type FabricationFileChange,
   type FabricationPart,
   type FabricationWorkflow,
@@ -88,6 +89,7 @@ import {
   FabricationRejectedNotice,
 } from "@/components/booking/FabricationRejection";
 import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
+import { ResultsOverdueNotice } from "@/components/booking/ResultsOverdueNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -144,6 +146,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   operator_absent_hold_until?: string | null;
   /** Always for staff; for the booking user only when the equipment shows the results deadline to users. */
   results_deadline?: BookingResultsDeadline | null;
+  /** When results become overdue: always for staff; for the booking user only when the equipment shows the countdown. */
+  results_overdue?: BookingResultsOverdue | null;
   atmosphere_sensitive_sample?: boolean;
   /** When false, atmosphere-sensitive option is not offered for this equipment. */
   equipment_atmosphere_sensitive_sample_enabled?: boolean;
@@ -1861,6 +1865,14 @@ export function BookingDetailCard({
           )}
 
           {showResultsDeadlineNotice && (
+            <ResultsOverdueNotice
+              results={booking.results_overdue}
+              status={booking.status}
+              staffView={isOperatorOrManager}
+              userDeadline={booking.results_deadline}
+            />
+          )}
+          {showResultsDeadlineNotice && (isOperatorOrManager || !booking.results_overdue?.visible_to_user) && (
             <ResultsDeadlineNotice
               deadline={booking.results_deadline}
               status={booking.status}

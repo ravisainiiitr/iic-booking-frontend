@@ -230,6 +230,10 @@ export type EquipmentFormData = {
   results_deadline_unit?: "WORKING_DAYS" | "HOURS";
   /** Users see the results deadline in the sample policy and booking details. Off by default. */
   show_results_deadline_to_users?: boolean;
+  /** Hours after the later of the booking end and (sample receipt + booked time) before results are overdue (1–720, default 24). */
+  results_overdue_after_hours?: number | null;
+  /** Users see "Results expected by" / "Results overdue by" in booking details. Off by default. */
+  show_results_countdown_to_users?: boolean;
   skip_quota_check?: boolean;
   enable_charge_recalculation?: boolean;
   /** Users may add samples with different parameters (extra sample sets). Main administrator only. */
@@ -577,6 +581,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     results_deadline_value: 2,
     results_deadline_unit: "WORKING_DAYS",
     show_results_deadline_to_users: false,
+    results_overdue_after_hours: 24,
+    show_results_countdown_to_users: false,
     show_lifecycle_countdowns: true,
     sample_submission_lead_hours: 24,
     atmosphere_sensitive_sample_enabled: false,
@@ -877,6 +883,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         results_deadline_value: (d.results_deadline_value as number | null) ?? 2,
         results_deadline_unit: d.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
         show_results_deadline_to_users: d.show_results_deadline_to_users === true,
+        results_overdue_after_hours: (d.results_overdue_after_hours as number | null) ?? 24,
+        show_results_countdown_to_users: d.show_results_countdown_to_users === true,
         skip_quota_check: d.skip_quota_check === true,
         enable_charge_recalculation: d.enable_charge_recalculation === true,
         allow_multiple_sample_sets: d.allow_multiple_sample_sets !== false,
@@ -1153,6 +1161,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             results_deadline_value: Math.max(0, Number(formData.results_deadline_value ?? 0) || 0),
             results_deadline_unit: formData.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
             show_results_deadline_to_users: formData.show_results_deadline_to_users === true,
+            results_overdue_after_hours: Math.min(720, Math.max(1, Number(formData.results_overdue_after_hours ?? 24) || 24)),
+            show_results_countdown_to_users: formData.show_results_countdown_to_users === true,
           }
         : {}),
       show_lifecycle_countdowns: formData.show_lifecycle_countdowns !== false,
@@ -3128,9 +3138,43 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-muted-foreground text-xs">
             Results are due this long after the last slot ends, or after the sample is received (Sample Accepted) if that
             is later; no deadline applies before receipt (working days skip weekends and institute holidays; up to
-            60 working days or 720 hours; 0 = none). Lab Operators and the OIC see bookings past it as Results overdue;
-            it also replaces the old Auto Operator Unavailable / Absent Disruption timers. Users see it only when
-            &quot;Show results deadline to users&quot; is on.
+            60 working days or 720 hours; 0 = none). Bookings past it show Results deadline passed; it also replaces
+            the old Auto Operator Unavailable / Absent Disruption timers. Users see it only when &quot;Show results
+            deadline to users&quot; is on.
+            {canEditResultsDeadline ? "" : " Only the Main Admin and the equipment's OIC can change it."}
+          </p>
+        </div>
+        <div className="space-y-2" data-testid="equipment-results-overdue">
+          <Label htmlFor="results-overdue-hours">Results overdue after (hours)</Label>
+          <Input
+            id="results-overdue-hours"
+            type="number"
+            min={1}
+            max={720}
+            className="w-28"
+            disabled={!canEditResultsDeadline}
+            value={formData.results_overdue_after_hours ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              setFormData((p) => ({
+                ...p,
+                results_overdue_after_hours: v === "" ? null : Math.min(720, Math.max(1, parseInt(v, 10) || 1)),
+              }));
+            }}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={formData.show_results_countdown_to_users === true}
+              disabled={!canEditResultsDeadline}
+              onCheckedChange={(c) => setFormData((p) => ({ ...p, show_results_countdown_to_users: c === true }))}
+            />
+            Show results countdown to users
+          </label>
+          <p className="text-muted-foreground text-xs">
+            Hours after the booking end, or after the sample receipt plus the booked time if that is later, before an
+            open booking counts as Results overdue (1 to 720; 24 by default). The overdue counter, the Results overdue
+            list and the daily 9:00 AM completion reminder start only then. Users see &quot;Results expected by&quot; /
+            &quot;Results overdue by&quot; only when the countdown is shown to users.
             {canEditResultsDeadline ? "" : " Only the Main Admin and the equipment's OIC can change it."}
           </p>
         </div>

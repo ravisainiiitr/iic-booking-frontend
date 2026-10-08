@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 export const RESULTS_OVERDUE_LIST_PATH = "/booking-management?results=overdue";
 
-/** OIC / Lab in-charge dashboard: open bookings of their equipment past the equipment's results deadline. */
+/** OIC / Lab in-charge dashboard: open bookings of their equipment past the equipment's results overdue time. */
 export default function ResultsOverdueCard({ className = "" }: { className?: string }) {
   const navigate = useNavigate();
   const [rows, setRows] = useState<ResultsOverdueBooking[]>([]);
@@ -39,9 +39,10 @@ export default function ResultsOverdueCard({ className = "" }: { className?: str
           <Badge className="bg-red-600 hover:bg-red-600">{rows.length}</Badge>
         </CardTitle>
         <CardDescription>
-          These bookings are past the results deadline set for the equipment. Share the results and complete the
-          booking, or, for a genuine delay, open the booking and use Extend results deadline (the user is told the
-          reason).
+          The results of these bookings are overdue: the time set for the equipment (24 hours unless changed) has
+          passed since the booking end, or since the sample receipt plus the booked time if that was later. Share
+          the results and complete the booking, or, for a genuine delay, open the booking and use Extend results
+          deadline (the user is told the reason).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
@@ -52,7 +53,7 @@ export default function ResultsOverdueCard({ className = "" }: { className?: str
                 <TableHead>Booking ID</TableHead>
                 <TableHead>Equipment</TableHead>
                 <TableHead>User</TableHead>
-                <TableHead>Results were due</TableHead>
+                <TableHead>Results were due by</TableHead>
                 <TableHead>Overdue by</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>

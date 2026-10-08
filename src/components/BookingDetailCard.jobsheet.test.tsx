@@ -190,7 +190,7 @@ describe("BookingDetailCard job sheet", () => {
       const due = render(withDeadlines({ sample_trace: accepted }), operator);
       expect(due).not.toContain("Time remaining");
       expect(due).toContain("job-sheet-results-due");
-      expect(due).toContain("Results due");
+      expect(due).toContain("Results deadline");
 
       const late = render(
         withDeadlines({
@@ -199,7 +199,38 @@ describe("BookingDetailCard job sheet", () => {
         }),
         operator,
       );
+      expect(late).toContain("Results deadline (passed)");
+    });
+
+    it("shows when results become overdue, and the overdue hours after that", () => {
+      const accepted = [{ status: "SAMPLE_ACCEPTED", created_at: "2026-10-06T05:00:00Z" }];
+      const resultsOverdue = {
+        hours: 24,
+        label: "24 hours after the booking end",
+        due_at: "2099-10-07T13:01:00Z",
+        due_display: "Wed 07 Oct 2099, 06:31 PM",
+        overdue: false,
+        overdue_by: null,
+        waiting_for_user: false,
+        extended: false,
+        anchor_at: "2099-10-06T13:01:00Z",
+        slot_end_at: "2099-10-06T09:00:00Z",
+        sample_received_at: "2099-10-06T10:31:00Z",
+        booked_minutes: 150,
+        counted_from_receipt: true,
+        visible_to_user: false,
+      };
+      const due = render(withDeadlines({ sample_trace: accepted, results_overdue: resultsOverdue }), operator);
+      expect(due).toContain("job-sheet-results-overdue");
+      expect(due).toContain("Results due by");
+      expect(due).toContain("Wed 07 Oct 2099, 06:31 PM");
+
+      const late = render(
+        withDeadlines({ sample_trace: accepted, results_overdue: { ...resultsOverdue, overdue: true, overdue_by: "13 h" } }),
+        operator,
+      );
       expect(late).toContain("Results overdue");
+      expect(late).toContain("by 13 h (due by Wed 07 Oct 2099, 06:31 PM)");
     });
 
     it("still shows the countdown to the booking user, not to the Officer In Charge", () => {

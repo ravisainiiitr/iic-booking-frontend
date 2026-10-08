@@ -77,17 +77,17 @@ describe("ResultsDeadlineNotice", () => {
     expect(screen.getByTestId("results-deadline-user").textContent).toContain("Results were expected by Tue 13 Oct");
   });
 
-  it("always shows staff the due date, and flags overdue bookings", () => {
+  it("always shows staff the deadline, and flags it once passed", () => {
     render(<ResultsDeadlineNotice deadline={deadline({ extended: true })} status="BOOKED" staffView now={before} />);
     const due = screen.getByTestId("results-deadline-staff").textContent ?? "";
-    expect(due).toContain("Results due: Tue 13 Oct");
+    expect(due).toContain("Results deadline: Tue 13 Oct");
     expect(due).toContain("(extended for this booking)");
     expect(due).toContain("Not shown to the user.");
     cleanup();
 
     render(<ResultsDeadlineNotice deadline={deadline({ overdue: true, visible_to_user: true })} status="BOOKED" staffView now={after} />);
     const overdue = screen.getByTestId("results-deadline-staff").textContent ?? "";
-    expect(overdue).toContain("Results overdue: Tue 13 Oct");
+    expect(overdue).toContain("Results deadline passed: Tue 13 Oct");
     expect(overdue).toContain("The user can see this date.");
   });
 

@@ -10,7 +10,7 @@ import { formatDurationMinutes, groupSlotsByDay, latestSampleStage, telHref, typ
 import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/SampleRequirementsTable";
 import { resultsDeadlineApplies, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { isFabricationProfile } from "@/lib/fabricationProfiles";
-import type { BookingResultsDeadline } from "@/lib/api";
+import type { BookingResultsDeadline, BookingResultsOverdue } from "@/lib/api";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
 export type JobSheetBooking = {
@@ -40,6 +40,7 @@ export type JobSheetBooking = {
   sample_return_after_analysis?: boolean;
   source_booking_id?: number | null;
   results_deadline?: BookingResultsDeadline | null;
+  results_overdue?: BookingResultsOverdue | null;
   equipment_profile_type?: string | null;
 };
 
@@ -84,6 +85,7 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const comments = commentsKey ? String(values[commentsKey] ?? "").trim() : "";
   const notes = String(booking.notes || "").trim();
   const results = isFabrication ? null : booking.results_deadline;
+  const resultsDue = isFabrication ? null : booking.results_overdue;
   const flags: Array<{ key: string; icon: ReactNode; text: string }> = [];
   if (booking.atmosphere_sensitive_sample && !isFabrication) {
     flags.push({
@@ -174,13 +176,29 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
             )}
           </Fact>
         )}
+        {resultsDue && resultsDeadlineApplies(booking.status) ? (
+          <Fact label={resultsDue.overdue ? "Results overdue" : "Results due by"}>
+            <span
+              className={resultsDue.overdue ? "text-red-700 dark:text-red-300" : undefined}
+              data-testid="job-sheet-results-overdue"
+            >
+              {resultsDue.overdue ? (
+                <>
+                  <AlertTriangle className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden />
+                  by {resultsDue.overdue_by} (due by {resultsDue.due_display})
+                </>
+              ) : (
+                resultsDue.due_display
+              )}
+            </span>
+          </Fact>
+        ) : null}
         {results && resultsDeadlineApplies(booking.status) && sampleAcceptedForResults(booking.status, booking.sample_trace) ? (
-          <Fact label={results.overdue ? "Results overdue" : "Results due"}>
+          <Fact label={results.overdue ? "Results deadline (passed)" : "Results deadline"}>
             <span
               className={results.overdue ? "text-red-700 dark:text-red-300" : undefined}
               data-testid="job-sheet-results-due"
             >
-              {results.overdue ? <AlertTriangle className="mr-1 inline h-4 w-4 align-text-bottom" aria-hidden /> : null}
               {results.due_display}
             </span>
           </Fact>

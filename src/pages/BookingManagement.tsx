@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, type BookingListFilters, type BookingResultsDeadline } from "@/lib/api";
+import {
+  apiClient,
+  type BookingListFilters,
+  type BookingResultsDeadline,
+  type BookingResultsOverdue,
+} from "@/lib/api";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -53,6 +58,7 @@ interface Booking extends BookingRef {
   sample_summary?: SampleSummary | null;
   lab_questions_open?: number;
   results_deadline?: BookingResultsDeadline | null;
+  results_overdue?: BookingResultsOverdue | null;
   user: number;
   user_email: string;
   user_name: string;
@@ -125,7 +131,7 @@ interface Booking extends BookingRef {
 }
 
 const PAGE_SIZE = 10;
-/** Pseudo status: open bookings past the equipment's results deadline (sent as results_overdue=1). */
+/** Pseudo status: open bookings past the equipment's results overdue time (sent as results_overdue=1). */
 const RESULTS_OVERDUE_FILTER = "RESULTS_OVERDUE";
 
 /** Status the list opens with: Booked for the Main Administrator, All status for everyone else. */
@@ -626,11 +632,11 @@ const BookingManagement = () => {
                             </span>
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
-                          {booking.results_deadline?.overdue ? (
+                          {booking.results_overdue?.overdue ? (
                             <Badge
                               variant="outline"
                               className="mt-1 border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200"
-                              title={`Results were due ${booking.results_deadline.due_display}`}
+                              title={`Results were due by ${booking.results_overdue.due_display} (overdue by ${booking.results_overdue.overdue_by})`}
                               data-testid="results-overdue-badge"
                             >
                               Results overdue

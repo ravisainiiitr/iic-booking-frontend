@@ -1221,6 +1221,10 @@ export interface OicEquipmentSettings {
   results_deadline_value: number;
   results_deadline_unit: ResultsDeadlineUnit;
   show_results_deadline_to_users: boolean;
+  /** Hours (1–720, default 24) after the later of the booking end and (sample receipt + booked time) before results count as overdue. */
+  results_overdue_after_hours?: number;
+  /** When on, booking users see "Results expected by" and, after it, "Results overdue by". */
+  show_results_countdown_to_users?: boolean;
   sample_submission_lead_hours: number;
   sample_collect_deadline_hours: number;
   /** Maximum active waitlist entries; 0 = waitlist off. */
@@ -1263,6 +1267,28 @@ export interface BookingResultsDeadline {
   counted_from_receipt?: boolean;
 }
 
+/**
+ * Booking `results_overdue` (backend `results_overdue`): when the results of an open booking become overdue, i.e.
+ * the equipment's hours after the later of the booking end and (sample receipt + booked time). Always for staff;
+ * for the booking user only when the equipment shows the results countdown. Absent before the lab has the sample.
+ */
+export interface BookingResultsOverdue {
+  hours: number;
+  label: string;
+  due_at: string;
+  due_display: string;
+  overdue: boolean;
+  overdue_by: string | null;
+  waiting_for_user: boolean;
+  extended: boolean;
+  anchor_at: string;
+  slot_end_at: string;
+  sample_received_at: string | null;
+  booked_minutes: number;
+  counted_from_receipt: boolean;
+  visible_to_user: boolean;
+}
+
 /** sample_accepted: Sample Accepted time; walk_in: brought to the slot; no_timestamp: later stage recorded without Sample Accepted. */
 export type SampleReceiptSource = "sample_accepted" | "walk_in" | "no_timestamp";
 
@@ -1276,9 +1302,17 @@ export interface BookingAwaitingCompletion {
   status: string;
   ended_at: string;
   ended_display: string;
-  /** Time since the later of slot end and sample receipt. */
+  /** Time since the results overdue time; empty until then. */
   overdue: string;
   link: string;
+  /** When the results become overdue (results overdue time). */
+  results_due_at?: string | null;
+  results_due_at_display?: string;
+  overdue_after_hours?: number | null;
+  is_overdue?: boolean;
+  /** The sample is held at the office or rejected: waiting for the user, never overdue. */
+  waiting_for_user?: boolean;
+  /** The equipment's separate results deadline (working days / hours), and whether it has passed. */
   results_due_display?: string;
   results_overdue?: boolean;
   sample_received_at?: string | null;
@@ -1301,6 +1335,9 @@ export interface ResultsOverdueBooking {
   deadline_label: string;
   extended: boolean;
   overdue_by: string;
+  overdue_after_hours?: number;
+  /** The equipment's separate results deadline, if it has one. */
+  results_deadline_display?: string;
   link: string;
 }
 
