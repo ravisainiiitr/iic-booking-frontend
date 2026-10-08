@@ -134,9 +134,11 @@ const DEFAULT_SLOT_COLORS: Record<string, string> = {
   COMPLETED: "#059669",
   BLOCKED: "#64748b",
   UNDER_MAINTENANCE: "#f97316",
+  SCHEDULED_MAINT: "#fcd34d",
   OPERATOR_ABSENT: "#eab308",
   BOOKING_NOT_UTILIZED: "#a855f7",
   HOLD: "#f59e0b",
+  RESERVED_EXTERNAL: "#f0abfc",
   NOT_AVAILABLE: "#e2e8f0",
 };
 
@@ -749,8 +751,10 @@ export default function TAAssignments() {
                                       BOOKED: "Booked",
                                       BLOCKED: "Blocked",
                                       UNDER_MAINTENANCE: "Under Maintenance",
+                                      SCHEDULED_MAINT: "Scheduled Maintenance",
                                       OPERATOR_ABSENT: "Operator Absent",
                                       BOOKING_NOT_UTILIZED: "Booked",
+                                      RESERVED_EXTERNAL: "Reserved (External)",
                                     };
                                     if (isCompletedSlot(slotData)) {
                                       displayStatus = "Completed";

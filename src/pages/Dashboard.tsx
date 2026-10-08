@@ -60,8 +60,16 @@ import { LabCalendarColorConfig } from "@/components/LabCalendarColorConfig";
 import {
   LabCalendarSlotActions,
   isDashboardSelectableSlot,
+  type LabCalendarSlotApplyOptions,
   type LabCalendarSlotOperation,
 } from "@/components/dashboard/LabCalendarSlotActions";
+import {
+  mergeDisruptionEvents,
+  useDisruptionPrompt,
+  type DisruptionPromptOutcome,
+} from "@/components/disruptions/useDisruptionPrompt";
+import { canViewDisruptions, type DisruptionEventIds } from "@/lib/disruptions";
+import { slotOperationLabel } from "@/lib/slotOperations";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
 import { SlotCalendarLegend } from "@/components/slot-calendar/SlotWeekGrid";
@@ -1118,22 +1126,51 @@ const Dashboard = () => {
 
   const labSelectedSlotCount = Object.values(labSelectedSlotIds).reduce((n, ids) => n + ids.length, 0);
 
+  const disruptionPrompt = useDisruptionPrompt();
+  const askForSlotStatusChange = disruptionPrompt.askForSlotStatusChange;
+
   const applyLabSlotStatus = useCallback(
-    async (status: LabCalendarSlotOperation, blockedLabel: string | null) => {
+    async (status: LabCalendarSlotOperation, options: LabCalendarSlotApplyOptions) => {
       const batches = Object.entries(labSelectedSlotIds).filter(([, ids]) => ids.length > 0);
       if (batches.length === 0) return;
+      const summaries = labOperatorDash?.equipment_summaries ?? [];
+      let outcome: DisruptionPromptOutcome | null;
+      try {
+        outcome = await askForSlotStatusChange({
+          status,
+          statusLabel: slotOperationLabel(status),
+          batches: batches.map(([equipmentId, ids]) => ({
+            equipmentId: Number(equipmentId),
+            equipmentName: summaries.find((e) => e.equipment_id === Number(equipmentId))?.equipment_name ?? null,
+            slot_ids: ids,
+          })),
+          canAttachReport: canViewDisruptions(userTypeStr),
+        });
+      } catch {
+        outcome = null;
+      }
+      if (outcome === null) return;
       setLabSlotActionBusy(true);
       let updated = 0;
       const failures: string[] = [];
+      const events: DisruptionEventIds[] = [];
       for (const [equipmentId, ids] of batches) {
         try {
           const res = await apiClient.adminEquipmentBulkSlotStatus(Number(equipmentId), {
             status,
             slot_ids: ids,
-            ...(status === "BLOCKED" ? { blocked_label: blockedLabel } : {}),
+            source: "dashboard_calendar",
+            ...outcome.fields,
+            ...(status === "BLOCKED" ? { blocked_label: options.blockedLabel } : {}),
+            ...(status === "RESERVED_EXTERNAL" && options.externalReference
+              ? { external_reference: options.externalReference }
+              : {}),
           });
           if (res.error) failures.push(res.error);
-          else updated += res.data?.updated ?? ids.length;
+          else {
+            updated += res.data?.updated ?? ids.length;
+            if (res.data?.disruption_events) events.push(res.data.disruption_events);
+          }
         } catch (e) {
           failures.push(e instanceof Error ? e.message : "Failed to update slots");
         }
@@ -1141,10 +1178,11 @@ const Dashboard = () => {
       setLabSlotActionBusy(false);
       if (updated > 0) toast.success(`Updated ${updated} slot${updated === 1 ? "" : "s"}.`);
       if (failures.length > 0) toast.error(failures[0]);
+      if (updated > 0) await outcome.afterApply(mergeDisruptionEvents(events));
       setLabSelectedSlotIds({});
       setLabSlotsRefresh((x) => x + 1);
     },
-    [labSelectedSlotIds],
+    [labSelectedSlotIds, labOperatorDash?.equipment_summaries, askForSlotStatusChange, userTypeStr],
   );
 
   const labColorConfigEquipmentId = useMemo(() => {
@@ -4472,10 +4510,11 @@ const Dashboard = () => {
                             <LabCalendarSlotActions
                               selectedCount={labSelectedSlotCount}
                               busy={labSlotActionBusy}
-                              onApply={(status, blockedLabel) => void applyLabSlotStatus(status, blockedLabel)}
+                              onApply={(status, options) => void applyLabSlotStatus(status, options)}
                               onClear={() => setLabSelectedSlotIds({})}
                             />
                           ) : null}
+                          {disruptionPrompt.element}
                           <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
                           <LabCalendarColorConfig
                             equipmentId={labColorConfigEquipmentId}

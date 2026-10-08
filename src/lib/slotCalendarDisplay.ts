@@ -12,11 +12,13 @@ export const SLOT_CALENDAR_DEFAULT_COLORS: Record<string, string> = {
   COMPLETED: "#059669",
   BLOCKED: "#64748b",
   UNDER_MAINTENANCE: "#f97316",
+  SCHEDULED_MAINT: "#fcd34d",
   OPERATOR_ABSENT: "#eab308",
   BOOKING_NOT_UTILIZED: "#a855f7",
   HOLD: "#f59e0b",
   HOME_DEPARTMENT_ONLY: "#c4b5fd",
   NON_HOME_RESERVED: "#06b6d4",
+  RESERVED_EXTERNAL: "#f0abfc",
   NOT_AVAILABLE: "#e2e8f0",
 };
 
@@ -34,9 +36,11 @@ const STATUS_LABELS: Record<string, string> = {
   BOOKED: "Booked",
   BLOCKED: "Other Reasons",
   UNDER_MAINTENANCE: "Under Maintenance",
+  SCHEDULED_MAINT: "Scheduled Maintenance",
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "On Hold",
+  RESERVED_EXTERNAL: "Reserved (External)",
 };
 
 export interface CalendarColorsInput {
@@ -207,7 +211,9 @@ export function slotCalendarLegend(palette: SlotCalendarPalette): SlotLegendItem
     { label: "Completed", color: c.COMPLETED },
     { label: NO_BOOKING_LABEL, color: NO_BOOKING_COLOR },
     { label: "Maintenance", color: c.UNDER_MAINTENANCE },
+    { label: "Scheduled maintenance", color: c.SCHEDULED_MAINT ?? SLOT_CALENDAR_DEFAULT_COLORS.SCHEDULED_MAINT },
     { label: "Other reasons", color: c.BLOCKED },
+    { label: "Reserved (External)", color: c.RESERVED_EXTERNAL ?? SLOT_CALENDAR_DEFAULT_COLORS.RESERVED_EXTERNAL },
     { label: "Not available", color: c.NOT_AVAILABLE },
     { label: "Saturday", color: palette.saturday },
     { label: "Sunday", color: palette.sunday },

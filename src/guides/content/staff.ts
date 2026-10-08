@@ -180,13 +180,21 @@ export function slotStatusSection(g: Gate): GuideSection {
         title: "Select and apply",
         body: "Click slots, time labels (rows) or day headers (columns), then apply the new status.",
       },
+      g.only(["oic", "admin", "operator"], {
+        title: "Choose the operation",
+        body: "Under Maintenance, Scheduled Maintenance, Operator Absent and Other Reasons are disruptions: booked slots in them are cancelled and refunded, and each one is recorded in the disruption history. Not Available closes slots without counting as a disruption. Reserved for External keeps slots for an external (I-STEM) user, with an optional I-STEM FBR reference; users cannot book them, but you can book them for the external user with Book slots for a user. Not Available and Reserved for External leave booked slots unchanged.",
+      }),
+      g.only(["oic", "admin"], {
+        title: "Record the reason",
+        body: "When you mark a disruption, a short dialog shows what will change and asks for a category and a reason. When you make the slots Available again, it asks for the action taken and lets you attach a service report (PDF, image or Word, up to 20 MB). Everything is optional: Skip applies the change, and you can add the details later from the disruption history.",
+      }),
       g.only(["oic", "admin"], {
         title: "Read the week",
         body: "The week uses the same colours and labels as the booking calendar, and a free slot whose time has passed shows No booking. Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by the multi-mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
       }),
       g.only(["oic"], {
         title: "From your dashboard",
-        body: "On the dashboard week calendar, click upcoming free slots of your equipment to select them, choose Available, Other Reasons (with an optional reason), Under Maintenance or Operator Absent under Mark as, and click Apply. Booked slots still open the booking; change booked or past slots here in Change slot status.",
+        body: "On the dashboard week calendar, click upcoming free slots of your equipment to select them, choose Available, Other Reasons (with an optional reason), Under Maintenance, Scheduled Maintenance, Operator Absent, Not Available or Reserved for External under Mark as, and click Apply. The same reason and action-taken prompts appear. Booked slots still open the booking; change booked or past slots here in Change slot status.",
       }),
       g.only(["oic", "admin"], {
         title: "Repeat block",
@@ -196,6 +204,14 @@ export function slotStatusSection(g: Gate): GuideSection {
     rules: compact([
       g.only(["oic"], "Available only on equipment assigned to you."),
       "Admins and Officers In Charge can see and book slots in any week.",
+      g.only(
+        ["oic", "admin"],
+        "Setting equipment to Under Maintenance or back to Operational from its card asks for the same reason or action taken; the whole period is recorded as one disruption.",
+      ),
+      g.only(
+        ["oic", "admin", "operator"],
+        "Operator Unavailable, Under maintenance and Analysis Not Possible on a booking are recorded as disruptions too, with an optional category.",
+      ),
       g.only(
         ["oic", "admin"],
         "Repeat block only blocks free slots. Booked slots keep their bookings (nothing is cancelled or refunded) and are listed for you; slots already blocked or under maintenance are left as they are.",

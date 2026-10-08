@@ -6,16 +6,25 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { LabCalendarSlot } from "@/lib/labOperatorCalendarTypes";
 import { isSlotInPast } from "@/lib/slotCalendarDisplay";
+import { EXTERNAL_REFERENCE_MAX_LENGTH } from "@/lib/slotOperations";
 
 /** Same operations and wording as Change slot status. */
 export const LAB_CALENDAR_SLOT_OPERATIONS = [
   { value: "AVAILABLE", label: "Available" },
   { value: "BLOCKED", label: "Other Reasons" },
   { value: "UNDER_MAINTENANCE", label: "Under Maintenance" },
+  { value: "SCHEDULED_MAINT", label: "Scheduled Maintenance" },
   { value: "OPERATOR_ABSENT", label: "Operator Absent" },
+  { value: "NOT_AVAILABLE", label: "Not Available" },
+  { value: "RESERVED_EXTERNAL", label: "Reserved for External" },
 ] as const;
 
 export type LabCalendarSlotOperation = (typeof LAB_CALENDAR_SLOT_OPERATIONS)[number]["value"];
+
+export interface LabCalendarSlotApplyOptions {
+  blockedLabel: string | null;
+  externalReference: string | null;
+}
 
 /**
  * Slots an OIC can pick on the dashboard calendar: upcoming slots without a booking.
@@ -34,7 +43,7 @@ export function isDashboardSelectableSlot(
 interface Props {
   selectedCount: number;
   busy?: boolean;
-  onApply: (status: LabCalendarSlotOperation, blockedLabel: string | null) => void;
+  onApply: (status: LabCalendarSlotOperation, options: LabCalendarSlotApplyOptions) => void;
   onClear: () => void;
 }
 
@@ -42,6 +51,7 @@ interface Props {
 export function LabCalendarSlotActions({ selectedCount, busy = false, onApply, onClear }: Props) {
   const [operation, setOperation] = useState<LabCalendarSlotOperation>("BLOCKED");
   const [blockedLabel, setBlockedLabel] = useState("");
+  const [externalReference, setExternalReference] = useState("");
 
   if (selectedCount === 0) {
     return (
@@ -87,6 +97,16 @@ export function LabCalendarSlotActions({ selectedCount, busy = false, onApply, o
             className="h-9 w-[16rem] max-w-full text-sm"
           />
         )}
+        {operation === "RESERVED_EXTERNAL" && (
+          <Input
+            aria-label="I-STEM FBR reference (optional)"
+            placeholder="I-STEM FBR reference (optional)"
+            value={externalReference}
+            maxLength={EXTERNAL_REFERENCE_MAX_LENGTH}
+            onChange={(e) => setExternalReference(e.target.value)}
+            className="h-9 w-[16rem] max-w-full text-sm"
+          />
+        )}
       </div>
       <div className="flex items-center gap-2 sm:ml-auto">
         <Button variant="outline" size="sm" className="h-9" onClick={onClear} disabled={busy}>
@@ -96,7 +116,12 @@ export function LabCalendarSlotActions({ selectedCount, busy = false, onApply, o
           size="sm"
           className="h-9 bg-brand text-white hover:bg-brand/90"
           disabled={busy}
-          onClick={() => onApply(operation, operation === "BLOCKED" ? blockedLabel.trim() || null : null)}
+          onClick={() =>
+            onApply(operation, {
+              blockedLabel: operation === "BLOCKED" ? blockedLabel.trim() || null : null,
+              externalReference: operation === "RESERVED_EXTERNAL" ? externalReference.trim() || null : null,
+            })
+          }
         >
           {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
           {busy ? "Applying…" : `Apply to ${selectedCount} slot${selectedCount === 1 ? "" : "s"}`}

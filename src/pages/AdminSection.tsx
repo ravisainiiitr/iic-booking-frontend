@@ -104,7 +104,10 @@ const DAILY_SLOT_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "BOOKED", label: "Booked" },
   { value: "BLOCKED", label: "Blocked" },
   { value: "UNDER_MAINTENANCE", label: "Under Maintenance" },
+  { value: "SCHEDULED_MAINT", label: "Scheduled Maintenance" },
   { value: "OPERATOR_ABSENT", label: "Operator Absent" },
+  { value: "NOT_AVAILABLE", label: "Not Available" },
+  { value: "RESERVED_EXTERNAL", label: "Reserved (External)" },
 ];
 
 /** Booking status options (matches Django admin /admin/equipment/booking/). */

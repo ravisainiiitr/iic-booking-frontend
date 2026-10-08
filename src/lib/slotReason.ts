@@ -78,8 +78,16 @@ export function unavailableBookingSlotReason(opts: SlotReasonInput): string | nu
   if (slotStatusUpper === "UNDER_MAINTENANCE") {
     return "The equipment is under maintenance at this time.";
   }
+  if (slotStatusUpper === "SCHEDULED_MAINT") {
+    return "Scheduled maintenance at this time.";
+  }
   if (slotStatusUpper === "OPERATOR_ABSENT") {
     return "The operator is not available at this time.";
+  }
+  if (slotStatusUpper === "RESERVED_EXTERNAL") {
+    return isAdminOrOic
+      ? "Reserved for an external user. Use Book slots for a user to book it on their behalf."
+      : "Reserved for an external user — not open for booking.";
   }
   if (slotStatusUpper === "NOT_AVAILABLE") {
     if (isSaturdayCol || isSundayCol) return "Weekend — this slot is not available for booking.";

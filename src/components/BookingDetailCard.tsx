@@ -27,6 +27,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { DisruptionCategoryChips } from "@/components/disruptions/DisruptionCategoryChips";
+import { DISRUPTION_REASON_CATEGORIES } from "@/lib/disruptions";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -665,6 +667,8 @@ export function BookingDetailCard({
     chargeRecalcBooking?: BookingDetailCardBooking;
   }>({ open: false, type: null });
   const [actionNotes, setActionNotes] = useState("");
+  /** Optional disruption reason category for Operator Unavailable / Under maintenance / Analysis Not Possible. */
+  const [actionReasonCategory, setActionReasonCategory] = useState("");
   const [sendEmailToSupervisor, setSendEmailToSupervisor] = useState(true);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleQuota, setRescheduleQuota] = useState<QuotaFailure | null>(null);
@@ -1013,11 +1017,13 @@ export function BookingDetailCard({
   };
 
   const openActionDialog = (type: ActionType, b: BookingDetailCardBooking) => {
+    setActionReasonCategory("");
     setActionDialog({ open: true, type, booking: b });
   };
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, booking: null });
     setActionNotes("");
+    setActionReasonCategory("");
   };
 
   const handleComplete = async () => {
@@ -1098,7 +1104,7 @@ export function BookingDetailCard({
     try {
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
-      const response = await apiClient.absentBooking(bookingPk, actionNotes || undefined);
+      const response = await apiClient.absentBooking(bookingPk, actionNotes || undefined, actionReasonCategory || undefined);
       if (response.error) {
         toast.error(response.error);
         return;
@@ -1124,7 +1130,11 @@ export function BookingDetailCard({
     try {
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
-      const response = await apiClient.bookingMaintenanceDisruption(bookingPk, actionNotes || undefined);
+      const response = await apiClient.bookingMaintenanceDisruption(
+        bookingPk,
+        actionNotes || undefined,
+        actionReasonCategory || undefined
+      );
       if (response.error) {
         toast.error(response.error);
         return;
@@ -1153,7 +1163,7 @@ export function BookingDetailCard({
     try {
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
-      const response = await apiClient.bookingOtherDisruption(bookingPk, reason);
+      const response = await apiClient.bookingOtherDisruption(bookingPk, reason, actionReasonCategory || undefined);
       if (response.error) {
         toast.error(response.error);
         return;
@@ -3954,8 +3964,29 @@ export function BookingDetailCard({
             actionDialog.type === "under_maintenance" ||
             actionDialog.type === "other_disruption") && (
             <div className="space-y-2">
+              {actionDialog.type !== "refund" && (
+                <DisruptionCategoryChips
+                  label="Disruption category"
+                  options={
+                    DISRUPTION_REASON_CATEGORIES[
+                      actionDialog.type === "absent"
+                        ? "OPERATOR_ABSENT"
+                        : actionDialog.type === "under_maintenance"
+                          ? "UNDER_MAINTENANCE"
+                          : "OTHER"
+                    ]
+                  }
+                  value={actionReasonCategory}
+                  onChange={setActionReasonCategory}
+                  disabled={actionSubmitLoading}
+                />
+              )}
               <Label htmlFor="notes">
-                {actionDialog.type === "other_disruption" ? "Reason (Required)" : "Notes (Optional)"}
+                {actionDialog.type === "other_disruption"
+                  ? "Reason (Required)"
+                  : actionDialog.type === "refund"
+                    ? "Notes (Optional)"
+                    : "Reason (Optional)"}
               </Label>
               <Textarea
                 id="notes"

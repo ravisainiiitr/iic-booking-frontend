@@ -271,6 +271,8 @@ import { PeakCollapsible } from "@/components/booking/PeakCollapsible";
 import { ClampedNote } from "@/components/booking/ClampedNote";
 import { BookingActionBar } from "@/components/booking/BookingActionBar";
 import { InfoTip } from "@/components/booking/InfoTip";
+import { useDisruptionPrompt } from "@/components/disruptions/useDisruptionPrompt";
+import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOperations";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
@@ -307,6 +309,10 @@ interface DailySlot {
   start_datetime: string;
   end_datetime: string;
   status: string;
+  /** Staff only: recorded disruption reason (label of the category) and I-STEM FBR reference. */
+  disruption_reason?: string | null;
+  disruption_reason_category?: string | null;
+  external_reference?: string | null;
   status_display?: string;
   blocked_label?: string | null;
   mode_overlay_color?: string | null;
@@ -497,6 +503,8 @@ const SLOT_STATUS_HOVER_LABELS: Record<string, string> = {
   BOOKED: "Booked",
   BLOCKED: "Blocked (other reasons)",
   UNDER_MAINTENANCE: "Under Maintenance",
+  SCHEDULED_MAINT: "Scheduled Maintenance",
+  RESERVED_EXTERNAL: "Reserved (External)",
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "On hold",
@@ -531,6 +539,12 @@ function slotStatusHoverLines(
   }
   const blockedLabel = String(slot.blocked_label || "").trim();
   if (blockedLabel) lines.push(`Reason: ${blockedLabel}`);
+  const disruptionCategory = String(slot.disruption_reason_category || "").trim();
+  const disruptionReason = String(slot.disruption_reason || "").trim();
+  if (disruptionCategory) lines.push(`Category: ${disruptionCategory}`);
+  if (disruptionReason && disruptionReason !== blockedLabel) lines.push(`Disruption reason: ${disruptionReason}`);
+  const externalReference = String(slot.external_reference || "").trim();
+  if (externalReference) lines.push(`I-STEM FBR: ${externalReference}`);
   if (opts.holidayName) {
     lines.push(`Holiday: ${opts.holidayName}`);
   } else if (!blockedLabel && status === "NOT_AVAILABLE" && opts.isWeekend) {
@@ -728,6 +742,8 @@ const SLOT_STATUS_LABELS: Record<string, string> = {
   BOOKED: "Booked",
   BLOCKED: "Other Reasons",
   UNDER_MAINTENANCE: "Under Maintenance",
+  SCHEDULED_MAINT: "Scheduled Maintenance",
+  RESERVED_EXTERNAL: "Reserved (External)",
   OPERATOR_ABSENT: "Operator Absent",
   BOOKING_NOT_UTILIZED: "Booking Not Utilized",
   HOLD: "Hold",
@@ -1240,6 +1256,8 @@ const BookEquipment = () => {
   const [statusBulkFocusDayOffset, setStatusBulkFocusDayOffset] = useState<number | null>(null);
   const [newSlotStatus, setNewSlotStatus] = useState<string>('BLOCKED');
   const [blockedLabelForStatus, setBlockedLabelForStatus] = useState<string>('');
+  const [externalReferenceForStatus, setExternalReferenceForStatus] = useState<string>('');
+  const disruptionPrompt = useDisruptionPrompt();
   const [sendEmailToWalletOwnerForNotUtilized, setSendEmailToWalletOwnerForNotUtilized] = useState(true);
   const BULK_EMAIL_OPERATION_VALUE = "__bulk_email__";
   const HOME_DEPARTMENT_ONLY_VALUE = "HOME_DEPARTMENT_ONLY";
@@ -1349,7 +1367,8 @@ const BookEquipment = () => {
     // Admin, OIC, and Department Administrator may book any non-BOOKED slot (weekend / holiday / past / closed-day statuses).
     if (actor === "admin" || actor === "manager" || actor === "dept_admin") {
       if (adminManageMode === "book" && adminBookForUserId && bookingAsExternalTarget) {
-        return slotBookableByExternalUser(slot);
+        // Slots reserved for external users are booked by staff on the external user's behalf.
+        return slotBookableByExternalUser(slot) || String(slot.status || "").toUpperCase() === "RESERVED_EXTERNAL";
       }
       if (adminManageMode === "book" && adminBookForUserId && !bookingAsExternalTarget) {
         // Internal on-behalf: allow non-BOOKED including NOT_AVAILABLE (weekend/holiday).
@@ -4670,8 +4689,10 @@ const BookEquipment = () => {
                       BOOKED: "#ef4444",
                       BLOCKED: "#64748b",
                       UNDER_MAINTENANCE: "#f97316",
+                      SCHEDULED_MAINT: "#fcd34d",
                       OPERATOR_ABSENT: "#eab308",
                       BOOKING_NOT_UTILIZED: "#a855f7",
+                      RESERVED_EXTERNAL: "#f0abfc",
                       ...(data.calendar_colors.slot_colors || {}),
                     },
                     holiday_default: data.calendar_colors.holiday_default || '#f59e0b',
@@ -4686,8 +4707,10 @@ const BookEquipment = () => {
                       BOOKED: "#ef4444",
                       BLOCKED: "#64748b",
                       UNDER_MAINTENANCE: "#f97316",
+                      SCHEDULED_MAINT: "#fcd34d",
                       OPERATOR_ABSENT: "#eab308",
                       BOOKING_NOT_UTILIZED: "#a855f7",
+                      RESERVED_EXTERNAL: "#f0abfc",
                     },
                     holiday_default: '#f59e0b',
                     saturday_color: '#c7d2fe',
@@ -8508,10 +8531,12 @@ const BookEquipment = () => {
                                     )}
                                     <SelectItem value="BLOCKED" className="text-base">Other Reasons</SelectItem>
                                     <SelectItem value="UNDER_MAINTENANCE" className="text-base">Under Maintenance</SelectItem>
+                                    <SelectItem value="SCHEDULED_MAINT" className="text-base">Scheduled Maintenance</SelectItem>
                                     <SelectItem value="OPERATOR_ABSENT" className="text-base">Operator Absent</SelectItem>
                                     <SelectItem value="BOOKING_NOT_UTILIZED" className="text-base">Booking Not Utilized</SelectItem>
                                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
-                                    <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available (closed day)</SelectItem>
+                                    <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available</SelectItem>
+                                    <SelectItem value="RESERVED_EXTERNAL" className="text-base">Reserved for External</SelectItem>
                                     <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
                                       Reserve for non-home department
                                     </SelectItem>
@@ -8550,6 +8575,21 @@ const BookEquipment = () => {
                                     onChange={(e) => setBlockedLabelForStatus(e.target.value)}
                                     className="h-9 max-w-[240px] text-sm"
                                   />
+                                )}
+                                {newSlotStatus === "RESERVED_EXTERNAL" && (
+                                  <Input
+                                    aria-label="I-STEM FBR reference (optional)"
+                                    placeholder="I-STEM FBR reference (optional)"
+                                    value={externalReferenceForStatus}
+                                    maxLength={EXTERNAL_REFERENCE_MAX_LENGTH}
+                                    onChange={(e) => setExternalReferenceForStatus(e.target.value)}
+                                    className="h-9 max-w-[260px] text-sm"
+                                  />
+                                )}
+                                {(newSlotStatus === "NOT_AVAILABLE" || newSlotStatus === "RESERVED_EXTERNAL") && (
+                                  <p className="text-xs text-muted-foreground max-w-md">
+                                    Booked slots are left unchanged. Not counted as a disruption.
+                                  </p>
                                 )}
                                 {newSlotStatus === "BOOKING_NOT_UTILIZED" && isAdminOrOIC() && (
                                   <div className="flex items-center gap-3">
@@ -8810,6 +8850,24 @@ const BookEquipment = () => {
                                       }
                                       return;
                                     }
+                                    let disruptionOutcome: Awaited<ReturnType<typeof disruptionPrompt.askForSlotStatusChange>>;
+                                    try {
+                                      disruptionOutcome = await disruptionPrompt.askForSlotStatusChange({
+                                        status: newSlotStatus,
+                                        statusLabel: slotOperationLabel(newSlotStatus),
+                                        batches: [
+                                          {
+                                            equipmentId: selectedEquipment.id,
+                                            equipmentName: selectedEquipment.name,
+                                            ...(bySlots ? { slot_ids: selectedSlotIdsForStatus } : { dates: effectiveDates }),
+                                          },
+                                        ],
+                                        canAttachReport: isAdminOrOIC(),
+                                      });
+                                    } catch {
+                                      disruptionOutcome = null;
+                                    }
+                                    if (disruptionOutcome === null) return;
                                     if (applyProgressIntervalRef.current) {
                                       clearInterval(applyProgressIntervalRef.current);
                                       applyProgressIntervalRef.current = null;
@@ -8820,17 +8878,24 @@ const BookEquipment = () => {
                                       setApplyProgressPercent((p) => (p >= 90 ? 90 : p + Math.random() * 8 + 4));
                                     }, 200);
                                     try {
-                                      const payload: { status: string; blocked_label?: string | null; dates?: string[]; slot_ids?: number[]; send_email_to_wallet_owner?: boolean } = {
+                                      const payload: Parameters<typeof apiClient.adminEquipmentBulkSlotStatus>[1] = {
                                         status: newSlotStatus,
+                                        source: "change_slot_status",
+                                        ...disruptionOutcome.fields,
                                       };
                                       if (newSlotStatus === "BLOCKED") payload.blocked_label = blockedLabelForStatus.trim() || null;
+                                      if (newSlotStatus === "RESERVED_EXTERNAL" && externalReferenceForStatus.trim()) {
+                                        payload.external_reference = externalReferenceForStatus.trim();
+                                      }
                                       if (newSlotStatus === "BOOKING_NOT_UTILIZED") payload.send_email_to_wallet_owner = sendEmailToWalletOwnerForNotUtilized;
                                       if (bySlots) payload.slot_ids = selectedSlotIdsForStatus;
                                       else payload.dates = effectiveDates;
                                       const res = await apiClient.adminEquipmentBulkSlotStatus(selectedEquipment.id, payload);
                                       if ((res as { error?: string }).error) throw new Error((res as { error: string }).error);
-                                      const payloadData = (res as { data?: { updated?: number; message?: string } }).data;
+                                      const payloadData = res.data;
                                       toast.success(payloadData?.message ?? `Updated ${payloadData?.updated ?? (bySlots ? selectedSlotIdsForStatus.length : effectiveDates.length)} slot(s).`);
+                                      await disruptionOutcome.afterApply(payloadData?.disruption_events);
+                                      if (newSlotStatus === "RESERVED_EXTERNAL") setExternalReferenceForStatus("");
                                       setSelectedDatesForStatus([]);
                                       setSelectedSlotIdsForStatus([]);
                                       setStatusChangeSelectedMonths([]);
@@ -8888,6 +8953,7 @@ const BookEquipment = () => {
             </div>
           </div>
         )}
+        {disruptionPrompt.element}
         <Dialog
           open={statusChangeRescheduleOpen}
           onOpenChange={(open) => {
@@ -11002,8 +11068,10 @@ const BookEquipment = () => {
                               "BOOKED": "Booked",
                               "BLOCKED": "Other Reasons",
                               "UNDER_MAINTENANCE": "Under Maintenance",
+                              "SCHEDULED_MAINT": "Scheduled Maintenance",
                               "OPERATOR_ABSENT": "Operator Absent",
-                              "BOOKING_NOT_UTILIZED": "Booking Not Utilized"
+                              "BOOKING_NOT_UTILIZED": "Booking Not Utilized",
+                              "RESERVED_EXTERNAL": "Reserved (External)"
                             };
                             rawSlotStatusLabel = statusMap[slotStatus] || slotStatus.charAt(0).toUpperCase() + slotStatus.slice(1).toLowerCase();
                           }
@@ -11154,11 +11222,13 @@ const BookEquipment = () => {
                             COMPLETED: "#059669",
                             BLOCKED: "#64748b",
                             UNDER_MAINTENANCE: "#f97316",
+                            SCHEDULED_MAINT: "#fcd34d",
                             OPERATOR_ABSENT: "#eab308",
                             BOOKING_NOT_UTILIZED: "#a855f7",
                             HOLD: "#f59e0b",
                             HOME_DEPARTMENT_ONLY: "#c4b5fd",
                             NON_HOME_RESERVED: "#06b6d4",
+                            RESERVED_EXTERNAL: "#f0abfc",
                             NOT_AVAILABLE: "#e2e8f0",
                           };
                           const slotColors = {

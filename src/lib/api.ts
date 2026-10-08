@@ -24,6 +24,14 @@ import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInpu
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 import type {
+  DisruptionAttention,
+  DisruptionDetail,
+  DisruptionEventIds,
+  DisruptionListParams,
+  DisruptionListResponse,
+  SlotStatusPreview,
+} from "@/lib/disruptions";
+import type {
   OicBulkAssignment,
   OicBulkRowError,
   OicSubstituteOptions,
@@ -4301,8 +4309,12 @@ class ApiClient {
   }
 
   /** Update equipment status. Admin / OIC only (not Lab Operator). */
-  async updateEquipmentStatus(equipmentId: number, status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER') {
-    return this.updateEquipment(String(equipmentId), { status }) as Promise<{
+  async updateEquipmentStatus(
+    equipmentId: number,
+    status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER',
+    disruption?: { disruption_reason?: string; disruption_reason_category?: string; resolution_action?: string }
+  ) {
+    return this.updateEquipment(String(equipmentId), { status, ...(disruption ?? {}) }) as Promise<{
       data?: Record<string, unknown> & {
         notice_board?: {
           notice_request_id?: number;
@@ -4311,6 +4323,7 @@ class ApiClient {
           notices_closed?: number;
           notice_closed_on_operational?: boolean;
         };
+        disruption_events?: DisruptionEventIds;
       };
       error?: string;
     }>;
@@ -7611,13 +7624,13 @@ class ApiClient {
     });
   }
 
-  async absentBooking(bookingId: number, notes?: string) {
+  async absentBooking(bookingId: number, notes?: string, reasonCategory?: string) {
     return this.request<{
       message: string;
       booking: any;
     }>(`/bookings/${bookingId}/absent/`, {
       method: 'POST',
-      body: JSON.stringify({ notes }),
+      body: JSON.stringify({ notes, ...(reasonCategory ? { disruption_reason_category: reasonCategory } : {}) }),
     });
   }
 
@@ -7640,24 +7653,27 @@ class ApiClient {
   }
 
   /** Admin/OIC: flag booking for under-maintenance disruption (no refund; user may reschedule per policy). */
-  async bookingMaintenanceDisruption(bookingId: number, notes?: string) {
+  async bookingMaintenanceDisruption(bookingId: number, notes?: string, reasonCategory?: string) {
     return this.request<{
       message: string;
       booking: any;
     }>(`/bookings/${bookingId}/maintenance-disruption/`, {
       method: 'POST',
-      body: JSON.stringify({ notes: notes ?? '' }),
+      body: JSON.stringify({
+        notes: notes ?? '',
+        ...(reasonCategory ? { disruption_reason_category: reasonCategory } : {}),
+      }),
     });
   }
 
   /** Admin / Dept Admin / OIC / Lab Operator: flag booking as Analysis Not Possible (requires reason). */
-  async bookingOtherDisruption(bookingId: number, reason: string) {
+  async bookingOtherDisruption(bookingId: number, reason: string, reasonCategory?: string) {
     return this.request<{
       message: string;
       booking: any;
     }>(`/bookings/${bookingId}/other-disruption/`, {
       method: "POST",
-      body: JSON.stringify({ reason }),
+      body: JSON.stringify({ reason, ...(reasonCategory ? { disruption_reason_category: reasonCategory } : {}) }),
     });
   }
 
@@ -13509,13 +13525,103 @@ class ApiClient {
       status: string;
       blocked_label?: string | null;
       send_email_to_wallet_owner?: boolean;
+      external_reference?: string;
+      disruption_reason?: string;
+      disruption_reason_category?: string;
+      resolution_action?: string;
+      source?: "change_slot_status" | "dashboard_calendar";
     }
   ) {
     const endpoint = this.getAdminEndpoint('equipment');
-    return this.request<{ updated: number; message: string }>(
+    return this.request<{
+      updated: number;
+      message: string;
+      skipped_booked?: number;
+      disruption_events?: DisruptionEventIds;
+    }>(
       `${endpoint}${equipmentId}/bulk-slot-status/`,
       { method: 'POST', body: JSON.stringify(payload) }
     );
+  }
+
+  /** Admin: what a bulk slot status change would affect (nothing is changed). */
+  async previewEquipmentBulkSlotStatus(
+    equipmentId: number | string,
+    payload: { dates?: string[]; slot_ids?: number[]; status: string }
+  ) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<SlotStatusPreview>(`${endpoint}${equipmentId}/bulk-slot-status/`, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, preview: true }),
+    });
+  }
+
+  /** Disruption history (Main Admin, Dept Admin, OIC incl. substitute). */
+  async getDisruptions(params: DisruptionListParams = {}) {
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value == null || value === '' || value === false) continue;
+      q.set(key, value === true ? '1' : String(value));
+    }
+    const qs = q.toString();
+    return this.request<DisruptionListResponse>(`/equipments/disruptions/${qs ? `?${qs}` : ''}`);
+  }
+
+  async getDisruptionAttention() {
+    return this.request<DisruptionAttention>('/equipments/disruptions/attention/');
+  }
+
+  async getDisruption(id: number) {
+    return this.request<DisruptionDetail>(`/equipments/disruptions/${id}/`);
+  }
+
+  async updateDisruption(id: number, data: { reason?: string; reason_category?: string; action_taken?: string }) {
+    return this.request<DisruptionDetail>(`/equipments/disruptions/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadDisruptionServiceReport(id: number, file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return this.request<DisruptionDetail>(`/equipments/disruptions/${id}/service-report/`, {
+      method: 'POST',
+      body: form,
+    });
+  }
+
+  /** Authenticated download of a private service report; returns a blob for the browser to save or open. */
+  async downloadDisruptionServiceReport(
+    eventId: number,
+    reportId: number
+  ): Promise<{ blob?: Blob; filename?: string; error?: string }> {
+    const token = this.getToken();
+    if (!token) return { error: 'Not authenticated' };
+    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
+    let res: Response;
+    try {
+      res = await fetch(`${base}/equipments/disruptions/${eventId}/service-report/${reportId}/`, {
+        headers: { Authorization: `Token ${token}` },
+      });
+    } catch {
+      return { error: 'Could not reach the server. Check your connection and try again.' };
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || 'Could not download the report.' };
+    }
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition);
+    let filename = 'service-report';
+    if (match?.[1]) {
+      try {
+        filename = decodeURIComponent(match[1]);
+      } catch {
+        filename = match[1];
+      }
+    }
+    return { blob: await res.blob(), filename };
   }
 
   /**

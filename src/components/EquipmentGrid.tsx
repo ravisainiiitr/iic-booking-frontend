@@ -15,17 +15,8 @@ import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
+import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
 
 interface ApiEquipment {
   equipment_id: number;
@@ -74,11 +65,7 @@ const EquipmentGrid = () => {
   const [equipment, setEquipment] = useState<ApiEquipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
-  const [pendingStatusChange, setPendingStatusChange] = useState<{
-    equipmentId: number;
-    equipmentName: string;
-    newStatus: "ACTIVE" | "REPAIR";
-  } | null>(null);
+  const disruptionPrompt = useDisruptionPrompt();
   const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
     noticeId: number;
     equipmentName: string;
@@ -231,21 +218,36 @@ const EquipmentGrid = () => {
     }));
   };
 
+  const requestStatusChange = async (next: {
+    equipmentId: number;
+    equipmentName: string;
+    newStatus: "ACTIVE" | "REPAIR";
+  }) => {
+    const outcome = await disruptionPrompt.askForEquipmentStatusChange({
+      equipmentName: next.equipmentName,
+      newStatus: next.newStatus,
+      canAttachReport: true,
+    });
+    if (outcome === null) return;
+    await handleStatusChange(next.equipmentId, next.newStatus, next.equipmentName, outcome);
+  };
+
   const handleStatusChange = async (
     equipmentId: number,
     newStatus: "ACTIVE" | "REPAIR",
-    equipmentName?: string
+    equipmentName?: string,
+    outcome?: DisruptionPromptOutcome
   ) => {
     setStatusUpdatingId(equipmentId);
-    setPendingStatusChange(null);
     try {
-      const res = await apiClient.updateEquipmentStatus(equipmentId, newStatus);
+      const res = await apiClient.updateEquipmentStatus(equipmentId, newStatus, outcome?.fields);
       if (res.error) {
         toast.error(res.error || "Failed to update status");
         return;
       }
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
+      await outcome?.afterApply(res.data?.disruption_events);
       const nb = res.data?.notice_board;
       if (nb?.notice_closed_on_operational) {
         toast.message("Linked notice board entry was closed (expiry set to now).");
@@ -397,7 +399,7 @@ const EquipmentGrid = () => {
               canChangeSlotStatus={canChangeEquipmentStatus && !(isOic && oicCatalogScope === "all")}
               canBookForOtherUsers={canBookForOtherUsers}
               statusUpdatingId={statusUpdatingId}
-              onRequestStatusChange={(next) => setPendingStatusChange(next)}
+              onRequestStatusChange={(next) => void requestStatusChange(next)}
               onOpenEquipment={(id) => {
                 if (
                   expandedParentId == null &&
@@ -413,42 +415,7 @@ const EquipmentGrid = () => {
         </div>
       )}
 
-      <AlertDialog open={pendingStatusChange !== null} onOpenChange={(open) => !open && setPendingStatusChange(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm status change</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingStatusChange && (
-                <>
-                  Set <strong>{pendingStatusChange.equipmentName}</strong> to{" "}
-                  <strong>
-                    {pendingStatusChange.newStatus === "ACTIVE" ? "Operational" : "Under Maintenance"}
-                  </strong>
-                  ?
-                  {pendingStatusChange.newStatus !== "ACTIVE" && (
-                    <span className="block mt-2">Non-operational equipment will not be available for booking.</span>
-                  )}
-                </>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() =>
-                pendingStatusChange &&
-                handleStatusChange(
-                  pendingStatusChange.equipmentId,
-                  pendingStatusChange.newStatus,
-                  pendingStatusChange.equipmentName
-                )
-              }
-            >
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {disruptionPrompt.element}
       <NoticeExpiryDialog
         open={noticeExpiryPrompt != null}
         noticeId={noticeExpiryPrompt?.noticeId ?? null}
