@@ -79,7 +79,7 @@ const ReportBookingsList = () => {
 
   const fetchPage = (offset: number) =>
     apiClient.getBookings({
-      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(statusFilter ? { list_status: statusFilter } : {}),
       ordering: "-created_at",
       list_view: true,
       limit: PAGE_SIZE,
@@ -120,8 +120,10 @@ const ReportBookingsList = () => {
 
   const isStaffScope = ["equipment", "department", "institute"].includes(totals.scope);
   const showMoney = totals.showMoney;
+  const statusLabel =
+    statusFilter === "RESULTS_PENDING" ? "Pending" : statusFilter === "RESULT_OVERDUE" ? "Result Overdue" : statusFilter;
   const subtitle = statusFilter
-    ? `Bookings with status: ${statusFilter.replace(/_/g, " ")}`
+    ? `Bookings with status: ${statusLabel?.replace(/_/g, " ")}`
     : !showMoney
       ? "Complete list of bookings in your reporting scope with hours"
       : isStaffScope

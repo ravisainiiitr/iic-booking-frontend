@@ -143,6 +143,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   charge_breakdown: Array<{ amount: number; description: string }>;
   status: string;
   status_display: string;
+  /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
+  list_status?: string;
   notes: string;
   /** Admin/OIC extension of the results deadline (does not change slots). */
   operator_absent_hold_until?: string | null;

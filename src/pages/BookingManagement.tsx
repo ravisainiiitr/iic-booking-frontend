@@ -54,6 +54,12 @@ import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
 import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwaitingCard";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import {
+  RESULT_OVERDUE_STATUS,
+  RESULTS_PENDING_STATUS,
+  bookingBadgeStatus,
+  bookingStatusBadgeClass,
+} from "@/lib/bookingStatusLegend";
 
 interface Booking extends BookingRef {
   virtual_booking_id?: string | null;
@@ -92,6 +98,8 @@ interface Booking extends BookingRef {
   }>;
   status: string;
   status_display: string;
+  /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
+  list_status?: string;
   notes: string;
   start_time: string;
   end_time: string;
@@ -133,8 +141,8 @@ interface Booking extends BookingRef {
 }
 
 const DEFAULT_PAGE_SIZE = 10;
-/** Pseudo status: open bookings past the equipment's results overdue time (sent as results_overdue=1). */
-const RESULTS_OVERDUE_FILTER = "RESULTS_OVERDUE";
+/** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
+const DEFAULT_ORDERING = "default";
 
 /** Status the list opens with: Booked for the Main Administrator, All status for everyone else. */
 function defaultStaffStatusFilter(userType: string | number | null | undefined): string {
@@ -151,7 +159,7 @@ const BookingManagement = () => {
   const expandId = searchParams.get("expand");
   /** null until a link or the user picks a status: the list then uses the role's default. */
   const [chosenStatusFilter, setStatusFilter] = useState<string | null>(() =>
-    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULTS_OVERDUE_FILTER : null,
+    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULT_OVERDUE_STATUS : null,
   );
   const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
@@ -276,13 +284,8 @@ const BookingManagement = () => {
 
   /** Filters, search and sort on screen; shared by the list and Export so both show the same bookings. */
   const listFilters = (): BookingListFilters => {
-    const params: BookingListFilters = {};
-    if (ordering) params.ordering = ordering;
-    if (statusFilter === RESULTS_OVERDUE_FILTER) {
-      params.results_overdue = true;
-    } else if (statusFilter !== "all") {
-      params.status = statusFilter;
-    }
+    const params: BookingListFilters = { ordering: ordering || DEFAULT_ORDERING };
+    if (statusFilter !== "all") params.list_status = statusFilter;
     if (searchTerm) params.search = searchTerm;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
@@ -401,14 +404,15 @@ const BookingManagement = () => {
 
   const statusOptions = [
     { value: "all", label: "All status" },
+    { value: RESULT_OVERDUE_STATUS, label: "Result Overdue" },
+    { value: RESULTS_PENDING_STATUS, label: "Pending" },
     { value: "BOOKED", label: "Booked" },
-    { value: RESULTS_OVERDUE_FILTER, label: "Results overdue" },
     ...(!isLabInchargeUser ? [{ value: "DISRUPTION_PENDING", label: "Awaiting your choice (disruption)" }] : []),
-    { value: "COMPLETED", label: "Completed" },
-    { value: "CANCELLED", label: "Cancelled" },
     { value: "ABSENT", label: "Operator Unavailable" },
-    { value: "REFUNDED", label: "Refunded" },
     { value: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
+    { value: "CANCELLED", label: "Cancelled" },
+    { value: "REFUNDED", label: "Refunded" },
+    { value: "COMPLETED", label: "Completed" },
   ];
 
   const moreFiltersActiveCount =
@@ -562,7 +566,21 @@ const BookingManagement = () => {
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
-              actions={<BookingExportMenu view="staff" getFilters={listFilters} />}
+              actions={
+                <>
+                  {ordering && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSort("")}
+                      title="Result Overdue, Pending, Booked, Awaiting your choice, then Operator Unavailable, Not Utilized, Refunded / Cancelled, Completed"
+                    >
+                      Default order
+                    </Button>
+                  )}
+                  <BookingExportMenu view="staff" getFilters={listFilters} />
+                </>
+              }
             />
           </CardHeader>
           {loadingBookings && bookings.length === 0 ? (
@@ -586,8 +604,17 @@ const BookingManagement = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
                       <TableHead className="w-14 font-semibold">S.No</TableHead>
+                      <SortableTableHead
+                        sortKey="booking_ref"
+                        ordering={ordering}
+                        onSort={handleSort}
+                        className="font-semibold"
+                        disabled={loadingBookings}
+                      >
+                        Booking ID
+                      </SortableTableHead>
+                      <TableHead className="font-semibold uppercase tracking-wide">Status</TableHead>
                       {[
-                        { key: "booking_ref", label: "Booking ID" },
                         { key: "equipment_name", label: "Equipment Name" },
                         { key: "user_name", label: "User Name" },
                         { key: "supervisor_name", label: "Supervisor Name" },
@@ -636,16 +663,21 @@ const BookingManagement = () => {
                             </span>
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
-                          {booking.results_overdue?.overdue ? (
-                            <Badge
-                              variant="outline"
-                              className="mt-1 border-red-300 bg-red-50 text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200"
-                              title={`Results were due by ${booking.results_overdue.due_display} (overdue by ${booking.results_overdue.overdue_by})`}
-                              data-testid="results-overdue-badge"
-                            >
-                              Results overdue
-                            </Badge>
-                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={`whitespace-nowrap ${bookingStatusBadgeClass(bookingBadgeStatus(booking))}`}
+                            title={
+                              booking.results_overdue?.overdue
+                                ? `Results were due by ${booking.results_overdue.due_display} (overdue by ${booking.results_overdue.overdue_by})`
+                                : booking.results_overdue?.due_display
+                                  ? `Results due by ${booking.results_overdue.due_display}`
+                                  : undefined
+                            }
+                            data-testid={booking.list_status === RESULT_OVERDUE_STATUS ? "results-overdue-badge" : undefined}
+                          >
+                            {booking.status_display}
+                          </Badge>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}

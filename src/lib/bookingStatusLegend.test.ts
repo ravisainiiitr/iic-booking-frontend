@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { BOOKING_STATUS_LEGEND, bookingBadgeStatus, bookingStatusBadgeClass } from "./bookingStatusLegend";
+import {
+  BOOKING_STATUS_LEGEND,
+  bookingBadgeStatus,
+  bookingStatusBadgeClass,
+  placeWaitlistEntries,
+} from "./bookingStatusLegend";
+
+describe("placeWaitlistEntries", () => {
+  const row = (id: string, group: number) => ({ id, list_status_group: group });
+  const wl = { id: "WL1", list_status_group: null };
+
+  it("puts waitlist entries after the Booked group", () => {
+    const rows = [row("overdue", 1), row("pending", 2), row("booked", 3), row("choice", 4), row("completed", 8)];
+    expect(placeWaitlistEntries(rows, [wl]).map((r) => r.id)).toEqual([
+      "overdue", "pending", "booked", "WL1", "choice", "completed",
+    ]);
+  });
+
+  it("appends them when the page has only the first three groups, and leads when it has none", () => {
+    expect(placeWaitlistEntries([row("booked", 3)], [wl]).map((r) => r.id)).toEqual(["booked", "WL1"]);
+    expect(placeWaitlistEntries([row("completed", 8)], [wl]).map((r) => r.id)).toEqual(["WL1", "completed"]);
+  });
+});
 
 const LOW_CONTRAST_WITH_WHITE = /\bbg-(yellow|amber|lime|orange)-(50|100|200|300|400|500)\b/;
 
@@ -52,6 +74,14 @@ describe("bookingBadgeStatus", () => {
     expect(bookingStatusBadgeClass("FABRICATION_REJECTED")).not.toBe(bookingStatusBadgeClass("BOOKED"));
   });
 
+  it("uses the derived Pending / Result Overdue list status: amber and red", () => {
+    expect(bookingBadgeStatus({ status: "BOOKED", list_status: "RESULTS_PENDING" })).toBe("RESULTS_PENDING");
+    expect(bookingBadgeStatus({ status: "PROCESSING", list_status: "RESULT_OVERDUE" })).toBe("RESULT_OVERDUE");
+    expect(bookingBadgeStatus({ status: "COMPLETED", list_status: "COMPLETED" })).toBe("COMPLETED");
+    expect(bookingStatusBadgeClass("RESULTS_PENDING")).toMatch(/\bbg-amber-100\b.*\btext-amber-900\b/);
+    expect(bookingStatusBadgeClass("RESULT_OVERDUE")).toMatch(/\bbg-red-700\b/);
+  });
+
   it("keeps the normal status otherwise, including after an expired rejection was cancelled", () => {
     expect(bookingBadgeStatus({ status: "booked" })).toBe("BOOKED");
     expect(bookingBadgeStatus({ status: "REFUNDED", fabrication_rejected_at: "2026-10-05T04:30:00Z" })).toBe("REFUNDED");
@@ -62,7 +92,8 @@ describe("BOOKING_STATUS_LEGEND", () => {
   it("covers the statuses users see in My Bookings", () => {
     const statuses = BOOKING_STATUS_LEGEND.map((e) => e.status);
     for (const s of [
-      "PENDING",
+      "RESULTS_PENDING",
+      "RESULT_OVERDUE",
       "PENDING_PAYMENT",
       "BOOKED",
       "WAITLISTED",

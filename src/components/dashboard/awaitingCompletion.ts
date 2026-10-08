@@ -10,6 +10,17 @@ export function awaitingIsOverdue(row: AwaitingRow): boolean {
   return row.is_overdue ?? Boolean(row.overdue);
 }
 
+/** Status badge key and label: Result Overdue, Pending, or the stored status (sample waiting for the user). */
+export function awaitingStatus(
+  row: AwaitingRow & Pick<BookingAwaitingCompletion, "list_status" | "status">,
+): { key: string; label: string } {
+  const key = String(row.list_status || (awaitingIsOverdue(row) ? "RESULT_OVERDUE" : row.status) || "").toUpperCase();
+  if (key === "RESULT_OVERDUE") return { key, label: "Result Overdue" };
+  if (key === "RESULTS_PENDING") return { key, label: "Pending" };
+  if (key === "PROCESSING") return { key, label: "Processing results" };
+  return { key, label: key ? key.charAt(0) + key.slice(1).toLowerCase().replace(/_/g, " ") : "—" };
+}
+
 /** "Overdue by 13 h", "Due by Wed 07 Oct 2026, 06:31 PM" or "Waiting for the user". */
 export function awaitingOverdueText(row: AwaitingRow, now: Date = new Date()): string {
   if (awaitingIsOverdue(row)) return row.overdue ? `Overdue by ${row.overdue}` : "Overdue";

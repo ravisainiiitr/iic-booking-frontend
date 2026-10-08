@@ -64,7 +64,13 @@ import {
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
-import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
+import {
+  RESULT_OVERDUE_STATUS,
+  RESULTS_PENDING_STATUS,
+  bookingBadgeStatus,
+  bookingStatusBadgeClass,
+  placeWaitlistEntries,
+} from "@/lib/bookingStatusLegend";
 import { BookingStatusLegend } from "@/components/booking/BookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import { formatDMY } from "@/lib/dateFormat";
@@ -106,6 +112,10 @@ interface Booking extends BookingRef {
   }>;
   status: string;
   status_display: string;
+  /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
+  list_status?: string;
+  /** Default order group 1-9 (backend booking_list_status). */
+  list_status_group?: number | null;
   notes: string;
   start_time: string;
   end_time: string;
@@ -272,17 +282,21 @@ const DEFAULT_PAGE_SIZE = 50;
 
 const MY_BOOKING_STATUS_OPTIONS = [
   { value: "all", label: "All status" },
-  { value: "PENDING", label: "Pending" },
+  { value: RESULT_OVERDUE_STATUS, label: "Result Overdue" },
+  { value: RESULTS_PENDING_STATUS, label: "Pending" },
   { value: "BOOKED", label: "Booked" },
-  { value: "DISRUPTION_PENDING", label: "Awaiting choice (disruption)" },
-  { value: "UNDER_MAINTENANCE", label: "Under maintenance" },
-  { value: "COMPLETED", label: "Completed" },
-  { value: "CANCELLED", label: "Cancelled" },
-  { value: "ABSENT", label: "Operator Unavailable" },
-  { value: "REFUNDED", label: "Refunded" },
-  { value: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
   { value: "WAITLISTED", label: "Waitlisted" },
+  { value: "DISRUPTION_PENDING", label: "Awaiting choice (disruption)" },
+  { value: "ABSENT", label: "Operator Unavailable" },
+  { value: "BOOKING_NOT_UTILIZED", label: "Booking Not Utilized" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "REFUNDED", label: "Refunded" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "UNDER_MAINTENANCE", label: "Under maintenance" },
 ];
+
+/** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
+const DEFAULT_ORDERING = "default";
 
 const CALENDAR_ELIGIBLE_STATUSES = new Set(["PENDING", "PENDING_PAYMENT", "BOOKED", "HOLD", "DISRUPTION_PENDING"]);
 
@@ -398,7 +412,7 @@ const MyBookings = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTerm, setSearchTerm] = useLiveSearchTerm(searchQuery);
   const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
-  const [ordering, setOrdering] = useState<string>("-created_at");
+  const [ordering, setOrdering] = useState<string>(DEFAULT_ORDERING);
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [currentUserType, setCurrentUserType] = useState<string | null>(null);
   const [cancelProgress, setCancelProgress] = useState(0);
@@ -730,7 +744,7 @@ const MyBookings = () => {
     setSearchQuery("");
     setSearchTerm("");
     setEquipmentFilter("all");
-    setOrdering("-created_at");
+    setOrdering(DEFAULT_ORDERING);
     setClearFiltersNonce((n) => n + 1);
   };
 
@@ -749,7 +763,7 @@ const MyBookings = () => {
   const listFilters = (status: string = statusFilter, effectiveOrdering: string = ordering): BookingListFilters => {
     const params: BookingListFilters = {};
     // "Waitlisted" is applied client-side after merging waitlist entries (Export sends it; see exportFilters).
-    if (status !== "all" && status !== "WAITLISTED") params.status = status;
+    if (status !== "all" && status !== "WAITLISTED") params.list_status = status;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (searchTerm) params.search = searchTerm;
@@ -785,6 +799,7 @@ const MyBookings = () => {
         setTotalCount(0);
       } else if (response.data && response.data.bookings) {
         let list = response.data.bookings as unknown as Booking[];
+        let waitlistEntries: Booking[] = [];
         if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
           if (seq !== fetchSeqRef.current) return;
@@ -796,14 +811,18 @@ const MyBookings = () => {
                 return st === "ACTIVE" || st === "WAITLISTED";
               }
             );
-            list = [...list, ...(activeOnly as unknown as Booking[])];
+            waitlistEntries = activeOnly as unknown as Booking[];
           }
         }
+        // Bookings arrive in server order. Default order: waitlist entries after the Booked group; created-at
+        // sorts interleave them by date; other column sorts keep them last.
+        list =
+          effectiveOrdering === DEFAULT_ORDERING
+            ? placeWaitlistEntries(list, waitlistEntries)
+            : [...list, ...waitlistEntries];
         if (status === "WAITLISTED") {
           list = list.filter((b: Booking) => isWaitlistedEntry(b));
         }
-        // Bookings arrive in server order; only the default created-at orderings re-sort client-side
-        // (to interleave waitlist entries). Column sorts keep server order with waitlist entries last.
         if (effectiveOrdering === "created_at" || effectiveOrdering === "-created_at") {
           list = [...list].sort((a, b) => {
             const aTs = a?.created_at ? new Date(a.created_at).getTime() : 0;
@@ -1638,7 +1657,21 @@ const MyBookings = () => {
                   onEquipmentChange={setEquipmentFilter}
                   equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
                   onClear={clearBookingFilters}
-                  actions={<BookingExportMenu view="my" getFilters={exportFilters} />}
+                  actions={
+                    <>
+                      {ordering !== DEFAULT_ORDERING && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSort(DEFAULT_ORDERING)}
+                          title="Result Overdue, Pending, Booked, Awaiting your choice, then Operator Unavailable, Not Utilized, Refunded / Cancelled, Completed"
+                        >
+                          Default order
+                        </Button>
+                      )}
+                      <BookingExportMenu view="my" getFilters={exportFilters} />
+                    </>
+                  }
                 />
                 <BookingStatusLegend className="pt-2" />
               </CardHeader>

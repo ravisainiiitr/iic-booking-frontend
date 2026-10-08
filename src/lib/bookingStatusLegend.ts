@@ -15,9 +15,13 @@ const RED = "border-transparent bg-red-600 text-white hover:bg-red-600";
  * Every entry pairs a background with an explicit text colour of at least 4.5:1 contrast in light
  * and dark mode; never use white text on yellow/amber-400/500.
  */
+const AMBER_SOFT =
+  "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100 dark:hover:bg-amber-900/40";
+
 const STATUS_BADGE_CLASSES: Record<string, string> = {
-  PENDING:
-    "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100 dark:hover:bg-amber-900/40",
+  PENDING: AMBER_SOFT,
+  RESULTS_PENDING: AMBER_SOFT,
+  RESULT_OVERDUE: "border-transparent bg-red-700 text-white hover:bg-red-700",
   PENDING_PAYMENT:
     "border-orange-300 bg-orange-100 text-orange-900 hover:bg-orange-100 dark:border-orange-700 dark:bg-orange-900/40 dark:text-orange-100 dark:hover:bg-orange-900/40",
   WAITLISTED:
@@ -49,21 +53,50 @@ export function bookingStatusBadgeClass(status: string | null | undefined): stri
   return STATUS_BADGE_CLASSES[String(status || "").toUpperCase()] ?? DEFAULT_BADGE_CLASS;
 }
 
-/** Status key for the badge colour: a 3D print / laser booking rejected by the lab stays Booked but shows as rejected. */
+/** Derived by the backend (`list_status`): sample accepted, results not delivered yet / past the results due time. */
+export const RESULTS_PENDING_STATUS = "RESULTS_PENDING";
+export const RESULT_OVERDUE_STATUS = "RESULT_OVERDUE";
+
+/**
+ * Status key for the badge colour: Pending / Result Overdue (backend `list_status`) when derived; a 3D print /
+ * laser booking rejected by the lab stays Booked but shows as rejected.
+ */
 export function bookingBadgeStatus(booking: {
   status?: string | null;
+  list_status?: string | null;
   fabrication_rejected_at?: string | null;
   fabrication_workflow?: { rejected?: boolean } | null;
 }): string {
+  const listStatus = String(booking.list_status || "").toUpperCase();
+  if (listStatus === RESULTS_PENDING_STATUS || listStatus === RESULT_OVERDUE_STATUS) return listStatus;
   const status = String(booking.status || "").toUpperCase();
   const rejected = !!booking.fabrication_rejected_at || !!booking.fabrication_workflow?.rejected;
   return status === "BOOKED" && rejected ? "FABRICATION_REJECTED" : status;
 }
 
+/** Default order group of Booked (backend `list_status_group`: 1 Result Overdue, 2 Pending, 3 Booked, ...). */
+export const BOOKED_STATUS_GROUP = 3;
+
+/** My Bookings default order: waitlist entries go right after the Booked group (before Awaiting your choice). */
+export function placeWaitlistEntries<T extends { list_status_group?: number | null }>(bookings: T[], entries: T[]): T[] {
+  const split = bookings.findIndex((b) => (b.list_status_group ?? 0) > BOOKED_STATUS_GROUP);
+  if (split < 0) return [...bookings, ...entries];
+  return [...bookings.slice(0, split), ...entries, ...bookings.slice(split)];
+}
+
 const LEGEND: Array<Omit<BookingStatusLegendEntry, "badgeClass">> = [
-  { status: "PENDING", label: "Pending", meaning: "Request received; waiting for the lab / Officer in Charge to confirm." },
   { status: "PENDING_PAYMENT", label: "Awaiting payment", meaning: "Pay the amount due to confirm the booking." },
   { status: "BOOKED", label: "Booked", meaning: "Slot confirmed. Bring or send your sample on time." },
+  {
+    status: RESULTS_PENDING_STATUS,
+    label: "Pending",
+    meaning: "The lab has accepted your sample; the analysis or results are not complete yet.",
+  },
+  {
+    status: RESULT_OVERDUE_STATUS,
+    label: "Result Overdue",
+    meaning: "Still Pending after the time results were due. The lab has been reminded.",
+  },
   { status: "WAITLISTED", label: "Waitlisted", meaning: "You are in the queue. You will be notified if a slot frees up." },
   { status: "HOLD", label: "Hold", meaning: "Slots are held for an urgent request awaiting approval." },
   {

@@ -248,6 +248,8 @@ interface Booking extends BookingRef {
   equipment_name: string;
   status: string;
   status_display: string;
+  /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
+  list_status?: string;
   start_time: string;
   end_time: string;
   total_hours: number;
@@ -1428,6 +1430,8 @@ const Dashboard = () => {
     const statusLower = status.toLowerCase();
     const colors: Record<string, string> = {
       pending: "bg-amber-700",
+      results_pending: "bg-amber-700",
+      result_overdue: "bg-red-700",
       booked: "bg-brand",
       confirmed: "bg-brand",
       approved: "bg-brand",
@@ -5197,7 +5201,7 @@ const Dashboard = () => {
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-0.5">{booking.equipment_code}</p>
                               </div>
-                              <Badge className={`${getStatusColor(booking.status)} text-white text-xs shrink-0`}>
+                              <Badge className={`${getStatusColor(booking.list_status || booking.status)} text-white text-xs shrink-0`}>
                                 {booking.status_display}
                               </Badge>
                             </div>

@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { awaitingIsOverdue, awaitingOverdueText } from "@/components/dashboard/awaitingCompletion";
+import { awaitingIsOverdue, awaitingOverdueText, awaitingStatus } from "@/components/dashboard/awaitingCompletion";
+import { bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 
 export const BOOKINGS_AWAITING_COMPLETION_ANCHOR = "bookings-awaiting-completion";
 
@@ -76,6 +77,7 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
             <TableHeader>
               <TableRow>
                 <TableHead>Booking ID</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Equipment</TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Booking ended</TableHead>
@@ -86,9 +88,14 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const rowStatus = awaitingStatus(row);
+                return (
                 <TableRow key={row.booking_id}>
                   <TableCell className="font-medium">{row.booking_ref}</TableCell>
+                  <TableCell>
+                    <Badge className={`whitespace-nowrap ${bookingStatusBadgeClass(rowStatus.key)}`}>{rowStatus.label}</Badge>
+                  </TableCell>
                   <TableCell>{row.equipment_name}</TableCell>
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.ended_display}</TableCell>
@@ -111,7 +118,8 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>

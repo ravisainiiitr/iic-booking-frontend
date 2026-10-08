@@ -267,7 +267,9 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
     expect(calls().length).toBeGreaterThan(0);
     for (const call of calls()) {
       expect(call.status).toBeUndefined();
+      expect(call.list_status).toBeUndefined();
       expect(call.results_overdue).toBeUndefined();
+      expect(call.ordering).toBe("default");
     }
   });
 
@@ -277,7 +279,33 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
     await screen.findByText("XPS202600001");
     expect(statusBox().textContent).toContain("Booked");
     expect(calls().length).toBeGreaterThan(0);
-    for (const call of calls()) expect(call.status).toBe("BOOKED");
+    for (const call of calls()) expect(call.list_status).toBe("BOOKED");
+  });
+
+  it("offers Pending and Result Overdue and sends them as list_status", async () => {
+    Element.prototype.scrollIntoView ??= vi.fn();
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.releasePointerCapture ??= vi.fn();
+    renderPage();
+    await screen.findByText("XPS202600001");
+    fireEvent.keyDown(statusBox(), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: "Pending" }));
+    await waitFor(() => expect(lastCall().list_status).toBe("RESULTS_PENDING"));
+    fireEvent.keyDown(statusBox(), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: "Result Overdue" }));
+    await waitFor(() => expect(lastCall().list_status).toBe("RESULT_OVERDUE"));
+    expect(lastCall().status).toBeUndefined();
+  });
+
+  it("sends the default order until a column is sorted, and Default order resets it", async () => {
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(lastCall().ordering).toBe("default");
+    expect(screen.queryByRole("button", { name: "Default order" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Equipment Name/i }));
+    await waitFor(() => expect(lastCall().ordering).toBe("equipment_name"));
+    fireEvent.click(screen.getByRole("button", { name: "Default order" }));
+    await waitFor(() => expect(lastCall().ordering).toBe("default"));
   });
 
   it("exports all statuses by default for non-admins and Booked for the Main Administrator", async () => {
@@ -288,7 +316,8 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
       fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
       fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
       await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
-      expect(api.exportBookings.mock.calls[0][2].status).toBe(status);
+      expect(api.exportBookings.mock.calls[0][2].list_status).toBe(status);
+      expect(api.exportBookings.mock.calls[0][2].ordering).toBe("default");
       cleanup();
       vi.clearAllMocks();
       api.getBookings.mockImplementation(async (params: Params) => page(params));
@@ -301,11 +330,12 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
       auth.userType = userType;
       renderPage("/booking-management?results=overdue");
       await screen.findByText("XPS202600001");
-      expect(calls()[0].results_overdue).toBe(true);
+      expect(calls()[0].list_status).toBe("RESULT_OVERDUE");
       expect(calls()[0].status).toBeUndefined();
+      expect(statusBox().textContent).toContain("Result Overdue");
 
       fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-      await waitFor(() => expect(lastCall().results_overdue).toBeUndefined());
+      await waitFor(() => expect(lastCall().list_status).toBeUndefined());
       expect(lastCall().status).toBeUndefined();
       expect(statusBox().textContent).toContain("All status");
       cleanup();

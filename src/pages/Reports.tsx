@@ -71,6 +71,8 @@ interface BookingStats {
 }
 
 const STATUS_COLORS: Record<string, string> = {
+  RESULT_OVERDUE: "#b91c1c",
+  RESULTS_PENDING: "#f59e0b",
   BOOKED: "#22c55e",
   PENDING: "#eab308",
   PENDING_PAYMENT: "#facc15",
@@ -89,6 +91,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  RESULT_OVERDUE: "Result overdue",
+  RESULTS_PENDING: "Pending (sample accepted)",
   PENDING_PAYMENT: "Awaiting payment",
   DISRUPTION_PENDING: "Awaiting your choice (disruption)",
   ABSENT: "Operator unavailable",

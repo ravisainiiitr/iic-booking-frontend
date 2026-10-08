@@ -1308,6 +1308,8 @@ export interface BookingAwaitingCompletion {
   equipment_code: string;
   user_name: string;
   status: string;
+  /** RESULTS_PENDING ("Pending") / RESULT_OVERDUE ("Result Overdue"), or the stored status (e.g. sample waiting for the user). */
+  list_status?: string;
   ended_at: string;
   ended_display: string;
   /** Time since the results overdue time; empty until then. */
@@ -2569,6 +2571,11 @@ export type BookingListFilters = {
   ordering?: string;
   /** Staff only: open bookings past the equipment's results deadline */
   results_overdue?: boolean;
+  /**
+   * View Booking / My Bookings status: a stored status or the derived RESULTS_PENDING ("Pending") /
+   * RESULT_OVERDUE ("Result Overdue"). Unlike `status`, BOOKED excludes bookings that are Pending / Result Overdue.
+   */
+  list_status?: string;
 };
 
 export type BookingExportFormat = "xlsx" | "csv" | "pdf";
@@ -2594,6 +2601,9 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.status) {
     queryParams.append('status', params.status);
+  }
+  if (params?.list_status) {
+    queryParams.append('list_status', params.list_status);
   }
   if (params?.start_date) {
     queryParams.append('start_date', params.start_date);

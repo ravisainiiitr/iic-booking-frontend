@@ -3,10 +3,25 @@ import { describe, expect, it } from "vitest";
 import {
   awaitingIsOverdue,
   awaitingOverdueText,
+  awaitingStatus,
   BOOKINGS_AWAITING_COMPLETION_KEY,
   showsBookingsAwaitingCompletion,
   withoutAwaitingCompletionUnlessOperator,
 } from "./awaitingCompletion";
+
+describe("awaitingStatus", () => {
+  it("shows Result Overdue / Pending from the list status, falling back to the overdue flag", () => {
+    expect(awaitingStatus({ list_status: "RESULT_OVERDUE", status: "BOOKED", overdue: "2 h" })).toEqual({
+      key: "RESULT_OVERDUE",
+      label: "Result Overdue",
+    });
+    expect(awaitingStatus({ list_status: "RESULTS_PENDING", status: "BOOKED", overdue: "" }).label).toBe("Pending");
+    expect(awaitingStatus({ status: "BOOKED", overdue: "", is_overdue: true }).label).toBe("Result Overdue");
+    expect(awaitingStatus({ list_status: "BOOKED", status: "BOOKED", overdue: "", waiting_for_user: true }).label).toBe(
+      "Booked",
+    );
+  });
+});
 
 const items = [
   { key: BOOKINGS_AWAITING_COMPLETION_KEY, count: 2 },
