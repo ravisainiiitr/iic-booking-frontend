@@ -183,7 +183,13 @@ export default function EquipmentWaitlist() {
   const renderStatus = (e: WaitlistEntry) => {
     const st = statusOf(e);
     const reason =
-      st === "CANNOT_FULFILL" ? e.cannot_fulfill_remark || "" : st === "ACTIVE" ? "Awaiting confirmation" : "";
+      st === "CANNOT_FULFILL"
+        ? e.cannot_fulfill_remark || ""
+        : st === "ACTIVE"
+          ? e.cannot_fulfill_remark
+            ? `Awaiting confirmation. ${e.cannot_fulfill_remark}`
+            : "Awaiting confirmation"
+          : "";
     const markedAt = st === "CANNOT_FULFILL" ? e.marked_cannot_fulfill_at : st === "OPT_OUT" ? e.opted_out_at : null;
     return (
       <div className="min-w-0 space-y-1 text-xs">

@@ -7030,6 +7030,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
           status: "pending",
           waitlist_on_failure: waitlistIntentEffective,
           request_waitlist_without_slot_selection: true,
+          visible_week_start: format(startOfWeek(currentWeekStart, { weekStartsOn: 1 }), "yyyy-MM-dd"),
           ...(rewardPointsToRedeem.trim() ? { reward_points_to_redeem: rewardPointsToRedeem.trim() } : {}),
           ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
           ...fabricationBookExtras,

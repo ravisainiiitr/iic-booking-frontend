@@ -31,6 +31,7 @@ export function waitlistSection(): GuideSection {
     rules: [
       "Nothing is charged while you are only waitlisted; the wallet is checked at promotion.",
       "Each equipment has a maximum queue; when it is full you cannot join.",
+      "Your weekly and monthly limits apply. If the request would take you over a limit for that week or month, you are not added to the waitlist. If you are already waiting, a freed slot that would take you over the limit goes to the next person; you keep your place for later slots.",
       "Entries not promoted before the slot window are cleared.",
     ],
   };

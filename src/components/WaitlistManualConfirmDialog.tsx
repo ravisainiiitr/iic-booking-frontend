@@ -90,6 +90,27 @@ export default function WaitlistManualConfirmDialog({ open, onOpenChange, equipm
     [slots, selected],
   );
 
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setQuotaWarning(null);
+    setPreviewError(null);
+    if (!open || !entry || selected.length === 0) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      apiClient.previewWaitlistManualConfirm(equipmentId, entry.id, selected).then((res) => {
+        if (cancelled) return;
+        if (res.error) setPreviewError(res.error);
+        else setQuotaWarning(res.data?.quota_warning ?? null);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, entry, selected, equipmentId]);
+
   const toggle = (id: number) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -102,7 +123,9 @@ export default function WaitlistManualConfirmDialog({ open, onOpenChange, equipm
         toast.error(res.error);
         return;
       }
-      toast.success(res.data?.message ?? "Waitlisted booking confirmed.");
+      toast.success(res.data?.message ?? "Waitlisted booking confirmed.", {
+        description: res.data?.quota_warning ?? undefined,
+      });
       onConfirmed(entry.id);
       onOpenChange(false);
     } finally {
@@ -181,6 +204,20 @@ export default function WaitlistManualConfirmDialog({ open, onOpenChange, equipm
           <p className="text-xs text-muted-foreground">
             Selected: {selected.length} slot(s) • {selectedMinutes} min
           </p>
+          {quotaWarning ? (
+            <p
+              role="alert"
+              data-testid="wl-confirm-quota-warning"
+              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+            >
+              {quotaWarning}
+            </p>
+          ) : null}
+          {previewError ? (
+            <p role="alert" className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+              {previewError}
+            </p>
+          ) : null}
         </div>
 
         <DialogFooter>

@@ -14004,12 +14004,27 @@ class ApiClient {
     }>(`${endpoint}${equipmentId}/waitlist-slots/?${params.toString()}`, { method: 'GET' });
   }
 
-  /** OIC: manually confirm one waitlist entry into chosen slots. */
+  /** OIC: manually confirm one waitlist entry into chosen slots. Quota never blocks it; quota_warning explains an overrun. */
   async confirmWaitlistEntryManually(equipmentId: number, entryId: number, slotIds: number[]) {
     const endpoint = this.getAdminEndpoint('equipment');
-    return this.request<{ message: string; booking_id: number; total_charge: string; total_time_minutes: number }>(
+    return this.request<{
+      message: string;
+      booking_id: number;
+      total_charge: string;
+      total_time_minutes: number;
+      quota_warning?: string | null;
+    }>(
       `${endpoint}${equipmentId}/waitlist-confirm/`,
       { method: 'POST', body: JSON.stringify({ entry_id: entryId, slot_ids: slotIds }) }
+    );
+  }
+
+  /** OIC: check chosen slots for a manual waitlist confirmation without booking (quota warning, minutes). */
+  async previewWaitlistManualConfirm(equipmentId: number, entryId: number, slotIds: number[]) {
+    const endpoint = this.getAdminEndpoint('equipment');
+    return this.request<{ preview: true; total_time_minutes: number; quota_warning: string | null }>(
+      `${endpoint}${equipmentId}/waitlist-confirm/`,
+      { method: 'POST', body: JSON.stringify({ entry_id: entryId, slot_ids: slotIds, preview: true }) }
     );
   }
 

@@ -163,7 +163,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
       },
       {
         title: "Confirm manually",
-        body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking.",
+        body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking. If the booking would take the user over a weekly or monthly limit, an amber warning shows the minutes used and the limit; you can still confirm, because staff bookings skip limits.",
       },
       { title: "Export", body: "On Equipment waitlist and Repeat samples, Export downloads the list for the chosen Department/Centre, Equipment and tab as Excel (.xlsx), CSV or PDF." },
       {
@@ -175,6 +175,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
       "Any unbooked slot can be used, including weekends, holidays, closed, blocked and maintenance slots.",
       "The charge is debited from the user's wallet.",
       "Waitlisted users are confirmed automatically only into slots freed when a booking is cancelled or rescheduled. Slots lab staff open (marked Available, maintenance ended or equipment back to Operational) are never used automatically; use Confirm manually to place someone there.",
+      "Automatic confirmation and joining the waitlist follow the user's weekly and monthly limits, counted in the week and month of the slot. A user whose limit would be exceeded is not added to the waitlist; if already waiting, they are skipped (they stay waitlisted, with the reason shown) and the slot goes to the next person in the queue.",
     ],
   };
 }
