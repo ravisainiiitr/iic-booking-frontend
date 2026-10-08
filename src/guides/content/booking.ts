@@ -213,7 +213,7 @@ export function myBookingsSection(g: Gate): GuideSection {
     steps: [
       {
         title: "Find a booking",
-        body: "Use search, Status, dates and All equipment. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. S.No numbers the bookings across pages. What do these statuses mean? explains each status badge. Export downloads every booking matching your filters (not just the page on screen) as Excel (.xlsx), CSV or PDF, up to 10,000 at a time; waitlist entries are marked Waitlisted.",
+        body: "Use search, Status, dates and All equipment. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. S.No numbers the bookings across pages; Rows per page, below the list, shows 10, 25, 50, 100 or 500 bookings per page (50 to start) and is remembered on this browser. What do these statuses mean? explains each status badge. Export downloads every booking matching your filters (not just the page on screen) with everything you entered, including tables, each sample set, uploaded file names and the charge breakdown, as Excel (.xlsx), CSV or PDF. Excel and CSV take up to 10,000 bookings at a time and PDF up to 500; waitlist entries are marked Waitlisted.",
         screenshotCaption: "My Bookings",
         screenshotSrc: "/guides/my-bookings-dashboard.png",
       },

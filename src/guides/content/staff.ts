@@ -22,9 +22,9 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         body: `${g.pick(
           { admin: "The list opens on Booked; choose All status to see every booking." },
           `The list opens on All status, so every booking for ${scope} is shown.`
-        )} Use search, Status, dates and All equipment; More filters shows the rest. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. Click any column heading to sort. Export downloads every booking matching the filters, search and sort (not just the page on screen) as Excel (.xlsx), CSV or PDF, up to 10,000 bookings at a time.${g.pick(
+        )} Use search, Status, dates and All equipment; More filters shows the rest. The list updates as soon as you change a filter or type 2 or more characters in search; Clear resets them. Click any column heading to sort. Rows per page, below the list, shows 10, 25, 50, 100 or 500 bookings per page and is remembered on this browser. Export downloads every booking matching the filters, search and sort (not just the page on screen) with everything the user entered, including tables, each sample set and uploaded file names. Excel (.xlsx) adds Sample sets and Input tables sheets, CSV keeps each booking on one row, and PDF shows a summary page and then one card per booking. Excel and CSV take up to 10,000 bookings; PDF up to 500.${g.pick(
           { operator: " Amounts are not included." },
-          " The file includes the amount."
+          " The file includes the amount and its charge breakdown."
         )}`,
       },
       {
