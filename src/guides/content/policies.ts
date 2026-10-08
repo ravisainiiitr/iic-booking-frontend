@@ -21,7 +21,7 @@ export function waitlistSection(): GuideSection {
       },
       {
         title: "Get promoted",
-        body: "When a slot is released, WL1 is confirmed automatically with the normal checks, and you are emailed.",
+        body: "When another booking is cancelled or rescheduled and frees a slot, WL1 is confirmed automatically with the normal checks, and you are emailed. Slots the lab opens itself (for example after maintenance) are not used automatically.",
       },
       {
         title: "Leave",

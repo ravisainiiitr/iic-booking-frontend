@@ -161,6 +161,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
     rules: [
       "Any unbooked slot can be used, including weekends, holidays, closed, blocked and maintenance slots.",
       "The charge is debited from the user's wallet.",
+      "Waitlisted users are confirmed automatically only into slots freed when a booking is cancelled or rescheduled. Slots lab staff open (marked Available, maintenance ended or equipment back to Operational) are never used automatically; use Confirm manually to place someone there.",
     ],
   };
 }
@@ -224,6 +225,10 @@ export function slotStatusSection(g: Gate): GuideSection {
       g.only(
         ["oic", "admin"],
         "Repeat block only blocks free slots. Booked slots keep their bookings (nothing is cancelled or refunded) and are listed for you; slots already blocked or under maintenance are left as they are.",
+      ),
+      g.only(
+        ["oic", "admin"],
+        "Slots you mark Available, or open by removing a repeat block, are not given to waitlisted users automatically; only slots freed by a cancellation or reschedule are. Use Confirm manually on Equipment waitlist to place someone.",
       ),
     ]),
   };
