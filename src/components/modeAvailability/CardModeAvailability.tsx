@@ -17,7 +17,7 @@ type Props = {
 
 /** Single-line mode summary laid over the catalog card photo. */
 export default function CardModeAvailability({ availability, equipmentId, onOpen, className }: Props) {
-  const parts = modeSummaryParts(availability.modes ?? [], equipmentId);
+  const parts = modeSummaryParts(availability.modes ?? [], equipmentId, true);
   if (parts.length === 0) return null;
   const line = modeSummaryLine(parts);
   return (
@@ -32,7 +32,12 @@ export default function CardModeAvailability({ availability, equipmentId, onOpen
       )}
       data-testid="card-mode-availability"
     >
-      <ModeSummaryText parts={parts} codeClassName="text-white" separatorClassName="text-white/40" />
+      <ModeSummaryText
+        parts={parts}
+        codeClassName="text-white"
+        separatorClassName="text-white/40"
+        dotClassName="ring-1 ring-white/70"
+      />
     </button>
   );
 }

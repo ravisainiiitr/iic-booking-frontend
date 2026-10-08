@@ -33,6 +33,9 @@ describe("header summary", () => {
     expect(modeSummaryText({ ...base, state: "full", next_opening: { date: "2026-10-21", opens_at: "2026-10-14T21:00:00" } })).toBe(
       "Mon–Fri · full until Wed 21 Oct",
     );
+    expect(
+      modeSummaryText({ ...base, state: "full", next_opening: { date: "2026-10-21", opens_at: "2026-10-14T21:00:00" } }, true),
+    ).toBe("Mon–Fri · full");
     expect(modeSummaryText({ ...base, state: "not_open", next_opening: { date: "2026-10-21", opens_at: "2026-10-14T21:00:00" } })).toBe(
       "Mon–Fri · opens Wed 14 Oct",
     );

@@ -179,11 +179,13 @@ export function modeSummaryText(
   m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_opening"> & {
     next_available: { date: string; free_slots?: number } | null;
   },
+  /** Card photo: a fully booked mode reads just "full". */
+  compact = false,
 ): string {
   let status: string;
   if (m.state === "maintenance") status = "maintenance";
   else if (m.next_available) status = `next ${shortDay(m.next_available.date)}`;
-  else if (m.state === "full") status = m.next_opening ? `full until ${shortDay(m.next_opening.date)}` : "full";
+  else if (m.state === "full") status = m.next_opening && !compact ? `full until ${shortDay(m.next_opening.date)}` : "full";
   else if (m.next_opening) status = `opens ${shortDay(m.next_opening.opens_at.slice(0, 10))}`;
   else return "not scheduled";
   const days = weekdayRange(m.weekdays);
@@ -206,12 +208,13 @@ export function modeSummaryParts(
     }
   >,
   currentId: number,
+  compact = false,
 ): ModeSummaryPart[] {
   const colors = familyColors(modes);
   return modesForHeader(modes, currentId).map((m) => ({
     id: m.equipment_id,
     code: m.code,
-    text: modeSummaryText(m),
+    text: modeSummaryText(m, compact),
     color: colors.get(m.equipment_id)!,
   }));
 }
