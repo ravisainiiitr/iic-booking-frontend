@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Paperclip, RotateCcw, Search, Wrench } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+  Paperclip,
+  RotateCcw,
+  Search,
+  Trash2,
+  Undo2,
+  Wrench,
+} from "lucide-react";
+import { toast } from "sonner";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
+import { DeleteDisruptionDialog } from "@/components/disruptions/DeleteDisruptionDialog";
 import { DisruptionDetailSheet } from "@/components/disruptions/DisruptionDetailSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -136,6 +150,9 @@ export default function DisruptionHistory() {
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DisruptionRecord | null>(null);
+  const [restoringId, setRestoringId] = useState<number | null>(null);
   const optionsLoaded = useRef(false);
 
   useEffect(() => {
@@ -155,6 +172,7 @@ export default function DisruptionHistory() {
       page_size: pageSize,
     };
     if (!optionsLoaded.current) params.with_options = true;
+    if (showDeleted) params.show_deleted = true;
     apiClient.getDisruptions(params).then((res) => {
       if (cancelled) return;
       setLoading(false);
@@ -172,7 +190,31 @@ export default function DisruptionHistory() {
     return () => {
       cancelled = true;
     };
-  }, [filters, ordering, page, pageSize, reloadKey]);
+  }, [filters, ordering, page, pageSize, reloadKey, showDeleted]);
+
+  const refreshAfterChange = () => {
+    setReloadKey((k) => k + 1);
+    notifyDisruptionsChanged();
+  };
+
+  const onDeleted = (id: number) => {
+    setDeleteTarget(null);
+    if (openId === id) setOpenId(null);
+    if (rows.length === 1 && page > 1) setPage((p) => p - 1);
+    refreshAfterChange();
+  };
+
+  const restore = async (row: DisruptionRecord) => {
+    setRestoringId(row.id);
+    const res = await apiClient.restoreDisruption(row.id);
+    setRestoringId(null);
+    if (res.error) {
+      toast.error(res.error || "Could not restore the disruption.");
+      return;
+    }
+    toast.success("Disruption entry restored.");
+    refreshAfterChange();
+  };
 
   const update = useCallback((patch: Partial<DisruptionFilters>) => {
     setFilters((f) => ({ ...f, ...patch }));
@@ -206,6 +248,9 @@ export default function DisruptionHistory() {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const filtersActive = JSON.stringify(filters) !== JSON.stringify(EMPTY_DISRUPTION_FILTERS);
   const rows: DisruptionRecord[] = data?.results ?? [];
+  const canDelete = !!data?.can_delete && !showDeleted;
+  const canViewDeleted = !!data?.can_view_deleted;
+  const hasActions = canDelete || showDeleted;
 
   return (
     <PageShell>
@@ -344,6 +389,18 @@ export default function DisruptionHistory() {
                   />
                   Action not recorded
                 </label>
+                {canViewDeleted ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={showDeleted}
+                      onCheckedChange={(c) => {
+                        setShowDeleted(c === true);
+                        setPage(1);
+                      }}
+                    />
+                    Show deleted entries
+                  </label>
+                ) : null}
                 {filtersActive ? (
                   <Button variant="ghost" size="sm" onClick={resetFilters}>
                     <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -356,7 +413,7 @@ export default function DisruptionHistory() {
                 getParams={() => disruptionFilterParams(filters, ordering)}
                 description="All disruptions matching the filters"
                 noun="disruptions"
-                disabled={total === 0}
+                disabled={total === 0 || showDeleted}
               />
             </div>
           </CardContent>
@@ -397,29 +454,43 @@ export default function DisruptionHistory() {
                       <TableHead>Started by</TableHead>
                       <TableHead>Ended by</TableHead>
                       <TableHead>Status</TableHead>
+                      {hasActions ? <TableHead className="w-16 text-right">Actions</TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.length === 0 && !loading ? (
                       <TableRow>
                         <TableCell colSpan={15} className="py-10 text-center text-muted-foreground">
-                          {filtersActive ? "No disruptions match these filters." : "No disruptions recorded yet."}
+                          {showDeleted
+                            ? "No deleted disruption entries."
+                            : filtersActive
+                              ? "No disruptions match these filters."
+                              : "No disruptions recorded yet."}
                         </TableCell>
                       </TableRow>
                     ) : (
                       rows.map((r, i) => (
                         <TableRow
                           key={r.id}
-                          tabIndex={0}
-                          className="cursor-pointer align-top hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
-                          onClick={() => setOpenId(r.id)}
+                          tabIndex={showDeleted ? undefined : 0}
+                          className={cn(
+                            "align-top",
+                            !showDeleted &&
+                              "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                          )}
+                          onClick={showDeleted ? undefined : () => setOpenId(r.id)}
                           onKeyDown={(e) => {
+                            if (showDeleted || e.target !== e.currentTarget) return;
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
                               setOpenId(r.id);
                             }
                           }}
-                          aria-label={`Open ${r.disruption_type_display} on ${r.equipment_name}`}
+                          aria-label={
+                            showDeleted
+                              ? `Deleted ${r.disruption_type_display} on ${r.equipment_name}`
+                              : `Open ${r.disruption_type_display} on ${r.equipment_name}`
+                          }
                         >
                           <TableCell className="tabular-nums text-muted-foreground">
                             {r.s_no ?? (page - 1) * pageSize + i + 1}
@@ -465,10 +536,48 @@ export default function DisruptionHistory() {
                           <TableCell className="whitespace-nowrap">{r.started_by_name || "—"}</TableCell>
                           <TableCell className="whitespace-nowrap">{r.ended_by_name || "—"}</TableCell>
                           <TableCell>
-                            <Badge variant={r.status === "OPEN" ? "destructive" : "secondary"}>
-                              {r.status === "OPEN" ? "Open" : "Closed"}
-                            </Badge>
+                            {r.is_deleted ? (
+                              <div className="space-y-0.5 text-xs">
+                                <Badge variant="outline">Deleted</Badge>
+                                <div className="whitespace-nowrap text-muted-foreground">
+                                  {formatDMYTime(r.deleted_at) || "—"}
+                                  {r.deleted_by_name ? ` · ${r.deleted_by_name}` : ""}
+                                </div>
+                                {r.delete_reason ? <div className="line-clamp-2 break-words">{r.delete_reason}</div> : null}
+                              </div>
+                            ) : (
+                              <Badge variant={r.status === "OPEN" ? "destructive" : "secondary"}>
+                                {r.status === "OPEN" ? "Open" : "Closed"}
+                              </Badge>
+                            )}
                           </TableCell>
+                          {hasActions ? (
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              {showDeleted ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={restoringId != null}
+                                  onClick={() => void restore(r)}
+                                  aria-label={`Restore ${r.disruption_type_display} on ${r.equipment_name}`}
+                                >
+                                  <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                  Restore
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  onClick={() => setDeleteTarget(r)}
+                                  aria-label={`Delete ${r.disruption_type_display} on ${r.equipment_name}`}
+                                  title="Delete entry"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          ) : null}
                         </TableRow>
                       ))
                     )}
@@ -522,11 +631,10 @@ export default function DisruptionHistory() {
       <DisruptionDetailSheet
         eventId={openId}
         onClose={() => setOpenId(null)}
-        onChanged={() => {
-          setReloadKey((k) => k + 1);
-          notifyDisruptionsChanged();
-        }}
+        onChanged={refreshAfterChange}
+        onDelete={canDelete ? (detail) => setDeleteTarget(detail) : undefined}
       />
+      <DeleteDisruptionDialog event={deleteTarget} onClose={() => setDeleteTarget(null)} onDeleted={onDeleted} />
     </PageShell>
   );
 }

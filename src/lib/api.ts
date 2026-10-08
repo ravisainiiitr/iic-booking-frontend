@@ -13750,6 +13750,22 @@ class ApiClient {
     });
   }
 
+  /** Soft delete: hidden from history and reports; slot statuses and bookings are not changed. */
+  async deleteDisruption(id: number, reason = '') {
+    return this.request<{ id: number; deleted: boolean; was_open: boolean }>(`/equipments/disruptions/${id}/delete/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Main Administrator: bring a deleted disruption back. */
+  async restoreDisruption(id: number) {
+    return this.request<{ id: number; deleted: boolean }>(`/equipments/disruptions/${id}/restore/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
   async uploadDisruptionServiceReport(id: number, file: File) {
     const form = new FormData();
     form.append('file', file);

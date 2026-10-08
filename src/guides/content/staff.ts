@@ -280,6 +280,15 @@ export function disruptionHistorySection(g: Gate): GuideSection {
         body: "Click a row to open it. Add or change the category and reason, record the action taken and attach a service report (PDF, image or Word, up to 20 MB). The timeline lists every change and who made it.",
       },
       {
+        title: "Delete an entry",
+        body: g.pick(
+          {
+            admin: "To remove a wrong or duplicate entry, click the bin icon on its row (or Delete entry in the opened entry), optionally give a reason, and confirm. It disappears from the history, totals, exports and reports; slot statuses and bookings are not changed. Tick Show deleted entries to see deleted entries with who deleted them and why, and click Restore to bring one back.",
+          },
+          "To remove a wrong or duplicate entry, click the bin icon on its row (or Delete entry in the opened entry), optionally give a reason, and confirm. It disappears from the history, totals, exports and reports; slot statuses and bookings are not changed.",
+        ),
+      },
+      {
         title: "Export",
         body: "Export downloads all disruptions matching the filters as Excel, CSV or PDF.",
       },
@@ -288,6 +297,7 @@ export function disruptionHistorySection(g: Gate): GuideSection {
       "Under Maintenance, Scheduled Maintenance, Operator Absent and Other Reasons count as disruptions. Not Available, Reserved for External, Booking Not Utilized, holidays and closed days do not.",
       "Neighbouring slots marked together form one disruption; equipment Under Maintenance is one disruption until it is made Operational again.",
       "Disruption hours in Reports are downtime (under maintenance, scheduled maintenance and operator absent) plus slots marked for other reasons.",
+      "Deleting a disruption that is still ongoing leaves its slots (or the equipment) in their current status; make them available again as usual when ready.",
     ],
   };
 }

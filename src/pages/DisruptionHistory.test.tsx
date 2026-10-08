@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
     updateDisruption: vi.fn(),
     uploadDisruptionServiceReport: vi.fn(),
     downloadDisruptionServiceReport: vi.fn(),
+    deleteDisruption: vi.fn(),
+    restoreDisruption: vi.fn(),
   },
 }));
 
@@ -138,6 +140,68 @@ describe("DisruptionHistory", () => {
     fireEvent.change(within(dialog).getByLabelText("Details"), { target: { value: "Vacuum pump failed" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save reason" }));
     await waitFor(() => expect(state.api.updateDisruption).toHaveBeenCalledWith(7, { reason: "Vacuum pump failed", reason_category: "" }));
+  });
+
+  it("hides the delete action when the user cannot delete", async () => {
+    renderPage();
+    await screen.findByText("FE-SEM");
+    expect(screen.queryByRole("button", { name: /Delete Under Maintenance/ })).toBeNull();
+    expect(screen.queryByText("Show deleted entries")).toBeNull();
+  });
+
+  it("deletes a row after confirming with a reason, warns when ongoing, and refreshes the list", async () => {
+    state.api.getDisruptions.mockResolvedValue({ data: { ...listResponse, can_delete: true } });
+    state.api.deleteDisruption.mockResolvedValue({ data: { id: 7, deleted: true, was_open: true } });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Under Maintenance on FE-SEM" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(state.api.getDisruption).not.toHaveBeenCalled();
+    expect(dialog.textContent).toContain(
+      "Delete this disruption entry? It will be removed from disruption history and reports. Slot statuses and bookings are not changed."
+    );
+    expect(within(dialog).getByRole("note").textContent).toContain("still ongoing");
+    fireEvent.change(within(dialog).getByLabelText("Reason (optional)"), { target: { value: " Duplicate " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete entry" }));
+    await waitFor(() => expect(state.api.deleteDisruption).toHaveBeenCalledWith(7, "Duplicate"));
+    await waitFor(() => expect(state.api.getDisruptions).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+  });
+
+  it("deletes from the detail drawer and closes it", async () => {
+    state.api.getDisruptions.mockResolvedValue({ data: { ...listResponse, can_delete: true } });
+    state.api.deleteDisruption.mockResolvedValue({ data: { id: 7, deleted: true, was_open: false } });
+    renderPage();
+    fireEvent.click(await screen.findByRole("row", { name: /Open Under Maintenance on FE-SEM/ }));
+    const drawer = await screen.findByRole("dialog");
+    fireEvent.click(await within(drawer).findByRole("button", { name: "Delete entry" }));
+    const confirm = await screen.findByRole("alertdialog");
+    fireEvent.click(within(confirm).getByRole("button", { name: "Delete entry" }));
+    await waitFor(() => expect(state.api.deleteDisruption).toHaveBeenCalledWith(7, ""));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("lets the Main Administrator show deleted entries and restore one", async () => {
+    state.api.getDisruptions.mockResolvedValue({
+      data: { ...listResponse, can_delete: true, can_view_deleted: true },
+    });
+    state.api.restoreDisruption.mockResolvedValue({ data: { id: 7, deleted: false } });
+    renderPage();
+    await screen.findByText("FE-SEM");
+    state.api.getDisruptions.mockResolvedValue({
+      data: {
+        ...listResponse,
+        can_delete: true,
+        can_view_deleted: true,
+        show_deleted: true,
+        results: [{ ...record, is_deleted: true, deleted_at: record.start_at, deleted_by_name: "Admin", delete_reason: "Oops" }],
+      },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show deleted entries" }));
+    await waitFor(() => expect(state.api.getDisruptions.mock.calls.at(-1)?.[0]).toMatchObject({ show_deleted: true }));
+    expect(await screen.findByText("Oops")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Delete Under Maintenance/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Restore Under Maintenance on FE-SEM" }));
+    await waitFor(() => expect(state.api.restoreDisruption).toHaveBeenCalledWith(7));
   });
 
   it("shows an error with a retry", async () => {

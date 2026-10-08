@@ -165,6 +165,11 @@ export interface DisruptionRecord {
   status: "OPEN" | "CLOSED";
   backfilled: boolean;
   service_reports: DisruptionServiceReport[];
+  /** Present only on rows listed with `show_deleted` (Main Administrator). */
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by_name?: string;
+  delete_reason?: string;
 }
 
 export interface DisruptionDetail extends DisruptionRecord {
@@ -190,6 +195,9 @@ export interface DisruptionListResponse {
   sources: ReasonCategoryOption[];
   reason_categories: Record<string, ReasonCategoryOption[]>;
   can_filter_department: boolean;
+  can_delete?: boolean;
+  can_view_deleted?: boolean;
+  show_deleted?: boolean;
   summary?: DisruptionSummary;
   /** Present when requested with `with_options`. */
   equipment_options?: { id: number; name: string; code: string; department_id: number | null }[];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, FileText, Loader2, Paperclip } from "lucide-react";
+import { Download, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ interface Props {
   onClose: () => void;
   /** Called after a reason, action or report change so the list can refresh. */
   onChanged: () => void;
+  /** Shows a Delete entry button that hands the entry to the page's confirm dialog. */
+  onDelete?: (detail: DisruptionDetail) => void;
 }
 
 const TIMELINE_LABELS: Record<string, string> = {
@@ -29,6 +31,8 @@ const TIMELINE_LABELS: Record<string, string> = {
   extended: "Extended",
   resumed: "Resumed",
   released: "Slots made available",
+  deleted: "Deleted",
+  restored: "Restored",
   reason: "Reason updated",
   action: "Action taken updated",
   report: "Service report",
@@ -50,7 +54,7 @@ async function saveBlob(eventId: number, reportId: number) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function DisruptionDetailSheet({ eventId, onClose, onChanged }: Props) {
+export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }: Props) {
   const [detail, setDetail] = useState<DisruptionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
@@ -294,6 +298,21 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged }: Props) {
                 </ul>
               </details>
             )}
+
+            {onDelete ? (
+              <div className="border-t border-border pt-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onDelete(detail)}
+                  disabled={saving != null}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                  Delete entry
+                </Button>
+              </div>
+            ) : null}
           </div>
         )}
       </SheetContent>
