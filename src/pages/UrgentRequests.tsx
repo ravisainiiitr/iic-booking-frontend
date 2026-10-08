@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, type UrgentRequestRequirement } from "@/lib/api";
 import UrgentAllocateDialog, { type UrgentAllocateTarget } from "@/components/UrgentAllocateDialog";
 import { UrgentRequirementSummary } from "@/components/urgent/UrgentRequirementSummary";
@@ -244,6 +244,36 @@ const UrgentRequests = () => {
     if (authLoading || !isAuthenticated || !canAccess || !departmentReady) return;
     void fetchList();
   }, [authLoading, isAuthenticated, canAccess, departmentReady, fetchList]);
+
+  /** ?request=<id> (sign-in list, OIC emails): open that request's details straight away. */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedRequestId = Number(searchParams.get("request")) || null;
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !canAccess || !linkedRequestId) return;
+    let cancelled = false;
+    void (async () => {
+      const res = await apiClient.getUrgentRequestDetail(linkedRequestId);
+      if (cancelled) return;
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("request");
+          return next;
+        },
+        { replace: true },
+      );
+      if (res.error || !res.data) {
+        toast.error(res.error || "Could not open that urgent request.");
+        return;
+      }
+      const row = res.data as unknown as UrgentRequestRow;
+      setDetailRow(row);
+      setAdminNotes(row.admin_notes || "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, isAuthenticated, canAccess, linkedRequestId, setSearchParams]);
 
   const fetchHoldExpiryConfig = async () => {
     try {

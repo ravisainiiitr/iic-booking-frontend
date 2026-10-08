@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { scrollWhenReady } from "@/lib/scrollWhenReady";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import {
   Table,
@@ -219,6 +220,7 @@ const BookingManagement = () => {
     if (!expandId || !isAuthenticated || !user?.id || !isOperatorOrManager) return;
     const id = expandId.trim();
     let cancelled = false;
+    let stopScroll: (() => void) | undefined;
     (async () => {
       let b: Booking | undefined;
       if (/^\d+$/.test(id)) {
@@ -241,11 +243,18 @@ const BookingManagement = () => {
       setOverrideBooking(b);
       setDetailBooking(null);
       setSelectedBookingId(b.booking_id);
+      if (searchParams.get("section") === "messages") {
+        stopScroll = scrollWhenReady(`lab-messages-${b.booking_id}`);
+        return;
+      }
       setTimeout(() => {
         document.getElementById("booking-detail-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 200);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      stopScroll?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandId, isAuthenticated, user?.id, isOperatorOrManager]);
 
@@ -509,6 +518,7 @@ const BookingManagement = () => {
     if (!searchParams.has("expand")) return;
     setSearchParams((prev) => {
       prev.delete("expand");
+      prev.delete("section");
       return prev;
     });
   };

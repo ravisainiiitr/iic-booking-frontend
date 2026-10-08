@@ -5942,6 +5942,7 @@ class ApiClient {
         link: string;
         description: string;
         details?: string[];
+        entries?: Array<{ label: string; link: string; notification_ids?: number[] }>;
       }>;
       total: number;
     }>('/notifications/pending-actions/');

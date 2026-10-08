@@ -71,6 +71,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         title: "Follow up questions",
         body: "Open questions show Awaiting reply on the booking and in View Booking, and a card above the bookings list shows how many are awaiting the user's reply, with overdue ones marked. When the user replies you get an email and a notification, and the question is marked Answered. Use Mark resolved if it was settled another way.",
       }),
+      g.only(["oic", "admin", "operator"], {
+        title: "Messages from users at sign-in",
+        body: "After you sign in, the items needing your attention include Unread messages from users: bookings whose user sent a message through Message the lab that no one has answered yet, with the booking ID, the start of the message and when it was sent. Click one to open the booking at its messages; that marks its notifications read. View all opens View Booking.",
+      }),
     ]),
     rules: compact([
       g.only(["operator"], "Refunds, disruptions and reschedules are done by the Officer In Charge or Admin."),
@@ -114,6 +118,15 @@ export function urgentApprovalSection(g: Gate): GuideSection {
             title: "Open the queue",
             body: "Click Urgent booking on the dashboard, then Manage urgent requests. Pick one instrument in Equipment to see only its requests; the list covers only equipment you are responsible for, including equipment you cover as temporary OIC.",
           },
+      g.is("admin")
+        ? {
+            title: "Sign-in alerts",
+            body: "After you sign in, the items needing your attention list up to 5 urgent requests waiting for a decision; click one to open its details directly. The equipment's Officer In Charge (and temporary OIC) also gets an email when a Type B request is raised and when the supervisor approves it.",
+          }
+        : {
+        title: "Email and sign-in alerts",
+        body: "You get an email when a Type B request is raised for your equipment (including equipment you cover as temporary OIC) and, for a student's request, another when the supervisor approves it and it is ready to allocate. The email shows the request ID, requester category, required time, amount, preferred dates and reason; Open urgent request takes you to it. After you sign in, the items needing your attention list up to 5 waiting requests; click one to open its details directly.",
+      },
       { title: "Decide", body: "Click Review, read the reason, the requirement (sample details, required time, amount and preferred dates) and any document, then approve or reject." },
       {
         title: "Approve & allocate",
