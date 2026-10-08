@@ -154,6 +154,7 @@ export const adminGuide: RoleGuide = {
         ],
         rules: [
           "Only the Main Administrator can open the Wallet ledger or credit and debit wallets. A debit cannot take a sub-wallet below ₹0.00, and bookings are not changed.",
+          "The Wallet ledger is the only place to credit or debit a wallet by hand. Sub-wallets and Sub-wallet transactions in User Management and the Django admin are view only: entries cannot be deleted, a sub-wallet cannot be moved to another user or department, and a sub-wallet with a balance cannot be deleted. Correct a mistake with a new credit or debit.",
           "Every credit and debit is recorded with a reference (WAC- or WAD-), your name, the time, the reason and the IP address, and appears in the owner's transactions. Submitting the same entry twice posts it only once.",
           "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval. The department is that of the sub-wallet being funded, debited or transferred from.",
           "A department can only switch an option off; while a master switch is off, the option is off in every department. Credit limit caps apply to every department.",

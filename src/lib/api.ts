@@ -5313,38 +5313,6 @@ class ApiClient {
     );
   }
 
-  async creditWallet(amount: number, description?: string) {
-    return this.request<{
-      wallet: {
-        id: number;
-        user: number;
-        balance: string;
-        created_at: string;
-        updated_at: string;
-      };
-      transaction: any;
-    }>('/wallet/credit/', {
-      method: 'POST',
-      body: JSON.stringify({ amount, description }),
-    });
-  }
-
-  async debitWallet(amount: number, description?: string) {
-    return this.request<{
-      wallet: {
-        id: number;
-        user: number;
-        balance: string;
-        created_at: string;
-        updated_at: string;
-      };
-      transaction: any;
-    }>('/wallets/debit/', {
-      method: 'POST',
-      body: JSON.stringify({ amount, description }),
-    });
-  }
-
   async getWalletTransactions(limit = 5000, offset = 0) {
     return this.request<{
       transactions: any[];
@@ -13304,24 +13272,6 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
-  }
-
-  /** Admin: credit sub-wallet (mirrors Django admin /admin/users/subwallet/<id>/credit/). */
-  async adminSubWalletCredit(subWalletId: number | string, data: { amount: string | number; description?: string }) {
-    const endpoint = this.getAdminEndpoint('subWallets');
-    return this.request<{ detail: string; transaction: Record<string, unknown>; sub_wallet: Record<string, unknown> }>(
-      `${endpoint}${subWalletId}/credit/`,
-      { method: 'POST', body: JSON.stringify({ amount: String(data.amount), description: data.description ?? '' }) }
-    );
-  }
-
-  /** Admin: debit sub-wallet (mirrors Django admin /admin/users/subwallet/<id>/debit/). */
-  async adminSubWalletDebit(subWalletId: number | string, data: { amount: string | number; description?: string }) {
-    const endpoint = this.getAdminEndpoint('subWallets');
-    return this.request<{ detail: string; transaction: Record<string, unknown>; sub_wallet: Record<string, unknown> }>(
-      `${endpoint}${subWalletId}/debit/`,
-      { method: 'POST', body: JSON.stringify({ amount: String(data.amount), description: data.description ?? '' }) }
-    );
   }
 
   /** Admin/OIC/Dept Admin: selected-user details while booking on behalf (equipment-scoped). */

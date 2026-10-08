@@ -258,12 +258,6 @@ export default function AdminSection() {
   const [editUserPasswordLoading, setEditUserPasswordLoading] = useState(false);
   const [walletsListForSubWallets, setWalletsListForSubWallets] = useState<Array<{ id: number; user_email?: string; user_name?: string }>>([]);
   const [internalDepartmentsList, setInternalDepartmentsList] = useState<Array<{ id: number; name: string; code?: string | null }>>([]);
-  const [subWalletCreditDebitOpen, setSubWalletCreditDebitOpen] = useState(false);
-  const [subWalletCreditDebitMode, setSubWalletCreditDebitMode] = useState<"credit" | "debit">("credit");
-  const [subWalletCreditDebitRow, setSubWalletCreditDebitRow] = useState<Record<string, unknown> | null>(null);
-  const [subWalletCreditDebitAmount, setSubWalletCreditDebitAmount] = useState("");
-  const [subWalletCreditDebitDescription, setSubWalletCreditDebitDescription] = useState("");
-  const [subWalletCreditDebitLoading, setSubWalletCreditDebitLoading] = useState(false);
   const [userDocumentsList, setUserDocumentsList] = useState<Array<{ id: number; document_type: string; file_url: string | null; description?: string; uploaded_at?: string }>>([]);
 
   // Faculty wallet student bulk discounted charge profile support.
@@ -1187,22 +1181,12 @@ export default function AdminSection() {
   const handleDelete = async (row: Record<string, unknown>) => {
     const id = row[idField];
     if (id === undefined) return;
-    const confirmMsg =
-      sectionKey === "subWalletTransactions"
-        ? "Delete this sub-wallet transaction? The sub-wallet balance will be reversed to keep the ledger consistent."
-        : "Delete this record?";
-    if (!window.confirm(confirmMsg)) return;
+    if (!window.confirm("Delete this record?")) return;
     const res = await apiClient.adminDelete(sectionKey, id as number | string);
     if (res.error) {
       toast({ title: "Error", description: res.error, variant: "destructive" });
     } else {
-      toast({
-        title: "Deleted",
-        description:
-          sectionKey === "subWalletTransactions"
-            ? "Transaction deleted and balance reversed."
-            : "Record deleted.",
-      });
+      toast({ title: "Deleted", description: "Record deleted." });
       loadList();
     }
   };
@@ -1240,6 +1224,7 @@ export default function AdminSection() {
             <CardDescription>View, add, edit, and delete records. No Django Admin login required.</CardDescription>
             <div className="flex justify-end">
               {sectionKey !== "repeatSampleRequests" &&
+                sectionKey !== "subWalletTransactions" &&
                 !(sectionKey === "users" && !canManageUsers) && (
               <Button onClick={openCreate}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -2056,34 +2041,11 @@ export default function AdminSection() {
                               <TableCell>{row.created_at != null ? String(row.created_at).slice(0, 10) : "—"}</TableCell>
                               <TableCell>
                                 <div className="flex gap-2 flex-wrap">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    onClick={() => {
-                                      setSubWalletCreditDebitRow(row);
-                                      setSubWalletCreditDebitMode("credit");
-                                      setSubWalletCreditDebitAmount("");
-                                      setSubWalletCreditDebitDescription("");
-                                      setSubWalletCreditDebitOpen(true);
-                                    }}
-                                  >
-                                    Credit
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                    onClick={() => {
-                                      setSubWalletCreditDebitRow(row);
-                                      setSubWalletCreditDebitMode("debit");
-                                      setSubWalletCreditDebitAmount("");
-                                      setSubWalletCreditDebitDescription("");
-                                      setSubWalletCreditDebitOpen(true);
-                                    }}
-                                  >
-                                    Debit
-                                  </Button>
+                                  {isStrictAdmin ? (
+                                    <Button variant="ghost" size="sm" onClick={() => navigate("/admin/wallet-ledger")}>
+                                      Credit / debit in Wallet ledger
+                                    </Button>
+                                  ) : null}
                                   <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
                                     <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                                   </Button>
@@ -2191,14 +2153,18 @@ export default function AdminSection() {
                                 </TableCell>
                               ))}
                               <TableCell>
-                                <div className="flex gap-2">
-                                  <Button aria-label="Edit entry" title="Edit entry" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                                    <Pencil className="h-4 w-4" aria-hidden />
-                                  </Button>
-                                  <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
-                                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
-                                  </Button>
-                                </div>
+                                {sectionKey === "subWalletTransactions" ? (
+                                  <span className="text-xs text-muted-foreground">Read only</span>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button aria-label="Edit entry" title="Edit entry" variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                                      <Pencil className="h-4 w-4" aria-hidden />
+                                    </Button>
+                                    <Button aria-label="Delete entry" title="Delete entry" variant="ghost" size="sm" onClick={() => handleDelete(row)}>
+                                      <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
+                                    </Button>
+                                  </div>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -4138,85 +4104,6 @@ export default function AdminSection() {
             </DialogFooter>
               </>
             )}
-          </DialogContent>
-        </Dialog>
-        <Dialog open={subWalletCreditDebitOpen} onOpenChange={(open) => { if (!open) { setSubWalletCreditDebitRow(null); setSubWalletCreditDebitAmount(""); setSubWalletCreditDebitDescription(""); } setSubWalletCreditDebitOpen(open); }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{subWalletCreditDebitMode === "credit" ? "Credit" : "Debit"} Sub-Wallet</DialogTitle>
-              <DialogDescription>
-                {subWalletCreditDebitRow && (
-                  <>
-                    {subWalletCreditDebitMode === "credit" ? "Add" : "Deduct"} amount to/from{" "}
-                    <strong>{String(subWalletCreditDebitRow.department_name ?? subWalletCreditDebitRow.department_code ?? "—")}</strong> for{" "}
-                    <strong>{String(subWalletCreditDebitRow.wallet_user_email ?? "—")}</strong>.
-                    {subWalletCreditDebitMode === "debit" && (
-                      <> Current balance: ₹{subWalletCreditDebitRow.balance != null ? String(subWalletCreditDebitRow.balance) : "0.00"}. Amount must not exceed balance.</>
-                    )}
-                  </>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="subwallet-cd-amount">Amount (₹)</Label>
-                <Input
-                  id="subwallet-cd-amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={subWalletCreditDebitAmount}
-                  onChange={(e) => setSubWalletCreditDebitAmount(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="subwallet-cd-description">Description (optional)</Label>
-                <Input
-                  id="subwallet-cd-description"
-                  placeholder="e.g. Admin credit / Recharge"
-                  value={subWalletCreditDebitDescription}
-                  onChange={(e) => setSubWalletCreditDebitDescription(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setSubWalletCreditDebitOpen(false); setSubWalletCreditDebitRow(null); setSubWalletCreditDebitAmount(""); setSubWalletCreditDebitDescription(""); }}>
-                Cancel
-              </Button>
-              <Button
-                disabled={
-                  subWalletCreditDebitLoading ||
-                  !subWalletCreditDebitAmount ||
-                  Number(subWalletCreditDebitAmount) < 0.01 ||
-                  (subWalletCreditDebitMode === "debit" && subWalletCreditDebitRow != null && Number(subWalletCreditDebitAmount) > Number(subWalletCreditDebitRow.balance ?? 0))
-                }
-                onClick={async () => {
-                  if (!subWalletCreditDebitRow || subWalletCreditDebitRow.id == null) return;
-                  const amount = Number(subWalletCreditDebitAmount);
-                  if (amount < 0.01) return;
-                  if (subWalletCreditDebitMode === "debit" && subWalletCreditDebitRow.balance != null && amount > Number(subWalletCreditDebitRow.balance)) return;
-                  setSubWalletCreditDebitLoading(true);
-                  const res = subWalletCreditDebitMode === "credit"
-                    ? await apiClient.adminSubWalletCredit(subWalletCreditDebitRow.id, { amount, description: subWalletCreditDebitDescription.trim() || undefined })
-                    : await apiClient.adminSubWalletDebit(subWalletCreditDebitRow.id, { amount, description: subWalletCreditDebitDescription.trim() || undefined });
-                  setSubWalletCreditDebitLoading(false);
-                  if (res.error) {
-                    toast({ title: "Error", description: res.error, variant: "destructive" });
-                    return;
-                  }
-                  toast({ title: subWalletCreditDebitMode === "credit" ? "Credited" : "Debited", description: res.data?.detail ?? (subWalletCreditDebitMode === "credit" ? "Amount added to sub-wallet." : "Amount deducted from sub-wallet.") });
-                  setSubWalletCreditDebitOpen(false);
-                  setSubWalletCreditDebitRow(null);
-                  setSubWalletCreditDebitAmount("");
-                  setSubWalletCreditDebitDescription("");
-                  loadList();
-                }}
-              >
-                {subWalletCreditDebitLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {subWalletCreditDebitMode === "credit" ? "Credit" : "Debit"}
-              </Button>
-            </DialogFooter>
           </DialogContent>
         </Dialog>
         <Dialog open={rejectRepeatId !== null} onOpenChange={(open) => !open && setRejectRepeatId(null)}>
