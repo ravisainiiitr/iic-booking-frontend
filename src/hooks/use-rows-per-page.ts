@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 
 export const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100, 500] as const;
 
-export type RowsPerPageScope = "view-booking" | "my-bookings";
+export type RowsPerPageScope = "view-booking" | "my-bookings" | "wallet-owners" | "wallet-transactions";
 
 export function rowsPerPageStorageKey(scope: RowsPerPageScope, userId: string | number): string {
   return `iic.rowsPerPage.${scope}.${userId}`;

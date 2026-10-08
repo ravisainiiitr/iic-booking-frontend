@@ -666,6 +666,159 @@ export interface WalletDirectRechargePreview {
   email_cc: string[];
 }
 
+export interface LedgerOption {
+  value: string;
+  label: string;
+}
+
+export interface LedgerSubWallet {
+  id: number;
+  department_id: number;
+  department_name: string;
+  department_code: string;
+  balance: string;
+  transaction_count?: number;
+  total_credits?: string;
+  total_debits?: string;
+}
+
+export interface LedgerOwner {
+  s_no: number | null;
+  owner_id: number;
+  wallet_id: number;
+  name: string;
+  email: string;
+  employee_id: string;
+  user_type: string;
+  user_type_label: string;
+  department_id: number | null;
+  department_name: string;
+  total_balance: string;
+  sub_wallets: LedgerSubWallet[];
+  linked_students: number;
+  status: "active" | "inactive";
+  last_transaction_at: string | null;
+}
+
+export interface LedgerOwnerDetail extends LedgerOwner {
+  designation: string;
+  phone: string;
+  wallet_created_at: string | null;
+  total_credits: string;
+  total_debits: string;
+  students: Array<{
+    id: number;
+    name: string;
+    email: string;
+    enrollment: string;
+    user_type_label: string;
+    department_name: string;
+    linked_at: string | null;
+  }>;
+  credit_departments: LedgerOption[];
+}
+
+export interface LedgerOptions {
+  owner_types: LedgerOption[];
+  departments: LedgerOption[];
+  sub_wallet_departments: LedgerOption[];
+  categories: LedgerOption[];
+  performers: LedgerOption[];
+  reasons: LedgerOption[];
+  max_amount: string;
+}
+
+export interface LedgerOwnersResponse {
+  count: number;
+  page: number;
+  page_size: number;
+  summary: { owners: number; total_balance: string; negative_owners: number; zero_owners: number };
+  results: LedgerOwner[];
+  options?: LedgerOptions;
+}
+
+export interface LedgerTransaction {
+  s_no: number;
+  id: number;
+  created_at: string | null;
+  transaction_type: "credit" | "debit";
+  amount: string;
+  category: string;
+  category_label: string;
+  performer: "admin" | "user" | "system";
+  performed_by: string;
+  booking_code: string;
+  sub_wallet_id: number;
+  department_name: string;
+  department_code: string;
+  owner_id: number;
+  owner_name: string;
+  owner_department: string;
+  balance_after: string | null;
+  description: string;
+  remarks: string;
+  reference: string;
+  external_reference: string;
+  related_user_name: string;
+}
+
+export interface LedgerTransactionsResponse {
+  count: number;
+  page: number;
+  page_size: number;
+  summary: { transactions: number; total_credits: string; total_debits: string; net: string };
+  categories: LedgerOption[];
+  performers: LedgerOption[];
+  results: LedgerTransaction[];
+}
+
+export interface LedgerAdjustmentTarget {
+  owner_id: number;
+  sub_wallet_id?: number | null;
+  department_id?: number | null;
+  direction: "credit" | "debit";
+  amount: string;
+}
+
+export interface LedgerAdjustmentPreview {
+  owner: { id: number; name: string; email: string };
+  direction: "credit" | "debit";
+  sub_wallet_id: number | null;
+  sub_wallet_exists: boolean;
+  department: { id: number; name: string; code: string };
+  amount: string;
+  balance_before: string;
+  balance_after: string;
+}
+
+export interface LedgerAdjustmentInput extends LedgerAdjustmentTarget {
+  client_request_id: string;
+  reason: string;
+  remarks: string;
+  external_reference: string;
+  notify_owner: boolean;
+}
+
+export interface LedgerAdjustment {
+  id: number;
+  reference: string;
+  direction: "credit" | "debit";
+  amount: string;
+  reason: string;
+  reason_label: string;
+  remarks: string;
+  external_reference: string;
+  balance_before: string;
+  balance_after: string;
+  sub_wallet_id: number;
+  department_name: string;
+  transaction_id: number;
+  owner_id: number;
+  notify_owner: boolean;
+  created_at: string | null;
+  replayed: boolean;
+}
+
 export interface WalletDirectRechargeRecord {
   id: number;
   reference: string;
@@ -5523,6 +5676,48 @@ class ApiClient {
       `/wallet/direct-recharge/history/${q ? `?${q}` : ''}`,
       { method: 'GET' },
     );
+  }
+
+  private ledgerQuery(params: Record<string, string | number | boolean | null | undefined>) {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && value !== '' && value !== false) qs.set(key, String(value));
+    }
+    const q = qs.toString();
+    return q ? `?${q}` : '';
+  }
+
+  async getWalletLedgerOwners(params: Record<string, string | number | boolean | null | undefined> = {}) {
+    return this.request<LedgerOwnersResponse>(`/admin/wallet-ledger/owners/${this.ledgerQuery(params)}`, { method: 'GET' });
+  }
+
+  async getWalletLedgerOptions() {
+    return this.request<LedgerOptions>('/admin/wallet-ledger/options/', { method: 'GET' });
+  }
+
+  async getWalletLedgerOwner(ownerId: number) {
+    return this.request<LedgerOwnerDetail>(`/admin/wallet-ledger/owners/${ownerId}/`, { method: 'GET' });
+  }
+
+  async getWalletLedgerTransactions(params: Record<string, string | number | boolean | null | undefined> = {}) {
+    return this.request<LedgerTransactionsResponse>(
+      `/admin/wallet-ledger/transactions/${this.ledgerQuery(params)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async previewWalletLedgerAdjustment(payload: LedgerAdjustmentTarget) {
+    return this.request<LedgerAdjustmentPreview>('/admin/wallet-ledger/adjustments/preview/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createWalletLedgerAdjustment(payload: LedgerAdjustmentInput) {
+    return this.request<LedgerAdjustment>('/admin/wallet-ledger/adjustments/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   async getFinancePaymentReceipts(params?: { status?: string; department_id?: number }) {

@@ -153,6 +153,14 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
     moduleKey: "user_management.user_group_members",
   },
   {
+    key: "walletLedger",
+    label: "Wallet Ledger",
+    description: "Wallet owners, sub-wallet balances and transactions, with manual credit and debit",
+    icon: <Receipt className="h-6 w-6" />,
+    path: "/admin/wallet-ledger",
+    mainAdminOnly: true,
+  },
+  {
     key: "walletPaymentModes",
     label: "Wallet Payment Modes",
     description: "Wallet options overall and per department, email recipients, direct wallet recharge and credit caps",

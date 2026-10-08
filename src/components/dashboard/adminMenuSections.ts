@@ -97,7 +97,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: "sec_finance",
     name: "Finance",
     icon: Wallet,
-    items: ["wallet_recharge_requests", "wallet_payment_modes", "wallet_management"],
+    items: ["wallet_ledger", "wallet_recharge_requests", "wallet_payment_modes", "wallet_management"],
   },
   {
     id: "sec_operations",
