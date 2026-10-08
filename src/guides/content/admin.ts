@@ -47,7 +47,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Results deadline",
-            body: "In the equipment form (or the Django admin), set Results deadline in working days (default 2) or hours after the slot or sample receipt, whichever is later, and whether to Show results deadline to users (off by default). A booking has no results deadline until its sample is marked Sample Accepted (walk-in equipment counts from the slot). The Officer In Charge can set the same in their configuration page. It replaces the Auto Operator Unavailable and Auto Operator Absent Disruption hours, which are kept only as deprecated fields.",
+            body: "In the equipment form (or the Django admin), set Results deadline in working days (default 2) or hours after the slot or sample receipt, whichever is later, and whether to Show results deadline to users (off by default). A booking has no results deadline until its sample is marked Sample Accepted (walk-in equipment counts from the slot). The Officer In Charge can set the same in their configuration page. It replaces the Auto Operator Unavailable and Auto Operator Absent Disruption hours, which are kept only as deprecated fields. Separately, Results overdue after (hours), 24 by default, decides when an open booking counts as Results overdue (counted from the booking end, or from the Sample Accepted time plus the booked time if later): the overdue counter, the Results overdue list and the 9:00 AM completion reminder start only then. Show results countdown to users (off by default) lets users see Results expected by and Results overdue by.",
           },
           {
             title: "Advanced tables",
