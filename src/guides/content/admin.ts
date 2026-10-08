@@ -42,7 +42,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Reports and exports",
-            body: "Reports & Statistics, Booking attempt log, Urgent Requests, Equipment waitlist, Student nominations and TA nominations log each have an Export button. It downloads every row matching the filters on screen (not just the current page) as a formatted Excel workbook, a CSV or a printable PDF, up to 10,000 rows (2,000 for PDF). Each card on Reports & Statistics can also be exported on its own.",
+            body: "Reports & Statistics, Booking attempt log, Urgent Requests, Equipment waitlist, Repeat samples, Student nominations, TA nominations log, Wallet recharge requests, Wallet withdrawal requests and the Support desk each have an Export button. It downloads every row matching the filters on screen (not just the current page) as a formatted Excel workbook, a CSV or a printable PDF, up to 10,000 rows (2,000 for PDF). Each card on Reports & Statistics can also be exported on its own.",
           },
           { title: "Equipment", body: "Approve equipment addition requests and maintain equipment settings: semesters, buffers and charges. Multi-mode equipment (one page for all departments, with a department filter) is where you plan mode days on a month calendar: choosing equipment in a schedule makes it a mode of the base instrument, and a schedule with blank dates keeps that mode always available." },
           {

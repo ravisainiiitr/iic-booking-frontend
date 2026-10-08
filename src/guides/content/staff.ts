@@ -143,7 +143,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
         title: "Confirm manually",
         body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking.",
       },
-      { title: "Export", body: "Export downloads the waitlist for the chosen Department/Centre and Equipment as Excel (.xlsx), CSV or PDF." },
+      { title: "Export", body: "On Equipment waitlist and Repeat samples, Export downloads the list for the chosen Department/Centre, Equipment and tab as Excel (.xlsx), CSV or PDF." },
       {
         title: "Arrange a repeat sample",
         body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Booking opens straight away for that user, with their details at the top and the original parameters filled in. Change the parameters or the number of samples if needed (the slot time follows them), pick slots and confirm. The repeat is free and does not count toward the user's limits; the original booking is marked as repeated, the user is emailed, and any changed parameters are recorded in the booking history.",
@@ -306,7 +306,7 @@ export function ticketsSection(g: Gate): GuideSection {
         title: "Tickets marked to me",
         body: "Lists tickets assigned to you or raised for equipment you look after. Reply and resolve them here.",
       }),
-      { title: "My Tickets", body: "Lists the tickets you raised; raise a new one with a clear description and booking ID." },
+      { title: "My Tickets", body: "Lists the tickets you raised; raise a new one with a clear description and booking ID. Export downloads the tickets on the tab you are viewing as Excel (.xlsx), CSV or PDF." },
     ]),
   };
 }

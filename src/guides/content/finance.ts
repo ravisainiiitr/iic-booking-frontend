@@ -26,6 +26,7 @@ export const financeGuide: RoleGuide = {
           body: "Open Details and match the transaction number or UTR, amount and user against bank or cash-book records. Use Verify Fund Receipt where funds must be confirmed.",
         },
         { title: "Approve or escalate", body: "Click Approve on a verified request. Escalate a mismatch to the Department Administrator or Admin, saying what is wrong." },
+        { title: "Export", body: "Export downloads every request matching the filters as Excel (.xlsx), CSV or PDF, with totals." },
       ],
       rules: [
         "Declining and cancelling are done by the Department Administrator or Institute Admin.",
