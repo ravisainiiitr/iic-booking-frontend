@@ -58,7 +58,10 @@ export const deptAdminGuide: RoleGuide = {
         },
         { title: "Book", body: "Fill the inputs and choose slots as on the normal booking page." },
       ],
-      rules: ["Only equipment in your department. Staff types (Admin, OIC, Lab Operator) and Other are not listed."],
+      rules: [
+        "Only equipment in your department. Staff types (Admin, OIC, Lab Operator) and Other are not listed.",
+        "Weekly and monthly booking limits don't apply to bookings you make or reschedule for a user; they still count toward that user's own limits.",
+      ],
     },
     staffViewBookingSection(g),
     disruptionHistorySection(g),

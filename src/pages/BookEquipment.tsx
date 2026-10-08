@@ -2081,7 +2081,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     };
   }, []);
 
-  // Weekly / monthly minutes quota for the visible week (end users, or staff booking for a selected user).
+  // Weekly / monthly minutes quota for the visible week (end users booking for themselves; staff
+  // bookings for a user are not limited).
   const quotaWeekKey = format(startOfWeek(currentWeekStart, { weekStartsOn: 1 }), "yyyy-MM-dd");
   useEffect(() => {
     const equipmentId = equipmentDetail?.equipment_id ?? selectedEquipment?.id;
@@ -2093,14 +2094,15 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       !isTemplateFlow &&
       !isProformaFlow &&
       !repeatSourceBooking &&
-      (isEndUserBookingType(userType) || staffBookingForUser);
+      !staffBookingForUser &&
+      isEndUserBookingType(userType);
     if (!quotaApplicable) {
       setBookingQuota(null);
       return;
     }
     let cancelled = false;
     void apiClient
-      .getMyBookingQuota(equipmentId!, quotaReferenceDate(startOfWeek(currentWeekStart, { weekStartsOn: 1 })), staffBookingForUser ? adminBookForUserId : undefined)
+      .getMyBookingQuota(equipmentId!, quotaReferenceDate(startOfWeek(currentWeekStart, { weekStartsOn: 1 })))
       .then((res) => {
         if (!cancelled) setBookingQuota(res.data ?? null);
       })
@@ -9613,6 +9615,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 )}
                 {restoredDraft && (
                   <RestoredDraftNotice savedAt={restoredDraft.savedAt} onDiscard={discardRestoredDraft} />
+                )}
+                {isRegularBookingFlow && bookingForAnotherUser && (
+                  <QuotaRemainingNotice
+                    summary="Weekly/monthly limits don't apply to bookings made by staff. The booking still counts toward the user's own limits."
+                    className="mb-3"
+                  />
                 )}
                 {isRegularBookingFlow && quotaSummary && (
                   <QuotaRemainingNotice

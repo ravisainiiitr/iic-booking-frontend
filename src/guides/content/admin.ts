@@ -23,7 +23,7 @@ export const adminGuide: RoleGuide = {
         ],
         rules: ["Do not share the Admin account. Give staff named accounts with only the modules they need."],
         tips: [
-          "To book on someone's behalf, click Book on any equipment and choose Book slots for a user.",
+          "To book on someone's behalf, click Book on any equipment and choose Book slots for a user. Weekly and monthly booking limits don't apply to bookings you make or reschedule for a user; they still count toward that user's own limits.",
           "Customize menu still works: your own menus appear above the built-in sections, and Reset to default brings the sections back.",
         ],
       },

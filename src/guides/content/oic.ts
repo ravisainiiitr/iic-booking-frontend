@@ -38,7 +38,7 @@ export const oicGuide: RoleGuide = {
           },
           {
             title: "Book for a user",
-            body: "Click Book on your equipment and choose Book slots for a user, then select the user. The charge goes to that user.",
+            body: "Click Book on your equipment and choose Book slots for a user, then select the user. The charge goes to that user. Weekly and monthly booking limits don't apply to bookings you make or reschedule for a user; they still count toward that user's own limits.",
           },
         ]),
         rules: [
