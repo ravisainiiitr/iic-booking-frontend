@@ -185,6 +185,79 @@ describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
   });
 });
 
+describe("View Booking (staff) rows per page", { timeout: 20_000 }, () => {
+  const rowsBox = () => screen.getByRole("combobox", { name: "Rows per page" });
+  const firstCell = () => within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0].textContent;
+  const choose = async (size: string) => {
+    fireEvent.keyDown(rowsBox(), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("option", { name: size }));
+  };
+
+  beforeEach(() => {
+    // jsdom lacks the pointer/scroll APIs Radix Select calls when it opens.
+    Element.prototype.scrollIntoView ??= vi.fn();
+    Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+    Element.prototype.releasePointerCapture ??= vi.fn();
+    window.localStorage.clear();
+    api.getBookings.mockImplementation(async (params: Params) => page(params, 130));
+  });
+
+  it("starts at 10, offers 10 / 25 / 50 / 100 / 500 and keeps S.No and the range right for the chosen size", async () => {
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(rowsBox().textContent).toBe("10");
+    expect(lastCall()).toMatchObject({ limit: 10, offset: 0 });
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    await screen.findByText("XPS202600011");
+    fireEvent.keyDown(rowsBox(), { key: "Enter" });
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual(["10", "25", "50", "100", "500"]);
+    fireEvent.click(screen.getByRole("option", { name: "25" }));
+
+    // A new size goes back to page 1.
+    await waitFor(() => expect(lastCall()).toMatchObject({ limit: 25, offset: 0 }));
+    await screen.findByText("XPS202600025");
+    expect(firstCell()).toBe("1");
+    expect(screen.getByText(/Showing 1–25 of 130/)).toBeTruthy();
+    expect(screen.getByText("Page 1 of 6")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Next/ }));
+    await screen.findByText("XPS202600026");
+    expect(lastCall()).toMatchObject({ limit: 25, offset: 25 });
+    expect(firstCell()).toBe("26");
+    expect(screen.getByText(/Showing 26–50 of 130/)).toBeTruthy();
+  });
+
+  it("remembers the choice for the user and loads the remembered size first", async () => {
+    renderPage();
+    await screen.findByText("XPS202600001");
+    await choose("500");
+    await waitFor(() => expect(lastCall()).toMatchObject({ limit: 500, offset: 0 }));
+    expect(window.localStorage.getItem("iic.rowsPerPage.view-booking.1")).toBe("500");
+
+    cleanup();
+    api.getBookings.mockClear();
+    renderPage();
+    await screen.findByText("XPS202600130");
+    expect(calls().map((c) => c.limit)).toEqual(calls().map(() => 500));
+    expect(screen.getAllByRole("row")).toHaveLength(131);
+    expect(rowsBox().textContent).toBe("500");
+  });
+
+  it("does not page the export", async () => {
+    renderPage();
+    await screen.findByText("XPS202600001");
+    await choose("100");
+    await waitFor(() => expect(lastCall().limit).toBe(100));
+    fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+    await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
+    const filters = api.exportBookings.mock.calls[0][2] as Params;
+    expect(filters.limit).toBeUndefined();
+    expect(filters.offset).toBeUndefined();
+  });
+});
+
 describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
   it.each(["operator", "manager", "dept_admin"])("opens on All status for %s and lists every booking", async (userType) => {
     auth.userType = userType;
