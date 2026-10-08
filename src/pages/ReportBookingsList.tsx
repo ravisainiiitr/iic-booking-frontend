@@ -57,7 +57,15 @@ const ReportBookingsList = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [totals, setTotals] = useState({ spent: 0, hours: 0, charged: 0, bookings: 0, refunded: 0, scope: "personal" });
+  const [totals, setTotals] = useState({
+    spent: 0,
+    hours: 0,
+    charged: 0,
+    bookings: 0,
+    refunded: 0,
+    scope: "personal",
+    showMoney: true,
+  });
 
   useEffect(() => {
     const token = apiClient.getToken();
@@ -95,6 +103,7 @@ const ReportBookingsList = () => {
         bookings: Number(statsRes.data.total_bookings || 0),
         refunded: Number(statsRes.data.refunded_amount || 0),
         scope: statsRes.data.scope || "personal",
+        showMoney: statsRes.data.revenue_visible !== false,
       });
     }
     setLoading(false);
@@ -110,11 +119,14 @@ const ReportBookingsList = () => {
   };
 
   const isStaffScope = ["equipment", "department", "institute"].includes(totals.scope);
+  const showMoney = totals.showMoney;
   const subtitle = statusFilter
     ? `Bookings with status: ${statusFilter.replace(/_/g, " ")}`
-    : isStaffScope
-      ? "Complete list of bookings in your reporting scope with amounts"
-      : "Complete list of all your bookings with amount spent";
+    : !showMoney
+      ? "Complete list of bookings in your reporting scope with hours"
+      : isStaffScope
+        ? "Complete list of bookings in your reporting scope with amounts"
+        : "Complete list of all your bookings with amount spent";
 
   return (
     <div className="page-shell">
@@ -140,21 +152,23 @@ const ReportBookingsList = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {isStaffScope ? "Total Amount Charged" : "Total Amount Spent"}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{formatINR(totals.spent)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {totals.charged} charged booking(s); excludes refunded amounts
-                    {totals.refunded > 0 ? ` (${formatINR(totals.refunded)} refunded)` : ""}
-                  </p>
-                </CardContent>
-              </Card>
+            <div className={`grid grid-cols-1 gap-4 mb-6 ${showMoney ? "sm:grid-cols-2" : "sm:max-w-sm"}`}>
+              {showMoney && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      {isStaffScope ? "Total Amount Charged" : "Total Amount Spent"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{formatINR(totals.spent)}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {totals.charged} charged booking(s); excludes refunded amounts
+                      {totals.refunded > 0 ? ` (${formatINR(totals.refunded)} refunded)` : ""}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Hours</CardTitle>
@@ -171,7 +185,7 @@ const ReportBookingsList = () => {
                 <div className="space-y-1.5">
                   <CardTitle>Bookings ({totalCount})</CardTitle>
                   <CardDescription>
-                    Amount and hours per booking
+                    {showMoney ? "Amount and hours per booking" : "Hours per booking"}
                     {bookings.length < totalCount ? ` · showing ${bookings.length} of ${totalCount}` : ""}
                   </CardDescription>
                 </div>
@@ -195,7 +209,7 @@ const ReportBookingsList = () => {
                           <TableHead>Start</TableHead>
                           <TableHead>End</TableHead>
                           <TableHead className="text-right">Hours</TableHead>
-                          <TableHead className="text-right">Amount (₹)</TableHead>
+                          {showMoney && <TableHead className="text-right">Amount (₹)</TableHead>}
                           <TableHead>Status</TableHead>
                           <TableHead>Rating</TableHead>
                         </TableRow>
@@ -214,7 +228,9 @@ const ReportBookingsList = () => {
                               {b.end_time ? new Date(b.end_time).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—"}
                             </TableCell>
                             <TableCell className="text-right font-medium">{b.total_hours.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatINR(b.total_charge)}</TableCell>
+                            {showMoney && (
+                              <TableCell className="text-right font-medium">{formatINR(b.total_charge)}</TableCell>
+                            )}
                             <TableCell>
                               <span className="capitalize">{b.status_display || b.status}</span>
                             </TableCell>
