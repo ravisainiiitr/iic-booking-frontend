@@ -150,6 +150,13 @@ export default function EquipmentCatalogCard({
     goToDetails();
   };
 
+  const openAvailability = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const id = Number(item.id);
+    if (onOpenEquipment?.(id)) return;
+    navigate(`/equipment/${id}?panel=availability`);
+  };
+
   const warmBooking = canBookHere ? prefetchBookingPage : undefined;
 
   const openCitations = async (e: React.MouseEvent) => {
@@ -279,6 +286,14 @@ export default function EquipmentCatalogCard({
           >
             {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
           </span>
+          {item.modeAvailability?.modes?.length && !playingVideo ? (
+            <CardModeAvailability
+              availability={item.modeAvailability}
+              equipmentId={Number(item.id)}
+              onOpen={openAvailability}
+              className="absolute inset-x-3 bottom-[3.25rem] z-[2]"
+            />
+          ) : null}
         </div>
 
         <CardHeader className="flex-1 space-y-3 px-5 pb-3 pt-4">
@@ -311,8 +326,6 @@ export default function EquipmentCatalogCard({
               ))}
             </div>
           ) : null}
-
-          {item.modeAvailability?.modes?.length ? <CardModeAvailability availability={item.modeAvailability} /> : null}
 
           {item.description && item.description.trim() !== item.name.trim() ? (
             <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{item.description}</p>

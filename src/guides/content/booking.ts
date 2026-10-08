@@ -21,7 +21,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Check which mode runs when",
-        body: "Some instruments run in several modes that share them. Their cards show the days each mode runs (M T W T F S S) and its next day with free slots. On the equipment page, the line beside the name and status gives each mode's days and next free date, for example Mon–Fri · next Wed 21 Oct; hover it for the full text. Click it, or open Availability calendar, to see Availability by mode for the next four weeks: free slots, Fully booked, Holiday, or for weeks not open yet the date booking opens. Select a day and click Book to open that mode's booking page at that week.",
+        body: "Some instruments run in several modes that share them. A one-line summary on the card photo and beside the name on the equipment page gives each mode's days and next free date, for example Mon–Fri · next Wed 21 Oct; hover it for the full text. Click it, or open Availability calendar, to see Availability by mode for the next four weeks: free slots, Fully booked, Holiday, or for weeks not open yet the date booking opens. Select a day and click Book to open that mode's booking page at that week.",
       },
       {
         title: "Check charges and instructions",

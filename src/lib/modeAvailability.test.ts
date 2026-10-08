@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   BASE_MODE_COLOR,
   bookingPathFor,
-  cardHeadline,
   describeModeWeekdays,
   familyColors,
   formatDay,
@@ -72,17 +71,14 @@ describe("modeAvailability helpers", () => {
     expect(shortStatus({ status: "not_available", label: "No slots" })).toBe("Unavailable");
   });
 
-  it("summarises a mode for the legend and the card", () => {
+  it("summarises a mode for the legend", () => {
     const available = { state: "available" as const, next_available: { date: "2030-01-10", free_slots: 2 }, next_opening: null };
     expect(modeHeadline(available)).toBe("Next available: Thu, 10 Jan");
-    expect(cardHeadline(available, true)).toBe("Thu, 10 Jan");
     const full = { state: "full" as const, next_available: null, next_opening: { date: "2030-01-15", opens_at: "2030-01-09T21:00:00" } };
     expect(modeHeadline(full)).toBe("Fully booked for now · more from Tue, 15 Jan");
-    expect(cardHeadline(full)).toBe("Fully booked for now");
     const later = { state: "not_open" as const, next_available: null, next_opening: full.next_opening };
-    expect(cardHeadline(later)).toBe("Booking opens Wed, 9 Jan, 9:00 PM");
-    expect(cardHeadline(later, true)).toBe("Opens Wed, 9 Jan");
-    expect(cardHeadline({ state: "maintenance", next_available: null, next_opening: null })).toBe("Under maintenance");
+    expect(modeHeadline(later)).toBe("Next runs Tue, 15 Jan · booking opens Wed, 9 Jan, 9:00 PM");
+    expect(modeHeadline({ state: "maintenance", next_available: null, next_opening: null })).toBe("Under maintenance");
   });
 
   it("describes weekday patterns", () => {

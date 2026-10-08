@@ -199,9 +199,10 @@ const EquipmentProfile = () => {
   const [equipment, setEquipment] = useState<EquipmentProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
-  const [activePanel, setActivePanel] = useState<ContentPanel>(() =>
-    searchParams.get("panel") === "booking_templates" ? "booking_templates" : "general"
-  );
+  const [activePanel, setActivePanel] = useState<ContentPanel>(() => {
+    const panel = searchParams.get("panel");
+    return panel === "booking_templates" || panel === "availability" ? panel : "general";
+  });
   const [supportOpen, setSupportOpen] = useState(false);
   const [exportingBrochurePdf, setExportingBrochurePdf] = useState(false);
   const userType = user?.user_type ?? null;

@@ -153,22 +153,6 @@ export function modeHeadline(m: Pick<ModeAvailabilityMode, "state" | "next_avail
   return "Not running in the next 4 weeks";
 }
 
-/** Shorter state for catalog cards; ``compact`` drops the prefix for per-mode rows. */
-export function cardHeadline(
-  m: Pick<ModeAvailabilityMode, "state" | "next_available" | "next_opening">,
-  compact = false,
-): string {
-  if (m.state === "maintenance") return compact ? "Maintenance" : "Under maintenance";
-  if (m.next_available) return compact ? formatDay(m.next_available.date) : `Next available: ${formatDay(m.next_available.date)}`;
-  if (m.state === "full") return compact ? "Fully booked" : "Fully booked for now";
-  if (m.next_opening) {
-    return compact
-      ? `Opens ${formatDay(m.next_opening.opens_at.slice(0, 10))}`
-      : `Booking opens ${formatOpensAt(m.next_opening.opens_at)}`;
-  }
-  return "Not running soon";
-}
-
 /** "Wed 21 Oct" for a YYYY-MM-DD string. */
 function shortDay(iso: string): string {
   const d = parseIsoDate(iso);
@@ -192,7 +176,7 @@ export function weekdayRange(days: number[]): string {
 
 /** Header-line text for a mode: "Mon–Fri · next Wed 21 Oct", "Mon–Fri · full until Wed 21 Oct" or "not scheduled". */
 export function modeSummaryText(
-  m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_available" | "next_opening">,
+  m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_opening"> & { next_available: { date: string } | null },
 ): string {
   let status: string;
   if (m.state === "maintenance") status = "maintenance";
@@ -208,6 +192,30 @@ export function modeSummaryText(
 export function modesForHeader<T extends { equipment_id: number }>(modes: T[], currentId: number): T[] {
   const current = modes.find((m) => m.equipment_id === currentId);
   return current ? [current, ...modes.filter((m) => m !== current)] : modes;
+}
+
+export type ModeSummaryPart = { id: number; code: string; text: string; color: string };
+
+/** One-line summary parts (current mode first) for the equipment page header and the catalog card image. */
+export function modeSummaryParts(
+  modes: Array<
+    Pick<ModeAvailabilityMode, "equipment_id" | "code" | "role" | "weekdays" | "state" | "next_opening"> & {
+      next_available: { date: string } | null;
+    }
+  >,
+  currentId: number,
+): ModeSummaryPart[] {
+  const colors = familyColors(modes);
+  return modesForHeader(modes, currentId).map((m) => ({
+    id: m.equipment_id,
+    code: m.code,
+    text: modeSummaryText(m),
+    color: colors.get(m.equipment_id)!,
+  }));
+}
+
+export function modeSummaryLine(parts: ModeSummaryPart[]): string {
+  return parts.map((p) => `${p.code} ${p.text}`).join(" | ");
 }
 
 export function describeModeWeekdays(days: number[]): string {

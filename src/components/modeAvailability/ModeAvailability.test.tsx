@@ -163,23 +163,15 @@ describe("CardModeAvailability", () => {
     modes: modes.map((m) => ({ ...m, next_available: m.next_available ? { date: m.next_available.date, free_slots: m.next_available.free_slots } : null })),
   });
 
-  it("shows one mode's running days and next free day", () => {
-    render(<CardModeAvailability availability={card([mode(DEPTH, { weekdays: [1, 3] })])} />);
-    const chips = screen.getByTestId("mode-weekday-chips");
-    expect(Array.from(chips.querySelectorAll('[data-active="true"]')).map((c) => c.getAttribute("title"))).toEqual([
-      "Tue: runs",
-      "Thu: runs",
-    ]);
-    expect(screen.getByText("Next available: Wed, 9 Jan")).toBeTruthy();
-  });
-
-  it("lists at most three modes for a base and counts the rest", () => {
-    const modes = [mode(BASE), mode(DEPTH), mode(UPS, { state: "full", next_available: null }), mode(4), mode(5)];
-    render(<CardModeAvailability availability={card(modes)} />);
-    expect(screen.getAllByTestId("card-mode-row")).toHaveLength(3);
-    expect(screen.getByText("+2 more modes")).toBeTruthy();
-    expect(screen.getByText("Fully booked")).toBeTruthy();
-    expect(screen.getByText("5 modes share this instrument")).toBeTruthy();
+  it("puts every mode of a base card on one line with the base first", () => {
+    const onOpen = vi.fn();
+    const modes = [mode(BASE), mode(DEPTH, { weekdays: [], state: "not_running", next_available: null }), mode(UPS, { state: "full", next_available: null })];
+    render(<CardModeAvailability availability={card(modes)} equipmentId={BASE} onOpen={onOpen} />);
+    const strip = screen.getByTestId("card-mode-availability");
+    expect(strip.textContent).toBe("XPS Mon–Thu · next Wed 9 Jan|XPS-D not scheduled|XPS-U Mon–Thu · full");
+    expect(strip.getAttribute("aria-label")).toContain("XPS-D not scheduled");
+    fireEvent.click(strip);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });
 

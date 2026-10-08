@@ -164,13 +164,17 @@ describe("EquipmentCatalogCard price", () => {
 });
 
 describe("EquipmentCatalogCard multi-mode availability", () => {
-  it("shows the mode's running days only when the catalog sends them", () => {
+  it("lays one line over the photo, leading with this mode, and opens the availability calendar", () => {
     renderCard({
       item: {
         ...item,
         modeAvailability: {
           parent_equipment_id: 41,
           modes: [
+            {
+              equipment_id: 41, code: "XPS", name: "XPS base", role: "base", operational: true,
+              weekdays: [0, 1, 2, 3, 4], hours: [], state: "available", next_available: { date: "2030-01-09", free_slots: 2 }, next_opening: null,
+            },
             {
               equipment_id: 42, code: "XPS-D", name: "XPS Depth", role: "mode", operational: true,
               weekdays: [1, 3], hours: [], state: "full", next_available: null, next_opening: null,
@@ -179,8 +183,12 @@ describe("EquipmentCatalogCard multi-mode availability", () => {
         },
       },
     });
-    expect(screen.getByTestId("card-mode-availability")).toBeTruthy();
-    expect(screen.getByText("Fully booked for now")).toBeTruthy();
+    const strip = screen.getByTestId("card-mode-availability");
+    expect(strip.textContent).toBe("XPS-D Tue/Thu · full|XPS Mon–Fri · next Wed 9 Jan");
+    expect(strip.getAttribute("title")).toBe("XPS-D Tue/Thu · full | XPS Mon–Fri · next Wed 9 Jan");
+    expect(screen.queryByText(/modes share this instrument/)).toBeNull();
+    fireEvent.click(strip);
+    expect(where()).toBe("/equipment/42?panel=availability");
     cleanup();
     renderCard();
     expect(screen.queryByTestId("card-mode-availability")).toBeNull();
