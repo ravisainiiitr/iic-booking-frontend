@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
 import { ClampedText, InlineDateTime, StackedDateTime } from "@/components/StaffListCells";
+import { ExportMenu } from "@/components/ExportMenu";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { cn } from "@/lib/utils";
 
@@ -211,7 +212,17 @@ export default function RepeatSampleRequests() {
                 </TabsList>
               </Tabs>
             </div>
-            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions} />
+            <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions}>
+              <ExportMenu
+                report="repeat-sample-requests"
+                noun="records"
+                getParams={() => ({
+                  status: filter === "ALL" ? undefined : filter,
+                  department_id: departmentId,
+                  equipment_id: equipmentId,
+                })}
+              />
+            </StaffListFilterRow>
           </CardHeader>
           <CardContent className="px-4 sm:px-5">
             {loading ? (

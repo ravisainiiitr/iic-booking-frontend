@@ -35,6 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { StandaloneOnly } from "@/components/PageShell";
+import { ExportMenu } from "@/components/ExportMenu";
 
 type TicketRow = TicketDetailsData & {
   comments_count?: number;
@@ -179,15 +180,28 @@ const AdminSettingsSupport = () => {
                   Manage tickets, reassign staff, and resolve requests. Requesters are emailed on resolution.
                 </CardDescription>
               </div>
-              <TicketForm
-                trigger={
-                  <Button className="bg-primary hover:bg-primary/90">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Ticket
-                  </Button>
-                }
-                onSuccess={() => void loadTickets()}
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <ExportMenu
+                  report="tickets"
+                  noun="tickets"
+                  getParams={() => ({
+                    ordering,
+                    status: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
+                    ticket_type: ticketTypeFilter || undefined,
+                    priority: priorityFilter || undefined,
+                    search: search.trim() || undefined,
+                  })}
+                />
+                <TicketForm
+                  trigger={
+                    <Button className="bg-primary hover:bg-primary/90">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Ticket
+                    </Button>
+                  }
+                  onSuccess={() => void loadTickets()}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

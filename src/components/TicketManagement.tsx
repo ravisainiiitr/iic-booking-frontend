@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Eye, MessageSquare, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import TicketDetailsDialog, { type TicketDetailsData } from "@/components/TicketDetailsDialog";
+import { ExportMenu } from "@/components/ExportMenu";
 import {
   DEFAULT_TICKET_TYPE_OPTIONS,
   TicketPriorityBadge,
@@ -127,13 +128,25 @@ const TicketManagement = () => {
   return (
     <div className="space-y-4">
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{showAssignedColumns ? "Tickets marked to me" : "My Tickets"}</CardTitle>
-          <CardDescription>
-            {showAssignedColumns
-              ? "Tickets assigned to you or raised for equipment you look after. Open a ticket to read it and reply."
-              : "Track support requests and conversation history"}
-          </CardDescription>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle>{showAssignedColumns ? "Tickets marked to me" : "My Tickets"}</CardTitle>
+            <CardDescription>
+              {showAssignedColumns
+                ? "Tickets assigned to you or raised for equipment you look after. Open a ticket to read it and reply."
+                : "Track support requests and conversation history"}
+            </CardDescription>
+          </div>
+          <ExportMenu
+            report="tickets"
+            noun="tickets"
+            disabled={!loading && tickets.length === 0}
+            getParams={() => ({
+              status: statusFilter !== "all" ? statusFilter : undefined,
+              ticket_type: typeFilter !== "all" ? typeFilter : undefined,
+              scope: isTicketHandler ? scope : undefined,
+            })}
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           {isTicketHandler && (

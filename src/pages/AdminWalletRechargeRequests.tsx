@@ -53,6 +53,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { ExportMenu } from "@/components/ExportMenu";
 import { formatDMY } from "@/lib/dateFormat";
 
 interface AuditLog {
@@ -292,9 +293,8 @@ export default function AdminWalletRechargeRequests() {
     })();
   }, [canAccess, isAdmin]);
 
-  const fetchRows = async () => {
-    setLoading(true);
-    const params: Record<string, string> = { ordering: "-created_at", page_size: "200" };
+  const listFilters = () => {
+    const params: Record<string, string> = {};
     if (statusFilter !== "__all__") params.status = statusFilter;
     if (fundVerifiedFilter === "verified") params.fund_receipt_verified = "true";
     if (fundVerifiedFilter === "unverified") params.fund_receipt_verified = "false";
@@ -306,6 +306,12 @@ export default function AdminWalletRechargeRequests() {
     if (projectGrant.trim()) params.project_grant = projectGrant.trim();
     if (cashbookFilter !== "__all__") params.cashbook = cashbookFilter;
     if (overdueOnly) params.overdue = "1";
+    return params;
+  };
+
+  const fetchRows = async () => {
+    setLoading(true);
+    const params: Record<string, string> = { ordering: "-created_at", page_size: "200", ...listFilters() };
     const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
     if (res.error) {
       toast.error(res.error);
@@ -518,11 +524,14 @@ export default function AdminWalletRechargeRequests() {
 
         <Card>
           <CardHeader className="space-y-4">
-            <div>
-              <CardTitle>Complete request list</CardTitle>
-              <CardDescription>
-                Match each row with the physical receipt, open user details, enter remarks, then mark verified.
-              </CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Complete request list</CardTitle>
+                <CardDescription>
+                  Match each row with the physical receipt, open user details, enter remarks, then mark verified.
+                </CardDescription>
+              </div>
+              <ExportMenu report="wallet-recharge-requests" getParams={listFilters} noun="requests" />
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <div className="space-y-1">

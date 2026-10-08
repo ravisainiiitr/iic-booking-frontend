@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Landmark, RotateCcw, Eye } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { ExportMenu } from "@/components/ExportMenu";
 
 interface WalletWithdrawalRequestRow {
   id: number;
@@ -156,6 +157,11 @@ export default function AdminWalletWithdrawalRequests() {
               <Button aria-label="Refresh list" variant="outline" size="icon" onClick={fetchRows} title="Refresh">
                 <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
+              <ExportMenu
+                report="wallet-withdrawal-requests"
+                getParams={() => (statusFilter !== "__all__" ? { status: statusFilter } : {})}
+                noun="requests"
+              />
             </div>
           </CardHeader>
           <CardContent>
