@@ -6,6 +6,7 @@ import {
   DISRUPTION_TYPE_LABELS,
   disruptionRequestFields,
   disruptionTypeForSlotStatus,
+  notifyDisruptionsChanged,
   resumedEventIds,
   type DisruptionDialogValues,
   type DisruptionEventIds,
@@ -37,7 +38,11 @@ export interface DisruptionPromptOutcome {
   afterApply: (events: DisruptionEventIds | null | undefined) => Promise<void>;
 }
 
-const NOOP_OUTCOME: DisruptionPromptOutcome = { fields: {}, values: null, afterApply: async () => {} };
+const NOOP_OUTCOME: DisruptionPromptOutcome = {
+  fields: {},
+  values: null,
+  afterApply: async () => notifyDisruptionsChanged(),
+};
 
 function mergePreviews(previews: SlotStatusPreview[]): SlotStatusPreview {
   const starts = previews.map((p) => p.first_start).filter((v): v is string => Boolean(v)).sort();
@@ -127,7 +132,10 @@ export function useDisruptionPrompt() {
     return {
       fields: disruptionRequestFields(result.values),
       values: result.values,
-      afterApply: (events) => uploadReport(file, events),
+      afterApply: async (events) => {
+        await uploadReport(file, events);
+        notifyDisruptionsChanged();
+      },
     };
   };
 

@@ -1,7 +1,7 @@
 import { compact, type RoleGuide } from "../gate";
 import { assistantSection } from "./booking";
 import { helpSection } from "./help";
-import { slotStatusSection, staffViewBookingSection, urgentApprovalSection, waitlistConfirmSection } from "./staff";
+import { disruptionHistorySection, slotStatusSection, staffViewBookingSection, urgentApprovalSection, waitlistConfirmSection } from "./staff";
 import { trainingSection } from "./training";
 
 const ADMIN = "Administration";
@@ -161,6 +161,7 @@ export const adminGuide: RoleGuide = {
       urgentApprovalSection(g),
       waitlistConfirmSection(g),
       slotStatusSection(g),
+      disruptionHistorySection(g),
       trainingSection(g),
       {
         id: "support-admin",

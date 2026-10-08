@@ -1283,6 +1283,12 @@ const Reports = () => {
                         {Number(equipmentReportData.summary.total_hours || 0).toFixed(2)}h · Downtime:{" "}
                         {Number(equipmentReportData.summary.downtime_hours || 0).toFixed(2)}h
                       </div>
+                      <div
+                        className="text-xs text-muted-foreground"
+                        title="Downtime is under maintenance, scheduled maintenance and operator absent. Disruption hours also include slots marked for other reasons."
+                      >
+                        Disruption hours: {Number(equipmentReportData.summary.disruption_hours || 0).toFixed(2)}h
+                      </div>
                     </CardContent>
                   </Card>
                   <Card className="border-primary/25 bg-gradient-to-br from-primary/5 to-background dark:from-primary/15">
@@ -1723,6 +1729,24 @@ const Reports = () => {
                                     <TableCell>Operator absent</TableCell>
                                     <TableCell className="text-right font-medium text-amber-700 dark:text-amber-300">
                                       {eq.operator_absent_hours}
+                                    </TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Scheduled maintenance</TableCell>
+                                    <TableCell className="text-right font-medium text-amber-700 dark:text-amber-300">
+                                      {Number(eq.scheduled_maintenance_hours ?? 0).toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell>Other reasons (slots)</TableCell>
+                                    <TableCell className="text-right font-medium text-red-700 dark:text-red-300">
+                                      {Number(eq.other_reasons_hours ?? 0).toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                  <TableRow>
+                                    <TableCell className="font-semibold">Disruption hours</TableCell>
+                                    <TableCell className="text-right font-semibold">
+                                      {Number(eq.disruption_hours ?? 0).toFixed(2)}
                                     </TableCell>
                                   </TableRow>
                                   <TableRow>

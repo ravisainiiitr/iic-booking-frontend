@@ -4,6 +4,7 @@ import { assistantSection } from "./booking";
 import { helpSection } from "./help";
 import { trainingSection } from "./training";
 import {
+  disruptionHistorySection,
   oicChargesSection,
   oicConfigSection,
   slotStatusSection,
@@ -49,6 +50,7 @@ export const oicGuide: RoleGuide = {
       urgentApprovalSection(g),
       waitlistConfirmSection(g),
       slotStatusSection(g),
+      disruptionHistorySection(g),
       oicConfigSection(g),
       oicChargesSection(),
       {

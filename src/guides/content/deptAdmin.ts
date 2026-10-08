@@ -1,6 +1,6 @@
 import type { RoleGuide } from "../gate";
 import { helpSection } from "./help";
-import { staffViewBookingSection } from "./staff";
+import { disruptionHistorySection, staffViewBookingSection } from "./staff";
 
 const GROUP = "Department";
 
@@ -61,6 +61,7 @@ export const deptAdminGuide: RoleGuide = {
       rules: ["Only equipment in your department. Staff types (Admin, OIC, Lab Operator) and Other are not listed."],
     },
     staffViewBookingSection(g),
+    disruptionHistorySection(g),
     {
       id: "department-queues",
       title: "Urgent requests, waitlist and repeat samples",

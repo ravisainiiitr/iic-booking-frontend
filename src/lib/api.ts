@@ -12833,6 +12833,11 @@ class ApiClient {
         under_maintenance_hours: number;
         operator_absent_slots: number;
         operator_absent_hours: number;
+        scheduled_maintenance_slots?: number;
+        scheduled_maintenance_hours?: number;
+        other_reasons_slots?: number;
+        other_reasons_hours?: number;
+        disruption_hours?: number;
         booking_not_utilized_slots: number;
         booking_not_utilized_hours: number;
         no_booking_slots: number;
@@ -12856,6 +12861,7 @@ class ApiClient {
         total_hours?: number;
         utilized_hours?: number;
         downtime_hours?: number;
+        disruption_hours?: number;
         utilization_factor?: number;
         revenue_total?: number;
         revenue_internal?: number;
@@ -13557,7 +13563,7 @@ class ApiClient {
   }
 
   /** Disruption history (Main Admin, Dept Admin, OIC incl. substitute). */
-  async getDisruptions(params: DisruptionListParams = {}) {
+  async getDisruptions(params: DisruptionListParams | Record<string, string | number | boolean | undefined> = {}) {
     const q = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) {
       if (value == null || value === '' || value === false) continue;

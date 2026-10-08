@@ -55,6 +55,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "equipment_settings",
       "multi_mode_equipment",
       "change_slot_status",
+      "disruption_history",
       "accessories",
       "3d_print_materials",
       "equipment_lifecycle_expenses",

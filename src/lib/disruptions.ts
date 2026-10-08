@@ -191,6 +191,9 @@ export interface DisruptionListResponse {
   reason_categories: Record<string, ReasonCategoryOption[]>;
   can_filter_department: boolean;
   summary?: DisruptionSummary;
+  /** Present when requested with `with_options`. */
+  equipment_options?: { id: number; name: string; code: string; department_id: number | null }[];
+  department_options?: { id: number; name: string }[];
 }
 
 export interface DisruptionListParams {
@@ -207,6 +210,62 @@ export interface DisruptionListParams {
   ordering?: string;
   page?: number;
   page_size?: number;
+  with_options?: boolean;
+}
+
+/** Filter state of the Disruption history page; also the export parameters. */
+export interface DisruptionFilters {
+  date_from: string;
+  date_to: string;
+  equipment: string;
+  department: string;
+  type: string;
+  status: string;
+  source: string;
+  reason_missing: boolean;
+  action_missing: boolean;
+  search: string;
+}
+
+export const EMPTY_DISRUPTION_FILTERS: DisruptionFilters = {
+  date_from: "",
+  date_to: "",
+  equipment: "",
+  department: "",
+  type: "",
+  status: "",
+  source: "",
+  reason_missing: false,
+  action_missing: false,
+  search: "",
+};
+
+/** Query parameters for the list / export: empty values are dropped, booleans become "1". */
+export function disruptionFilterParams(filters: DisruptionFilters, ordering?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === "" || value === false || value == null) continue;
+    out[key] = value === true ? "1" : String(value).trim();
+  }
+  if (ordering) out.ordering = ordering;
+  return out;
+}
+
+export function filtersFromSearchParams(params: URLSearchParams): DisruptionFilters {
+  const flag = (k: string) => ["1", "true", "yes"].includes(String(params.get(k) || "").toLowerCase());
+  return {
+    ...EMPTY_DISRUPTION_FILTERS,
+    date_from: params.get("date_from") || "",
+    date_to: params.get("date_to") || "",
+    equipment: params.get("equipment") || "",
+    department: params.get("department") || "",
+    type: params.get("type") || "",
+    status: params.get("status") || "",
+    source: params.get("source") || "",
+    search: params.get("search") || "",
+    reason_missing: flag("reason_missing"),
+    action_missing: flag("action_missing"),
+  };
 }
 
 export interface DisruptionAttention {
@@ -239,6 +298,32 @@ export function resumedEventIds(events: DisruptionEventIds | null | undefined): 
 /** Roles that can open the Disruption history page and upload service reports. */
 export function canViewDisruptions(userType: string | null | undefined): boolean {
   return ["ADMIN", "MANAGER", "DEPT_ADMIN"].includes(String(userType || "").toUpperCase());
+}
+
+const BANNER_DISMISS_KEY = "disruption-reason-banner-dismissed";
+
+/** The dashboard "disruptions need a reason" banner stays hidden for the rest of the browser session. */
+export function isDisruptionBannerDismissed(): boolean {
+  try {
+    return window.sessionStorage.getItem(BANNER_DISMISS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function dismissDisruptionBanner(): void {
+  try {
+    window.sessionStorage.setItem(BANNER_DISMISS_KEY, "1");
+  } catch {
+    /* storage unavailable: the banner just comes back on reload */
+  }
+}
+
+export const DISRUPTIONS_CHANGED_EVENT = "disruptions:changed";
+
+/** Lets the dashboard refresh its "needs a reason" count after a disruption is recorded or edited. */
+export function notifyDisruptionsChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(DISRUPTIONS_CHANGED_EVENT));
 }
 
 export function formatDurationHours(hours: number | null | undefined): string {

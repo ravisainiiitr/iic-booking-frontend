@@ -68,7 +68,15 @@ import {
   useDisruptionPrompt,
   type DisruptionPromptOutcome,
 } from "@/components/disruptions/useDisruptionPrompt";
-import { canViewDisruptions, type DisruptionEventIds } from "@/lib/disruptions";
+import {
+  canViewDisruptions,
+  DISRUPTIONS_CHANGED_EVENT,
+  dismissDisruptionBanner,
+  isDisruptionBannerDismissed,
+  type DisruptionAttention,
+  type DisruptionEventIds,
+} from "@/lib/disruptions";
+import { DisruptionAttentionBanner } from "@/components/disruptions/DisruptionAttentionBanner";
 import { slotOperationLabel } from "@/lib/slotOperations";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
@@ -192,6 +200,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },
   "/oic-leave-management": { title: "OIC Leave Management" },
+  "/disruptions": {
+    title: "Disruption history",
+    description: "Every maintenance, operator absence and other disruption, with reasons, actions taken and service reports.",
+  },
   "/oic-substitute": {
     title: "OIC Substitute",
     description: "Let another OIC of your department manage your equipment for a period, with a full history.",
@@ -1128,6 +1140,30 @@ const Dashboard = () => {
 
   const disruptionPrompt = useDisruptionPrompt();
   const askForSlotStatusChange = disruptionPrompt.askForSlotStatusChange;
+  const [disruptionAttention, setDisruptionAttention] = useState<DisruptionAttention | null>(null);
+  const [disruptionBannerDismissed, setDisruptionBannerDismissed] = useState(() => isDisruptionBannerDismissed());
+
+  useEffect(() => {
+    if (!canViewDisruptions(userTypeStr)) {
+      setDisruptionAttention(null);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      apiClient
+        .getDisruptionAttention()
+        .then((res) => {
+          if (!cancelled && !res.error && res.data) setDisruptionAttention(res.data);
+        })
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener(DISRUPTIONS_CHANGED_EVENT, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(DISRUPTIONS_CHANGED_EVENT, load);
+    };
+  }, [userTypeStr]);
 
   const applyLabSlotStatus = useCallback(
     async (status: LabCalendarSlotOperation, options: LabCalendarSlotApplyOptions) => {
@@ -3044,6 +3080,41 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "disruption_history",
+      label: "Disruption history",
+      path: "/disruptions",
+      visible: Boolean(isAdmin || isOicUser || isDeptAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-orange-200 dark:hover:border-orange-800"
+              onClick={() => openWorkspace("/disruptions")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Disruption history</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Maintenance, operator absence and other disruptions with reasons, actions taken and reports
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 mt-3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {disruptionAttention && disruptionAttention.reason_missing > 0 ? (
+                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                    {disruptionAttention.reason_missing} without a reason
+                  </p>
+                ) : null}
+                <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">Open</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "booking_attempt_log",
       label: "Booking attempt log",
       path: "/booking-attempt-logs",
@@ -4328,6 +4399,16 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
+            {!disruptionBannerDismissed && disruptionAttention?.enabled ? (
+              <DisruptionAttentionBanner
+                count={disruptionAttention.reason_missing}
+                onOpen={() => openWorkspace("/disruptions?reason_missing=1")}
+                onDismiss={() => {
+                  dismissDisruptionBanner();
+                  setDisruptionBannerDismissed(true);
+                }}
+              />
+            ) : null}
             {showAdminOverview ? (
               <Suspense
                 fallback={

@@ -75,6 +75,10 @@ export function staffViewBookingSection(g: Gate): GuideSection {
     rules: compact([
       g.only(["operator"], "Refunds, disruptions and reschedules are done by the Officer In Charge or Admin."),
       g.only(
+        ["operator"],
+        "Disruptions (Under Maintenance, Scheduled Maintenance, Operator Absent and Other Reasons) are recorded with an optional reason and the action taken. If you are allowed to change slot status, you are asked for them too; the Officer In Charge can add details and service reports later.",
+      ),
+      g.only(
         ["oic", "admin"],
         "IIC material can be charged only on own-material 3D print and laser bookings that are not cancelled or refunded, including completed ones, by the equipment's Officer In Charge (or temporary OIC) and the Main Administrator. Only the Main Administrator can enter a different amount."
       ),
@@ -217,6 +221,50 @@ export function slotStatusSection(g: Gate): GuideSection {
         "Repeat block only blocks free slots. Booked slots keep their bookings (nothing is cancelled or refunded) and are listed for you; slots already blocked or under maintenance are left as they are.",
       ),
     ]),
+  };
+}
+
+export function disruptionHistorySection(g: Gate): GuideSection {
+  return {
+    id: "disruption-history",
+    title: "Disruption history",
+    icon: "settings",
+    group: LAB,
+    intro: [
+      g.pick(
+        {
+          oic: "Every disruption on your equipment (including equipment you cover as temporary OIC) is recorded with its reason, the action taken and any service report.",
+          dept_admin: "Every disruption on your department's equipment is recorded with its reason, the action taken and any service report.",
+        },
+        "Every disruption on every equipment is recorded with its reason, the action taken and any service report.",
+      ),
+    ],
+    steps: [
+      {
+        title: "Open it",
+        body: "In the dashboard menu, choose Disruption history. If some disruptions have no reason yet, a banner on the dashboard says how many; click Review to see just those, or dismiss it for this session.",
+      },
+      {
+        title: "Filter",
+        body: g.pick(
+          { admin: "Filter by date range, department, equipment, type, open or closed, where it was recorded from, or Reason / Action not recorded, and search by equipment, reason or action. Click a type chip under the totals to show only that type." },
+          "Filter by date range, equipment, type, open or closed, where it was recorded from, or Reason / Action not recorded, and search by equipment, reason or action. Click a type chip under the totals to show only that type.",
+        ),
+      },
+      {
+        title: "Add details",
+        body: "Click a row to open it. Add or change the category and reason, record the action taken and attach a service report (PDF, image or Word, up to 20 MB). The timeline lists every change and who made it.",
+      },
+      {
+        title: "Export",
+        body: "Export downloads all disruptions matching the filters as Excel, CSV or PDF.",
+      },
+    ],
+    rules: [
+      "Under Maintenance, Scheduled Maintenance, Operator Absent and Other Reasons count as disruptions. Not Available, Reserved for External, Booking Not Utilized, holidays and closed days do not.",
+      "Neighbouring slots marked together form one disruption; equipment Under Maintenance is one disruption until it is made Operational again.",
+      "Disruption hours in Reports are downtime (under maintenance, scheduled maintenance and operator absent) plus slots marked for other reasons.",
+    ],
   };
 }
 
