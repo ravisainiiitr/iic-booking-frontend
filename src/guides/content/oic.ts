@@ -78,7 +78,7 @@ export const oicGuide: RoleGuide = {
           },
           {
             title: "History",
-            body: "The Active, Scheduled and Past tabs list every substitution with its reason. Click History on a row to see who created, changed, revoked or cancelled it and when.",
+            body: "The Active, Scheduled and Past tabs list every substitution with its reason. Click History on a row to see who created, changed, revoked or cancelled it and when. Export downloads the substitutes you assigned, the equipment assigned to you and the full history as Excel (.xlsx), CSV or PDF.",
           },
         ],
         rules: [

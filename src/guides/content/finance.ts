@@ -10,7 +10,7 @@ export const financeGuide: RoleGuide = {
       title: "Getting started",
       icon: "rocket",
       group: "Start",
-      intro: ["Sign in with Channel i or your staff credentials. Your menu has Wallet recharge requests, External booking requests and Reports & Statistics."],
+      intro: ["Sign in with Channel i or your staff credentials. Your menu has Wallet recharge requests, External booking requests and Reports & Statistics.", "On Reports & Statistics, Export downloads the report you are viewing as Excel (.xlsx), CSV or PDF."],
       rules: ["Your access covers your own department. Credit facility and staff settings belong to the Department Administrator."],
     },
     {

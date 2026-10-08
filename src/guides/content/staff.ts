@@ -111,6 +111,7 @@ export function urgentApprovalSection(g: Gate): GuideSection {
             body: "Click Urgent booking on the dashboard, then Manage urgent requests. Pick one instrument in Equipment to see only its requests; the list covers only equipment you are responsible for, including equipment you cover as temporary OIC.",
           },
       { title: "Decide", body: "Read the reason and any document, then approve or reject. You may reschedule, including to a weekend." },
+      { title: "Export", body: "Export downloads every request matching the filters as Excel (.xlsx), CSV or PDF." },
     ],
     rules: [
       "Students' requests reach you only after their supervisor approves.",
@@ -142,6 +143,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
         title: "Confirm manually",
         body: "Click Confirm manually next to an entry (shown as Confirm in the table), choose any unbooked slot and click Confirm booking.",
       },
+      { title: "Export", body: "Export downloads the waitlist for the chosen Department/Centre and Equipment as Excel (.xlsx), CSV or PDF." },
       {
         title: "Arrange a repeat sample",
         body: "Open the user's completed booking in View Booking and click Mark as repeat & book (free). Booking opens straight away for that user, with their details at the top and the original parameters filled in. Change the parameters or the number of samples if needed (the slot time follows them), pick slots and confirm. The repeat is free and does not count toward the user's limits; the original booking is marked as repeated, the user is emailed, and any changed parameters are recorded in the booking history.",

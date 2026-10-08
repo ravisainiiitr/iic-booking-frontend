@@ -239,7 +239,7 @@ export function myBookingsSection(g: Gate): GuideSection {
       },
       {
         title: "Unsuccessful attempts",
-        body: "Click Unsuccessful attempts in My Bookings to see your booking attempts that did not go through: when you tried, the equipment, the slots and the reason in plain words. Filter by date. For a weekly or monthly limit, View calculation opens the same Bookings counted toward this limit list the Officer in Charge sees.",
+        body: "Click Unsuccessful attempts in My Bookings to see your booking attempts that did not go through: when you tried, the equipment, the slots and the reason in plain words. Filter by date; Export downloads them as Excel (.xlsx), CSV or PDF. For a weekly or monthly limit, View calculation opens the same Bookings counted toward this limit list the Officer in Charge sees.",
       },
     ],
     rules: compact([
