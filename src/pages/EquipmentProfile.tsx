@@ -1282,7 +1282,7 @@ const EquipmentProfile = () => {
                         {equipment.status_display}
                       </Badge>
                       {isMultiModeEquipment(equipment) ? (
-                        <div className="flex min-w-0 basis-full sm:min-w-[16rem] sm:flex-1 sm:basis-0">
+                        <div className="flex min-w-0 max-w-full">
                           <ModeAvailabilityHeaderLine
                             key={`mode-header-${equipment.equipment_id}`}
                             equipmentId={equipment.equipment_id}
