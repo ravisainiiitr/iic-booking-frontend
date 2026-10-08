@@ -50,15 +50,15 @@ export function urgentSection(g: Gate): GuideSection | null {
     steps: compact([
       {
         title: "Type A — Rush relief (no surcharge)",
-        body: "If you failed at least 2 peak-window booking attempts in the last 14 days, tick I confirm the above and book a slot in the advance week at normal rates.",
+        body: "If you failed at least 2 peak-window booking attempts in the last 14 days, click Book advance week (Type A — normal rates) and book a slot in the advance week at normal rates.",
       },
       {
         title: "Type B — Urgent with reason (50% surcharge)",
-        body: "Click Select Slot, give a reason (at least 10 characters, document optional) and tick I confirm my reason is genuine and accept the 50% urgent surcharge.",
+        body: "You do not pick slots. Click Continue: describe your requirement (or Enter requirement (Type B) in My Urgent Requests), fill in Step 1, check the required time and the amount with the 50% surcharge, add preferred dates if any, give a reason (at least 10 characters, document optional), tick I confirm my reason is genuine and accept the 50% urgent surcharge, then click Submit Type B request.",
       },
       g.when(member, {
         title: "Follow the approval",
-        body: "Your supervisor approves first, then the Officer In Charge gives final approval and may reschedule. Track it under Urgent booking request on the dashboard.",
+        body: "Your supervisor approves first, then the Officer In Charge allocates a day and time (any day, including weekends). You and your supervisor get the booking confirmation by email. Track it under Urgent booking request on the dashboard.",
       }),
       g.only(["faculty"], {
         title: "Approve your students' requests",
@@ -67,11 +67,11 @@ export function urgentSection(g: Gate): GuideSection | null {
     ]),
     rules: compact([
       "Quota-limit failures do not count towards Type A, and using Type A resets the 14-day window.",
-      g.when(member, "Type B slots are held, not confirmed. Your supervisor's wallet is charged only after the Officer In Charge's final approval."),
-      g.only(["faculty"], "Type B slots are held, not confirmed; the wallet is charged only after the Officer In Charge's final approval."),
+      g.when(member, "Nothing is charged when you submit a Type B request. Your supervisor's wallet is charged when the Officer In Charge allocates the booking, so keep enough balance for the amount shown."),
+      g.only(["faculty"], "Nothing is charged when a Type B request is submitted; the wallet is charged when the Officer In Charge allocates the booking, so keep enough balance for the amount shown."),
       "Weekly caps may apply. Urgent bookings never cancel other users' confirmed bookings.",
     ]),
-    tips: ["After a Type B approval, submit your sample at the earliest."],
+    tips: ["After the Officer In Charge allocates your Type B booking, submit your sample at the earliest."],
   };
 }
 

@@ -114,12 +114,17 @@ export function urgentApprovalSection(g: Gate): GuideSection {
             title: "Open the queue",
             body: "Click Urgent booking on the dashboard, then Manage urgent requests. Pick one instrument in Equipment to see only its requests; the list covers only equipment you are responsible for, including equipment you cover as temporary OIC.",
           },
-      { title: "Decide", body: "Read the reason and any document, then approve or reject. You may reschedule, including to a weekend." },
+      { title: "Decide", body: "Click Review, read the reason, the requirement (sample details, required time, amount and preferred dates) and any document, then approve or reject." },
+      {
+        title: "Approve & allocate",
+        body: "A Type B request marked No slots · you allocate has no slots. Click Approve & allocate, choose a date (any day, including weekends, holidays, closed or maintenance slots, which show a warning) and tick slots that cover the required time, or click Select back-to-back slots. Check the amount and the wallet balance, add an optional note, then click Allocate booking.",
+      },
       { title: "Export", body: "Export downloads every request matching the filters as Excel (.xlsx), CSV or PDF." },
     ],
     rules: [
       "Students' requests reach you only after their supervisor approves.",
       "The user's wallet is charged only after final approval.",
+      "Allocate booking stays off while the wallet is short of the amount; the shortfall is shown. Once allocated, the booking is confirmed and the user and the supervisor get the usual confirmation email.",
       ...(g.is("admin")
         ? ["Requests expire after the period shown above the list. Click Change next to it to set the period; it applies to every department."]
         : ["Requests expire after the period shown above the list. It applies to every department, so only the Main Administrator can change it."]),
