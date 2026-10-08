@@ -20,6 +20,10 @@ export function bookSection(g: Gate): GuideSection {
         screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
       },
       {
+        title: "Check which mode runs when",
+        body: "Some instruments run in several modes that share them. Their cards show the days each mode runs (M T W T F S S) and its next day with free slots. On the equipment page, Availability by mode lists each mode's running days and shows the next four weeks: free slots, Fully booked, Holiday, or for weeks not open yet the date booking opens. Select a day and click Book to open that mode's booking page at that week.",
+      },
+      {
         title: "Check charges and instructions",
         body: "Use Calculate Charges and read the Important instruction box. The lab can write a different instruction for your user type.",
         screenshotCaption: "Charges calculator",

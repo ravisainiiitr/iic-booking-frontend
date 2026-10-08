@@ -16,6 +16,7 @@ import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
+import type { CardModeAvailability } from "@/lib/modeAvailability";
 import {
   catalogDepartmentFromParam,
   filterCatalogEquipmentForDisplay,
@@ -64,6 +65,7 @@ interface ApiEquipment {
   featured_citation?: string | null;
   from_price?: number | string | null;
   from_price_unit?: string | null;
+  mode_availability?: CardModeAvailability | null;
   created_at: string;
   updated_at: string;
 }
@@ -100,6 +102,7 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       publicationCount: eq.publication_count ?? null,
       featuredPublicationTitle: eq.featured_publication_title ?? null,
       featuredCitation: eq.featured_citation ?? null,
+      modeAvailability: eq.mode_availability ?? null,
     }));
 
 const ALL_CATEGORIES = "__all__";

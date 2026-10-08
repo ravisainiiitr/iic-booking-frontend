@@ -13,6 +13,8 @@ import { Play, Star, StarHalf, BookOpen, ExternalLink, Loader2 } from "lucide-re
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
+import CardModeAvailability from "@/components/modeAvailability/CardModeAvailability";
+import type { CardModeAvailability as CardModeAvailabilityData } from "@/lib/modeAvailability";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { apiClient } from "@/lib/api";
@@ -51,6 +53,8 @@ export type EquipmentCatalogCardItem = {
   publicationCount?: number | null;
   featuredPublicationTitle?: string | null;
   featuredCitation?: string | null;
+  /** Multi-mode equipment: running days per mode and the next free day (catalog API ``mode_availability``). */
+  modeAvailability?: CardModeAvailabilityData | null;
 };
 
 type PublicationRow = {
@@ -307,6 +311,8 @@ export default function EquipmentCatalogCard({
               ))}
             </div>
           ) : null}
+
+          {item.modeAvailability?.modes?.length ? <CardModeAvailability availability={item.modeAvailability} /> : null}
 
           {item.description && item.description.trim() !== item.name.trim() ? (
             <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{item.description}</p>

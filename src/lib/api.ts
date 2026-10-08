@@ -23,6 +23,7 @@ import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
+import type { ModeAvailabilityResponse } from "@/lib/modeAvailability";
 import type {
   DisruptionAttention,
   DisruptionDetail,
@@ -4434,6 +4435,11 @@ class ApiClient {
 
   async getEquipmentById(id: string) {
     return this.request<any>(`/equipment/${id}/`);
+  }
+
+  /** Multi-mode family availability (mode legend, weekday pattern, 4-week calendar) for the equipment page. */
+  async getEquipmentModeAvailability(id: number | string) {
+    return this.sharedGet<ModeAvailabilityResponse>(`/equipments/${id}/mode-availability/`);
   }
 
   async getEquipmentDetailById(

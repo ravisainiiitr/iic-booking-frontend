@@ -12,6 +12,7 @@ import { Search, Loader2 } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
+import type { CardModeAvailability } from "@/lib/modeAvailability";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +50,7 @@ interface ApiEquipment {
   featured_citation?: string | null;
   from_price?: number | string | null;
   from_price_unit?: string | null;
+  mode_availability?: CardModeAvailability | null;
 }
 
 const EquipmentGrid = () => {
@@ -212,6 +214,7 @@ const EquipmentGrid = () => {
       featuredCitation: eq.featured_citation ?? null,
       fromPrice: eq.from_price ?? null,
       fromPriceUnit: eq.from_price_unit ?? null,
+      modeAvailability: eq.mode_availability ?? null,
       address: eq.location || "IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",

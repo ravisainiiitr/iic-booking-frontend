@@ -43,6 +43,8 @@ import { toast } from "sonner";
 import { InPanelRoute } from "@/components/InPanelRouter";
 import { BookingTemplatesPanel } from "@/components/BookingTemplatesPanel";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
+import ModeAvailabilitySection from "@/components/modeAvailability/ModeAvailabilitySection";
+import { bookingPathFor, isMultiModeEquipment } from "@/lib/modeAvailability";
 import { Badge } from "@/components/ui/badge";
 import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
@@ -165,6 +167,8 @@ interface EquipmentProfile {
   publication_count?: number;
   /** When 'SLOT_ID', weekly grid shows slot number/name on vertical axis; when 'TIME', shows time. Admin/OIC always see TIME. */
   weekly_view_display?: 'TIME' | 'SLOT_ID';
+  enable_multi_mode?: boolean;
+  parent_equipment?: number | null;
 }
 
 type ContentPanel =
@@ -389,6 +393,17 @@ const EquipmentProfile = () => {
       return;
     }
     navigate(bookingUrl);
+  };
+
+  const handleModeBook = (modeId: number, date: string) => {
+    const t = String(userType ?? "").toLowerCase();
+    const url = bookingPathFor(modeId, date, t === "admin" || t === "manager" || t === "dept_admin");
+    if (!canManageEquipment() && !isAuthenticated) {
+      setPostLoginRedirect(url);
+      navigate("/auth");
+      return;
+    }
+    navigate(url);
   };
 
   const handleChangeSlotStatusClick = () => {
@@ -754,6 +769,15 @@ const EquipmentProfile = () => {
             </div>
           );
 
+          const modeAvailabilitySection = isMultiModeEquipment(equipment) ? (
+            <ModeAvailabilitySection
+              key={`mode-availability-${equipment.equipment_id}`}
+              equipmentId={equipment.equipment_id}
+              canBook={showCreateOrBookCta()}
+              onBook={handleModeBook}
+            />
+          ) : null;
+
           let panelBody: JSX.Element | null = null;
           if (activePanel === "general") {
             panelBody = (
@@ -780,6 +804,7 @@ const EquipmentProfile = () => {
                     />
                   </div>
                 ) : null}
+                {modeAvailabilitySection}
                 {equipment.description ? (
                   <div className="space-y-2">
                     <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1125,7 +1150,16 @@ const EquipmentProfile = () => {
               </div>
             );
           } else if (activePanel === "availability") {
-            panelBody = (
+            panelBody = modeAvailabilitySection ? (
+              <div className="space-y-6">
+                {modeAvailabilitySection}
+                <EquipmentAvailabilityCalendar
+                  key={equipment.equipment_id}
+                  equipmentId={equipment.equipment_id}
+                  weeklyViewDisplay={getEffectiveWeeklyViewDisplay()}
+                />
+              </div>
+            ) : (
               <EquipmentAvailabilityCalendar
                 key={equipment.equipment_id}
                 equipmentId={equipment.equipment_id}

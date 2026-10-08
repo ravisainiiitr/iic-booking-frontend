@@ -162,3 +162,27 @@ describe("EquipmentCatalogCard price", () => {
     expect(screen.queryByText(/from ₹/)).toBeNull();
   });
 });
+
+describe("EquipmentCatalogCard multi-mode availability", () => {
+  it("shows the mode's running days only when the catalog sends them", () => {
+    renderCard({
+      item: {
+        ...item,
+        modeAvailability: {
+          parent_equipment_id: 41,
+          modes: [
+            {
+              equipment_id: 42, code: "XPS-D", name: "XPS Depth", role: "mode", operational: true,
+              weekdays: [1, 3], hours: [], state: "full", next_available: null, next_opening: null,
+            },
+          ],
+        },
+      },
+    });
+    expect(screen.getByTestId("card-mode-availability")).toBeTruthy();
+    expect(screen.getByText("Fully booked for now")).toBeTruthy();
+    cleanup();
+    renderCard();
+    expect(screen.queryByTestId("card-mode-availability")).toBeNull();
+  });
+});
