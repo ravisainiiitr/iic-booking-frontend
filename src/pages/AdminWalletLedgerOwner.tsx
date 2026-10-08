@@ -5,14 +5,13 @@ import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Building2, GraduationCap, Loade
 import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import AdjustWalletDialog from "@/components/walletLedger/AdjustWalletDialog";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
-import { balanceTone } from "@/components/walletLedger/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type LedgerOptions, type LedgerOwnerDetail } from "@/lib/api";
 import { formatDMYTime } from "@/lib/dateFormat";
-import { formatLedgerAmount } from "@/lib/walletLedger";
+import { balanceTone, formatLedgerAmount } from "@/lib/walletLedger";
 import { cn } from "@/lib/utils";
 
 import { MainAdminOnlyNotice } from "./AdminWalletLedger";

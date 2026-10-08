@@ -104,13 +104,6 @@ export function SummaryStat({
   );
 }
 
-export function balanceTone(value: string | number | null | undefined): string | undefined {
-  const n = Number(value ?? 0);
-  if (n < 0) return "text-red-600 dark:text-red-400";
-  if (n === 0) return "text-muted-foreground";
-  return undefined;
-}
-
 export function SignedAmount({ type, amount }: { type: "credit" | "debit"; amount: string }) {
   const credit = type === "credit";
   return (

@@ -9,6 +9,13 @@ export function formatLedgerAmount(value: string | number | null | undefined): s
   return n < 0 ? `−₹${abs}` : `₹${abs}`;
 }
 
+export function balanceTone(value: string | number | null | undefined): string | undefined {
+  const n = Number(value ?? 0);
+  if (n < 0) return "text-red-600 dark:text-red-400";
+  if (n === 0) return "text-muted-foreground";
+  return undefined;
+}
+
 export interface OwnerFilters {
   search: string;
   department: string;
