@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({ apiClient: api }));
 
 import ModeAvailabilitySection from "./ModeAvailabilitySection";
 import CardModeAvailability from "./CardModeAvailability";
+import ModeAvailabilityHeaderLine from "./ModeAvailabilityHeaderLine";
 import ModeWeekdayChips from "./ModeWeekdayChips";
 
 const BASE = 1;
@@ -179,5 +180,31 @@ describe("CardModeAvailability", () => {
     expect(screen.getByText("+2 more modes")).toBeTruthy();
     expect(screen.getByText("Fully booked")).toBeTruthy();
     expect(screen.getByText("5 modes share this instrument")).toBeTruthy();
+  });
+});
+
+describe("ModeAvailabilityHeaderLine", () => {
+  it("summarises every mode on one line, leading with the current mode, and opens the calendar", async () => {
+    const data = summary(DEPTH);
+    data.modes[1] = mode(DEPTH, { weekdays: [1, 3], next_available: { date: "2030-01-15", free_slots: 1 } });
+    data.modes[2] = mode(UPS, { weekdays: [0, 1, 2, 3, 4, 5, 6], state: "full", next_available: null, next_opening: { date: "2030-01-21", opens_at: "2030-01-15T21:00:00" } });
+    api.getEquipmentModeAvailability.mockResolvedValue({ data });
+    const onOpen = vi.fn();
+    render(<ModeAvailabilityHeaderLine equipmentId={DEPTH} onOpen={onOpen} />);
+    expect(screen.getByTestId("mode-header-line-loading")).toBeTruthy();
+    const line = await screen.findByTestId("mode-header-line");
+    expect(line.textContent).toBe(
+      "XPS-D Tue/Thu · next Tue 15 Jan|XPS Mon–Thu · next Wed 9 Jan|XPS-U Daily · full until Mon 21 Jan",
+    );
+    expect(line.getAttribute("aria-label")).toContain("XPS-D Tue/Thu · next Tue 15 Jan | XPS Mon–Thu");
+    fireEvent.click(line);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders nothing for equipment that is not multi-mode", async () => {
+    api.getEquipmentModeAvailability.mockResolvedValue({ data: { multi_mode: false, equipment_id: 9 } });
+    render(<ModeAvailabilityHeaderLine equipmentId={9} onOpen={() => {}} />);
+    await waitFor(() => expect(screen.queryByTestId("mode-header-line-loading")).toBeNull());
+    expect(screen.queryByTestId("mode-header-line")).toBeNull();
   });
 });

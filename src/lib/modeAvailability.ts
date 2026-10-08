@@ -169,6 +169,47 @@ export function cardHeadline(
   return "Not running soon";
 }
 
+/** "Wed 21 Oct" for a YYYY-MM-DD string. */
+function shortDay(iso: string): string {
+  const d = parseIsoDate(iso);
+  return `${WEEKDAY_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+/** Running days as "Daily", "Mon–Fri", "Mon/Wed/Fri" or "Mon–Wed/Fri" (runs of three or more become ranges). */
+export function weekdayRange(days: number[]): string {
+  const sorted = [...new Set(days)].sort((a, b) => a - b);
+  if (sorted.length === 7) return "Daily";
+  const runs: number[][] = [];
+  for (const d of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && d === last[last.length - 1] + 1) last.push(d);
+    else runs.push([d]);
+  }
+  return runs
+    .map((r) => (r.length >= 3 ? `${WEEKDAY_SHORT[r[0]]}–${WEEKDAY_SHORT[r[r.length - 1]]}` : r.map((d) => WEEKDAY_SHORT[d]).join("/")))
+    .join("/");
+}
+
+/** Header-line text for a mode: "Mon–Fri · next Wed 21 Oct", "Mon–Fri · full until Wed 21 Oct" or "not scheduled". */
+export function modeSummaryText(
+  m: Pick<ModeAvailabilityMode, "weekdays" | "state" | "next_available" | "next_opening">,
+): string {
+  let status: string;
+  if (m.state === "maintenance") status = "maintenance";
+  else if (m.next_available) status = `next ${shortDay(m.next_available.date)}`;
+  else if (m.state === "full") status = m.next_opening ? `full until ${shortDay(m.next_opening.date)}` : "full";
+  else if (m.next_opening) status = `opens ${shortDay(m.next_opening.opens_at.slice(0, 10))}`;
+  else return "not scheduled";
+  const days = weekdayRange(m.weekdays);
+  return days ? `${days} · ${status}` : status;
+}
+
+/** Modes in header order: the mode whose page this is first, then the rest as listed. */
+export function modesForHeader<T extends { equipment_id: number }>(modes: T[], currentId: number): T[] {
+  const current = modes.find((m) => m.equipment_id === currentId);
+  return current ? [current, ...modes.filter((m) => m !== current)] : modes;
+}
+
 export function describeModeWeekdays(days: number[]): string {
   if (days.length === 0) return "No running days in the next 4 weeks";
   if (days.length === 7) return "Runs every day";

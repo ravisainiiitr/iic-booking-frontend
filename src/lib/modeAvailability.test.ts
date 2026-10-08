@@ -8,10 +8,45 @@ import {
   formatDay,
   isMultiModeEquipment,
   modeHeadline,
+  modeSummaryText,
+  modesForHeader,
   shortStatus,
+  weekdayRange,
   weeksOf,
 } from "./modeAvailability";
 import { modeColor } from "./multiMode";
+
+describe("header summary", () => {
+  it("compacts running days into ranges", () => {
+    expect(weekdayRange([0, 1, 2, 3, 4])).toBe("Mon–Fri");
+    expect(weekdayRange([4, 0, 2])).toBe("Mon/Wed/Fri");
+    expect(weekdayRange([0, 1, 2, 4])).toBe("Mon–Wed/Fri");
+    expect(weekdayRange([5, 6])).toBe("Sat/Sun");
+    expect(weekdayRange([0, 1, 2, 3, 4, 5, 6])).toBe("Daily");
+    expect(weekdayRange([])).toBe("");
+  });
+
+  it("describes each mode's state in a few words", () => {
+    const base = { weekdays: [0, 1, 2, 3, 4], next_available: null, next_opening: null };
+    expect(modeSummaryText({ ...base, state: "available", next_available: { date: "2026-10-21", free_slots: 3 } })).toBe(
+      "Mon–Fri · next Wed 21 Oct",
+    );
+    expect(modeSummaryText({ ...base, state: "full", next_opening: { date: "2026-10-21", opens_at: "2026-10-14T21:00:00" } })).toBe(
+      "Mon–Fri · full until Wed 21 Oct",
+    );
+    expect(modeSummaryText({ ...base, state: "not_open", next_opening: { date: "2026-10-21", opens_at: "2026-10-14T21:00:00" } })).toBe(
+      "Mon–Fri · opens Wed 14 Oct",
+    );
+    expect(modeSummaryText({ ...base, state: "maintenance" })).toBe("Mon–Fri · maintenance");
+    expect(modeSummaryText({ ...base, weekdays: [], state: "not_running" })).toBe("not scheduled");
+  });
+
+  it("leads with the current mode", () => {
+    const modes = [{ equipment_id: 1 }, { equipment_id: 2 }, { equipment_id: 3 }];
+    expect(modesForHeader(modes, 3).map((m) => m.equipment_id)).toEqual([3, 1, 2]);
+    expect(modesForHeader(modes, 1).map((m) => m.equipment_id)).toEqual([1, 2, 3]);
+  });
+});
 
 describe("modeAvailability helpers", () => {
   it("colours the base slate and modes like the Multi-mode equipment page", () => {

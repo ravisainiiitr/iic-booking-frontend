@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { InPanelRoute } from "@/components/InPanelRouter";
 import { BookingTemplatesPanel } from "@/components/BookingTemplatesPanel";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
+import ModeAvailabilityHeaderLine from "@/components/modeAvailability/ModeAvailabilityHeaderLine";
 import ModeAvailabilitySection from "@/components/modeAvailability/ModeAvailabilitySection";
 import { bookingPathFor, isMultiModeEquipment } from "@/lib/modeAvailability";
 import { Badge } from "@/components/ui/badge";
@@ -804,7 +805,6 @@ const EquipmentProfile = () => {
                     />
                   </div>
                 ) : null}
-                {modeAvailabilitySection}
                 {equipment.description ? (
                   <div className="space-y-2">
                     <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1281,6 +1281,15 @@ const EquipmentProfile = () => {
                       >
                         {equipment.status_display}
                       </Badge>
+                      {isMultiModeEquipment(equipment) ? (
+                        <div className="flex min-w-0 basis-full sm:min-w-[16rem] sm:flex-1 sm:basis-0">
+                          <ModeAvailabilityHeaderLine
+                            key={`mode-header-${equipment.equipment_id}`}
+                            equipmentId={equipment.equipment_id}
+                            onOpen={() => setActivePanel("availability")}
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="mt-3">
                       <EquipmentDepartmentLabel name={equipment.internal_department_name} />
