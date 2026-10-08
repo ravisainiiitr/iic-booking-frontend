@@ -127,14 +127,16 @@ export function shortStatus(cell: Pick<ModeDayCell, "status" | "free_slots" | "o
       return "Closed";
     case "maintenance":
       return "Maintenance";
-    case "not_open":
-      return cell.opens_at ? `Opens ${WEEKDAY_SHORT[(new Date(cell.opens_at).getDay() + 6) % 7]}` : "Not open yet";
+    case "not_open": {
+      const d = cell.opens_at ? new Date(cell.opens_at) : null;
+      return d && !Number.isNaN(d.getTime()) ? `Opens ${d.getDate()} ${MONTHS[d.getMonth()]}` : "Not open yet";
+    }
     case "not_running":
       return "Not running";
     case "past":
       return "";
     default:
-      return "Unavailable";
+      return cell.label === "No more slots today" ? "Done today" : "Unavailable";
   }
 }
 

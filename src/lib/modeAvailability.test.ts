@@ -33,7 +33,7 @@ describe("modeAvailability helpers", () => {
   it("gives short cell statuses", () => {
     expect(shortStatus({ status: "available", free_slots: 3, label: "" })).toBe("3 free");
     expect(shortStatus({ status: "full", label: "" })).toBe("Full");
-    expect(shortStatus({ status: "not_open", opens_at: "2030-01-09T21:00:00", label: "" })).toBe("Opens Wed");
+    expect(shortStatus({ status: "not_open", opens_at: "2030-01-09T21:00:00", label: "" })).toBe("Opens 9 Jan");
     expect(shortStatus({ status: "not_available", label: "No slots" })).toBe("Unavailable");
   });
 

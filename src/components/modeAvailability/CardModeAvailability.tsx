@@ -56,27 +56,31 @@ export default function CardModeAvailability({ availability, className }: Props)
         <CalendarDays className="h-3 w-3" aria-hidden />
         {modes.length} modes share this instrument
       </p>
-      <ul className="space-y-1">
+      <ul className="space-y-1.5">
         {shown.map((m) => (
-          <li key={m.equipment_id} className="flex min-w-0 items-center gap-2" data-testid="card-mode-row">
+          <li
+            key={m.equipment_id}
+            className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-0.5"
+            data-testid="card-mode-row"
+          >
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: colors.get(m.equipment_id) }}
               aria-hidden
             />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground" title={m.name}>
+            <span className="min-w-0 truncate text-xs font-medium text-foreground" title={m.name}>
               {m.code}
+            </span>
+            <span className={cn("text-right text-[11px] font-medium", STATE_TEXT[m.state])}>
+              {cardHeadline(m, true)}
             </span>
             <ModeWeekdayChips
               weekdays={m.weekdays}
               color={colors.get(m.equipment_id)!}
               variant="letter"
               dense
-              className="shrink-0 flex-nowrap gap-0.5"
+              className="col-start-2 col-end-4 flex-nowrap gap-0.5"
             />
-            <span className={cn("w-[4.75rem] shrink-0 truncate text-right text-[11px] font-medium", STATE_TEXT[m.state])}>
-              {cardHeadline(m, true)}
-            </span>
           </li>
         ))}
       </ul>

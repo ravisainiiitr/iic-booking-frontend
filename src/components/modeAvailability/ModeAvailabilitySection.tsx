@@ -62,13 +62,25 @@ function cellLongText(cell: ModeDayCell): string {
   return cell.label || shortStatus(cell);
 }
 
+const isClosed = (c: ModeDayCell) => c.status === "closed" || c.status === "holiday";
+
 /** Cells a calendar day shows: every running mode on a base page; on a mode page that mode first, the others muted. */
 function dayEntries(day: ModeAvailabilityDay, focusId: number | null): ModeDayCell[] {
   const live = day.modes.filter((c) => c.status !== "past");
   if (focusId == null) return live.filter((c) => c.status !== "not_running");
   const focus = live.find((c) => c.equipment_id === focusId);
   const others = live.filter((c) => c.equipment_id !== focusId && c.status !== "not_running");
+  if (focus?.status === "not_running" && others.length > 0 && others.every(isClosed)) return others;
   return focus ? [focus, ...others] : others;
+}
+
+/** The status every running mode shares on a closed, holiday or not-yet-open day, shown once instead of per mode. */
+function sharedStatus(entries: ModeDayCell[]): ModeDayCell | null {
+  const running = entries.filter((c) => c.status !== "not_running");
+  if (running.length === 0) return null;
+  const [first] = running;
+  if (!isClosed(first) && first.status !== "not_open") return null;
+  return running.every((c) => c.status === first.status && shortStatus(c) === shortStatus(first)) ? first : null;
 }
 
 function StatusPill({ cell, className }: { cell: ModeDayCell; className?: string }) {
@@ -314,6 +326,7 @@ export default function ModeAvailabilitySection({ equipmentId, onBook, canBook =
               {data.days.map((day, idx) => {
                 const d = new Date(Number(day.date.slice(0, 4)), Number(day.date.slice(5, 7)) - 1, Number(day.date.slice(8, 10)));
                 const entries = dayEntries(day, focusId);
+                const shared = sharedStatus(entries);
                 const isSelected = selected === day.date;
                 const showMonth = idx === 0 || d.getDate() === 1;
                 const aria = day.is_past
@@ -360,29 +373,44 @@ export default function ModeAvailabilitySection({ equipmentId, onBook, canBook =
                     </span>
                     {day.is_past ? null : entries.length === 0 ? (
                       <span className="text-[10px] text-muted-foreground">No mode runs</span>
-                    ) : (
-                      entries.map((c) => (
-                        <span
-                          key={c.equipment_id}
-                          className={cn(
-                            "flex min-w-0 items-center gap-1",
-                            focusId != null && c.equipment_id !== focusId && "opacity-50",
-                          )}
-                          data-testid="mode-day-entry"
-                          data-mode={c.equipment_id}
-                          data-status={c.status}
-                        >
+                    ) : shared && isClosed(shared) && entries.every(isClosed) ? (
+                      <span className="flex items-center gap-1" data-testid="mode-day-shared" data-status={shared.status}>
+                        {entries.map((c) => (
                           <span
-                            className="h-2 w-2 shrink-0 rounded-full"
+                            key={c.equipment_id}
+                            className="h-2 w-2 shrink-0 rounded-full opacity-60"
                             style={{ backgroundColor: colors.get(c.equipment_id) }}
                             aria-hidden
                           />
-                          <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-muted-foreground">
-                            {modeLabel(c.equipment_id)}
+                        ))}
+                        <StatusPill cell={shared} />
+                      </span>
+                    ) : (
+                      <>
+                        {entries.map((c) => (
+                          <span
+                            key={c.equipment_id}
+                            className={cn(
+                              "flex min-w-0 items-center gap-1",
+                              focusId != null && c.equipment_id !== focusId && "opacity-50",
+                            )}
+                            data-testid="mode-day-entry"
+                            data-mode={c.equipment_id}
+                            data-status={c.status}
+                          >
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: colors.get(c.equipment_id) }}
+                              aria-hidden
+                            />
+                            <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-muted-foreground">
+                              {modeLabel(c.equipment_id)}
+                            </span>
+                            {shared && c.status !== "not_running" ? null : <StatusPill cell={c} className="shrink-0" />}
                           </span>
-                          <StatusPill cell={c} className="shrink-0" />
-                        </span>
-                      ))
+                        ))}
+                        {shared ? <StatusPill cell={shared} className="self-start" /> : null}
+                      </>
                     )}
                   </button>
                 );

@@ -104,6 +104,7 @@ describe("ModeAvailabilitySection", () => {
     expect(entries.map((e) => Number(e.getAttribute("data-mode")))).toEqual([BASE, UPS]);
     expect(within(wed).getByText("2 free")).toBeTruthy();
     expect(within(wed).getByText("Full")).toBeTruthy();
+    expect(within(screen.getByTestId("mode-day-2030-01-14")).getAllByText("Opens 9 Jan")).toHaveLength(1);
     expect(screen.getByTestId("mode-day-2030-01-08").getAttribute("data-today")).toBe("true");
     expect((screen.getByTestId("mode-day-2030-01-07") as HTMLButtonElement).disabled).toBe(true);
   });
