@@ -11,6 +11,7 @@ import {
   type PrintMaterial,
 } from "@/lib/api";
 import { SupportedMaterialsCard } from "@/components/admin/SupportedMaterialsCard";
+import { PrintEstimateProfileCard } from "@/components/admin/PrintEstimateProfileCard";
 import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -555,7 +556,8 @@ export default function OICPrintMaterials() {
                     <p className="text-xs text-muted-foreground">
                       The largest model this printer can make (its usable bed / build volume). Users see it when they
                       upload, and STL files larger than this cannot be uploaded or booked. Leave an axis empty for no
-                      limit on it. STL sizes are read in millimetres; 0.5 mm over is still accepted.
+                      limit on it. STL sizes are read in millimetres; 0.5 mm over is still accepted. The 3D model
+                      preview draws this as the build plate (220 × 220 mm when it is empty).
                     </p>
                     {PRINT_SIZE_AXES.every((a) => !savedPrintSize[a]) && (
                       <p
@@ -620,6 +622,23 @@ export default function OICPrintMaterials() {
               disabled={disabled}
               onSave={onSaveSupported}
             />
+
+            {t === "print" && selected.print_estimate && (
+              <PrintEstimateProfileCard
+                equipment={selected}
+                master={masterPrint}
+                disabled={disabled}
+                onSaved={(updated) =>
+                  setEquipments((prev) =>
+                    prev.map((e) =>
+                      e.equipment_id === updated.equipment_id
+                        ? { ...e, print_estimate: updated.print_estimate }
+                        : e,
+                    ),
+                  )
+                }
+              />
+            )}
 
             {t === "print" && (
               <Card>

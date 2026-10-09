@@ -394,6 +394,50 @@ export interface FabricationEquipmentRow {
   laser_sheet_materials?: LaserSheetMaterial[];
   /** Master-list materials of its category this equipment offers to users (when enabled). */
   supported_material_ids?: number[];
+  /** 3D printers: weight / time estimate profile. */
+  print_estimate?: PrintEstimateProfile;
+}
+
+export interface PrintEstimateParameter {
+  key: string;
+  label: string;
+  unit: string;
+  min: number | null;
+  max: number | null;
+  kind: "number" | "bool";
+  /** Effective value (preset, override and calibration applied). */
+  value: number | boolean | null;
+  /** The preset's value. */
+  default: number | boolean | null;
+}
+
+export interface PrintEstimateCalibration {
+  weight_factor: number | null;
+  weight_samples: number;
+  weight_error_before_pct: number | null;
+  weight_error_after_pct: number | null;
+  time_factor: number | null;
+  time_samples: number;
+  time_error_before_pct: number | null;
+  time_error_after_pct: number | null;
+  min_samples: number;
+  fitted_at?: string;
+  applied?: boolean;
+}
+
+export interface PrintEstimateProfile {
+  /** Chosen printer type; "" = detected. */
+  preset: string;
+  detected_preset: string;
+  effective_preset: string;
+  technology: string;
+  technology_label: string;
+  presets: Array<{ key: string; label: string; technology: string }>;
+  parameters: PrintEstimateParameter[];
+  overrides: Record<string, number | boolean>;
+  calibration: PrintEstimateCalibration | null;
+  support_material_ids: number[];
+  supports_available: boolean;
 }
 
 /** A Fabrication Materials master-list entry, with the equipment it was added for. */
@@ -11079,6 +11123,13 @@ class ApiClient {
     max_print_size_y_mm?: string | null;
     max_print_size_z_mm?: string | null;
     allow_print_rotation_to_fit?: boolean;
+    /** 3D printers: estimate printer type ("" = detected from make / model). */
+    print_estimate_preset?: string;
+    /** 3D printers: parameter overrides (blank / missing = preset default). */
+    print_estimate_overrides?: Record<string, number | boolean | string | null>;
+    print_estimate_calibration?: "fit" | "apply" | "off";
+    /** 3D printers: master-list materials offered as a separate support material. */
+    print_estimate_support_material_ids?: number[];
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",
