@@ -22,6 +22,7 @@ const row = (id: number, name: string, category: string, from_price: string | nu
 });
 
 const CATALOG = [
+  { ...row(4, "AFM", "Spectroscopy", null, null), status: "REPAIR", status_display: "Under Maintenance" },
   row(1, "XPS", "Spectroscopy", "1500.00", "sample"),
   row(2, "FE-SEM", "Microscopy", "800.00", "hour"),
   row(3, "Raman", "Spectroscopy", null, null),
@@ -117,6 +118,23 @@ describe("Equipment catalog page", () => {
     expect(screen.getByText("Raman")).toBeTruthy();
     expect(screen.queryByText("FE-SEM")).toBeNull();
     expect(screen.getByRole("combobox", { name: "Filter by category or technique" }).textContent).toContain("Spectroscopy");
+  });
+
+  const cardOrder = (names: string[]) => {
+    const text = document.body.textContent ?? "";
+    return [...names].sort((a, b) => text.indexOf(a) - text.indexOf(b));
+  };
+
+  it("lists equipment that is not operational after operational equipment", async () => {
+    renderList("/equipment?dept=all");
+    await screen.findByText("AFM");
+    expect(cardOrder(["AFM", "XPS", "FE-SEM", "Raman"])).toEqual(["XPS", "FE-SEM", "Raman", "AFM"]);
+  });
+
+  it("keeps non-operational equipment last when a category filter is on", async () => {
+    renderList("/equipment?dept=all&category=Spectroscopy");
+    await screen.findByText("AFM");
+    expect(cardOrder(["AFM", "XPS", "Raman"])).toEqual(["XPS", "Raman", "AFM"]);
   });
 
   it("keeps search text in the URL so Back from an equipment page restores it", async () => {

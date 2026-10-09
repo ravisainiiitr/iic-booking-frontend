@@ -6,7 +6,14 @@ export type CatalogEquipmentLike = {
   enable_multi_mode?: boolean;
   /** From the catalog API: this instrument has child modes listed for the viewer (search ignored). */
   has_child_modes?: boolean;
+  status?: string | null;
 };
+
+/** Operational (ACTIVE) cards first, then every other status; order within each group is kept. */
+export function sortCatalogOperationalFirst<T extends Pick<CatalogEquipmentLike, "status">>(list: T[]): T[] {
+  const isDown = (eq: T) => eq.status != null && eq.status !== "" && eq.status !== "ACTIVE";
+  return [...list.filter((eq) => !isDown(eq)), ...list.filter(isDown)];
+}
 
 /** Parse a catalog `dept` URL parameter ("all" or a department id); null when absent or invalid. */
 export function catalogDepartmentFromParam(raw: string | null): "all" | number | null {
@@ -33,6 +40,7 @@ export function catalogParentId(
  * Default catalog view: parents + standalone only (hide child modes).
  * When a parent id is expanded, include that parent and its children.
  * When search is active, show all API matches including child equipment.
+ * Equipment that is not Operational is listed after all Operational equipment.
  */
 export function filterCatalogEquipmentForDisplay<T extends CatalogEquipmentLike>(
   list: T[],
@@ -40,6 +48,14 @@ export function filterCatalogEquipmentForDisplay<T extends CatalogEquipmentLike>
   options?: { searchActive?: boolean },
 ): T[] {
   if (!Array.isArray(list) || list.length === 0) return [];
+  return sortCatalogOperationalFirst(selectCatalogEquipment(list, expandedParentId, options));
+}
+
+function selectCatalogEquipment<T extends CatalogEquipmentLike>(
+  list: T[],
+  expandedParentId: number | null,
+  options?: { searchActive?: boolean },
+): T[] {
   const hasParentField = list.some(
     (eq) => catalogParentId(eq) != null || eq.enable_multi_mode === true,
   );

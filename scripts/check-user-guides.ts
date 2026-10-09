@@ -45,7 +45,7 @@ const ALLOWED: Array<[RegExp, GuideAudienceId[]]> = [
   [/Manage urgent requests/, ROLES("faculty", "oic", "admin")],
   [/Confirm manually/, ROLES("oic", "dept_admin", "admin")],
   [/Change slot status|Deduct Money|Confirm refund/, ROLES("oic", "admin")],
-  [/Equipment Booking Configuration|Tickets marked to me/, ROLES("oic", "operator")],
+  [/Equipment Configuration|Tickets marked to me/, ROLES("oic", "operator")],
   [/Intimate Unavailability/, ROLES("operator")],
   [/Wallet payment modes|Admin Panel Access is enabled for Department/, ROLES("admin")],
   [/Book slots for a user/, ROLES("oic", "dept_admin", "admin")],

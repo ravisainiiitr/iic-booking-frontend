@@ -79,10 +79,11 @@ const renderAs = (userType: string) => {
 
 afterEach(() => cleanup());
 
-describe("Equipment Booking Configuration: slot window reference", () => {
+describe("Equipment Configuration: slot window reference", () => {
   it("is hidden from the Officer In Charge and never sent on save", async () => {
     renderAs("manager");
     expect(await screen.findByLabelText("Weekly view from (24h)")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Equipment Configuration" })).toBeTruthy();
     expect(screen.queryByText("Slot window reference weekday")).toBeNull();
     expect(screen.queryByText("Reference time (24h)")).toBeNull();
     expect(screen.queryByTestId("oic-slot-window-reference")).toBeNull();
@@ -111,7 +112,7 @@ describe("Equipment Booking Configuration: slot window reference", () => {
   });
 });
 
-describe("Equipment Booking Configuration: waitlist and urgent request depth", () => {
+describe("Equipment Configuration: waitlist and urgent request depth", () => {
   it("shows each limit with its current fill", async () => {
     renderAs("manager");
     expect(await screen.findByText("Waitlist and urgent requests")).toBeTruthy();
@@ -141,7 +142,7 @@ describe("Equipment Booking Configuration: waitlist and urgent request depth", (
   });
 });
 
-describe("Equipment Booking Configuration: results overdue time", () => {
+describe("Equipment Configuration: results overdue time", () => {
   it("defaults to 24 hours, refuses 0 and saves the hours and the user countdown switch", async () => {
     renderAs("manager");
     const hours = (await screen.findByLabelText("Results overdue after (hours)")) as HTMLInputElement;

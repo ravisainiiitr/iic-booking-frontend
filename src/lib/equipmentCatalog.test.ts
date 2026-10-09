@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { catalogDepartmentFromParam, isCatalogFamilyParent } from "./equipmentCatalog";
+import {
+  catalogDepartmentFromParam,
+  filterCatalogEquipmentForDisplay,
+  isCatalogFamilyParent,
+  sortCatalogOperationalFirst,
+} from "./equipmentCatalog";
 
 describe("catalogDepartmentFromParam", () => {
   it("reads a department id or 'all' from the URL", () => {
@@ -40,5 +45,61 @@ describe("isCatalogFamilyParent", () => {
     expect(
       isCatalogFamilyParent([{ ...xps, has_child_modes: true }], 4, { searchActive: true }),
     ).toBe(false);
+  });
+});
+
+type Row = { equipment_id: number; status?: string | null; parent_equipment?: number | null; enable_multi_mode?: boolean };
+const ids = (rows: Row[]) => rows.map((r) => r.equipment_id);
+
+describe("sortCatalogOperationalFirst", () => {
+  it("lists every non-operational status after operational equipment, keeping order within each group", () => {
+    const rows: Row[] = [
+      { equipment_id: 1, status: "REPAIR" },
+      { equipment_id: 2, status: "ACTIVE" },
+      { equipment_id: 3, status: "INACTIVE" },
+      { equipment_id: 4, status: "ACTIVE" },
+      { equipment_id: 5, status: "MAINTENANCE" },
+      { equipment_id: 6, status: "OTHER" },
+      { equipment_id: 7, status: "ACTIVE" },
+    ];
+    expect(ids(sortCatalogOperationalFirst(rows))).toEqual([2, 4, 7, 1, 3, 5, 6]);
+    expect(ids(rows)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("keeps rows without a status in place", () => {
+    expect(ids(sortCatalogOperationalFirst([{ equipment_id: 1 }, { equipment_id: 2, status: "REPAIR" }, { equipment_id: 3 }]))).toEqual([1, 3, 2]);
+  });
+});
+
+describe("filterCatalogEquipmentForDisplay ordering", () => {
+  const family: Row[] = [
+    { equipment_id: 10, status: "REPAIR", enable_multi_mode: true },
+    { equipment_id: 11, status: "ACTIVE", parent_equipment: 10 },
+    { equipment_id: 12, status: "REPAIR", parent_equipment: 10 },
+    { equipment_id: 13, status: "ACTIVE", parent_equipment: 10 },
+    { equipment_id: 20, status: "ACTIVE" },
+    { equipment_id: 30, status: "INACTIVE" },
+    { equipment_id: 40, status: "ACTIVE" },
+  ];
+
+  it("puts non-operational cards last in the default catalog view", () => {
+    expect(ids(filterCatalogEquipmentForDisplay(family, null))).toEqual([20, 40, 10, 30]);
+  });
+
+  it("uses each card's own status in a family view", () => {
+    expect(ids(filterCatalogEquipmentForDisplay(family, 10))).toEqual([11, 13, 10, 12]);
+  });
+
+  it("orders search results the same way", () => {
+    expect(ids(filterCatalogEquipmentForDisplay(family, null, { searchActive: true }))).toEqual([11, 13, 20, 40, 10, 12, 30]);
+  });
+
+  it("orders a plain list without multi-mode equipment", () => {
+    const plain: Row[] = [
+      { equipment_id: 1, status: "REPAIR" },
+      { equipment_id: 2, status: "ACTIVE" },
+      { equipment_id: 3, status: "ACTIVE" },
+    ];
+    expect(ids(filterCatalogEquipmentForDisplay(plain, null))).toEqual([2, 3, 1]);
   });
 });

@@ -72,7 +72,7 @@ export const oicGuide: RoleGuide = {
           },
           {
             title: "What the substitute can do",
-            body: "For those days the substitute has the same OIC permissions on that equipment as you: View Booking, approvals, urgent requests, waitlist, Change slot status and Equipment Booking Configuration. Each substitute gets one email listing all their equipment, each Lab Operator one email for the equipment they look after, and you get one summary.",
+            body: "For those days the substitute has the same OIC permissions on that equipment as you: View Booking, approvals, urgent requests, waitlist, Change slot status and Equipment Configuration. Each substitute gets one email listing all their equipment, each Lab Operator one email for the equipment they look after, and you get one summary.",
           },
           {
             title: "Revoke or cancel",

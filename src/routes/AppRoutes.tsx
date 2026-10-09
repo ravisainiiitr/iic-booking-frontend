@@ -385,7 +385,7 @@ export default function AppRoutes() {
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="Fabrication Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
           <Route path="/oic/fabrication-materials" element={<Navigate to="/oic/print-materials" replace />} />
           <Route path="/oic/quota-configurations" element={<Navigate to="/oic/equipment-settings" replace />} />
-          <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Equipment Booking Configuration" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
+          <Route path="/oic/equipment-settings" element={<ErrorBoundary fallbackTitle="Equipment Configuration" backPath="/dashboard"><OICEquipmentSettings /></ErrorBoundary>} />
           <Route path="/oic/multi-mode" element={<Navigate to="/multi-mode-equipment" replace />} />
           <Route path="/multi-mode-equipment" element={<ErrorBoundary fallbackTitle="Multi-mode equipment" backPath="/dashboard"><MultiModeEquipment /></ErrorBoundary>} />
           <Route path="/user-management" element={<UserManagement />} />

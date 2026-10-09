@@ -158,7 +158,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     description: "Choose the equipment at the top, then mark its slots available, blocked or under maintenance.",
   },
   "/oic/equipment-settings": {
-    title: "Equipment Booking Configuration",
+    title: "Equipment Configuration",
     description: "Important instruction, slot visibility, usage quotas, and booking and sample timings for your equipment.",
   },
   "/booking-attempt-logs": { title: "Booking Attempt Log" },
@@ -3035,7 +3035,7 @@ const Dashboard = () => {
     },
     {
       id: "equipment_settings",
-      label: "Equipment Booking Configuration",
+      label: "Equipment Configuration",
       path: "/oic/equipment-settings",
       visible: Boolean(isAdmin || isOicUser),
       render: () => (
@@ -3049,7 +3049,7 @@ const Dashboard = () => {
                     <Clock className="h-6 w-6" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg">Equipment Booking Configuration</CardTitle>
+                    <CardTitle className="text-lg">Equipment Configuration</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
                       Important instruction, slot visibility, usage quotas, and booking and sample deadlines
                     </CardDescription>

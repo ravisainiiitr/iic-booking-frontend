@@ -498,7 +498,7 @@ export default function OICEquipmentSettings() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Dashboard
             </Button>
-            <h1 className="text-2xl font-semibold tracking-tight">Equipment Booking Configuration</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Equipment Configuration</h1>
             <p className="mt-1 max-w-2xl text-sm text-white/85">
               Set the important instruction shown to users, slot visibility, waitlist and urgent request limits, usage
               quotas, and booking and sample deadlines for each equipment you manage.
