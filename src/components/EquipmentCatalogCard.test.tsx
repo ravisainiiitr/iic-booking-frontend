@@ -164,10 +164,11 @@ describe("EquipmentCatalogCard price", () => {
 });
 
 describe("EquipmentCatalogCard multi-mode availability", () => {
-  it("lays one line over the photo, leading with this mode, and opens the availability calendar", () => {
+  it("shows one line in place of the category, leading with this mode, and opens the availability calendar", () => {
     renderCard({
       item: {
         ...item,
+        category: "Surface Analysis",
         modeAvailability: {
           parent_equipment_id: 41,
           modes: [
@@ -185,12 +186,15 @@ describe("EquipmentCatalogCard multi-mode availability", () => {
     });
     const strip = screen.getByTestId("card-mode-availability");
     expect(strip.textContent).toBe("XPS-D Tue/Thu · full|XPS Mon–Fri · next Wed 9 Jan");
-    expect(strip.getAttribute("title")).toBe("XPS-D Tue/Thu · full | XPS Mon–Fri · next Wed 9 Jan");
+    expect(strip.getAttribute("title")).toBe("XPS-D Tue/Thu · full | XPS Mon–Fri · next Wed 9 Jan\nCategory: Surface Analysis");
+    expect(strip.className).toContain("top-3");
+    expect(screen.queryByText("Surface Analysis")).toBeNull();
     expect(screen.queryByText(/modes share this instrument/)).toBeNull();
     fireEvent.click(strip);
     expect(where()).toBe("/equipment/42?panel=availability");
     cleanup();
-    renderCard();
+    renderCard({ item: { ...item, category: "Surface Analysis" } });
     expect(screen.queryByTestId("card-mode-availability")).toBeNull();
+    expect(screen.getByText("Surface Analysis")).toBeTruthy();
   });
 });

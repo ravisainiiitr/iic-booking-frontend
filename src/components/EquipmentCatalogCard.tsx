@@ -260,7 +260,15 @@ export default function EquipmentCatalogCard({
               ) : null}
             </>
           )}
-          {item.category ? (
+          {item.modeAvailability?.modes?.length ? (
+            <CardModeAvailability
+              availability={item.modeAvailability}
+              equipmentId={Number(item.id)}
+              category={item.category}
+              onOpen={openAvailability}
+              className="absolute left-3 top-3 z-[2] max-w-[calc(100%-1.5rem)]"
+            />
+          ) : item.category ? (
             <span className="absolute left-3 top-3 z-[2] max-w-[calc(100%-7.5rem)] truncate rounded-md bg-primary px-2.5 py-1 text-[11px] font-semibold tracking-wide text-primary-foreground shadow-sm">
               {item.category}
             </span>
@@ -286,14 +294,6 @@ export default function EquipmentCatalogCard({
           >
             {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
           </span>
-          {item.modeAvailability?.modes?.length && !playingVideo ? (
-            <CardModeAvailability
-              availability={item.modeAvailability}
-              equipmentId={Number(item.id)}
-              onOpen={openAvailability}
-              className="absolute inset-x-3 bottom-[3.25rem] z-[2]"
-            />
-          ) : null}
         </div>
 
         <CardHeader className="flex-1 space-y-3 px-5 pb-3 pt-4">
