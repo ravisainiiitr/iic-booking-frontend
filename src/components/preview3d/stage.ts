@@ -148,7 +148,7 @@ export class PreviewStage {
   }
 
   /** Box the camera frames on "home"; optional sheet / plate box for the "sheet" preset and shadows. */
-  setFocus(box: THREE.Box3, options: { sheet?: THREE.Box3 | null; shadowBox?: THREE.Box3 } = {}) {
+  setFocus(box: THREE.Box3, options: { sheet?: THREE.Box3 | null; shadowBox?: THREE.Box3; keepView?: boolean } = {}) {
     this.focus = box.clone();
     this.sheet = options.sheet ? options.sheet.clone() : null;
     const shadowBox = (options.shadowBox ?? box).clone();
@@ -168,8 +168,21 @@ export class PreviewStage {
     cam.updateProjectionMatrix();
     this.key.shadow.normalBias = radius * 0.0015;
     this.key.shadow.needsUpdate = true;
+    if (options.keepView && this.fitted) {
+      this.invalidate();
+      return;
+    }
     this.fitted = false;
     this.setView("home", false);
+  }
+
+  /** Remove and free the caller's objects (to rebuild the scene without a new WebGL context). */
+  clearContent() {
+    for (const child of [...this.content.children]) {
+      this.content.remove(child);
+      disposeObject(child);
+    }
+    this.setOverlay(null);
   }
 
   /** A soft blob under an object's footprint, sitting just above `y`. */
