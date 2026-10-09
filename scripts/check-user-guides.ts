@@ -60,6 +60,7 @@ const ALLOWED: Array<[RegExp, GuideAudienceId[]]> = [
   [/Recharge Wallet/, ROLES("faculty", "startup", "external", "student", "project_staff")],
   [/Verify Fund Receipt/, ROLES("admin", "finance")],
   [/Faculty Credit Facility/, ROLES("faculty", "dept_admin")],
+  [/Equipment flash messages|\+ Flash message/, ROLES("oic", "dept_admin", "admin")],
 ];
 
 /** Each role's own key content must be present (proves the patterns above match real text). */
@@ -69,7 +70,7 @@ const REQUIRED: Partial<Record<GuideAudienceId, RegExp[]>> = {
   faculty: [/Student management/, /Manage urgent requests/, /Spending limit/],
   startup: [/KYC/, /IITR Startup/],
   external: [/KYC/],
-  oic: [/Confirm manually/, /Deduct Money/, /Tickets marked to me/],
+  oic: [/Confirm manually/, /Deduct Money/, /Tickets marked to me/, /Equipment flash messages/],
   operator: [/Intimate Unavailability/, /Not Utilized/],
   dept_admin: [/Book slots for a user/, /Faculty Credit Facility/, /Confirm manually/],
   admin: [/Wallet payment modes/, /Confirm manually/],

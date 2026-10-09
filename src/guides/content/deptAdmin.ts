@@ -1,6 +1,6 @@
 import type { RoleGuide } from "../gate";
 import { helpSection } from "./help";
-import { disruptionHistorySection, staffViewBookingSection } from "./staff";
+import { disruptionHistorySection, flashMessagesSection, staffViewBookingSection } from "./staff";
 
 const GROUP = "Department";
 
@@ -65,6 +65,7 @@ export const deptAdminGuide: RoleGuide = {
     },
     staffViewBookingSection(g),
     disruptionHistorySection(g),
+    flashMessagesSection(g),
     {
       id: "department-queues",
       title: "Urgent requests, waitlist and repeat samples",

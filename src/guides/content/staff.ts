@@ -318,6 +318,50 @@ export function disruptionHistorySection(g: Gate): GuideSection {
   };
 }
 
+export function flashMessagesSection(g: Gate): GuideSection {
+  return {
+    id: "equipment-flash-messages",
+    title: "Equipment flash messages",
+    icon: "alert",
+    group: LAB,
+    intro: [
+      g.pick(
+        {
+          oic: "Show a short, timed message at the top of your equipment's page and booking page, for example “Sample submission closes at 4 PM today”. Equipment you cover as temporary OIC is included.",
+          dept_admin: "Show a short, timed message at the top of the page and booking page of any equipment of your department.",
+        },
+        "Show a short, timed message at the top of the page and booking page of any equipment.",
+      ),
+    ],
+    steps: [
+      {
+        title: "Open it",
+        body: "In the dashboard menu, choose Equipment flash messages. On an equipment page you manage, + Flash message beside Back opens a new message for that equipment.",
+      },
+      {
+        title: "Write the message",
+        body: "Click New flash message, choose the equipment and type up to 300 characters; Bold, Italic and Link are the only formatting. Pick a tone (Info, Notice, Important or Success) and, if useful, add a link with its own text. The live preview shows the banner exactly as users will see it.",
+      },
+      {
+        title: "Choose how long",
+        body: "Pick 1 day, 3 days, 1 week or Custom (up to 30 days). It starts now unless you tick Start later. When it ends it simply stops showing; nothing to clean up.",
+      },
+      {
+        title: "Choose who sees it",
+        body: "Everyone (including visitors who are not signed in), Internal (IITR) users, External users or selected user types. You and other staff always see every message, with a small label when it is limited to some users. For a multi-mode instrument, tick Also show on all modes to show it on every mode's page too.",
+      },
+      {
+        title: "Manage messages",
+        body: "Filter by status (Live, Scheduled, Expired, Off), equipment or text. The ⋯ menu on a row lets you Edit, End now, Duplicate, Turn off or on, and Extend by 1 day, 3 days or 1 week. Every change is recorded with who made it.",
+      },
+    ],
+    rules: [
+      "Several live messages for one equipment take turns every few seconds; users can switch with the dots or hide one with × for their visit.",
+      "The banner moves gently (a soft fade and sheen, and long text scrolls slowly); it never blinks, and it stays still for users who turn off animations on their device.",
+    ],
+  };
+}
+
 export function oicConfigSection(g: Gate): GuideSection {
   return {
     id: "equipment-config",

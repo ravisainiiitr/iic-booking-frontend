@@ -25,7 +25,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Check charges and instructions",
-        body: "Use Calculate Charges and read the Important instruction box. The lab can write a different instruction for your user type.",
+        body: "Use Calculate Charges and read the Important instruction box. The lab can write a different instruction for your user type. A short announcement from the lab, such as a changed sample deadline, may appear at the top of the equipment and booking pages for a few days; click × to hide it for this visit.",
         screenshotCaption: "Charges calculator",
         screenshotSrc: "/guides/equipment-calculate-charges.png",
       },
