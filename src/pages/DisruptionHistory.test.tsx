@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
     downloadDisruptionServiceReport: vi.fn(),
     deleteDisruption: vi.fn(),
     restoreDisruption: vi.fn(),
+    raiseDisruptionProcurementRequest: vi.fn(),
   },
 }));
 
@@ -202,6 +203,101 @@ describe("DisruptionHistory", () => {
     expect(screen.queryByRole("button", { name: /Delete Under Maintenance/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restore Under Maintenance on FE-SEM" }));
     await waitFor(() => expect(state.api.restoreDisruption).toHaveBeenCalledWith(7));
+  });
+
+  it("scrolls the table in its own pane with sticky header and first columns, and shows who and when", async () => {
+    state.api.getDisruptions.mockResolvedValue({
+      data: {
+        ...listResponse,
+        results: [
+          {
+            ...record,
+            started_by_role_display: "Temp OIC",
+            recovery_status: "DELAYED",
+            recovery_text: "Recovery delayed — update awaited",
+            procurement_requests: [{ id: 4, number: "REQ/2026-27/00004", status: "SUBMITTED", status_display: "Submitted" }],
+          },
+        ],
+      },
+    });
+    renderPage();
+    await screen.findByText("FE-SEM");
+    const pane = screen.getByRole("region", { name: "Disruption entries" });
+    expect(pane.className).toContain("table-scroll-pane");
+    expect(pane.querySelector("table")).toBeTruthy();
+    expect(pane.querySelector("thead")?.className).toContain("sticky");
+    const headers = within(pane).getAllByRole("columnheader");
+    expect(headers[0].className).toContain("sticky");
+    expect(headers[1].className).toContain("sticky");
+    expect(headers.map((h) => h.textContent)).toEqual(expect.arrayContaining(["Started by", "Ended by", "Procurement"]));
+    expect(screen.getByText("OIC One")).toBeTruthy();
+    expect(screen.getByText(/Temp OIC · /)).toBeTruthy();
+    expect(screen.getByText("Recovery delayed — update awaited")).toBeTruthy();
+    expect(screen.getByText("REQ/2026-27/00004")).toBeTruthy();
+  });
+
+  it("edits the expected recovery of an open disruption from the drawer", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("row", { name: /Open Under Maintenance on FE-SEM/ }));
+    const drawer = await screen.findByRole("dialog");
+    const input = (await within(drawer).findByLabelText("Expected recovery date and time")) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "2099-10-13T10:00" } });
+    fireEvent.click(within(drawer).getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(state.api.updateDisruption).toHaveBeenCalledWith(7, {
+        expected_recovery_at: new Date("2099-10-13T10:00").toISOString(),
+      })
+    );
+  });
+
+  it("raises a procurement request from the drawer for a closed disruption", async () => {
+    const closed = {
+      ...record,
+      status: "CLOSED",
+      end_at: "2026-10-02T09:00:00+05:30",
+      ended_at: "2026-10-02T09:00:00+05:30",
+      ended_by_name: "OIC One",
+      ended_by_role_display: "OIC",
+      slots: [],
+      timeline: [],
+      reason_categories: [],
+      procurement_requests: [],
+      procurement: { available: true, categories: [{ value: "MINOR_ASSET", label: "Minor assets" }] },
+    };
+    state.api.getDisruption.mockResolvedValue({ data: closed });
+    state.api.raiseDisruptionProcurementRequest.mockResolvedValue({
+      data: {
+        request: { id: 9, number: "REQ/9", status: "SUBMITTED", status_display: "Submitted", submitted: true, submit_error: "" },
+        disruption: closed,
+      },
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("row", { name: /Open Under Maintenance on FE-SEM/ }));
+    const drawer = await screen.findByRole("dialog");
+    expect(await within(drawer).findByText(/OIC One \(OIC\)/)).toBeTruthy();
+    expect(within(drawer).queryByLabelText("Expected recovery date and time")).toBeNull();
+    fireEvent.click(within(drawer).getByRole("button", { name: "Raise procurement request" }));
+    fireEvent.click(within(drawer).getByRole("radio", { name: "Minor assets" }));
+    fireEvent.change(within(drawer).getByLabelText("Item 1"), { target: { value: "UPS battery" } });
+    fireEvent.click(within(drawer).getByRole("button", { name: "Raise request" }));
+    await waitFor(() =>
+      expect(state.api.raiseDisruptionProcurementRequest).toHaveBeenCalledWith(7, {
+        category: "MINOR_ASSET",
+        notes: "",
+        items: [{ name: "UPS battery", quantity: 1, estimated_cost: 0, recommended_by_service_person: true, notes: "" }],
+      })
+    );
+  });
+
+  it("hides the procurement action when the module is not available", async () => {
+    state.api.getDisruption.mockResolvedValue({
+      data: { ...record, status: "CLOSED", slots: [], timeline: [], reason_categories: [], procurement: { available: false, categories: [] } },
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("row", { name: /Open Under Maintenance on FE-SEM/ }));
+    const drawer = await screen.findByRole("dialog");
+    await within(drawer).findByText("Service reports");
+    expect(within(drawer).queryByRole("button", { name: "Raise procurement request" })).toBeNull();
   });
 
   it("shows an error with a retry", async () => {

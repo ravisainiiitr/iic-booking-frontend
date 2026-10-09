@@ -9,17 +9,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DisruptionCategoryChips } from "./DisruptionCategoryChips";
+import { EMPTY_PROCUREMENT_DRAFT, ProcurementItemsFields } from "./ProcurementItemsFields";
 import {
   DISRUPTION_REASON_CATEGORIES,
   DISRUPTION_TYPE_LABELS,
+  RECOVERY_UNKNOWN_TEXT,
   SERVICE_REPORT_ACCEPT,
   SERVICE_REPORT_MAX_MB,
+  procurementRequestBody,
   serviceReportFileError,
+  toDateTimeLocal,
   type DisruptionDialogValues,
   type DisruptionType,
+  type ProcurementOptions,
+  type ProcurementRequestDraft,
 } from "@/lib/disruptions";
 
 export type DisruptionPromptMode = "disrupt" | "resume";
@@ -41,6 +49,10 @@ export interface DisruptionPromptDialogProps {
   notice?: ReactNode;
   /** Resume mode: allow attaching a service report (roles that can open the Disruption history). */
   canAttachReport?: boolean;
+  /** Disrupt mode: ask for the expected recovery (shown to users on the equipment page and slots). */
+  askRecovery?: boolean;
+  /** Resume mode: offer a Procurement & Assets request for items the service person recommended. */
+  procurement?: ProcurementOptions | null;
   busy?: boolean;
   onCancel: () => void;
   /** `skipped` is true when the user chose "Skip reason" / "Skip for now"; values are then empty. */
@@ -68,12 +80,16 @@ export function DisruptionPromptDialog({
   summary,
   notice,
   canAttachReport = false,
+  askRecovery = false,
+  procurement = null,
   busy = false,
   onCancel,
   onSubmit,
 }: DisruptionPromptDialogProps) {
   const [values, setValues] = useState<DisruptionDialogValues>(EMPTY);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [wantsProcurement, setWantsProcurement] = useState(false);
+  const [procurementDraft, setProcurementDraft] = useState<ProcurementRequestDraft>(EMPTY_PROCUREMENT_DRAFT);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const baseId = useId();
@@ -82,14 +98,19 @@ export function DisruptionPromptDialog({
     if (open) {
       setValues(EMPTY);
       setFileError(null);
+      setWantsProcurement(false);
+      setProcurementDraft(EMPTY_PROCUREMENT_DRAFT);
     }
   }, [open]);
 
   const categories = mode === "disrupt" && disruptionType ? DISRUPTION_REASON_CATEGORIES[disruptionType] : [];
   const isResume = mode === "resume";
+  const showRecovery = !isResume && askRecovery;
+  const showProcurement = isResume && Boolean(procurement?.available) && (procurement?.categories.length ?? 0) > 0;
+  const procurementIncomplete = showProcurement && wantsProcurement && procurementRequestBody(procurementDraft) === null;
   const hasInput = isResume
-    ? Boolean(values.actionTaken.trim() || values.serviceReport)
-    : Boolean(values.reason.trim() || values.reasonCategory);
+    ? Boolean(values.actionTaken.trim() || values.serviceReport || (showProcurement && wantsProcurement))
+    : Boolean(values.reason.trim() || values.reasonCategory || (showRecovery && values.expectedRecovery));
   const textLabel = isResume ? "Action taken / resolution" : "Reason";
   const textPlaceholder = isResume
     ? "For example: detector replaced by the service engineer, calibration verified."
@@ -101,8 +122,16 @@ export function DisruptionPromptDialog({
 
   const submit = (skipped: boolean) => {
     if (busy) return;
-    if (!skipped && fileError) return;
-    onSubmit(skipped ? EMPTY : { ...values, reason: values.reason.trim(), actionTaken: values.actionTaken.trim() }, skipped);
+    if (skipped) {
+      onSubmit(EMPTY, true);
+      return;
+    }
+    if (fileError || procurementIncomplete) return;
+    const out: DisruptionDialogValues = { ...values, reason: values.reason.trim(), actionTaken: values.actionTaken.trim() };
+    if (showRecovery) out.expectedRecovery = values.expectedRecovery ?? "";
+    else delete out.expectedRecovery;
+    if (showProcurement) out.procurement = wantsProcurement ? procurementDraft : null;
+    onSubmit(out, false);
   };
 
   const pickFile = (file: File | null) => {
@@ -115,7 +144,7 @@ export function DisruptionPromptDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !busy && onCancel()}>
       <DialogContent
-        className="max-w-xl"
+        className="max-h-[92vh] max-w-xl overflow-y-auto"
         onOpenAutoFocus={(e) => {
           e.preventDefault();
           textRef.current?.focus();
@@ -179,6 +208,38 @@ export function DisruptionPromptDialog({
           />
         </div>
 
+        {showRecovery && (
+          <div className="space-y-1.5">
+            <Label htmlFor={`${baseId}-recovery`}>
+              Expected recovery <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                id={`${baseId}-recovery`}
+                type="datetime-local"
+                className="h-9 w-auto"
+                min={toDateTimeLocal(new Date().toISOString())}
+                value={values.expectedRecovery ?? ""}
+                onChange={(e) => setValues((v) => ({ ...v, expectedRecovery: e.target.value }))}
+              />
+              {values.expectedRecovery ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setValues((v) => ({ ...v, expectedRecovery: "" }))}
+                >
+                  Not known
+                </Button>
+              ) : null}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Shown to users on the equipment page and slots. Leave empty if not known: users see “{RECOVERY_UNKNOWN_TEXT}”.
+              You can change it later from Disruption history.
+            </p>
+          </div>
+        )}
+
         {isResume && canAttachReport && (
           <div className="space-y-1.5">
             <p className="text-sm font-medium text-foreground">
@@ -223,6 +284,37 @@ export function DisruptionPromptDialog({
           </div>
         )}
 
+        {showProcurement && procurement && (
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                className="mt-0.5"
+                checked={wantsProcurement}
+                onCheckedChange={(c) => setWantsProcurement(c === true)}
+              />
+              <span>
+                <span className="font-medium">Service person recommended items?</span>
+                <span className="block text-xs text-muted-foreground">
+                  Raise a Procurement &amp; Assets request for consumables or assets. It goes through the usual approval,
+                  with the service report attached.
+                </span>
+              </span>
+            </label>
+            {wantsProcurement && (
+              <>
+                <ProcurementItemsFields
+                  categories={procurement.categories}
+                  value={procurementDraft}
+                  onChange={setProcurementDraft}
+                />
+                {procurementIncomplete && (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">Choose a request type and name at least one item.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         <DialogFooter className="gap-2 sm:gap-0">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
             Cancel
@@ -230,7 +322,7 @@ export function DisruptionPromptDialog({
           <Button type="button" variant="outline" onClick={() => submit(true)} disabled={busy}>
             {isResume ? "Skip for now" : "Skip reason"}
           </Button>
-          <Button type="button" onClick={() => submit(false)} disabled={busy || !hasInput}>
+          <Button type="button" onClick={() => submit(false)} disabled={busy || !hasInput || procurementIncomplete}>
             {busy ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

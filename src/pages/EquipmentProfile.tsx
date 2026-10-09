@@ -51,6 +51,8 @@ import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
+import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
+import type { EquipmentDisruptionNotice as EquipmentDisruptionNoticeData } from "@/lib/disruptions";
 import EquipmentImage from "@/components/EquipmentImage";
 import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +92,8 @@ interface EquipmentProfile {
   profile_type_display: string;
   status: string;
   status_display: string;
+  /** Not operational: public reason and expected recovery. */
+  disruption_notice?: EquipmentDisruptionNoticeData | null;
   location: string;
   google_maps_url?: string | null;
   office_address?: string | null;
@@ -1292,6 +1296,9 @@ const EquipmentProfile = () => {
                         </div>
                       ) : null}
                     </div>
+                    {equipment.status !== "ACTIVE" ? (
+                      <EquipmentDisruptionNotice notice={equipment.disruption_notice} className="mt-3" />
+                    ) : null}
                     <div className="mt-3">
                       <EquipmentDepartmentLabel name={equipment.internal_department_name} />
                     </div>

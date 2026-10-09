@@ -30,6 +30,9 @@ import type {
   DisruptionEventIds,
   DisruptionListParams,
   DisruptionListResponse,
+  DisruptionRequestFields,
+  ProcurementOptions,
+  PublicDisruptionInfo,
   SlotStatusPreview,
 } from "@/lib/disruptions";
 import type {
@@ -4638,7 +4641,7 @@ class ApiClient {
   async updateEquipmentStatus(
     equipmentId: number,
     status: 'ACTIVE' | 'REPAIR' | 'INACTIVE' | 'DISPOSED' | 'OTHER',
-    disruption?: { disruption_reason?: string; disruption_reason_category?: string; resolution_action?: string }
+    disruption?: DisruptionRequestFields
   ) {
     return this.updateEquipment(String(equipmentId), { status, ...(disruption ?? {}) }) as Promise<{
       data?: Record<string, unknown> & {
@@ -5202,6 +5205,8 @@ class ApiClient {
         booking_user_phone?: string | null;
         /** Staff views only: slot lies outside weekly_view_time_from/to, so regular users never see it. */
         outside_visibility_window?: boolean;
+        /** Disrupted slots, for everyone: type, public reason and expected recovery (no staff details). */
+        disruption_public?: PublicDisruptionInfo | null;
         created_at: string;
         updated_at: string;
       }>;
@@ -13980,6 +13985,7 @@ class ApiClient {
       disruption_reason?: string;
       disruption_reason_category?: string;
       resolution_action?: string;
+      expected_recovery_at?: string;
       source?: "change_slot_status" | "dashboard_calendar";
     }
   ) {
@@ -14026,9 +14032,44 @@ class ApiClient {
     return this.request<DisruptionDetail>(`/equipments/disruptions/${id}/`);
   }
 
-  async updateDisruption(id: number, data: { reason?: string; reason_category?: string; action_taken?: string }) {
+  async updateDisruption(
+    id: number,
+    data: { reason?: string; reason_category?: string; action_taken?: string; expected_recovery_at?: string },
+  ) {
     return this.request<DisruptionDetail>(`/equipments/disruptions/${id}/`, {
       method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /** Can the OIC raise a Procurement & Assets request for this equipment (module enabled for its department)? */
+  async getDisruptionProcurementOptions(equipmentId: number) {
+    return this.request<ProcurementOptions>(`/equipments/disruptions/procurement-options/?equipment=${equipmentId}`);
+  }
+
+  /** Raise a request for items the service person recommended; linked back to the disruption. */
+  async raiseDisruptionProcurementRequest(
+    id: number,
+    data: {
+      category: string;
+      notes?: string;
+      items: { name: string; quantity: number; estimated_cost: number; recommended_by_service_person: boolean; notes: string }[];
+    },
+  ) {
+    return this.request<{
+      request: {
+        id: number;
+        number: string;
+        status: string;
+        status_display: string;
+        submitted: boolean;
+        submit_error: string;
+        reports_attached: number;
+        reports_skipped: number;
+      };
+      disruption: DisruptionDetail;
+    }>(`/equipments/disruptions/${id}/procurement-request/`, {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   }

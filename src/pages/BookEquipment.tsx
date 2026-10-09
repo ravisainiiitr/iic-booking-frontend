@@ -103,6 +103,7 @@ import {
   slotCellStyle,
 } from "@/components/slot-calendar/SlotWeekGrid";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
+import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
@@ -313,6 +314,8 @@ interface DailySlot {
   /** Staff only: recorded disruption reason (label of the category) and I-STEM FBR reference. */
   disruption_reason?: string | null;
   disruption_reason_category?: string | null;
+  /** Everyone: disruption type, public reason (or default wording) and expected recovery. */
+  disruption_public?: PublicDisruptionInfo | null;
   external_reference?: string | null;
   status_display?: string;
   blocked_label?: string | null;
@@ -544,6 +547,8 @@ function slotStatusHoverLines(
   const disruptionReason = String(slot.disruption_reason || "").trim();
   if (disruptionCategory) lines.push(`Category: ${disruptionCategory}`);
   if (disruptionReason && disruptionReason !== blockedLabel) lines.push(`Disruption reason: ${disruptionReason}`);
+  const recoveryText = String(slot.disruption_public?.recovery_text || "").trim();
+  if (recoveryText) lines.push(recoveryText);
   const externalReference = String(slot.external_reference || "").trim();
   if (externalReference) lines.push(`I-STEM FBR: ${externalReference}`);
   if (opts.holidayName) {
@@ -11413,12 +11418,19 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                             justTaken,
                             overQuotaReason: overQuotaForUser ? quotaBlock : null,
                           });
+                          // Users (incl. signed-out): disrupted slots explain the type, reason and expected recovery.
+                          const publicLines =
+                            !isAdminOrOIC() && slotExists && !isSelected && !considerBooked
+                              ? publicDisruptionLines(slotData?.disruption_public)
+                              : [];
                           const unavailableReason = restrictedToStaff
                             ? [
                                 restrictedSlotHint(equipmentDetail?.weekly_view_time_from, equipmentDetail?.weekly_view_time_to),
                                 slotReason,
                               ].filter(Boolean).join(" ")
-                            : slotReason;
+                            : publicLines.length > 0
+                              ? publicLines.join(". ")
+                              : slotReason;
                           // OIC/admin: every non-Available slot explains itself on hover, even when still selectable
                           // (staff can book over Blocked / Not Available slots, so those cells are not disabled).
                           const staffStatusLines =
@@ -11438,9 +11450,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                                   ? [slotReason]
                                   : []),
                               ]
-                            : unavailableReason
-                              ? [unavailableReason]
-                              : [];
+                            : publicLines.length > 0
+                              ? publicLines
+                              : unavailableReason
+                                ? [unavailableReason]
+                                : [];
+                          const showHoverCard = staffStatusLines.length > 0 || publicLines.length > 0;
 
                           const slotStartLabel = slotData?.start_datetime ? format(parseISO(slotData.start_datetime), "HH:mm") : rowLabel;
                           const slotSpan = slotData?.start_datetime && slotData?.end_datetime
@@ -11471,7 +11486,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                               }}
                               aria-disabled={isDisabled || undefined}
                               aria-pressed={isSelected}
-                              aria-label={staffStatusLines.length > 0 ? `${accessibleLabel}. ${hoverLines.join(". ")}` : accessibleLabel}
+                              aria-label={showHoverCard ? `${accessibleLabel}. ${hoverLines.join(". ")}` : accessibleLabel}
                               className={`
                                 calendar-color-cell w-full p-3 rounded-md text-sm transition-all min-h-[48px] flex items-center justify-center font-medium border-2 border-white/50 shadow-sm
                                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1
@@ -11490,7 +11505,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                             </button>
                           );
 
-                          if (staffStatusLines.length === 0) {
+                          if (!showHoverCard) {
                             return <div key={dayOffset}>{cellButton}</div>;
                           }
 

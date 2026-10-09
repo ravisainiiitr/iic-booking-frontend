@@ -8,16 +8,24 @@ interface Props {
   onChange: (value: string) => void;
   label?: string;
   disabled?: boolean;
+  optional?: boolean;
 }
 
 /** Single-choice chips for a disruption reason category; clicking the selected chip clears it. */
-export function DisruptionCategoryChips({ options, value, onChange, label = "Category", disabled = false }: Props) {
+export function DisruptionCategoryChips({
+  options,
+  value,
+  onChange,
+  label = "Category",
+  disabled = false,
+  optional = true,
+}: Props) {
   const id = useId();
   if (options.length === 0) return null;
   return (
     <div className="space-y-2">
       <p id={id} className="text-sm font-medium text-foreground">
-        {label} <span className="font-normal text-muted-foreground">(optional)</span>
+        {label} {optional ? <span className="font-normal text-muted-foreground">(optional)</span> : null}
       </p>
       <div role="radiogroup" aria-labelledby={id} className="flex flex-wrap gap-2">
         {options.map((c) => {

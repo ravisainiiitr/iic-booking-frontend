@@ -17,6 +17,7 @@ import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import type { CardModeAvailability } from "@/lib/modeAvailability";
+import type { EquipmentDisruptionNotice } from "@/lib/disruptions";
 import {
   catalogDepartmentFromParam,
   filterCatalogEquipmentForDisplay,
@@ -66,6 +67,7 @@ interface ApiEquipment {
   from_price?: number | string | null;
   from_price_unit?: string | null;
   mode_availability?: CardModeAvailability | null;
+  disruption_notice?: EquipmentDisruptionNotice | null;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +105,7 @@ const transformApiEquipment = (list: ApiEquipment[]): Equipment[] =>
       featuredPublicationTitle: eq.featured_publication_title ?? null,
       featuredCitation: eq.featured_citation ?? null,
       modeAvailability: eq.mode_availability ?? null,
+      disruptionNotice: eq.disruption_notice ?? null,
     }));
 
 const ALL_CATEGORIES = "__all__";
@@ -387,6 +390,7 @@ const EquipmentList = () => {
     newStatus: "ACTIVE" | "REPAIR";
   }) => {
     const outcome = await disruptionPrompt.askForEquipmentStatusChange({
+      equipmentId: next.equipmentId,
       equipmentName: next.equipmentName,
       newStatus: next.newStatus,
       canAttachReport: true,

@@ -7,6 +7,10 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   stickyFirstColumn?: boolean;
   /** Below md, show each row as a card, labelling every cell with its column heading. */
   stackOnMobile?: boolean;
+  /** Scroll inside a viewport-high box (header stays on top, sideways scrollbar always in view). */
+  scrollPane?: boolean;
+  /** Extra props for the scrolling wrapper, e.g. an aria-label or data-testid. */
+  containerProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
 const AUTO_LABEL = "data-auto-label";
@@ -39,7 +43,7 @@ function labelCellsByColumn(table: HTMLTableElement) {
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, stickyFirstColumn, stackOnMobile, ...props }, ref) => {
+  ({ className, stickyFirstColumn, stackOnMobile, scrollPane, containerProps, ...props }, ref) => {
     const tableRef = React.useRef<HTMLTableElement | null>(null);
     const setRefs = React.useCallback(
       (node: HTMLTableElement | null) => {
@@ -61,10 +65,13 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
 
     return (
       <div
+        {...containerProps}
         className={cn(
           "relative w-full overflow-auto",
           stickyFirstColumn && "table-sticky-first",
           stackOnMobile && "table-stack-mobile",
+          scrollPane && "table-scroll-pane",
+          containerProps?.className,
         )}
       >
         <table ref={setRefs} className={cn("w-full caption-bottom text-sm", className)} {...props} />

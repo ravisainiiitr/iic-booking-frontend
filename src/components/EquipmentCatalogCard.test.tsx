@@ -198,3 +198,36 @@ describe("EquipmentCatalogCard multi-mode availability", () => {
     expect(screen.getByText("Surface Analysis")).toBeTruthy();
   });
 });
+
+describe("EquipmentCatalogCard disruption notice", () => {
+  const notice = {
+    type: "UNDER_MAINTENANCE" as const,
+    label: "Under maintenance",
+    reason: "Detector failure",
+    expected_recovery_at: "2099-10-13T04:30:00Z",
+    recovery_status: "DELAYED" as const,
+    recovery_text: "Recovery delayed — update awaited",
+    since: null,
+    message: "Under maintenance · Recovery delayed — update awaited",
+  };
+
+  it("shows the expected recovery on a non-operational card, with the reason on hover", () => {
+    render(
+      <MemoryRouter>
+        <EquipmentCatalogCard
+          item={{ ...item, status: "REPAIR", statusDisplay: "Under Maintenance", disruptionNotice: notice }}
+          accent={accent}
+          canChangeSlotStatus={false}
+        />
+      </MemoryRouter>,
+    );
+    const line = screen.getByTestId("equipment-disruption-notice");
+    expect(line.textContent).toBe("Under maintenance · Recovery delayed — update awaited");
+    expect(line.getAttribute("title")).toBe("Detector failure");
+  });
+
+  it("shows nothing for operational equipment", () => {
+    renderCard({ item: { ...item, disruptionNotice: notice } });
+    expect(screen.queryByTestId("equipment-disruption-notice")).toBeNull();
+  });
+});

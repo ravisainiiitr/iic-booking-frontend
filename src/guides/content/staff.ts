@@ -279,8 +279,20 @@ export function disruptionHistorySection(g: Gate): GuideSection {
         ),
       },
       {
+        title: "Read the table",
+        body: "The table scrolls inside its own box: the column headings, S.No and Equipment stay in view, and the sideways scrollbar is always at the bottom of the box. Started by and Ended by show who did it, their role at the time (OIC, Temp OIC, Main Admin, Dept Admin or Operator) and when. Open disruptions show the expected recovery under Status; Procurement lists requests raised for the disruption.",
+      },
+      {
         title: "Add details",
         body: "Click a row to open it. Add or change the category and reason, record the action taken and attach a service report (PDF, image or Word, up to 20 MB). The timeline lists every change and who made it.",
+      },
+      {
+        title: "Expected recovery",
+        body: "When you mark slots or equipment as disrupted you can give an expected recovery date and time; leave it empty if not known. Change it later from the opened entry (Mark as not known clears it); every change is kept in the timeline. Users see it on the equipment page, the equipment card and when they hover over the slot, for example “Expected back: Mon 13 Oct, 10:00” or “Recovery date not yet announced”. Once the time passes they see “Recovery delayed — update awaited”; the status does not change on its own.",
+      },
+      {
+        title: "Procurement request after service",
+        body: "When the equipment's department has Procurement & Assets enabled, the dialog for making slots or equipment available again has Service person recommended items?. Tick it, choose Consumables, Minor assets or Major assets, and list the items (quantity, estimated cost, notes). The request goes through the usual approval with the service report attached, and its number appears in the history. For a closed disruption, use Raise procurement request in the opened entry.",
       },
       {
         title: "Delete an entry",
@@ -301,6 +313,7 @@ export function disruptionHistorySection(g: Gate): GuideSection {
       "Neighbouring slots marked together form one disruption; equipment Under Maintenance is one disruption until it is made Operational again.",
       "Disruption hours in Reports are downtime (under maintenance, scheduled maintenance and operator absent) plus slots marked for other reasons.",
       "Deleting a disruption that is still ongoing leaves its slots (or the equipment) in their current status; make them available again as usual when ready.",
+      "Users see only the disruption type, the reason you recorded (or a standard sentence if none) and the expected recovery — never staff names, action notes or service reports.",
     ],
   };
 }

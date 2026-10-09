@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, FileText, Loader2, Paperclip, Trash2 } from "lucide-react";
+import { Download, FileText, Loader2, Paperclip, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,10 +13,18 @@ import {
   SERVICE_REPORT_ACCEPT,
   SERVICE_REPORT_MAX_MB,
   formatDurationHours,
+  fromDateTimeLocal,
+  personWithRole,
+  procurementRequestBody,
   serviceReportFileError,
+  toDateTimeLocal,
   type DisruptionDetail,
+  type ProcurementRequestDraft,
 } from "@/lib/disruptions";
+import { cn } from "@/lib/utils";
 import { DisruptionCategoryChips } from "./DisruptionCategoryChips";
+import { EMPTY_PROCUREMENT_DRAFT, ProcurementItemsFields } from "./ProcurementItemsFields";
+import { raiseProcurementRequest } from "./useDisruptionPrompt";
 
 interface Props {
   eventId: number | null;
@@ -36,6 +45,17 @@ const TIMELINE_LABELS: Record<string, string> = {
   reason: "Reason updated",
   action: "Action taken updated",
   report: "Service report",
+  recovery: "Expected recovery updated",
+  procurement: "Procurement request",
+};
+
+/** Timeline values that are already described by the note (ISO timestamps, ids). */
+const HIDDEN_TIMELINE_FIELDS = new Set(["reason_category", "expected_recovery_at"]);
+
+const RECOVERY_TONE: Record<string, string> = {
+  DELAYED: "text-amber-700 dark:text-amber-400",
+  UNKNOWN: "text-muted-foreground",
+  EXPECTED: "text-foreground",
 };
 
 async function saveBlob(eventId: number, reportId: number) {
@@ -60,7 +80,10 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
   const [reason, setReason] = useState("");
   const [category, setCategory] = useState("");
   const [action, setAction] = useState("");
-  const [saving, setSaving] = useState<"reason" | "action" | "report" | null>(null);
+  const [recovery, setRecovery] = useState("");
+  const [saving, setSaving] = useState<"reason" | "action" | "report" | "recovery" | "procurement" | null>(null);
+  const [procurementOpen, setProcurementOpen] = useState(false);
+  const [procurementDraft, setProcurementDraft] = useState<ProcurementRequestDraft>(EMPTY_PROCUREMENT_DRAFT);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const apply = (d: DisruptionDetail) => {
@@ -68,7 +91,13 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
     setReason(d.reason || "");
     setCategory(d.reason_category || "");
     setAction(d.action_taken || "");
+    setRecovery(toDateTimeLocal(d.expected_recovery_at));
   };
+
+  useEffect(() => {
+    setProcurementOpen(false);
+    setProcurementDraft(EMPTY_PROCUREMENT_DRAFT);
+  }, [eventId]);
 
   useEffect(() => {
     if (eventId == null) {
@@ -125,8 +154,40 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
     onChanged();
   };
 
+  const saveRecovery = async (value: string) => {
+    if (!detail) return;
+    setSaving("recovery");
+    const res = await apiClient.updateDisruption(detail.id, { expected_recovery_at: fromDateTimeLocal(value) });
+    setSaving(null);
+    if (res.error || !res.data) {
+      toast.error(res.error || "Could not save the expected recovery.");
+      return;
+    }
+    apply(res.data);
+    toast.success("Expected recovery saved.");
+    onChanged();
+  };
+
+  const submitProcurement = async () => {
+    if (!detail || !procurementRequestBody(procurementDraft)) return;
+    setSaving("procurement");
+    const ok = await raiseProcurementRequest(detail.id, procurementDraft);
+    if (ok) {
+      const res = await apiClient.getDisruption(detail.id);
+      if (res.data) apply(res.data);
+      setProcurementOpen(false);
+      setProcurementDraft(EMPTY_PROCUREMENT_DRAFT);
+      onChanged();
+    }
+    setSaving(null);
+  };
+
   const reasonDirty = detail != null && (reason.trim() !== (detail.reason || "") || category !== (detail.reason_category || ""));
   const actionDirty = detail != null && action.trim() !== (detail.action_taken || "");
+  const recoveryDirty = detail != null && recovery !== toDateTimeLocal(detail.expected_recovery_at);
+  const isOpen = detail?.status === "OPEN";
+  const procurementLinks = detail?.procurement_requests ?? [];
+  const canRaiseProcurement = !isOpen && Boolean(detail?.procurement?.available);
 
   return (
     <Sheet open={eventId != null} onOpenChange={(open) => !open && onClose()}>
@@ -168,10 +229,54 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
               <dt className="text-muted-foreground">Bookings affected</dt>
               <dd>{detail.bookings_affected}</dd>
               <dt className="text-muted-foreground">Started by</dt>
-              <dd>{detail.started_by_name || "—"}</dd>
+              <dd>
+                {personWithRole(detail.started_by_name, detail.started_by_role_display) || "—"}
+                {detail.started_at ? (
+                  <span className="block text-xs text-muted-foreground">{formatDMYTime(detail.started_at)}</span>
+                ) : null}
+              </dd>
               <dt className="text-muted-foreground">Ended by</dt>
-              <dd>{detail.ended_by_name || "—"}</dd>
+              <dd>
+                {personWithRole(detail.ended_by_name, detail.ended_by_role_display) || "—"}
+                {detail.ended_at ? (
+                  <span className="block text-xs text-muted-foreground">{formatDMYTime(detail.ended_at)}</span>
+                ) : null}
+              </dd>
+              {isOpen ? (
+                <>
+                  <dt className="text-muted-foreground">Expected recovery</dt>
+                  <dd className={cn(RECOVERY_TONE[detail.recovery_status || "UNKNOWN"])}>{detail.recovery_text || "—"}</dd>
+                </>
+              ) : null}
             </dl>
+
+            {isOpen ? (
+              <section className="space-y-2" aria-labelledby="disruption-recovery-heading">
+                <h3 id="disruption-recovery-heading" className="text-sm font-semibold">
+                  Expected recovery
+                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="datetime-local"
+                    aria-label="Expected recovery date and time"
+                    className="h-9 w-auto"
+                    value={recovery}
+                    onChange={(e) => setRecovery(e.target.value)}
+                  />
+                  <Button size="sm" onClick={() => void saveRecovery(recovery)} disabled={!recoveryDirty || saving != null}>
+                    {saving === "recovery" ? "Saving…" : "Save"}
+                  </Button>
+                  {detail.expected_recovery_at ? (
+                    <Button size="sm" variant="ghost" onClick={() => void saveRecovery("")} disabled={saving != null}>
+                      Mark as not known
+                    </Button>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Shown to all users on the equipment page and on disrupted slots. Every change is kept in the timeline.
+                </p>
+              </section>
+            ) : null}
 
             <section className="space-y-3" aria-labelledby="disruption-reason-heading">
               <h3 id="disruption-reason-heading" className="text-sm font-semibold">
@@ -261,6 +366,59 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
               <p className="text-xs text-muted-foreground">PDF, JPG, PNG, WebP or Word, up to {SERVICE_REPORT_MAX_MB} MB.</p>
             </section>
 
+            {procurementLinks.length > 0 || canRaiseProcurement ? (
+              <section className="space-y-3" aria-labelledby="disruption-procurement-heading">
+                <h3 id="disruption-procurement-heading" className="text-sm font-semibold">
+                  Procurement requests
+                </h3>
+                {procurementLinks.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {procurementLinks.map((p) => (
+                      <li key={p.id} className="flex items-center gap-2 text-sm">
+                        <ShoppingCart className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="font-medium">{p.number}</span>
+                        <Badge variant="outline">{p.status_display || p.status}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No procurement request raised.</p>
+                )}
+                {canRaiseProcurement && detail.procurement ? (
+                  procurementOpen ? (
+                    <div className="space-y-3 rounded-md border border-border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Items the service person recommended. The request goes through the usual Procurement &amp; Assets
+                        approval; service reports in PDF, JPG or PNG are attached.
+                      </p>
+                      <ProcurementItemsFields
+                        categories={detail.procurement.categories}
+                        value={procurementDraft}
+                        onChange={setProcurementDraft}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => void submitProcurement()}
+                          disabled={saving != null || procurementRequestBody(procurementDraft) === null}
+                        >
+                          {saving === "procurement" ? "Raising…" : "Raise request"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setProcurementOpen(false)} disabled={saving != null}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setProcurementOpen(true)} disabled={saving != null}>
+                      <ShoppingCart className="mr-2 h-4 w-4" aria-hidden />
+                      Raise procurement request
+                    </Button>
+                  )
+                ) : null}
+              </section>
+            ) : null}
+
             {detail.timeline.length > 0 && (
               <section className="space-y-2" aria-labelledby="disruption-timeline-heading">
                 <h3 id="disruption-timeline-heading" className="text-sm font-semibold">
@@ -276,7 +434,7 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
                         {t.by ? ` · ${t.by}` : ""}
                       </span>
                       {t.note ? <p className="text-muted-foreground">{t.note}</p> : null}
-                      {t.new_value && t.field !== "reason_category" ? (
+                      {t.new_value && !HIDDEN_TIMELINE_FIELDS.has(t.field) ? (
                         <p className="break-words text-muted-foreground">“{t.new_value}”</p>
                       ) : null}
                     </li>

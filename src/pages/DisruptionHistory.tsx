@@ -137,6 +137,23 @@ function MissingText({ value, missing }: { value: string; missing: boolean }) {
   return <span className="line-clamp-2 break-words">{value}</span>;
 }
 
+function PersonCell({ name, role, at }: { name: string; role?: string; at: string | null }) {
+  if (!name && !role) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="whitespace-nowrap">
+      <div>{name || "—"}</div>
+      <div className="text-xs text-muted-foreground">
+        {[role, at ? formatDMYTime(at) : ""].filter(Boolean).join(" · ")}
+      </div>
+    </div>
+  );
+}
+
+/* Sticky first columns: opaque backgrounds so scrolled cells don't show through. */
+const STICKY_SNO = "sticky left-0 z-[2] w-12 min-w-12 bg-card group-hover:bg-muted";
+const STICKY_EQUIPMENT =
+  "sticky left-12 z-[2] min-w-[200px] max-w-[260px] bg-card shadow-[1px_0_0_hsl(var(--border))] group-hover:bg-muted";
+
 export default function DisruptionHistory() {
   const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState<DisruptionFilters>(() => filtersFromSearchParams(searchParams));
@@ -429,161 +446,201 @@ export default function DisruptionHistory() {
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table className={cn("min-w-[1400px] text-sm", loading && "opacity-60")} aria-busy={loading}>
-                  <TableHeader>
+              <Table
+                scrollPane
+                containerProps={{ role: "region", "aria-label": "Disruption entries", tabIndex: 0 }}
+                className={cn("min-w-[1750px] text-sm", loading && "opacity-60")}
+                aria-busy={loading}
+              >
+                <TableHeader className="z-20 bg-card">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className={cn(STICKY_SNO, "z-30")}>S.No</TableHead>
+                    <SortHeader
+                      label="Equipment"
+                      sortKey="equipment"
+                      ordering={ordering}
+                      onSort={onSort}
+                      className={cn(STICKY_EQUIPMENT, "z-30")}
+                    />
+                    <SortHeader label="Type" sortKey="type" ordering={ordering} onSort={onSort} />
+                    <TableHead>Scope</TableHead>
+                    <SortHeader label="Start" sortKey="start_at" ordering={ordering} onSort={onSort} />
+                    <SortHeader label="End" sortKey="end_at" ordering={ordering} onSort={onSort} />
+                    <TableHead className="text-right">Duration (h)</TableHead>
+                    <SortHeader label="Slots" sortKey="slots_affected" ordering={ordering} onSort={onSort} className="text-right" />
+                    <SortHeader
+                      label="Bookings"
+                      sortKey="bookings_affected"
+                      ordering={ordering}
+                      onSort={onSort}
+                      className="text-right"
+                    />
+                    <TableHead className="min-w-[180px]">Reason</TableHead>
+                    <TableHead className="min-w-[180px]">Action taken</TableHead>
+                    <TableHead>Report</TableHead>
+                    <SortHeader label="Started by" sortKey="started_at" ordering={ordering} onSort={onSort} />
+                    <TableHead>Ended by</TableHead>
+                    <TableHead className="min-w-[160px]">Status</TableHead>
+                    <TableHead>Procurement</TableHead>
+                    {hasActions ? <TableHead className="w-16 text-right">Actions</TableHead> : null}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.length === 0 && !loading ? (
                     <TableRow>
-                      <TableHead className="w-12">S.No</TableHead>
-                      <SortHeader label="Equipment" sortKey="equipment" ordering={ordering} onSort={onSort} />
-                      <SortHeader label="Type" sortKey="type" ordering={ordering} onSort={onSort} />
-                      <TableHead>Scope</TableHead>
-                      <SortHeader label="Start" sortKey="start_at" ordering={ordering} onSort={onSort} />
-                      <SortHeader label="End" sortKey="end_at" ordering={ordering} onSort={onSort} />
-                      <TableHead className="text-right">Duration (h)</TableHead>
-                      <SortHeader label="Slots" sortKey="slots_affected" ordering={ordering} onSort={onSort} className="text-right" />
-                      <SortHeader
-                        label="Bookings"
-                        sortKey="bookings_affected"
-                        ordering={ordering}
-                        onSort={onSort}
-                        className="text-right"
-                      />
-                      <TableHead className="min-w-[180px]">Reason</TableHead>
-                      <TableHead className="min-w-[180px]">Action taken</TableHead>
-                      <TableHead>Report</TableHead>
-                      <TableHead>Started by</TableHead>
-                      <TableHead>Ended by</TableHead>
-                      <TableHead>Status</TableHead>
-                      {hasActions ? <TableHead className="w-16 text-right">Actions</TableHead> : null}
+                      <TableCell colSpan={17} className="py-10 text-center text-muted-foreground">
+                        {showDeleted
+                          ? "No deleted disruption entries."
+                          : filtersActive
+                            ? "No disruptions match these filters."
+                            : "No disruptions recorded yet."}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.length === 0 && !loading ? (
-                      <TableRow>
-                        <TableCell colSpan={15} className="py-10 text-center text-muted-foreground">
-                          {showDeleted
-                            ? "No deleted disruption entries."
-                            : filtersActive
-                              ? "No disruptions match these filters."
-                              : "No disruptions recorded yet."}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      rows.map((r, i) => (
-                        <TableRow
-                          key={r.id}
-                          tabIndex={showDeleted ? undefined : 0}
-                          className={cn(
-                            "align-top",
-                            !showDeleted &&
-                              "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
-                          )}
-                          onClick={showDeleted ? undefined : () => setOpenId(r.id)}
-                          onKeyDown={(e) => {
-                            if (showDeleted || e.target !== e.currentTarget) return;
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setOpenId(r.id);
-                            }
-                          }}
-                          aria-label={
-                            showDeleted
-                              ? `Deleted ${r.disruption_type_display} on ${r.equipment_name}`
-                              : `Open ${r.disruption_type_display} on ${r.equipment_name}`
+                  ) : (
+                    rows.map((r, i) => (
+                      <TableRow
+                        key={r.id}
+                        tabIndex={showDeleted ? undefined : 0}
+                        className={cn(
+                          "group align-top",
+                          !showDeleted &&
+                            "cursor-pointer hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                        )}
+                        onClick={showDeleted ? undefined : () => setOpenId(r.id)}
+                        onKeyDown={(e) => {
+                          if (showDeleted || e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setOpenId(r.id);
                           }
-                        >
-                          <TableCell className="tabular-nums text-muted-foreground">
-                            {r.s_no ?? (page - 1) * pageSize + i + 1}
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">{r.equipment_name}</div>
-                            {r.department_name ? (
-                              <div className="text-xs text-muted-foreground">{r.department_name}</div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>
-                            <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", TYPE_TONE[r.disruption_type])}>
-                              {r.disruption_type_display}
+                        }}
+                        aria-label={
+                          showDeleted
+                            ? `Deleted ${r.disruption_type_display} on ${r.equipment_name}`
+                            : `Open ${r.disruption_type_display} on ${r.equipment_name}`
+                        }
+                      >
+                        <TableCell className={cn(STICKY_SNO, "tabular-nums text-muted-foreground")}>
+                          {r.s_no ?? (page - 1) * pageSize + i + 1}
+                        </TableCell>
+                        <TableCell className={STICKY_EQUIPMENT}>
+                          <div className="font-medium">{r.equipment_name}</div>
+                          {r.department_name ? (
+                            <div className="text-xs text-muted-foreground">{r.department_name}</div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <span className={cn("whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium", TYPE_TONE[r.disruption_type])}>
+                            {r.disruption_type_display}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">{r.scope_display}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDMYTime(r.start_at) || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {r.end_at ? formatDMYTime(r.end_at) : <span className="text-muted-foreground">Ongoing</span>}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{formatDurationHours(r.duration_hours)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.slots_affected ?? "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{r.bookings_affected}</TableCell>
+                        <TableCell>
+                          {r.reason_category_display ? (
+                            <div className="text-xs font-medium text-muted-foreground">{r.reason_category_display}</div>
+                          ) : null}
+                          <MissingText value={r.reason} missing={r.reason_missing} />
+                        </TableCell>
+                        <TableCell>
+                          <MissingText value={r.action_taken} missing={r.action_missing} />
+                        </TableCell>
+                        <TableCell>
+                          {r.service_reports.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs">
+                              <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                              {r.service_reports.length}
                             </span>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-xs">{r.scope_display}</TableCell>
-                          <TableCell className="whitespace-nowrap">{formatDMYTime(r.start_at) || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {r.end_at ? formatDMYTime(r.end_at) : <span className="text-muted-foreground">Ongoing</span>}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{formatDurationHours(r.duration_hours)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{r.slots_affected ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{r.bookings_affected}</TableCell>
-                          <TableCell>
-                            {r.reason_category_display ? (
-                              <div className="text-xs font-medium text-muted-foreground">{r.reason_category_display}</div>
-                            ) : null}
-                            <MissingText value={r.reason} missing={r.reason_missing} />
-                          </TableCell>
-                          <TableCell>
-                            <MissingText value={r.action_taken} missing={r.action_missing} />
-                          </TableCell>
-                          <TableCell>
-                            {r.service_reports.length > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-xs">
-                                <Paperclip className="h-3.5 w-3.5" aria-hidden />
-                                {r.service_reports.length}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">{r.started_by_name || "—"}</TableCell>
-                          <TableCell className="whitespace-nowrap">{r.ended_by_name || "—"}</TableCell>
-                          <TableCell>
-                            {r.is_deleted ? (
-                              <div className="space-y-0.5 text-xs">
-                                <Badge variant="outline">Deleted</Badge>
-                                <div className="whitespace-nowrap text-muted-foreground">
-                                  {formatDMYTime(r.deleted_at) || "—"}
-                                  {r.deleted_by_name ? ` · ${r.deleted_by_name}` : ""}
-                                </div>
-                                {r.delete_reason ? <div className="line-clamp-2 break-words">{r.delete_reason}</div> : null}
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <PersonCell name={r.started_by_name} role={r.started_by_role_display} at={r.started_at} />
+                        </TableCell>
+                        <TableCell>
+                          <PersonCell name={r.ended_by_name} role={r.ended_by_role_display} at={r.ended_at} />
+                        </TableCell>
+                        <TableCell>
+                          {r.is_deleted ? (
+                            <div className="space-y-0.5 text-xs">
+                              <Badge variant="outline">Deleted</Badge>
+                              <div className="whitespace-nowrap text-muted-foreground">
+                                {formatDMYTime(r.deleted_at) || "—"}
+                                {r.deleted_by_name ? ` · ${r.deleted_by_name}` : ""}
                               </div>
-                            ) : (
+                              {r.delete_reason ? <div className="line-clamp-2 break-words">{r.delete_reason}</div> : null}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
                               <Badge variant={r.status === "OPEN" ? "destructive" : "secondary"}>
                                 {r.status === "OPEN" ? "Open" : "Closed"}
                               </Badge>
+                              {r.status === "OPEN" && r.recovery_text ? (
+                                <div
+                                  className={cn(
+                                    "text-xs",
+                                    r.recovery_status === "DELAYED"
+                                      ? "text-amber-700 dark:text-amber-400"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  {r.recovery_text}
+                                </div>
+                              ) : null}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {r.procurement_requests && r.procurement_requests.length > 0 ? (
+                            r.procurement_requests.map((p) => (
+                              <div key={p.id}>
+                                <span className="font-medium">{p.number}</span>
+                                <span className="text-muted-foreground"> · {p.status_display || p.status}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        {hasActions ? (
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            {showDeleted ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={restoringId != null}
+                                onClick={() => void restore(r)}
+                                aria-label={`Restore ${r.disruption_type_display} on ${r.equipment_name}`}
+                              >
+                                <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                                Restore
+                              </Button>
+                            ) : (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => setDeleteTarget(r)}
+                                aria-label={`Delete ${r.disruption_type_display} on ${r.equipment_name}`}
+                                title="Delete entry"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
                           </TableCell>
-                          {hasActions ? (
-                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                              {showDeleted ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={restoringId != null}
-                                  onClick={() => void restore(r)}
-                                  aria-label={`Restore ${r.disruption_type_display} on ${r.equipment_name}`}
-                                >
-                                  <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                                  Restore
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  onClick={() => setDeleteTarget(r)}
-                                  aria-label={`Delete ${r.disruption_type_display} on ${r.equipment_name}`}
-                                  title="Delete entry"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </TableCell>
-                          ) : null}
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                        ) : null}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
             <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
               <span className="text-muted-foreground">

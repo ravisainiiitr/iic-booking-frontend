@@ -87,6 +87,17 @@ export interface DisruptionDialogValues {
   reasonCategory: string;
   actionTaken: string;
   serviceReport: File | null;
+  /** `datetime-local` value; "" = recovery date not known. Disrupt mode only. */
+  expectedRecovery?: string;
+  /** Resume mode: items the service person recommended, raised as a Procurement & Assets request. */
+  procurement?: ProcurementRequestDraft | null;
+}
+
+export interface DisruptionRequestFields {
+  disruption_reason?: string;
+  disruption_reason_category?: string;
+  resolution_action?: string;
+  expected_recovery_at?: string;
 }
 
 export interface DisruptionEventIds {
@@ -160,11 +171,20 @@ export interface DisruptionRecord {
   action_missing: boolean;
   started_at: string | null;
   started_by_name: string;
+  started_by_role?: string;
+  started_by_role_display?: string;
   ended_at: string | null;
   ended_by_name: string;
+  ended_by_role?: string;
+  ended_by_role_display?: string;
   status: "OPEN" | "CLOSED";
   backfilled: boolean;
   service_reports: DisruptionServiceReport[];
+  expected_recovery_at?: string | null;
+  /** Only while the event is open: UNKNOWN, EXPECTED or DELAYED. */
+  recovery_status?: RecoveryStatus | "";
+  recovery_text?: string;
+  procurement_requests?: DisruptionProcurementLink[];
   /** Present only on rows listed with `show_deleted` (Main Administrator). */
   is_deleted?: boolean;
   deleted_at?: string | null;
@@ -176,6 +196,138 @@ export interface DisruptionDetail extends DisruptionRecord {
   slots: { start_datetime: string; end_datetime: string; released_at: string | null }[];
   timeline: { kind: string; field: string; old_value: string; new_value: string; note: string; by: string; at: string }[];
   reason_categories: ReasonCategoryOption[];
+  procurement?: ProcurementOptions;
+}
+
+export type RecoveryStatus = "UNKNOWN" | "EXPECTED" | "DELAYED";
+
+export interface DisruptionProcurementLink {
+  id: number;
+  number: string;
+  status: string;
+  status_display: string;
+}
+
+/** Whether the OIC can raise a Procurement & Assets request for an equipment (module on for its department). */
+export interface ProcurementOptions {
+  available: boolean;
+  categories: ReasonCategoryOption[];
+  reason?: string;
+}
+
+export interface ProcurementItemDraft {
+  name: string;
+  quantity: string;
+  estimated_cost: string;
+  recommended_by_service_person: boolean;
+  notes: string;
+}
+
+export const EMPTY_PROCUREMENT_ITEM: ProcurementItemDraft = {
+  name: "",
+  quantity: "1",
+  estimated_cost: "",
+  recommended_by_service_person: true,
+  notes: "",
+};
+
+/** Filled in the resume dialog's "Service person recommended items?" step. */
+export interface ProcurementRequestDraft {
+  category: string;
+  items: ProcurementItemDraft[];
+  notes: string;
+}
+
+/** Body for POST equipments/disruptions/<id>/procurement-request/; null when nothing usable was entered. */
+export function procurementRequestBody(draft: ProcurementRequestDraft | null | undefined): {
+  category: string;
+  notes: string;
+  items: { name: string; quantity: number; estimated_cost: number; recommended_by_service_person: boolean; notes: string }[];
+} | null {
+  if (!draft || !draft.category) return null;
+  const items = draft.items
+    .filter((i) => i.name.trim())
+    .map((i) => ({
+      name: i.name.trim(),
+      quantity: Number(i.quantity) > 0 ? Number(i.quantity) : 1,
+      estimated_cost: Number(i.estimated_cost) >= 0 ? Number(i.estimated_cost) || 0 : 0,
+      recommended_by_service_person: i.recommended_by_service_person,
+      notes: i.notes.trim(),
+    }));
+  if (items.length === 0) return null;
+  return { category: draft.category, notes: draft.notes.trim(), items };
+}
+
+/** What everyone (including students and signed-out visitors) sees when hovering a disrupted slot. */
+export interface PublicDisruptionInfo {
+  type: DisruptionType;
+  label: string;
+  reason: string;
+  expected_recovery_at: string | null;
+  recovery_status: RecoveryStatus | null;
+  recovery_text: string;
+}
+
+/** Equipment page / card notice for equipment that is not operational. */
+export interface EquipmentDisruptionNotice extends PublicDisruptionInfo {
+  since: string | null;
+  message: string;
+}
+
+export const RECOVERY_UNKNOWN_TEXT = "Recovery date not yet announced";
+export const RECOVERY_DELAYED_TEXT = "Recovery delayed — update awaited";
+
+/** "Mon 13 Oct, 10:00" in the browser's time zone (matches the backend wording). */
+export function formatRecoveryTime(value: string | Date): string {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const day = d.toLocaleDateString("en-GB", { weekday: "short" });
+  const month = d.toLocaleDateString("en-GB", { month: "short" });
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day} ${d.getDate()} ${month}, ${hh}:${mm}`;
+}
+
+/** Recovery wording for an open disruption; a passed date reads as delayed (the status never changes on its own). */
+export function recoveryWording(expectedAt: string | null | undefined, now: Date = new Date()): string {
+  if (!expectedAt) return RECOVERY_UNKNOWN_TEXT;
+  const d = new Date(expectedAt);
+  if (Number.isNaN(d.getTime())) return RECOVERY_UNKNOWN_TEXT;
+  if (d.getTime() <= now.getTime()) return RECOVERY_DELAYED_TEXT;
+  return `Expected back: ${formatRecoveryTime(d)}`;
+}
+
+/** Hover lines for a disrupted slot: type, reason (or default wording) and expected recovery. */
+export function publicDisruptionLines(info: PublicDisruptionInfo | null | undefined): string[] {
+  if (!info) return [];
+  const lines = [info.label || DISRUPTION_TYPE_LABELS[info.type] || "Not available"];
+  if (info.reason) lines.push(info.reason);
+  if (info.recovery_text) lines.push(info.recovery_text);
+  return lines;
+}
+
+/** `datetime-local` value (local time) for an ISO timestamp. */
+export function toDateTimeLocal(value: string | null | undefined): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** ISO timestamp for a `datetime-local` value; "" when empty (= recovery not known). */
+export function fromDateTimeLocal(value: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+}
+
+/** "Name (Role)" for the Started by / Ended by columns. */
+export function personWithRole(name: string | null | undefined, role: string | null | undefined): string {
+  const n = (name || "").trim();
+  const r = (role || "").trim();
+  if (!n) return r;
+  return r ? `${n} (${r})` : n;
 }
 
 export interface DisruptionSummary {
@@ -283,16 +435,14 @@ export interface DisruptionAttention {
 }
 
 /** Fields the backend reads from slot-status / booking / equipment requests (all optional). */
-export function disruptionRequestFields(values: DisruptionDialogValues | null | undefined): {
-  disruption_reason?: string;
-  disruption_reason_category?: string;
-  resolution_action?: string;
-} {
+export function disruptionRequestFields(values: DisruptionDialogValues | null | undefined): DisruptionRequestFields {
   if (!values) return {};
-  const out: { disruption_reason?: string; disruption_reason_category?: string; resolution_action?: string } = {};
+  const out: DisruptionRequestFields = {};
   if (values.reason.trim()) out.disruption_reason = values.reason.trim();
   if (values.reasonCategory) out.disruption_reason_category = values.reasonCategory;
   if (values.actionTaken.trim()) out.resolution_action = values.actionTaken.trim();
+  const recovery = fromDateTimeLocal(values.expectedRecovery ?? "");
+  if (recovery) out.expected_recovery_at = recovery;
   return out;
 }
 

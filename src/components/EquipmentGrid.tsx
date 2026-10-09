@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import type { CardModeAvailability } from "@/lib/modeAvailability";
+import type { EquipmentDisruptionNotice } from "@/lib/disruptions";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
@@ -51,6 +52,7 @@ interface ApiEquipment {
   from_price?: number | string | null;
   from_price_unit?: string | null;
   mode_availability?: CardModeAvailability | null;
+  disruption_notice?: EquipmentDisruptionNotice | null;
 }
 
 const EquipmentGrid = () => {
@@ -215,6 +217,7 @@ const EquipmentGrid = () => {
       fromPrice: eq.from_price ?? null,
       fromPriceUnit: eq.from_price_unit ?? null,
       modeAvailability: eq.mode_availability ?? null,
+      disruptionNotice: eq.disruption_notice ?? null,
       address: eq.location || "IIT Roorkee",
       technicalPerson: "",
       contactNumber: "",
@@ -227,6 +230,7 @@ const EquipmentGrid = () => {
     newStatus: "ACTIVE" | "REPAIR";
   }) => {
     const outcome = await disruptionPrompt.askForEquipmentStatusChange({
+      equipmentId: next.equipmentId,
       equipmentName: next.equipmentName,
       newStatus: next.newStatus,
       canAttachReport: true,

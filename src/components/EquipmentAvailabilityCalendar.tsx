@@ -11,7 +11,9 @@ import {
   SlotWeekNav,
   slotCellStyle,
 } from "@/components/slot-calendar/SlotWeekGrid";
+import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { apiClient } from "@/lib/api";
+import { publicDisruptionLines } from "@/lib/disruptions";
 import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette, type HolidayEntry } from "@/lib/slotCalendarDisplay";
 import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
 
@@ -225,15 +227,31 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     const slot = slotIndex.get(`${dateStr}|${timeKey}`);
     const display = resolveSlotCell({ slot, day, holiday: holidays[dateStr], palette, now });
     const restrictedToStaff = isOutsideVisibilityWindow(slot);
-    return (
+    const disruptionLines = publicDisruptionLines(slot?.disruption_public);
+    const cellEl = (
       <div
         className={SLOT_CELL_CLASS}
         style={restrictedToStaff ? restrictedSlotStyle(slotCellStyle(display)) : slotCellStyle(display)}
-        title={restrictedToStaff ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to) : display.hover}
+        title={
+          disruptionLines.length > 0
+            ? undefined
+            : restrictedToStaff
+              ? restrictedSlotHint(payload?.weekly_view_time_from, payload?.weekly_view_time_to)
+              : display.hover
+        }
+        tabIndex={disruptionLines.length > 0 ? 0 : undefined}
+        aria-label={disruptionLines.length > 0 ? `${display.label}. ${disruptionLines.join(". ")}` : undefined}
       >
         {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
         {display.label}
       </div>
+    );
+    return disruptionLines.length > 0 ? (
+      <SlotHoverCard lines={disruptionLines} boldFirst>
+        {cellEl}
+      </SlotHoverCard>
+    ) : (
+      cellEl
     );
   };
 

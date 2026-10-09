@@ -7,10 +7,14 @@ import {
   disruptionRequestFields,
   disruptionTypeForSlotStatus,
   notifyDisruptionsChanged,
+  procurementRequestBody,
   resumedEventIds,
   type DisruptionDialogValues,
   type DisruptionEventIds,
+  type DisruptionRequestFields,
   type DisruptionType,
+  type ProcurementOptions,
+  type ProcurementRequestDraft,
   type SlotStatusPreview,
 } from "@/lib/disruptions";
 import {
@@ -28,13 +32,18 @@ interface DialogRequest {
   summary: DisruptionSummaryItem[];
   notice?: ReactNode;
   canAttachReport: boolean;
+  askRecovery?: boolean;
+  procurement?: ProcurementOptions | null;
 }
 
 export interface DisruptionPromptOutcome {
   /** Fields to merge into the status-change request (empty when skipped or not prompted). */
-  fields: { disruption_reason?: string; disruption_reason_category?: string; resolution_action?: string };
+  fields: DisruptionRequestFields;
   values: DisruptionDialogValues | null;
-  /** Upload the optional service report to the events the change resumed. Never throws. */
+  /**
+   * Upload the optional service report to the events the change resumed, then raise the optional
+   * procurement request (so the report is attached to it). Never throws.
+   */
   afterApply: (events: DisruptionEventIds | null | undefined) => Promise<void>;
 }
 
@@ -103,6 +112,40 @@ async function uploadReport(file: File | null, events: DisruptionEventIds | null
   else toast.success("Service report attached.");
 }
 
+/** Raise the recommended-items request on the first resumed event and report the result. */
+export async function raiseProcurementRequest(eventId: number, draft: ProcurementRequestDraft): Promise<boolean> {
+  const body = procurementRequestBody(draft);
+  if (!body) return false;
+  const res = await apiClient.raiseDisruptionProcurementRequest(eventId, body);
+  const created = res.data?.request;
+  if (res.error || !created) {
+    toast.error(res.error || "The procurement request could not be raised. Try again from Disruption history.");
+    return false;
+  }
+  if (created.submitted) toast.success(`Procurement request ${created.number} submitted for approval.`);
+  else
+    toast.warning(
+      `Procurement request ${created.number} was saved as a draft${created.submit_error ? `: ${created.submit_error}` : ""}. Submit it from Procurement & Assets.`
+    );
+  return true;
+}
+
+async function raiseForEvents(draft: ProcurementRequestDraft | null | undefined, events: DisruptionEventIds | null | undefined) {
+  if (!draft || !procurementRequestBody(draft)) return;
+  const [first] = resumedEventIds(events);
+  if (first == null) {
+    toast.message("No disruption record was closed by this change, so the procurement request was not raised.");
+    return;
+  }
+  await raiseProcurementRequest(first, draft);
+}
+
+async function loadProcurementOptions(equipmentId: number | null | undefined): Promise<ProcurementOptions | null> {
+  if (!equipmentId) return null;
+  const res = await apiClient.getDisruptionProcurementOptions(equipmentId);
+  return res.data?.available ? res.data : null;
+}
+
 /**
  * Promise-based reason / action-taken prompt. `ask*` resolve to `null` when the user cancels (nothing
  * should be applied) and to an outcome otherwise (possibly with empty fields when skipped).
@@ -129,11 +172,13 @@ export function useDisruptionPrompt() {
     if (!result) return null;
     if (result.skipped) return NOOP_OUTCOME;
     const file = result.values.serviceReport;
+    const procurement = result.values.procurement;
     return {
       fields: disruptionRequestFields(result.values),
       values: result.values,
       afterApply: async (events) => {
         await uploadReport(file, events);
+        await raiseForEvents(procurement, events);
         notifyDisruptionsChanged();
       },
     };
@@ -174,6 +219,7 @@ export function useDisruptionPrompt() {
                 title: disruptionDialogTitle("disrupt", dtype),
                 summary: [{ label: "New status", value: args.statusLabel }],
                 canAttachReport: false,
+                askRecovery: true,
               })
             )
           : NOOP_OUTCOME;
@@ -201,10 +247,13 @@ export function useDisruptionPrompt() {
             summary,
             notice,
             canAttachReport: false,
+            askRecovery: true,
           })
         );
       }
       if (!preview.resumes) return NOOP_OUTCOME;
+      const procurement =
+        args.canAttachReport && args.batches.length === 1 ? await loadProcurementOptions(args.batches[0].equipmentId) : null;
       const resumed = preview.open_events ?? [];
       const types = [...new Set(resumed.map((e) => DISRUPTION_TYPE_LABELS[e.disruption_type] ?? e.disruption_type))];
       summary.push({ label: "Resolves", value: types.join(", ") || "Disruption" });
@@ -217,6 +266,7 @@ export function useDisruptionPrompt() {
           title: disruptionDialogTitle("resume"),
           summary,
           canAttachReport: args.canAttachReport,
+          procurement,
         })
       );
     },
@@ -229,8 +279,11 @@ export function useDisruptionPrompt() {
       equipmentName: string;
       newStatus: "ACTIVE" | "REPAIR";
       canAttachReport: boolean;
+      /** Enables the procurement step on resume when the department has Procurement & Assets. */
+      equipmentId?: number;
     }): Promise<DisruptionPromptOutcome | null> => {
       const resume = args.newStatus === "ACTIVE";
+      const procurement = resume && args.canAttachReport ? await loadProcurementOptions(args.equipmentId) : null;
       return toOutcome(
         await openDialog({
           mode: resume ? "resume" : "disrupt",
@@ -245,6 +298,8 @@ export function useDisruptionPrompt() {
           ],
           notice: resume ? undefined : "Non-operational equipment is not available for booking.",
           canAttachReport: args.canAttachReport,
+          askRecovery: !resume,
+          procurement,
         })
       );
     },
@@ -280,6 +335,8 @@ export function useDisruptionPrompt() {
       summary={request?.summary}
       notice={request?.notice}
       canAttachReport={request?.canAttachReport ?? false}
+      askRecovery={request?.askRecovery ?? false}
+      procurement={request?.procurement ?? null}
       onCancel={() => close(null)}
       onSubmit={(values, skipped) => close({ values, skipped })}
     />

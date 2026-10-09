@@ -530,6 +530,33 @@
   }
 }
 
+/*
+ * <Table scrollPane>: the table scrolls inside its own viewport-high box, so the sideways scrollbar sits at the
+ * bottom of the visible area instead of after the last row. Styled scrollbars stay visible (no overlay hiding).
+ */
+.table-scroll-pane {
+  max-height: max(18rem, calc(100dvh - var(--table-pane-offset, 15rem)));
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.45) hsl(var(--muted));
+}
+.table-scroll-pane::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.table-scroll-pane::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+.table-scroll-pane::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.45);
+  border-radius: 9999px;
+  border: 3px solid hsl(var(--muted));
+}
+.table-scroll-pane::-webkit-scrollbar-corner {
+  background: hsl(var(--muted));
+}
+
 /* <Table stickyFirstColumn> / <Table stackOnMobile> (components/ui/table.tsx) — phones only */
 @media (max-width: 767px) {
   .table-sticky-first :is(th, td):first-child {

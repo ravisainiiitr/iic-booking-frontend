@@ -15,6 +15,8 @@ import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
 import CardModeAvailability from "@/components/modeAvailability/CardModeAvailability";
 import type { CardModeAvailability as CardModeAvailabilityData } from "@/lib/modeAvailability";
+import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
+import type { EquipmentDisruptionNotice as EquipmentDisruptionNoticeData } from "@/lib/disruptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { apiClient } from "@/lib/api";
@@ -55,6 +57,8 @@ export type EquipmentCatalogCardItem = {
   featuredCitation?: string | null;
   /** Multi-mode equipment: running days per mode and the next free day (catalog API ``mode_availability``). */
   modeAvailability?: CardModeAvailabilityData | null;
+  /** Not operational: public reason and expected recovery (catalog API ``disruption_notice``). */
+  disruptionNotice?: EquipmentDisruptionNoticeData | null;
 };
 
 type PublicationRow = {
@@ -317,6 +321,7 @@ export default function EquipmentCatalogCard({
                 <span className="text-muted-foreground">({count})</span>
               </span>
             ) : null}
+            {!isOperational ? <EquipmentDisruptionNotice notice={item.disruptionNotice} compact /> : null}
           </div>
 
           {metaRows.length > 0 ? (

@@ -35,7 +35,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Select slots",
-        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked. Saturday/Sunday and Holiday labels mark closed days, and a free slot whose time has passed shows No booking.",
+        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked; hover a slot marked Under Maintenance, Operator Absent, Scheduled Maintenance or Other Reasons for the reason and the expected recovery. When the equipment itself is not operational, its card and page show the expected recovery, for example Expected back: Mon 13 Oct, 10:00. Saturday/Sunday and Holiday labels mark closed days, and a free slot whose time has passed shows No booking.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
       },

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { addDays, format, startOfWeek } from "date-fns";
 
 const getEquipmentSlots = vi.fn();
@@ -99,5 +99,39 @@ describe("EquipmentAvailabilityCalendar", () => {
     expect(screen.queryByText(/Other Person/)).toBeNull();
     expect(screen.queryByText(/Not Utilized/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /NU-41|Booking ID/ })).toBeNull();
+  });
+
+  it("explains a disrupted slot on hover with the public reason and expected recovery only", async () => {
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, monday, {
+            status: "UNDER_MAINTENANCE",
+            disruption_public: {
+              type: "UNDER_MAINTENANCE",
+              label: "Under maintenance",
+              reason: "Vacuum pump replacement",
+              expected_recovery_at: null,
+              recovery_status: "UNKNOWN",
+              recovery_text: "Recovery date not yet announced",
+            },
+          }),
+          slot(2, addDays(monday, 6), { status: "AVAILABLE", start_datetime: "2099-01-01T09:00:00+05:30" }),
+        ],
+        slot_master_times: ["09:00:00"],
+        slot_duration_minutes: 60,
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    const cell = await screen.findByLabelText(/Vacuum pump replacement/);
+    expect(cell.getAttribute("aria-label")).toContain("Recovery date not yet announced");
+    fireEvent.focus(cell);
+    const card = document.body.querySelector("[data-slot-hover-card]");
+    expect(card?.textContent).toContain("Under maintenance");
+    expect(card?.textContent).toContain("Vacuum pump replacement");
+    expect(card?.textContent).toContain("Recovery date not yet announced");
   });
 });
