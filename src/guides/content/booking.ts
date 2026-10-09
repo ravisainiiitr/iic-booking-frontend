@@ -101,6 +101,10 @@ export function inputsSection(): GuideSection {
         body: "At the bottom of Step 1, click Add sample with different parameters. The new set starts with the equipment's default values; use Copy set 1 values, Duplicate or Remove on a set's header as needed, and click the header to collapse it.",
       },
       {
+        title: "3D printing: supports and the estimate",
+        body: "After you upload an STL, the preview shows your model on the printer's build plate (its maximum print size, or 220 × 220 mm when the lab has not set one) and turns red if the model is too large. Under Supports, Auto adds supports touching the build plate only when the model has overhangs (the detected overhang area is shown); you can choose None, Touching build plate only or Everywhere instead, and Advanced support settings lets you change the support density and overhang angle. Supports are printed in the model material unless you choose another support material offered by the lab. The totals show the estimated weight (model + supports + waste) and print time including warm-up.",
+      },
+      {
         title: "Edit inputs after booking",
         body: "Open the booking from View Booking and choose Edit User Inputs. If the charge goes up, click Pay ₹X now; use Cancel edit to back out.",
       },
@@ -113,6 +117,7 @@ export function inputsSection(): GuideSection {
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",
+      "3D print weight and time are estimates; the lab may enter the actual weight and time after printing, and the charge then follows them. Supports in a separate material are charged at that material's rate. With Own material ticked, no material is charged for the model or the supports, but the machine time still is.",
     ],
   };
 }
