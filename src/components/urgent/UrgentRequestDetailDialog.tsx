@@ -223,9 +223,9 @@ export function SupervisorCommentBlock({ detail }: { detail: UrgentRequestDetail
         {state}
       </div>
       {body}
-      {who || decidedAt ? (
+      {!detail.pending_wallet_approval && detail.supervisor_approval_required !== false && (who || decidedAt) ? (
         <p className="mt-auto pt-2 text-xs text-muted-foreground">
-          {[who, detail.pending_wallet_approval ? null : decidedAt ? fmtDate(decidedAt) : null].filter(Boolean).join(" · ")}
+          {[who, decidedAt ? fmtDate(decidedAt) : null].filter(Boolean).join(" · ")}
         </p>
       ) : null}
     </section>
@@ -317,7 +317,7 @@ export function UrgentRequestDetailDialog({
   return (
     <Dialog open={!!detail} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="flex max-h-[92dvh] max-w-3xl flex-col gap-0 overflow-hidden p-0"
+        className="flex max-h-[92dvh] max-w-3xl flex-col gap-0 overflow-y-auto p-0 sm:overflow-hidden"
         data-testid={`urgent-detail-${viewer}`}
       >
         {detail && facts ? (
@@ -349,7 +349,7 @@ export function UrgentRequestDetailDialog({
               {description ? <DialogDescription className="text-left">{description}</DialogDescription> : null}
             </DialogHeader>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+            <div className="space-y-5 px-5 py-4 sm:min-h-0 sm:flex-1 sm:overflow-y-auto sm:overscroll-contain sm:px-6">
               <section aria-label="Decision summary" className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="urgent-decision-summary">
                 <Fact label="Required time" value={facts.requiredMinutes ? formatRequiredTime(facts.requiredMinutes) : "—"} testId="urgent-fact-time" />
                 <Fact label="Slots" value={facts.slots ?? "—"} testId="urgent-fact-slots" />
@@ -446,10 +446,10 @@ export function UrgentRequestDetailDialog({
               ) : null}
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t bg-muted/30 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-2 border-t bg-muted px-5 py-3 sm:static sm:bg-muted/30 sm:px-6">
               <div className="flex">{footerStart}</div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="outline" onClick={onClose}>
+              <div className="ml-auto flex flex-wrap justify-end gap-2">
+                <Button variant="outline" className="hidden sm:inline-flex" onClick={onClose}>
                   Close
                 </Button>
                 {actions}
