@@ -418,8 +418,6 @@ export function Print3DBookingPanel({
   } | null>(null);
   const [comparing, setComparing] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
-  const analysisRef = useRef<PrintAnalysisResult | null>(null);
-  const batchRef = useRef<PrintAnalysisBatchResult | null>(null);
 
   const sizeLimit = useMemo(
     () => printSizeLimitFrom(maxPrintSize !== undefined ? maxPrintSize : fetchedMaxPrintSize),
@@ -548,8 +546,6 @@ export function Print3DBookingPanel({
     if (analysis?.status === "COMPLETED") return [print3DItemFromAnalysis(analysis, file?.name)];
     return [];
   }, [analysis, batch, file?.name]);
-  analysisRef.current = analysis;
-  batchRef.current = batch;
 
   const orientedSizeErrors = useMemo(
     () => completedItems.map((i) => orientedSizeError(i, sizeLimit)).filter((e): e is string => !!e),
@@ -1757,7 +1753,7 @@ export function Print3DBookingPanel({
           id="print-step-estimate"
           step={4}
           title="Estimate & charges"
-          done={hasParts && !busy && !sizeBlock}
+          done={hasParts && !busy && !holdReady && !sizeBlock}
           detail={hasParts ? undefined : "Weight, print time and charges appear once the model is analysed."}
         />
         {completedItems.length > 0 && !analyzingStl && (
