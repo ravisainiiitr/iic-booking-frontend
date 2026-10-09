@@ -335,6 +335,14 @@ export interface FabricationPart {
   /** 3D print: staff-entered actual weight / time (totals for all copies). */
   actual_weight?: boolean;
   actual_time?: boolean;
+  /** 3D print: support choice used for the estimate (absent on bookings made before supports existed). */
+  support_mode?: PrintSupportMode;
+  support_mode_label?: string;
+  support_g_each?: number | null;
+  /** Set only when supports are printed (and charged) in a separate material. */
+  support_material_code?: string;
+  support_weight_g_each?: number | null;
+  support_weight_g_total?: number | null;
 }
 
 export interface FabricationFileChange {

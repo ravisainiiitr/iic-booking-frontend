@@ -114,7 +114,17 @@ export function fabricationPartDetail(part: FabricationPart): string {
     weight !== null ? `${Math.ceil(weight)} g${part.actual_weight ? " (actual)" : ""}` : null,
     time !== null ? `${time} min${part.actual_time ? " (actual)" : ""}` : null,
   ].filter(Boolean);
-  return bits.length ? `${bits.join(" · ")} total` : "Not measured";
+  const text = bits.length ? `${bits.join(" · ")} total` : "Not measured";
+  return part.support_mode ? `${text} · ${fabricationPartSupports(part)}` : text;
+}
+
+function fabricationPartSupports(part: FabricationPart): string {
+  let text = `Supports: ${part.support_mode_label || part.support_mode}`;
+  const separate = num(part.support_weight_g_total);
+  const included = num(part.support_g_each);
+  if (separate && part.support_material_code) text += ` (+${separate} g ${part.support_material_code})`;
+  else if (included) text += ` (~${included} g each, included)`;
+  return text;
 }
 
 function filesLine(files: FabricationFileChange["new_files"]): string {

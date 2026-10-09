@@ -79,6 +79,27 @@ describe("fabricationPartDetail", () => {
       fabricationPartDetail({ kind: "print", analysis_id: "p", name: "Gear", quantity: 3, weight_g_total: 36, time_min_total: 90 }),
     ).toBe("36 g · 90 min total");
   });
+
+  it("adds the support choice: included in the model material or separate", () => {
+    const base = { kind: "print" as const, analysis_id: "p", name: "Gear", quantity: 2, weight_g_total: 40, time_min_total: 90 };
+    expect(
+      fabricationPartDetail({ ...base, support_mode: "everywhere", support_mode_label: "Everywhere", support_g_each: 3.5 }),
+    ).toBe("40 g · 90 min total · Supports: Everywhere (~3.5 g each, included)");
+    expect(
+      fabricationPartDetail({
+        ...base,
+        support_mode: "buildplate",
+        support_mode_label: "Touching build plate only",
+        support_g_each: 4,
+        support_material_code: "PVA",
+        support_weight_g_each: 4,
+        support_weight_g_total: 8,
+      }),
+    ).toBe("40 g · 90 min total · Supports: Touching build plate only (+8 g PVA)");
+    expect(fabricationPartDetail({ ...base, support_mode: "none", support_mode_label: "None", support_g_each: 0 })).toBe(
+      "40 g · 90 min total · Supports: None",
+    );
+  });
 });
 
 describe("FabricationBookingParts", () => {
