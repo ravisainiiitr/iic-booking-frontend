@@ -208,6 +208,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Disruption history",
     description: "Every maintenance, operator absence and other disruption, with reasons, actions taken and service reports.",
   },
+  "/equipment-flash-messages": {
+    title: "Equipment flash messages",
+    description: "Short timed messages at the top of an equipment's page and booking page.",
+  },
   "/oic-substitute": {
     title: "OIC Substitute",
     description: "Let another OIC of your department manage your equipment for a period, with a full history.",
@@ -1581,6 +1585,7 @@ const Dashboard = () => {
   const workspaceTitleOverride = useWorkspaceTitleOverride();
   const [workspaceCanGoBack, setWorkspaceCanGoBack] = useState(false);
   const [workspaceActionsSlot, setWorkspaceActionsSlot] = useState<HTMLDivElement | null>(null);
+  const [workspaceBannerSlot, setWorkspaceBannerSlot] = useState<HTMLDivElement | null>(null);
   const workspaceGoBack = useCallback(() => {
     if (workspaceCanGoBack && workspaceBackRef.current) workspaceBackRef.current();
     else closeWorkspace();
@@ -3161,6 +3166,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "equipment_flash_messages",
+      label: "Equipment flash messages",
+      path: "/equipment-flash-messages",
+      visible: Boolean(isAdmin || isOicUser || isDeptAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/equipment-flash-messages")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white shadow-lg">
+                    <Megaphone className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment flash messages</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Short timed messages at the top of an equipment&apos;s page and booking page
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-700 hover:bg-sky-800 text-white">Open</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "booking_attempt_log",
       label: "Booking attempt log",
       path: "/booking-attempt-logs",
@@ -4424,13 +4459,21 @@ const Dashboard = () => {
                   </>
                 )}
                 {hideWorkspaceHeader && !workspacePageHasOwnTitleRow && (
-                  <div className="flex items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5">
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-b border-border/50 px-3 py-1.5">
+                    <div
+                      ref={setWorkspaceBannerSlot}
+                      className="order-last flex min-w-0 basis-full items-center empty:hidden sm:order-none sm:basis-0 sm:flex-1"
+                    />
                     {workspaceBackButton}
                   </div>
                 )}
                 <CardContent className="p-0 sm:p-0">
                   <WorkspaceChromeProvider
-                    value={{ actionsSlot: hideWorkspaceHeader ? null : workspaceActionsSlot, backButton: workspaceBackButton }}
+                    value={{
+                      actionsSlot: hideWorkspaceHeader ? null : workspaceActionsSlot,
+                      backButton: workspaceBackButton,
+                      bannerSlot: hideWorkspaceHeader && !workspacePageHasOwnTitleRow ? workspaceBannerSlot : null,
+                    }}
                   >
                     <DashboardWorkspace
                       key={workspaceEpoch}

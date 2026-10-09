@@ -117,7 +117,13 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: "sec_content",
     name: "Content & communication",
     icon: Megaphone,
-    items: ["notice_board_requests", "publication_claims", "content_management", "my_publications"],
+    items: [
+      "notice_board_requests",
+      "equipment_flash_messages",
+      "publication_claims",
+      "content_management",
+      "my_publications",
+    ],
   },
   {
     id: "sec_support",

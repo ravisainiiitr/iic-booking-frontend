@@ -6,6 +6,8 @@ type WorkspaceChrome = {
   actionsSlot: HTMLElement | null;
   /** The workspace Back button, for pages whose header row is hidden so they show Back themselves. */
   backButton: ReactNode;
+  /** Wide strip left of Back on equipment pages (header row hidden), for page announcements. */
+  bannerSlot?: HTMLElement | null;
 };
 
 const WorkspaceChromeContext = createContext<WorkspaceChrome | null>(null);
@@ -29,4 +31,17 @@ export function WorkspaceHeaderActions({
   const chrome = useWorkspaceChrome();
   if (chrome) return chrome.actionsSlot ? createPortal(children, chrome.actionsSlot) : null;
   return <>{fallback ? fallback(children) : children}</>;
+}
+
+/** Renders `children` in the workspace strip left of Back when the page has one, otherwise via `fallback`. */
+export function WorkspaceBannerSlot({
+  children,
+  fallback,
+}: {
+  children: ReactNode;
+  fallback: (children: ReactNode) => ReactNode;
+}) {
+  const chrome = useWorkspaceChrome();
+  if (chrome?.bannerSlot) return createPortal(children, chrome.bannerSlot);
+  return <>{fallback(children)}</>;
 }

@@ -36,6 +36,12 @@ import type {
   SlotStatusPreview,
 } from "@/lib/disruptions";
 import type {
+  FlashMessageDetail,
+  FlashMessageListResponse,
+  FlashMessagePayload,
+  FlashMessageRecord,
+} from "@/lib/flashMessages";
+import type {
   OicBulkAssignment,
   OicBulkRowError,
   OicSubstituteOptions,
@@ -14283,6 +14289,46 @@ class ApiClient {
 
   async getDisruptionAttention() {
     return this.request<DisruptionAttention>('/equipments/disruptions/attention/');
+  }
+
+  /** Equipment flash messages (OIC incl. temporary OIC, Dept Admin, Main Admin). */
+  async getFlashMessages(params: Record<string, string | number | boolean | undefined> = {}) {
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value == null || value === '' || value === false) continue;
+      q.set(key, value === true ? '1' : String(value));
+    }
+    const qs = q.toString();
+    return this.request<FlashMessageListResponse>(`/equipments/flash-messages/${qs ? `?${qs}` : ''}`);
+  }
+
+  async getFlashMessage(id: number) {
+    return this.request<FlashMessageDetail>(`/equipments/flash-messages/${id}/`);
+  }
+
+  async createFlashMessage(payload: FlashMessagePayload) {
+    return this.request<FlashMessageRecord>('/equipments/flash-messages/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateFlashMessage(id: number, payload: FlashMessagePayload) {
+    return this.request<FlashMessageDetail>(`/equipments/flash-messages/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async endFlashMessage(id: number) {
+    return this.request<FlashMessageDetail>(`/equipments/flash-messages/${id}/end/`, { method: 'POST', body: '{}' });
+  }
+
+  async extendFlashMessage(id: number, days: number) {
+    return this.request<FlashMessageDetail>(`/equipments/flash-messages/${id}/extend/`, {
+      method: 'POST',
+      body: JSON.stringify({ days }),
+    });
   }
 
   async getDisruption(id: number) {

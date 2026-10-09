@@ -70,6 +70,8 @@ import {
 } from "@/components/ChargeCategoryRatesPanel";
 import { exportEquipmentBrochurePdf, partitionSpecifications } from "@/lib/equipmentBrochurePdf";
 import { DEFAULT_DEPARTMENT_NAME } from "@/lib/pdfLetterhead";
+import type { PublicFlashMessage } from "@/lib/flashMessages";
+import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
 
 // Only needed for the in-panel charge calculator, so it is not part of the profile page chunk.
 const BookEquipment = lazy(() => import("@/pages/BookEquipment"));
@@ -94,6 +96,8 @@ interface EquipmentProfile {
   status_display: string;
   /** Not operational: public reason and expected recovery. */
   disruption_notice?: EquipmentDisruptionNoticeData | null;
+  flash_messages?: PublicFlashMessage[];
+  flash_messages_can_manage?: boolean;
   location: string;
   google_maps_url?: string | null;
   office_address?: string | null;
@@ -650,6 +654,12 @@ const EquipmentProfile = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-background to-background dark:from-background">
       <DashboardHeader />
       <main className={cn("flex-1 container mx-auto", embedded ? "px-2 py-3 sm:px-3" : "px-4 py-8")}>
+        <EquipmentFlashArea
+          equipmentId={equipment.equipment_id}
+          messages={equipment.flash_messages}
+          canManage={Boolean(equipment.flash_messages_can_manage)}
+          fallbackClassName="-mt-4 mb-4 sm:-mt-5"
+        />
 
         {(() => {
           const { sample: sampleSpecs, general: generalSpecs } =

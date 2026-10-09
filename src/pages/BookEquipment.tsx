@@ -275,6 +275,8 @@ import { BookingActionBar } from "@/components/booking/BookingActionBar";
 import { URGENT_REASON_MIN_LENGTH, UrgentTypeBRequestPanel } from "@/components/booking/UrgentTypeBRequestPanel";
 import { InfoTip } from "@/components/booking/InfoTip";
 import { useDisruptionPrompt } from "@/components/disruptions/useDisruptionPrompt";
+import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
+import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOperations";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -7687,6 +7689,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       )}
       {!isEmbedFlow && <DashboardHeader />}
       <main className={isEmbedFlow ? "w-full px-0 py-1 text-base leading-relaxed" : "w-full max-w-[1800px] mx-auto px-4 md:px-6 py-4 md:py-6 text-base md:text-lg leading-relaxed"}>
+        <EquipmentFlashArea
+          inline
+          equipmentId={equipmentDetail.equipment_id}
+          messages={(equipmentDetail as { flash_messages?: PublicFlashMessage[] }).flash_messages}
+          fallbackClassName={isEmbedFlow ? "mb-2 px-2 sm:px-3" : "max-w-6xl mx-auto mb-3"}
+        />
         {!isEmbedFlow && (
         <div className="max-w-6xl mx-auto mb-3 md:mb-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

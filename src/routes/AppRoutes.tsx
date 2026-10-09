@@ -50,6 +50,7 @@ const TANominationsLog = lazyPage(() => import("@/pages/TANominationsLog"));
 const MyNominationRequests = lazyPage(() => import("@/pages/MyNominationRequests"));
 const TAAssignments = lazyPage(() => import("@/pages/TAAssignments"));
 const DisruptionHistory = lazyPage(() => import("@/pages/DisruptionHistory"));
+const EquipmentFlashMessages = lazyPage(() => import("@/pages/EquipmentFlashMessages"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
 const WalletPeerTransfer = lazyPage(() => import("@/pages/WalletPeerTransfer"));
 const WalletCreditFacilityRequest = lazyPage(() => import("@/pages/WalletCreditFacilityRequest"));
@@ -266,6 +267,7 @@ export default function AppRoutes() {
           <Route path="/ta-nomination-call" element={<TANominationCall />} />
           <Route path="/ta-assignments" element={<TAAssignments />} />
           <Route path="/disruptions" element={<DisruptionHistory />} />
+          <Route path="/equipment-flash-messages" element={<EquipmentFlashMessages />} />
           <Route path="/ta-nominations-log" element={<TANominationsLog />} />
           <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
           <Route path="/wallet" element={<Wallet />} />
