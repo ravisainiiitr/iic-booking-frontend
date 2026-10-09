@@ -111,7 +111,6 @@ export function inputsSection(): GuideSection {
       {
         title: "3D printing: see the supports and turn the part",
         body: "The 3D print section has four steps: Upload, Orient & supports, Material & settings, and Estimate & charges. With supports on, the preview draws them as translucent columns under the overhangs; use Supports to hide them and Overhangs to show the faces that need them in red. Turn a part with the X, Y and Z buttons (90° each), Lay flat (its largest flat face down) or Pick face to put down, then click a face in the preview; Reset puts it back as uploaded. Auto-orient (least support) compares the ways the part can lie on the plate and suggests the one with the least support, for example Support: 6.2 g → 1.1 g, time −18 min; click Use suggested or Use on any row. When turning could save support, a hint offers Turn it. The weight, supports, time and charge update a moment after each change, and the bar at the bottom always shows the current estimate. Drag the Layer preview slider to cut the model at a height and see about how far into the print that layer is.",
->>>>>>> edeb805 (3D print booking: orient & supports step (rotate, lay flat, pick face, least-support auto-orient), live estimate bar, part thumbnails, orientation in booking details)
       },
       {
         title: "Edit inputs after booking",
