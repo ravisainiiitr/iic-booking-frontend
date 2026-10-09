@@ -91,12 +91,14 @@ function buildSupportMesh(s: SupportColumns, color: string, clip: THREE.Plane[])
     roughness: 0.92,
     metalness: 0,
     transparent: true,
-    opacity: 0.62,
+    opacity: 0.55,
+    depthWrite: false,
     clippingPlanes: clip,
   });
   const mesh = new THREE.InstancedMesh(geometry, material, s.count);
   const m = new THREE.Matrix4();
-  const width = s.cellMm * 0.82;
+  // Gaps between the columns, like the grid supports a slicer prints.
+  const width = s.cellMm * 0.6;
   for (let i = 0; i < s.count; i += 1) {
     const x = s.columns[i * 4];
     const z = s.columns[i * 4 + 1];
@@ -268,8 +270,13 @@ export function buildPrintScene(
 
   const plateBox = new THREE.Box3(new THREE.Vector3(-plateW / 2, 0, -plateD / 2), new THREE.Vector3(plateW / 2, Math.max(size.y, 1), plateD / 2));
   const shadowBox = modelBox.clone().expandByScalar(Math.max(size.x, size.y, size.z) * 0.6);
-  // The opening view shows the whole plate with the model (centred on it), including any part hanging over.
-  const homeBox = modelBox.clone().union(plateBox);
+  // The opening view shows the whole plate with the model (centred on it), including any part hanging over;
+  // a part much smaller than the plate is framed with some plate around it so its supports can be seen.
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const homeBox =
+    maxDim * 2.5 < Math.max(plateW, plateD)
+      ? modelBox.clone().expandByScalar(maxDim * 0.3).union(new THREE.Box3(modelBox.min.clone().setY(0), modelBox.max.clone()))
+      : modelBox.clone().union(plateBox);
   stage.setFocus(homeBox, { sheet: plateBox, shadowBox, keepView: options.keepView });
   const setCut = (heightMm: number | null) => {
     const cut = heightMm !== null && heightMm < size.y - 1e-6;

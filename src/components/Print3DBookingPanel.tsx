@@ -1461,14 +1461,14 @@ export function Print3DBookingPanel({
 
   return (
     <Card className="mb-6 border-primary/20" data-testid="print-3d-panel">
-      <CardHeader className="pb-2">
+      <CardHeader className="px-3 pb-2 sm:px-6">
         <CardTitle className="text-lg">3D print: upload, orient and estimate</CardTitle>
         <CardDescription>
           Upload a single STL or a ZIP of several STL files, place each part on the printer&apos;s plate the way it
           should be printed, then pick the material. Weight, supports, time and charges update as you go.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 px-3 sm:px-6">
         <p className="text-sm font-bold text-amber-900">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
 
         <section className="space-y-4" aria-labelledby="print-step-upload">
@@ -1481,7 +1481,7 @@ export function Print3DBookingPanel({
               <span className="font-medium text-foreground tabular-nums">{formatPrintSizeLimit(sizeLimit)}</span> (W × D × H).{" "}
               {sizeLimit.allowRotation
                 ? "A model that fits when turned is accepted; the lab re-orients it."
-                : "The model must fit as it is oriented in the file."}{" "}
+                : "The model must fit as it is placed on the plate; you can turn it in step 2."}{" "}
               STL sizes are read in millimetres.
             </span>
           </p>
@@ -1757,6 +1757,7 @@ export function Print3DBookingPanel({
           id="print-step-estimate"
           step={4}
           title="Estimate & charges"
+          done={hasParts && !busy && !sizeBlock}
           detail={hasParts ? undefined : "Weight, print time and charges appear once the model is analysed."}
         />
         {completedItems.length > 0 && !analyzingStl && (

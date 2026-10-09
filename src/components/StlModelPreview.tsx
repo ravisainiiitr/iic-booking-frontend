@@ -244,7 +244,7 @@ export function StlModelPreview({
     let cancelled = false;
     const timer = setTimeout(() => {
       if (cancelled) return;
-      const data = computeSupports(mesh.positions, { mode: supportMode, angleDeg: supportAngle, gridCells: coarse ? 70 : 120 });
+      const data = computeSupports(mesh.positions, { mode: supportMode, angleDeg: supportAngle, gridCells: coarse ? 45 : 70 });
       setSupportState({ mesh, key: supportKey, data });
     }, 0);
     return () => {

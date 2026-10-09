@@ -101,9 +101,9 @@ export function PrintOrientationControls({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="Rotate the part by 90 degrees">
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2" role="group" aria-label="Rotate the part by 90 degrees">
         {AXES.map(({ axis, label, hint }) => (
-          <div key={axis} className="flex items-center justify-center gap-1 rounded-md border bg-muted/30 px-1 py-1">
+          <div key={axis} className="flex items-center justify-center gap-0.5 rounded-md border bg-muted/30 p-0.5 sm:gap-1 sm:p-1">
             <Button
               type="button"
               variant="ghost"
@@ -117,7 +117,7 @@ export function PrintOrientationControls({
             >
               <RotateCcw className="h-4 w-4" aria-hidden />
             </Button>
-            <span className="w-4 text-center text-xs font-semibold" aria-hidden>
+            <span className="w-3 text-center text-xs font-semibold" aria-hidden>
               {label}
             </span>
             <Button
