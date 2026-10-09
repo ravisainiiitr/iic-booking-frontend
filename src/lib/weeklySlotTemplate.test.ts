@@ -35,8 +35,17 @@ describe("buildWeeklySlotRows", () => {
 
   it("treats a 00:00 close or a close before open as ending after midnight", () => {
     const rows = buildWeeklySlotRows({ slot_masters: masters([["18:00", "00:00"], ["22:00", "01:00"]]) });
-    expect(rows[0]).toMatchObject({ start: 1080, end: 1440, timeRange: "18:00 – 00:00" });
+    expect(rows[0]).toMatchObject({ start: 1080, end: 1440, timeRange: "18:00 – 24:00" });
     expect(rows[1]).toMatchObject({ start: 1320, end: 1500 });
+  });
+
+  it("reads two 12-hour slots ending at midnight as 00:00–12:00 and 12:00–24:00", () => {
+    const rows = buildWeeklySlotRows({ slot_masters: masters([["00:00:00", "12:00:00"], ["12:00", "24:00"]]) });
+    expect(rows.map((r) => [r.start, r.end, r.timeRange])).toEqual([
+      [0, 720, "00:00 – 12:00"],
+      [720, 1440, "12:00 – 24:00"],
+    ]);
+    expect(describeWeeklySelection(0, rows.slice(1, 2))).toBe("Every Monday, 12:00–24:00 (1 slot)");
   });
 
   it("treats Close = Open as a full 24-hour slot", () => {

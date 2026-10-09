@@ -335,6 +335,10 @@ export function oicConfigSection(g: Gate): GuideSection {
         body: "In the same page set the weekly view time range, the external slot quota, usage quotas, the sample submission lead time and the sample collect deadline. When next week's slots open (Slot window reference weekday and Reference time) is set by the Main Administrator only.",
       },
       {
+        title: "Slot times",
+        body: "Under Slot Masters in the equipment form, each slot has an Open and a Close time. Type 24:00 as the Close time for midnight at the end of the day: two 12-hour slots are 00:00–12:00 and 12:00–24:00, and a full-day slot is 00:00–24:00. A Close time earlier than the Open time ends the next day, shown as 18:00 – 02:00 (+1 day). Active slots may touch but must not overlap; if they do, the form names the two slots and does not save. Slots ending at midnight show as 24:00 on the booking page, calendars, booking details, emails and exports, and a saved Close of 00:00 opens as 24:00.",
+      },
+      {
         title: "Waitlist and urgent requests",
         body: "Under Waitlist and urgent requests set Waitlist depth (how many people can wait in the queue; 0 or empty = waitlist off), Open urgent requests at a time (Type A and B together), and the Type A (rush relief) and Type B (50% surcharge) limits per week. Empty means no limit and 0 means none accepted. Each box shows the current count, such as 3 of 10 in queue.",
       },

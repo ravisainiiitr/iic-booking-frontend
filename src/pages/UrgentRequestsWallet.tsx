@@ -37,6 +37,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
 import { Loader2, Check, X, FileText, ExternalLink, AlertTriangle, Clock, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 
 type WalletRequestRow = {
   id: number;
@@ -584,7 +585,7 @@ const UrgentRequestsWallet = () => {
                             key={i}
                             className="inline-flex items-center rounded-full border border-border/80 bg-muted/50 px-4 py-1.5 text-sm font-medium text-foreground"
                           >
-                            {st.label || (st.start && st.end ? `${format(new Date(st.start), "dd MMM HH:mm")} – ${format(new Date(st.end), "HH:mm")}` : "—")}
+                            {st.label || (st.start && st.end ? `${format(new Date(st.start), "dd MMM")} ${slotSpanLabel(st.start, st.end)}` : "—")}
                           </span>
                         ))
                       ) : (

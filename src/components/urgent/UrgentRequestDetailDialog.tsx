@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { format } from "date-fns";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { AlertTriangle, CheckCircle2, Clock, ExternalLink, FileText, Loader2, MessageSquareQuote, UserCheck, XCircle } from "lucide-react";
 import type { UrgentRequestRequirement } from "@/lib/api";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
@@ -415,7 +416,7 @@ export function UrgentRequestDetailDialog({
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         {heldSlots.map((st, i) => (
                           <span key={i} className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs font-medium">
-                            {st.label || (st.start && st.end ? `${format(new Date(st.start), "dd MMM HH:mm")} – ${format(new Date(st.end), "HH:mm")}` : "—")}
+                            {st.label || (st.start && st.end ? `${format(new Date(st.start), "dd MMM")} ${slotSpanLabel(st.start, st.end)}` : "—")}
                           </span>
                         ))}
                       </div>

@@ -59,7 +59,7 @@ function jobSheetPath(bookingId: number) {
 
 function BookingRow({ row, showEquipment }: { row: StaffAppBookingRow; showEquipment: boolean }) {
   const start = timeOf(row.start_time);
-  const end = timeOf(row.end_time);
+  const end = start && timeOf(row.end_time) === "00:00" ? "24:00" : timeOf(row.end_time);
   return (
     <li>
       <Link

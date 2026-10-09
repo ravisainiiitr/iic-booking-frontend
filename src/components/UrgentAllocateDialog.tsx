@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { formatINRAmount } from "@/lib/money";
 import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
+import { slotSpanLabel } from "@/lib/slotTimeRange";
 import {
   SLOT_CELL_CLASS,
   SLOT_CELL_SELECTED_CLASS,
@@ -55,7 +56,9 @@ const mondayOf = (d: Date) => startOfWeek(d, { weekStartsOn: 1 });
 const slotDay = (s: UrgentAllocationSlot) => s.date ?? (s.start_datetime ? ymd(parseISO(s.start_datetime)) : "");
 const slotTimeKey = (s: UrgentAllocationSlot) => (s.start_datetime ? format(parseISO(s.start_datetime), "HH:mm") : "");
 const slotRange = (s: UrgentAllocationSlot) =>
-  `${s.start_datetime ? format(parseISO(s.start_datetime), "HH:mm") : "--:--"} – ${s.end_datetime ? format(parseISO(s.end_datetime), "HH:mm") : "--:--"}`;
+  s.start_datetime && s.end_datetime
+    ? slotSpanLabel(s.start_datetime, s.end_datetime)
+    : `${s.start_datetime ? format(parseISO(s.start_datetime), "HH:mm") : "--:--"} – --:--`;
 const slotMinutes = (s: UrgentAllocationSlot) =>
   s.start_datetime && s.end_datetime
     ? Math.round((parseISO(s.end_datetime).getTime() - parseISO(s.start_datetime).getTime()) / 60000)

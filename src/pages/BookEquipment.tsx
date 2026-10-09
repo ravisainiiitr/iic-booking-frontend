@@ -11678,10 +11678,11 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                       const start = parseISO(ordered[0].slotData!.start_datetime);
                       const lastEndIso = ordered[ordered.length - 1].slotData!.end_datetime;
                       const end = lastEndIso ? parseISO(lastEndIso) : null;
+                      const endsAtMidnight = !!end && format(end, "HH:mm") === "00:00" && isSameDay(start, addDays(end, -1));
                       const when = !end
                         ? format(start, "EEE d MMM, HH:mm")
-                        : isSameDay(start, end)
-                        ? `${format(start, "EEE d MMM, HH:mm")}–${format(end, "HH:mm")}`
+                        : isSameDay(start, end) || endsAtMidnight
+                        ? `${format(start, "EEE d MMM, HH:mm")}–${endsAtMidnight ? "24:00" : format(end, "HH:mm")}`
                         : `${format(start, "EEE d MMM HH:mm")} – ${format(end, "EEE d MMM HH:mm")}`;
                       const minutes = calculatedCharge ? getEffectiveSelectedMinutes() : null;
                       const charge = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());

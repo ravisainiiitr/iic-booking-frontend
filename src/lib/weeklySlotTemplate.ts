@@ -46,6 +46,7 @@ export const toMinutes = (raw: string | null | undefined): number | null => {
   if (!m) return null;
   const h = Number(m[1]);
   const min = Number(m[2]);
+  if (h === 24 && min === 0) return 1440;
   if (h > 23 || min > 59) return null;
   return h * 60 + min;
 };
@@ -203,7 +204,7 @@ export function describeWeeklySelection(weekday: number, run: readonly WeeklySlo
       : `${first.label} – ${last.label}`
     : last.end - first.start >= 1440
       ? slotTimeRangeLabel(minutesToKey(first.start), null, last.end - first.start)
-      : `${minutesToKey(first.start)}–${minutesToKey(last.end)}`;
+      : `${minutesToKey(first.start)}–${last.end === 1440 ? "24:00" : minutesToKey(last.end)}`;
   return `Every ${WEEKDAY_NAMES[weekday] ?? "?"}, ${span} (${run.length} slot${run.length === 1 ? "" : "s"})`;
 }
 

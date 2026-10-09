@@ -23,7 +23,14 @@ import {
 import { Loader2, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { linesToOptions, normalizeOptionsList, optionsToLines } from "@/lib/dynamicFieldOptions";
-import { SLOT_MASTER_CLOSE_TIME_HELP, slotMasterRangeLabel, slotMastersError } from "@/lib/slotTimeRange";
+import {
+  SLOT_MASTER_CLOSE_TIME_HELP,
+  parseSlotCloseInput,
+  slotCloseTimeForApi,
+  slotCloseTimeForForm,
+  slotMasterRangeLabel,
+  slotMastersError,
+} from "@/lib/slotTimeRange";
 import {
   applyNumericLimitDraft,
   MIN_BELOW_ONE_MESSAGE,
@@ -937,7 +944,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : prev.equipment_publications ?? [],
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
-        slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? s.close_time : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
+        slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? slotCloseTimeForForm(s.close_time) : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
         charge_profiles: mergedChargeProfiles.length ? mergedChargeProfiles : prev.charge_profiles ?? [],
         pi_charge_profiles: [],
         input_fields: Array.isArray(inputs) ? inputs.map((i) => {
@@ -1213,7 +1220,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         .filter((p) => p.title),
       equipment_accessories: formData.equipment_accessories ?? [],
       equipment_additional_accessories: formData.equipment_additional_accessories ?? [],
-      slot_masters: formData.slot_masters ?? [],
+      slot_masters: (formData.slot_masters ?? []).map((s) => ({ ...s, close_time: slotCloseTimeForApi(s.close_time) })),
       charge_profiles: (formData.charge_profiles ?? [])
         .filter((cp) => !isPiChargeRow(cp))
         .map(({ pricing_profile: _pp, ...rest }) => {
@@ -4014,7 +4021,12 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               <div className="space-y-1">
                 <Label className="text-xs">Close time</Label>
                 <Input
-                  type="time"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="HH:MM or 24:00"
+                  maxLength={8}
+                  aria-invalid={!!s.close_time && parseSlotCloseInput(s.close_time) == null}
+                  data-testid={`slot-master-close-${idx}`}
                   value={s.close_time ?? ""}
                   onChange={(e) =>
                     setFormData((p) => {
