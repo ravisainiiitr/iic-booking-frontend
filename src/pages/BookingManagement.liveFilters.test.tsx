@@ -303,7 +303,7 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
     expect(lastCall().ordering).toBe("default");
     expect(screen.queryByRole("button", { name: "Default order" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^Equipment/ }));
-    await waitFor(() => expect(lastCall().ordering).toBe("booking_ref"));
+    await waitFor(() => expect(lastCall().ordering).toBe("equipment_code"));
     fireEvent.click(screen.getByRole("button", { name: "Default order" }));
     await waitFor(() => expect(lastCall().ordering).toBe("default"));
   });

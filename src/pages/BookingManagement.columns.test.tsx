@@ -151,18 +151,18 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     await waitFor(() => expect(lastOrdering()).toBe("duration"));
   });
 
-  it("sorts Equipment by code through the booking ID (department + code) and marks only that column", async () => {
+  it("sorts Equipment by the equipment code key and marks only that column", async () => {
     const table = await renderList();
     const header = (label: string) => within(table).getByRole("columnheader", { name: new RegExp(`^${label}`) });
 
     fireEvent.click(within(header("Equipment")).getByRole("button"));
-    await waitFor(() => expect(lastOrdering()).toBe("booking_ref"));
+    await waitFor(() => expect(lastOrdering()).toBe("equipment_code"));
     await screen.findByText("IICNMR TXI202600002");
     expect(header("Equipment").getAttribute("aria-sort")).toBe("ascending");
     expect(header("Booking ID").getAttribute("aria-sort")).toBe("none");
 
     fireEvent.click(within(header("Equipment")).getByRole("button"));
-    await waitFor(() => expect(lastOrdering()).toBe("-booking_ref"));
+    await waitFor(() => expect(lastOrdering()).toBe("-equipment_code"));
     await screen.findByText("IICNMR TXI202600002");
     expect(header("Equipment").getAttribute("aria-sort")).toBe("descending");
   });
