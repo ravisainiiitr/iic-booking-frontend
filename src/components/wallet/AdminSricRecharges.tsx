@@ -767,7 +767,13 @@ type SettingsDraft = Pick<
   | "gateway_marker_value"
   | "confirmation_cc_emails"
   | "review_alert_emails"
+  | "quiet_window_enabled"
+  | "quiet_window_weekday"
+  | "quiet_window_start"
+  | "quiet_window_end"
 >;
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
   const [settings, setSettings] = useState<SricRechargeSettings | null>(null);
@@ -792,6 +798,10 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
       gateway_marker_value: data.gateway_marker_value,
       confirmation_cc_emails: data.confirmation_cc_emails,
       review_alert_emails: data.review_alert_emails,
+      quiet_window_enabled: data.quiet_window_enabled ?? true,
+      quiet_window_weekday: data.quiet_window_weekday ?? 2,
+      quiet_window_start: data.quiet_window_start || "20:55",
+      quiet_window_end: data.quiet_window_end || "21:15",
     });
   };
 
@@ -850,7 +860,11 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
     </div>
   );
 
-  const toggle = (key: "scan_enabled" | "auto_credit_enabled" | "require_internal_relay", label: string, hint: string) => (
+  const toggle = (
+    key: "scan_enabled" | "auto_credit_enabled" | "require_internal_relay" | "quiet_window_enabled",
+    label: string,
+    hint: string,
+  ) => (
     <div className="flex items-start justify-between gap-3 rounded-md border p-3">
       <div>
         <Label htmlFor={`sric-setting-${key}`}>{label}</Label>
@@ -890,6 +904,57 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
           {text("trusted_relay_ranges", "Extra trusted relay ranges", "Comma-separated CIDRs.")}
           {text("gateway_marker_header", "Gateway marker header")}
           {text("gateway_marker_value", "Gateway marker value")}
+        </div>
+        <div className="space-y-3 rounded-md border p-3" data-testid="sric-quiet-window">
+          {toggle(
+            "quiet_window_enabled",
+            "Mailbox checks pause during peak booking time",
+            "No 5-minute check or faculty Refresh in this weekly window (IST); the first check after it reads everything that arrived. Your Refresh here still works.",
+          )}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label htmlFor="sric-setting-quiet_window_weekday">Pause on</Label>
+              <select
+                id="sric-setting-quiet_window_weekday"
+                className={selectClass}
+                value={draft.quiet_window_weekday}
+                disabled={!draft.quiet_window_enabled}
+                onChange={(e) => setDraft({ ...draft, quiet_window_weekday: Number(e.target.value) })}
+              >
+                {WEEKDAYS.map((day, i) => (
+                  <option key={day} value={i}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sric-setting-quiet_window_start">From (IST)</Label>
+              <Input
+                id="sric-setting-quiet_window_start"
+                type="time"
+                value={draft.quiet_window_start}
+                disabled={!draft.quiet_window_enabled}
+                onChange={(e) => setDraft({ ...draft, quiet_window_start: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="sric-setting-quiet_window_end">Until (IST)</Label>
+              <Input
+                id="sric-setting-quiet_window_end"
+                type="time"
+                value={draft.quiet_window_end}
+                disabled={!draft.quiet_window_enabled}
+                onChange={(e) => setDraft({ ...draft, quiet_window_end: e.target.value })}
+              />
+            </div>
+          </div>
+          {settings.quiet_window_label ? (
+            <p className="text-xs text-muted-foreground">
+              Saved: {settings.quiet_window_enabled ? settings.quiet_window_label : "off"}
+              {settings.quiet_window_active ? " · paused now" : ""}
+            </p>
+          ) : null}
         </div>
         <div className="flex justify-end">
           <Button onClick={() => void save()} disabled={saving}>

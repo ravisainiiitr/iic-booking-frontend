@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   verifySricRecharge: vi.fn(),
   lookupSricRechargeUser: vi.fn(),
   getSricRechargeSettings: vi.fn(),
+  updateSricRechargeSettings: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ apiClient: api }));
@@ -173,6 +174,54 @@ describe("AdminSricRecharges", () => {
     await waitFor(() =>
       expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ status: "needs_review", page: 1 })),
     );
+  });
+
+  it("edits the peak booking pause in Settings", async () => {
+    const settings = {
+      scan_enabled: true,
+      auto_credit_enabled: true,
+      sender_email: "sender@example.test",
+      attachment_name: "Wallet_Recharge.csv",
+      auto_credit_max_amount: null,
+      trusted_authserv_ids: "",
+      require_internal_relay: true,
+      trusted_relay_ranges: "",
+      gateway_marker_header: "x-marker",
+      gateway_marker_value: "true",
+      confirmation_cc_emails: "",
+      review_alert_emails: "",
+      quiet_window_enabled: true,
+      quiet_window_weekday: 2,
+      quiet_window_start: "20:55",
+      quiet_window_end: "21:15",
+      quiet_window_label: "Wednesday 8:55–9:15 PM",
+      quiet_window_active: false,
+      last_scan_at: null,
+      last_scan_result: {},
+      mappings: [],
+      departments: [],
+      recent_messages: [],
+    };
+    api.getAdminSricRecharges.mockResolvedValue(listResponse());
+    api.getSricRechargeSettings.mockResolvedValue({ data: settings });
+    api.updateSricRechargeSettings.mockResolvedValue({ data: { ...settings, quiet_window_weekday: 4, quiet_window_label: "Friday 8:55–9:15 PM" } });
+    render(<AdminSricRecharges />);
+    fireEvent.click(await screen.findByRole("button", { name: /Settings/ }));
+    const card = await screen.findByTestId("sric-quiet-window");
+    expect(within(card).getByText("Mailbox checks pause during peak booking time")).toBeTruthy();
+    expect(within(card).getByText("Saved: Wednesday 8:55–9:15 PM")).toBeTruthy();
+    expect((within(card).getByLabelText("Pause on") as HTMLSelectElement).value).toBe("2");
+    expect((within(card).getByLabelText("From (IST)") as HTMLInputElement).value).toBe("20:55");
+    expect((within(card).getByLabelText("Until (IST)") as HTMLInputElement).value).toBe("21:15");
+    fireEvent.change(within(card).getByLabelText("Pause on"), { target: { value: "4" } });
+    fireEvent.change(within(card).getByLabelText("Until (IST)"), { target: { value: "21:20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await waitFor(() =>
+      expect(api.updateSricRechargeSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ quiet_window_enabled: true, quiet_window_weekday: 4, quiet_window_start: "20:55", quiet_window_end: "21:20" }),
+      ),
+    );
+    expect(await within(card).findByText("Saved: Friday 8:55–9:15 PM")).toBeTruthy();
   });
 
   it("badges test entries, shows a reversed credit with its adjustment and can hide test entries", async () => {

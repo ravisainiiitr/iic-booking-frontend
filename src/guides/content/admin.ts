@@ -157,7 +157,7 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "SRIC recharge settings",
-            body: "In SRIC recharges click Settings to switch Read SRIC emails and Auto-credit SRIC recharges on or off, set an optional auto-credit limit, review alert and CC addresses, and the email origin checks. Receiver Project mapping links each CSV code (IIC-000-002 and TINK-000-01 are preset) to a department sub-wallet; add a code for a new receiver. Recent SRIC emails shows each email's status, rows and whether its origin was verified.",
+            body: "In SRIC recharges click Settings to switch Read SRIC emails and Auto-credit SRIC recharges on or off, set an optional auto-credit limit, review alert and CC addresses, and the email origin checks. Receiver Project mapping links each CSV code (IIC-000-002 and TINK-000-01 are preset) to a department sub-wallet; add a code for a new receiver. Mailbox checks pause during peak booking time (default Wednesday 8:55–9:15 PM IST; change the day and times or switch it off): the 5-minute check and faculty Refresh wait, the first check after the window reads everything that arrived, and your own Refresh still works. Recent SRIC emails shows each email's status, rows and whether its origin was verified.",
           },
           {
             title: "Send reminder to SRIC",

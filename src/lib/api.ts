@@ -1063,6 +1063,14 @@ export interface SricRechargeSettings {
   gateway_marker_value: string;
   confirmation_cc_emails: string;
   review_alert_emails: string;
+  /** Weekly pause of mailbox checks during peak booking time (IST). Weekday: 0 = Monday … 6 = Sunday. */
+  quiet_window_enabled: boolean;
+  quiet_window_weekday: number;
+  /** "HH:MM", 24-hour IST; start inclusive, end exclusive. */
+  quiet_window_start: string;
+  quiet_window_end: string;
+  quiet_window_label?: string;
+  quiet_window_active?: boolean;
   last_scan_at: string | null;
   last_scan_result: Record<string, unknown>;
   mappings: SricReceiverMapping[];

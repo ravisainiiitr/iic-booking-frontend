@@ -346,7 +346,7 @@ export function ownerWalletSection(g: Gate): GuideSection {
       }),
       g.when(sric, {
         title: "Recharge from a project",
-        body: "Click Recharge Wallet → From a project (SRIC portal), or How to recharge on the Wallet page. Click Open SRIC portal (rnd.iitr.ac.in opens in a new tab), go to Ledger → New Wallet Recharge, select the project, choose the Receiver Type (IIC or Tinkering), enter the amount and a remark and click Submit Recharge. The portal picks it up within 5 minutes; click Refresh to check now.",
+        body: "Click Recharge Wallet → From a project (SRIC portal), or How to recharge on the Wallet page. Click Open SRIC portal (rnd.iitr.ac.in opens in a new tab), go to Ledger → New Wallet Recharge, select the project, choose the Receiver Type (IIC or Tinkering), enter the amount and a remark and click Submit Recharge. The portal picks it up within 5 minutes; click Refresh to check now. Checks pause during peak booking time (Wednesday 8:55–9:15 PM); a recharge made then is credited automatically after 9:15 PM.",
       }),
       g.when(faculty && !sric && f.projectGrant, {
         title: "Project Grant",

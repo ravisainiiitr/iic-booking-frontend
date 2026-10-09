@@ -111,6 +111,19 @@ describe("SricRechargePanel", () => {
     expect((screen.getByTestId("sric-refresh-button") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("shows the paused message during peak booking time", async () => {
+    const paused =
+      "Recharge checks are paused during peak booking time (Wednesday 8:55–9:15 PM). Your recharge will be credited automatically after 9:15 PM.";
+    api.getMySricRecharges.mockResolvedValue(info());
+    api.refreshMySricRecharges.mockResolvedValue({
+      data: { status: "skipped_peak_window", debounced: false, message: paused, results: [] },
+    });
+    render(<SricRechargePanel />);
+    fireEvent.click(screen.getByTestId("sric-refresh-button"));
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toBe(paused);
+  });
+
   it("badges a test entry and shows a reversed credit", async () => {
     const testRow = { ...creditedRow, id: 12, ledger_id: "TEST-L-0043", is_test: true, reversed: true, reversed_at: "2026-10-09T20:10:00+05:30" };
     api.getMySricRecharges.mockResolvedValue(info([testRow, creditedRow]));
