@@ -402,6 +402,10 @@ export function oicChargesSection(): GuideSection {
       },
       { title: "Higher charge, unpaid", body: "Use Deduct Money to debit the difference from the user's wallet." },
       {
+        title: "3D print orientation chosen by the user",
+        body: "Users can turn each 3D print part on the plate before booking to need less support. In booking details the 3D preview opens the part in that orientation with the note User-selected orientation and draws the supports used for the estimate; the part line also says User-selected orientation. The estimate (weight, supports and time) was made for that orientation, so print it that way or enter the actual weight and time after printing.",
+      },
+      {
         title: "3D print actual weight and time",
         body: "After printing, open the booking and click Set actual weight & time (choose the file first when the booking has several STL files). Enter the total weight and time of all copies of that file, including the Quantity Required; the form starts from the estimated total. Saving recalculates the amount with the same rates and GST as the estimate: a lower amount waits for your Confirm refund, a higher amount is collected with Deduct Money or the user's Pay Now.",
       },

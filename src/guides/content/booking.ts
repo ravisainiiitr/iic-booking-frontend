@@ -109,6 +109,11 @@ export function inputsSection(): GuideSection {
         body: "Upload your STL or DXF file. The charge updates as you type a part's copies or quantity (or use the number box arrows), a moment after you stop; the Review shows Updating… until it is ready. Tick I will bring my own printing material or I will bring my own sheet material to bring your own: for laser cutting each part's sheet size is filled from your design plus a 5 mm margin on each side (turned to suit the machine bed when that fits better), and for 3D printing the page shows how much material to bring and the model size. You can type a different sheet size; Reset to model size goes back to the size from your design.",
       },
       {
+        title: "3D printing: see the supports and turn the part",
+        body: "The 3D print section has four steps: Upload, Orient & supports, Material & settings, and Estimate & charges. With supports on, the preview draws them as translucent columns under the overhangs; use Supports to hide them and Overhangs to show the faces that need them in red. Turn a part with the X, Y and Z buttons (90° each), Lay flat (its largest flat face down) or Pick face to put down, then click a face in the preview; Reset puts it back as uploaded. Auto-orient (least support) compares the ways the part can lie on the plate and suggests the one with the least support, for example Support: 6.2 g → 1.1 g, time −18 min; click Use suggested or Use on any row. When turning could save support, a hint offers Turn it. The weight, supports, time and charge update a moment after each change, and the bar at the bottom always shows the current estimate. Drag the Layer preview slider to cut the model at a height and see about how far into the print that layer is.",
+>>>>>>> edeb805 (3D print booking: orient & supports step (rotate, lay flat, pick face, least-support auto-orient), live estimate bar, part thumbnails, orientation in booking details)
+      },
+      {
         title: "Edit inputs after booking",
         body: "Open the booking from View Booking and choose Edit User Inputs. If the charge goes up, click Pay ₹X now; use Cancel edit to back out.",
       },
@@ -122,6 +127,7 @@ export function inputsSection(): GuideSection {
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
       "Inputs can be edited until the booking is completed.",
       "3D print weight and time are estimates; the lab may enter the actual weight and time after printing, and the charge then follows them. Supports in a separate material are charged at that material's rate. With Own material ticked, no material is charged for the model or the supports, but the machine time still is.",
+      "The orientation you choose for each 3D print part is saved with the booking and shown to the lab. A part turned so that it no longer fits the printer cannot be booked until you choose another orientation.",
     ],
   };
 }

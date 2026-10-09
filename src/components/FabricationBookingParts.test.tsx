@@ -99,6 +99,9 @@ describe("fabricationPartDetail", () => {
     expect(fabricationPartDetail({ ...base, support_mode: "none", support_mode_label: "None", support_g_each: 0 })).toBe(
       "40 g · 90 min total · Supports: None",
     );
+    expect(
+      fabricationPartDetail({ ...base, support_mode: "none", support_mode_label: "None", orientation: [1, 0, 0, 0, 0, -1, 0, 1, 0] }),
+    ).toBe("40 g · 90 min total · Supports: None · User-selected orientation");
   });
 });
 

@@ -74,6 +74,8 @@ interface StlModelPreviewProps {
   /** Click a face of the model to lay it flat on the plate. */
   pickFace?: boolean;
   onFacePicked?: (normal: Vec3) => void;
+  /** The model as placed (oriented), once loaded. */
+  onMeshReady?: (mesh: StlMeshData | null) => void;
 }
 
 export interface StlPreviewSizeCheck {
@@ -157,6 +159,7 @@ export function StlModelPreview({
   timeline,
   pickFace = false,
   onFacePicked,
+  onMeshReady,
 }: StlModelPreviewProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
@@ -200,6 +203,12 @@ export function StlModelPreview({
     return { tooLarge: !fits, rotated: fits && fitsOnlyWhenRotated(size, sizeLimit), limitLabel: formatPrintSizeLimit(sizeLimit) };
   }, [sizeLimit, mesh, orientation, sizeCheckProp]);
   const overLimit = !!sizeCheck?.tooLarge;
+
+  const onMeshReadyRef = useRef(onMeshReady);
+  onMeshReadyRef.current = onMeshReady;
+  useEffect(() => {
+    onMeshReadyRef.current?.(mesh);
+  }, [mesh]);
 
   useEffect(() => {
     setRawMesh(null);

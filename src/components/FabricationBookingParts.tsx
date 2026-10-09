@@ -116,7 +116,8 @@ export function fabricationPartDetail(part: FabricationPart): string {
     time !== null ? `${time} min${part.actual_time ? " (actual)" : ""}` : null,
   ].filter(Boolean);
   const text = bits.length ? `${bits.join(" · ")} total` : "Not measured";
-  return part.support_mode ? `${text} · ${fabricationPartSupports(part)}` : text;
+  const supports = part.support_mode ? ` · ${fabricationPartSupports(part)}` : "";
+  return `${text}${supports}${part.orientation ? " · User-selected orientation" : ""}`;
 }
 
 function fabricationPartSupports(part: FabricationPart): string {

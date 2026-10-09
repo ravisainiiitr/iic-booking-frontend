@@ -9,6 +9,8 @@ import {
   printSizeLimitFrom,
   type MaxPrintSizePayload,
 } from "@/lib/printSizeLimit";
+import { normalizeOrientation } from "@/lib/preview3d/orientation";
+import type { StlPreviewSupports } from "@/components/StlModelPreview";
 
 // three.js viewer: loaded only when a model is previewed.
 const StlModelPreview = lazy(() => import("@/components/StlModelPreview").then((m) => ({ default: m.StlModelPreview })));
@@ -62,6 +64,15 @@ export function BookedStlPreview({
 
   if (!part) return null;
   const multi = parts.length > 1;
+  const orientation = normalizeOrientation(part.orientation);
+  const supportG = num(part.support_g_each) ?? 0;
+  const supports: StlPreviewSupports | null = part.support_mode
+    ? {
+        mode: part.support_mode === "auto" ? (supportG > 0 ? "buildplate" : "none") : part.support_mode,
+        angleDeg: num(part.support_angle_deg),
+        summary: supportG > 0.05 ? `Supports ~${supportG} g${part.support_material_code ? ` (${part.support_material_code})` : ""}` : null,
+      }
+    : null;
   const error = errors[part.analysis_id];
 
   return (
@@ -118,6 +129,10 @@ export function BookedStlPreview({
               timeMinutes: num(part.time_min_each),
               quantity: part.quantity,
             }}
+            orientation={orientation}
+            orientationNote={orientation ? "User-selected orientation" : null}
+            sizeLimit={sizeLimit}
+            supports={supports}
           />
         </Suspense>
       )}

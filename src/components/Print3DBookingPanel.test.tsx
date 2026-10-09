@@ -7,6 +7,8 @@ const api = vi.hoisted(() => ({
   analyzeEquipmentStl: vi.fn(),
   getEquipmentPrintMaterials: vi.fn(),
   getPrintAnalysis: vi.fn(),
+  recalculatePrintAnalysis: vi.fn(),
+  getPrintAnalysisOrientations: vi.fn(),
 }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), warning: vi.fn() }));
 const preview = vi.hoisted(() => ({ props: [] as Array<Record<string, unknown>> }));
@@ -70,6 +72,9 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver;
+  Element.prototype.scrollIntoView ??= () => {};
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.releasePointerCapture ??= () => {};
 });
 
 afterEach(() => {
@@ -287,6 +292,161 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
     expect((await screen.findByTestId("print-total-time")).textContent).toBe("30 min");
     expect(screen.queryByTestId("print-supports")).toBeNull();
     expect(screen.queryByTestId("print-estimate-breakdown")).toBeNull();
+  });
+});
+
+describe("Print3DBookingPanel orientation and live estimate", () => {
+  const supportDefaults = {
+    technology: "FDM",
+    supports_available: true,
+    modes_selectable: true,
+    density_pct: 12,
+    angle_deg: 45,
+    angle_range: [30, 70],
+  };
+  const breakdown = {
+    technology: "FDM",
+    model_g: 18.2,
+    support_g: 6.2,
+    waste_g: 0.5,
+    total_g: 24.9,
+    model_material_g: 24.9,
+    support_material_g: 0,
+    print_min: 145,
+    support_min: 12,
+    warmup_min: 10,
+    total_min: 155,
+    layers: 400,
+    layer_height_mm: 0.1,
+    infill_percent: 100,
+    support_mode: "buildplate",
+    support_mode_requested: "auto",
+    progress: [0.5, 1],
+    notes: [],
+  };
+  const analysed = {
+    id: "a1",
+    status: "COMPLETED",
+    weight_grams: 25,
+    estimated_time_minutes: 155,
+    material_code_snapshot: "PLA",
+    bounding_box: { size: { x: 40, y: 20, z: 40 } },
+    estimate_breakdown: breakdown,
+  };
+  const turned = [1, 0, 0, 0, 0, -1, 0, 1, 0];
+  const comparison = {
+    analysis_id: "a1",
+    scored_support_mode: "auto",
+    current_index: 0,
+    best_index: 1,
+    candidates: [
+      { label: "As uploaded", kind: "axis", orientation: null, is_current: true, size_mm: [40, 20, 40], fits: true, support_g: 6.2, total_g: 24.9, total_min: 155, height_mm: 40, overhang_area_mm2: 600, support_mode: "buildplate" },
+      { label: "On its front", kind: "axis", orientation: turned, is_current: false, size_mm: [40, 40, 20], fits: true, support_g: 1.1, total_g: 19.8, total_min: 137, height_mm: 20, overhang_area_mm2: 50, support_mode: "buildplate" },
+    ],
+    saving: { support_g: 5.1, total_g: 5.1, total_min: 18 },
+  };
+
+  function setup(limit: typeof LIMIT | null = LIMIT, extra: Record<string, unknown> = {}) {
+    api.getEquipmentPrintMaterials.mockResolvedValue({ data: { materials: [pla], support_defaults: supportDefaults } });
+    api.analyzeEquipmentStl.mockResolvedValue({ data: analysed });
+    api.getPrintAnalysisOrientations.mockResolvedValue({ data: comparison });
+    const onReady = vi.fn();
+    const onSizeBlockChange = vi.fn();
+    const view = render(
+      <Print3DBookingPanel
+        equipmentId={5}
+        materials={[pla]}
+        maxPrintSize={limit}
+        onReady={onReady}
+        onSizeBlockChange={onSizeBlockChange}
+        {...extra}
+      />,
+    );
+    const input = view.container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [stlFile("bracket.stl", boxStl(40, 20, 40))] } });
+    return { onReady, onSizeBlockChange };
+  }
+
+  const lastPreview = () => preview.props[preview.props.length - 1];
+
+  it("shows the supports and the time profile in the preview and saves a rotation with a fresh estimate", async () => {
+    api.recalculatePrintAnalysis.mockResolvedValue({
+      data: {
+        ...analysed,
+        weight_grams: 20,
+        estimated_time_minutes: 137,
+        slicer_settings: { orientation: turned },
+        bounding_box: { size: { x: 40, y: 40, z: 20 } },
+        estimate_breakdown: { ...breakdown, support_g: 1.1, total_g: 19.8, total_min: 137 },
+      },
+    });
+    const { onReady } = setup(LIMIT, { charge: { amount: "1234.5" } });
+    expect(await screen.findByTestId("print-orientation")).toBeTruthy();
+    await waitFor(() =>
+      expect(lastPreview().supports).toEqual({ mode: "buildplate", angleDeg: 45, color: null, summary: "Supports ~6.2 g" }),
+    );
+    expect(lastPreview().timeline).toEqual({ progress: [0.5, 1], printMinutes: 155, warmupMinutes: 10 });
+    expect(lastPreview().orientation).toBeNull();
+    expect(screen.getByTestId("print-estimate-bar").textContent).toContain("₹1,234.50");
+    expect(screen.getByTestId("print-bar-weight").textContent).toContain("supports 6.2 g");
+
+    fireEvent.click(screen.getByTestId("print-rotate-x-plus"));
+    expect(lastPreview().orientation).toEqual(turned);
+    expect(screen.getByTestId("print-orientation-label").textContent).toContain("updating estimate");
+    expect(lastPreview().supports).toMatchObject({ summary: "Supports: updating…" });
+
+    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 2000 });
+    expect(api.recalculatePrintAnalysis).toHaveBeenCalledTimes(1);
+    expect(api.recalculatePrintAnalysis.mock.calls[0][0]).toBe("a1");
+    expect(api.recalculatePrintAnalysis.mock.calls[0][1]).toMatchObject({ material_id: "7", density_percent: 100, orientation: turned });
+    await waitFor(() => expect(screen.getByTestId("print-bar-weight").textContent).toMatch(/^20 g/));
+    const ready = onReady.mock.calls[onReady.mock.calls.length - 1][0];
+    expect(ready.items[0].orientation).toEqual(turned);
+    expect(ready.partsKey).toContain("0.0000,-1.0000");
+    expect(screen.getByTestId("print-part-orientation").textContent).toBe("On its front");
+    expect(lastPreview().orientation).toEqual(turned);
+  });
+
+  it("suggests the least-support orientation and turns the part on request", async () => {
+    api.recalculatePrintAnalysis.mockResolvedValue({ data: { ...analysed, slicer_settings: { orientation: turned } } });
+    setup();
+    const hint = await screen.findByTestId("print-orientation-hint", {}, { timeout: 3000 });
+    expect(hint.textContent).toContain("Turning this part could save 5.1 g of supports and 18 min of print time.");
+    expect(api.getPrintAnalysisOrientations.mock.calls[0][0]).toBe("a1");
+
+    fireEvent.click(screen.getByTestId("print-auto-orient"));
+    expect(screen.getByTestId("print-orientation-saving").textContent).toContain("Support: 6.2 g → 1.1 g, time −18 min");
+    expect(api.getPrintAnalysisOrientations).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("print-orientation-use-best"));
+    expect(lastPreview().orientation).toEqual(turned);
+    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 2000 });
+    expect(api.recalculatePrintAnalysis.mock.calls[0][1].orientation).toEqual(turned);
+  });
+
+  it("blocks booking when the turned part no longer fits the printer", async () => {
+    api.recalculatePrintAnalysis.mockResolvedValue({
+      data: { ...analysed, slicer_settings: { orientation: turned }, bounding_box: { size: { x: 300, y: 40, z: 20 } } },
+    });
+    const { onSizeBlockChange } = setup({ ...LIMIT, allow_rotation: false });
+    fireEvent.click(await screen.findByTestId("print-rotate-x-plus"));
+    expect((await screen.findByTestId("print-orientation-size-error", {}, { timeout: 2000 })).textContent).toContain(
+      "bracket.stl turned this way is 300 × 40 × 20 mm",
+    );
+    expect(onSizeBlockChange).toHaveBeenLastCalledWith(expect.stringContaining("Choose another orientation."));
+
+    api.recalculatePrintAnalysis.mockResolvedValue({ data: { ...analysed, slicer_settings: {} } });
+    fireEvent.click(screen.getByTestId("print-orientation-reset"));
+    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith(null), { timeout: 2000 });
+    expect(api.recalculatePrintAnalysis.mock.calls[1][1].orientation).toBeNull();
+  });
+
+  it("does not look for a better orientation when supports are off", async () => {
+    setup();
+    await screen.findByTestId("print-orientation");
+    fireEvent.click(screen.getByTestId("print-support-mode"));
+    fireEvent.click(await screen.findByRole("option", { name: "None" }));
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(screen.queryByTestId("print-orientation-hint")).toBeNull();
   });
 });
 

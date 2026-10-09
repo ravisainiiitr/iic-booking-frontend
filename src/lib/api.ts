@@ -346,7 +346,10 @@ export interface FabricationPart {
   /** 3D print: support choice used for the estimate (absent on bookings made before supports existed). */
   support_mode?: PrintSupportMode;
   support_mode_label?: string;
+  /** 3D print: placement on the plate chosen by the user (3×3 rotation, row-major, STL axes); absent = as uploaded. */
+  orientation?: number[];
   support_g_each?: number | null;
+  support_angle_deg?: number | null;
   /** Set only when supports are printed (and charged) in a separate material. */
   support_material_code?: string;
   support_weight_g_each?: number | null;
@@ -504,6 +507,8 @@ export interface PrintAnalysisResult {
     support_angle_deg?: number;
     support_material_id?: number;
     support_material_code?: string;
+    /** Placement on the plate (3×3 rotation, row-major, STL axes); absent = as uploaded. */
+    orientation?: number[];
     [key: string]: unknown;
   };
   /** Model breakdown of one copy (null for files estimated before the breakdown existed). */
@@ -548,6 +553,8 @@ export interface PrintEstimateBreakdown {
   support_material_code?: string;
   overhang_area_mm2?: number;
   overhang_plate_mm2?: number;
+  /** Cumulative share (0–1) of the print time after each equal slice of the height (after warm-up). */
+  progress?: number[];
   notes?: string[];
 }
 
@@ -578,6 +585,35 @@ export interface PrintEstimatePreview {
   estimated_time_minutes: number;
   quantity: number;
   estimate_breakdown: PrintEstimateBreakdown;
+  orientation?: number[] | null;
+  size_mm?: number[];
+}
+
+/** One way of placing an STL on the plate, from `GET /print-analyses/<id>/orientations/`. */
+export interface PrintOrientationCandidate {
+  label: string;
+  kind: "current" | "axis" | "face";
+  /** null = as uploaded. */
+  orientation: number[] | null;
+  is_current: boolean;
+  size_mm: number[];
+  fits: boolean;
+  support_g: number;
+  total_g: number;
+  total_min: number;
+  height_mm: number;
+  overhang_area_mm2: number;
+  support_mode: string;
+}
+
+export interface PrintOrientationComparison {
+  analysis_id: string;
+  scored_support_mode: string;
+  current_index: number;
+  best_index: number;
+  candidates: PrintOrientationCandidate[];
+  /** Best vs current (positive = saved). */
+  saving: { support_g: number; total_g: number; total_min: number };
 }
 
 function appendSupportSettings(target: FormData | URLSearchParams, supports?: PrintSupportSettings | null) {
@@ -5238,6 +5274,8 @@ class ApiClient {
       density_percent?: number;
       infill_percent?: number;
       supports?: PrintSupportSettings | null;
+      /** Placement on the plate (9 numbers); null = as uploaded; omitted = keep the saved one. */
+      orientation?: number[] | null;
     },
   ) {
     const density = params.density_percent ?? params.infill_percent;
@@ -5247,12 +5285,32 @@ class ApiClient {
         material_id: params.material_id,
         density_percent: density,
         ...supportSettingsBody(params.supports),
+        ...(params.orientation !== undefined ? { orientation: params.orientation } : {}),
       }),
     });
   }
 
   /** Read-only estimate of one analysed STL for other settings; nothing is saved (also for booked files). */
   async getPrintAnalysisEstimate(
+    analysisId: string,
+    params: {
+      material_id?: string | number;
+      density_percent?: number;
+      supports?: PrintSupportSettings | null;
+      orientation?: number[] | null;
+    } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.material_id != null && params.material_id !== "") qs.append("material_id", String(params.material_id));
+    if (params.density_percent != null) qs.append("density_percent", String(params.density_percent));
+    appendSupportSettings(qs, params.supports);
+    if (params.orientation !== undefined) qs.append("orientation", params.orientation ? params.orientation.join(",") : "");
+    const q = qs.toString();
+    return this.request<PrintEstimatePreview>(`/print-analyses/${analysisId}/estimate/${q ? `?${q}` : ""}`);
+  }
+
+  /** Compare ways of placing an analysed STL on the plate and suggest the one needing the least support. */
+  async getPrintAnalysisOrientations(
     analysisId: string,
     params: { material_id?: string | number; density_percent?: number; supports?: PrintSupportSettings | null } = {},
   ) {
@@ -5261,7 +5319,7 @@ class ApiClient {
     if (params.density_percent != null) qs.append("density_percent", String(params.density_percent));
     appendSupportSettings(qs, params.supports);
     const q = qs.toString();
-    return this.request<PrintEstimatePreview>(`/print-analyses/${analysisId}/estimate/${q ? `?${q}` : ""}`);
+    return this.request<PrintOrientationComparison>(`/print-analyses/${analysisId}/orientations/${q ? `?${q}` : ""}`);
   }
 
   /** Download proforma invoice PDF (IIT Roorkee letterhead, user details, date/time, disclaimer). */

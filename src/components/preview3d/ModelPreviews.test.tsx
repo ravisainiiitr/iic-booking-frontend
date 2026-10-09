@@ -375,4 +375,22 @@ describe("BookedStlPreview", () => {
     expect(three.buildPrintScene.mock.calls[0][5]).toEqual({ overLimit: false });
     expect(screen.queryByTestId("stl-preview-too-large")).toBeNull();
   });
+
+  it("opens a booked part in the user's orientation with its supports", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValue({ buffer: boxStl(40, 20, 5) });
+    const oriented: FabricationPart = {
+      ...part(1),
+      orientation: [0, 0, 1, 0, 1, 0, -1, 0, 0],
+      support_mode: "buildplate",
+      support_g_each: 2.4,
+      support_angle_deg: 50,
+    };
+    render(<BookedStlPreview parts={[oriented]} maxPrintSize={{ x: 256, y: 256, z: 256 }} />);
+    expect((await screen.findByTestId("stl-preview-orientation-note")).textContent).toBe("User-selected orientation");
+    expect((await screen.findByTestId("stl-preview-size")).textContent).toContain("5 × 20 × 40 mm");
+    expect(screen.getByTestId("stl-preview-supports").textContent).toContain("Supports ~2.4 g");
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    expect(three.buildPrintScene.mock.calls.at(-1)[5]).toMatchObject({ overLimit: false, supports: expect.any(Object) });
+  });
 });

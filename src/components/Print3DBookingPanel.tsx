@@ -13,15 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatINRAmount } from "@/lib/money";
 import {
   apiClient,
   type PrintAnalysisBatchResult,
   type PrintAnalysisResult,
   type PrintEstimateBreakdown,
   type PrintMaterial,
+  type PrintOrientationComparison,
   type PrintSupportDefaults,
   type PrintSupportMode,
   type PrintSupportSettings,
@@ -34,6 +35,7 @@ import {
   printEstimateSummary,
   sumPrintEstimates,
   supportModeSummary,
+  type PrintEstimateTotals,
 } from "@/lib/printEstimate";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
@@ -46,13 +48,42 @@ import {
 } from "@/lib/ownMaterialSizing";
 import {
   checkStlSize,
+  fitsPrintSize,
+  formatPrintSize,
   formatPrintSizeLimit,
   previewBedSize,
   printSizeLimitFrom,
   type MaxPrintSizePayload,
+  type PrintSizeLimit,
+  type Size3,
   type StlSizeCheck,
 } from "@/lib/printSizeLimit";
-import { AlertTriangle, ChevronLeft, ChevronRight, FileUp, Ruler, Upload, X } from "lucide-react";
+import {
+  describeOrientation,
+  largestFlatFace,
+  layFlat,
+  normalizeOrientation,
+  orientationKey,
+  sameOrientation,
+  type Orientation,
+  type Vec3,
+} from "@/lib/preview3d/orientation";
+import type { StlMeshData } from "@/lib/preview3d/stlMesh";
+import type { SupportViewMode } from "@/lib/preview3d/supportGeometry";
+import { PrintOrientationControls, orientationHint } from "@/components/PrintOrientationControls";
+import { StlThumbnail } from "@/components/preview3d/StlThumbnail";
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  FileUp,
+  Lightbulb,
+  Loader2,
+  Ruler,
+  Upload,
+  X,
+} from "lucide-react";
 
 // three.js viewer: loaded only when a model is previewed (this module is also imported for helpers).
 const StlModelPreview = lazy(() =>
@@ -61,6 +92,8 @@ const StlModelPreview = lazy(() =>
 
 const MAX_STL_BYTES = 100 * 1024 * 1024;
 const SETTINGS_RECALC_DEBOUNCE_MS = 400;
+const ORIENTATION_SAVE_DEBOUNCE_MS = 500;
+const ORIENTATION_HINT_DELAY_MS = 800;
 const DEFAULT_DENSITY = 100;
 const MIN_DENSITY = 20;
 
@@ -96,6 +129,10 @@ export interface Print3DFileItem {
   breakdown?: PrintEstimateBreakdown | null;
   /** Model size from the analysis ("X × Y × Z mm"), when known. */
   modelSize?: string | null;
+  /** Placement on the plate chosen by the user (3×3 rotation, STL axes); null = as uploaded. */
+  orientation?: number[] | null;
+  /** W × D × H of the model as placed (from the server analysis). */
+  sizeMm?: Size3 | null;
 }
 
 export interface Print3DBookingValues {
@@ -136,6 +173,8 @@ interface Print3DBookingPanelProps {
   onUpdatingChange?: (updating: boolean) => void;
   /** Why the chosen file(s) cannot be booked (larger than the printer's maximum print size), or null. */
   onSizeBlockChange?: (message: string | null) => void;
+  /** Charge worked out by the page for the current files (shown in the estimate summary). */
+  charge?: { amount: string | number | null; loading?: boolean } | null;
   disabled?: boolean;
 }
 
@@ -151,6 +190,9 @@ export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename
   const timeEach = Number(a.estimated_time_minutes ?? 0);
   const breakdown = a.estimate_breakdown ?? null;
   const supportCode = breakdown?.support_material_code || "";
+  const rawOrientation = a.slicer_settings?.orientation;
+  const size = (a.bounding_box as { size?: Record<string, unknown> } | undefined)?.size;
+  const sizeMm = size ? ([Number(size.x), Number(size.y), Number(size.z)] as Size3) : null;
   return {
     id: a.id,
     filename,
@@ -165,7 +207,18 @@ export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename
     supportMaterialCode: supportCode,
     breakdown,
     modelSize: printModelSize(a.bounding_box),
+    orientation: Array.isArray(rawOrientation) ? normalizeOrientation(rawOrientation.map(Number)) : null,
+    sizeMm: sizeMm && sizeMm.every((v) => Number.isFinite(v)) ? sizeMm : null,
   };
+}
+
+/** Too-large message for a part the user turned (the server refuses to book it). */
+export function orientedSizeError(item: Print3DFileItem, limit: PrintSizeLimit | null): string | null {
+  if (!limit || !item.orientation || !item.sizeMm || fitsPrintSize(item.sizeMm, limit)) return null;
+  return (
+    `${item.filename} turned this way is ${formatPrintSize(item.sizeMm)} (W × D × H), larger than this printer's ` +
+    `maximum print size of ${formatPrintSizeLimit(limit)}. Choose another orientation.`
+  );
 }
 
 export const COPIES_DRAFT_ERROR = "Number of copies must be a whole number of at least 1.";
@@ -288,6 +341,7 @@ export function Print3DBookingPanel({
   onAnalyzingChange,
   onUpdatingChange,
   onSizeBlockChange,
+  charge,
   disabled,
 }: Print3DBookingPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -351,6 +405,21 @@ export function Print3DBookingPanel({
   const supportSettingsRef = useRef(supportSettings);
   supportSettingsRef.current = supportSettings;
   const supportKey = JSON.stringify(supportSettings);
+  // Orientation per part: drawn at once, saved (and re-estimated) after a short pause.
+  const [orientationDrafts, setOrientationDrafts] = useState<Record<string, Orientation>>({});
+  const [orientingIds, setOrientingIds] = useState<Set<string>>(new Set());
+  const orientationTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [pickFace, setPickFace] = useState(false);
+  const [placedMesh, setPlacedMesh] = useState<StlMeshData | null>(null);
+  const [comparison, setComparison] = useState<{
+    key: string;
+    data: PrintOrientationComparison | null;
+    error: string | null;
+  } | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const analysisRef = useRef<PrintAnalysisResult | null>(null);
+  const batchRef = useRef<PrintAnalysisBatchResult | null>(null);
 
   const sizeLimit = useMemo(
     () => printSizeLimitFrom(maxPrintSize !== undefined ? maxPrintSize : fetchedMaxPrintSize),
@@ -360,22 +429,13 @@ export function Print3DBookingPanel({
   const sizeErrors = sizeChecks.filter((c) => c.error);
   const sizeWarnings = sizeChecks.filter((c) => c.warning);
   const tooLarge = sizeErrors.length > 0;
-  const sizeBlock = printSizeBlockMessage(
-    sizeErrors.map((c) => c.error as string),
-    serverSizeError,
-  );
-
-  useEffect(() => {
-    onSizeBlockChange?.(sizeBlock);
-  }, [sizeBlock, onSizeBlockChange]);
-
-  useEffect(() => () => onSizeBlockChange?.(null), [onSizeBlockChange]);
 
   const ownMaterialAvailable =
     ownMaterialCharge !== null && ownMaterialCharge !== undefined && String(ownMaterialCharge) !== "";
 
   const busy = analyzingStl || recalculating;
-  const updating = savingPartIds.size > 0 || pendingQtyIds.size > 0;
+  const orienting = orientingIds.size > 0 || Object.keys(orientationDrafts).length > 0;
+  const updating = savingPartIds.size > 0 || pendingQtyIds.size > 0 || orienting;
   const qtyDraftInvalid = Object.values(partDrafts).some((d) => parseWholeQuantity(d.qty) === null);
   /** While copies are being typed or saved, the booking page gets no values, so no stale charge is shown. */
   const holdReady = updating || qtyDraftInvalid;
@@ -488,6 +548,23 @@ export function Print3DBookingPanel({
     if (analysis?.status === "COMPLETED") return [print3DItemFromAnalysis(analysis, file?.name)];
     return [];
   }, [analysis, batch, file?.name]);
+  analysisRef.current = analysis;
+  batchRef.current = batch;
+
+  const orientedSizeErrors = useMemo(
+    () => completedItems.map((i) => orientedSizeError(i, sizeLimit)).filter((e): e is string => !!e),
+    [completedItems, sizeLimit],
+  );
+  const sizeBlock = printSizeBlockMessage(
+    [...sizeErrors.map((c) => c.error as string), ...orientedSizeErrors],
+    serverSizeError,
+  );
+
+  useEffect(() => {
+    onSizeBlockChange?.(sizeBlock);
+  }, [sizeBlock, onSizeBlockChange]);
+
+  useEffect(() => () => onSizeBlockChange?.(null), [onSizeBlockChange]);
 
   const clearReady = useCallback(() => {
     lastReadyRef.current = null;
@@ -523,7 +600,14 @@ export function Print3DBookingPanel({
         partsKey: JSON.stringify([
           own,
           materialCode,
-          items.map((i) => [i.id, i.quantity, i.weightGramsEach, i.timeMinutesEach, i.supportWeightGramsEach ?? 0]),
+          items.map((i) => [
+            i.id,
+            i.quantity,
+            i.weightGramsEach,
+            i.timeMinutesEach,
+            i.supportWeightGramsEach ?? 0,
+            orientationKey(i.orientation),
+          ]),
           supportCode,
         ]),
         ownMaterial: own,
@@ -865,6 +949,98 @@ export function Print3DBookingPanel({
     };
   }, [density, materialId, supportKey, analyzingStl, disabled]);
 
+  /** Put one re-estimated file back into the single analysis or the batch. */
+  const mergeAnalysisResult = useCallback(
+    (updated: PrintAnalysisResult) => {
+      const code = lastReadyRef.current?.code || updated.material_code_snapshot || "";
+      const currentBatch = batchRef.current;
+      if (currentBatch) {
+        const nextBatch = {
+          ...currentBatch,
+          items: currentBatch.items.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)),
+        };
+        batchRef.current = nextBatch;
+        setBatch(nextBatch);
+        if (code) applyReadyValues(buildItemsFromBatch(nextBatch), code);
+        return;
+      }
+      if (analysisRef.current?.id === updated.id) {
+        analysisRef.current = updated;
+        setAnalysis(updated);
+        if (code) applyReadyValues([print3DItemFromAnalysis(updated, file?.name)], code);
+      }
+    },
+    [applyReadyValues, file?.name],
+  );
+
+  const dropOrientationDraft = (itemId: string, sent: Orientation) =>
+    setOrientationDrafts((d) => {
+      if (!(itemId in d) || !sameOrientation(d[itemId], sent)) return d;
+      const next = { ...d };
+      delete next[itemId];
+      return next;
+    });
+
+  const saveOrientation = async (itemId: string, next: Orientation) => {
+    if (!materialId) {
+      dropOrientationDraft(itemId, next);
+      return;
+    }
+    setOrientingIds((s) => new Set(s).add(itemId));
+    try {
+      const res = await apiClient.recalculatePrintAnalysis(itemId, {
+        material_id: materialId,
+        density_percent: density,
+        supports: supportSettingsRef.current,
+        orientation: next,
+      });
+      if (res.error || !res.data) {
+        toast.error(res.error || "Could not update the estimate for this orientation.");
+        return;
+      }
+      mergeAnalysisResult(res.data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update the estimate for this orientation.");
+    } finally {
+      dropOrientationDraft(itemId, next);
+      setOrientingIds((s) => {
+        const rest = new Set(s);
+        rest.delete(itemId);
+        return rest;
+      });
+    }
+  };
+  const saveOrientationRef = useRef(saveOrientation);
+  saveOrientationRef.current = saveOrientation;
+
+  const changeOrientation = useCallback((itemId: string, next: Orientation) => {
+    const value = normalizeOrientation(next);
+    setOrientationDrafts((d) => ({ ...d, [itemId]: value }));
+    setPickFace(false);
+    const timers = orientationTimersRef.current;
+    if (timers[itemId]) clearTimeout(timers[itemId]);
+    timers[itemId] = setTimeout(() => {
+      delete timers[itemId];
+      void saveOrientationRef.current(itemId, value);
+    }, ORIENTATION_SAVE_DEBOUNCE_MS);
+  }, []);
+
+  const resetOrientationState = () => {
+    for (const t of Object.values(orientationTimersRef.current)) clearTimeout(t);
+    orientationTimersRef.current = {};
+    setOrientationDrafts({});
+    setPickFace(false);
+    setComparison(null);
+    setShowComparison(false);
+  };
+
+  useEffect(
+    () => () => {
+      for (const t of Object.values(orientationTimersRef.current)) clearTimeout(t);
+    },
+    [],
+  );
+
   const onFileSelected = async (selected: File | null) => {
     if (!selected) return;
     const lower = selected.name.toLowerCase();
@@ -880,6 +1056,7 @@ export function Print3DBookingPanel({
     }
     skipSettingsRecalcRef.current = true;
     pollRef.current?.cancel();
+    resetOrientationState();
     setIsZipUpload(zip);
     setFile(selected);
     setZipStlEntries([]);
@@ -940,6 +1117,7 @@ export function Print3DBookingPanel({
     cancelQtyEdits();
     setSizeChecks([]);
     setServerSizeError(null);
+    resetOrientationState();
     clearReady();
     if (inputRef.current) inputRef.current.value = "";
   };
@@ -989,6 +1167,112 @@ export function Print3DBookingPanel({
     (analysis?.slicer_settings ?? batch?.slicer_settings)?.layer_height_mm,
   );
   const previewColor = (selectedMaterial as { color?: string; colour?: string; color_hex?: string } | undefined);
+  const currentItemId = currentPreviewItem?.id ?? null;
+  const currentDraftPending = !!currentItemId && currentItemId in orientationDrafts;
+  const currentOrientation: Orientation = currentPreviewItem
+    ? currentDraftPending
+      ? orientationDrafts[currentPreviewItem.id]
+      : currentPreviewItem.orientation ?? null
+    : null;
+  const largestFace = useMemo(() => (placedMesh ? largestFlatFace(placedMesh.positions) : null), [placedMesh]);
+  const orientationEnabled = !!currentPreviewItem && !analyzingStl && !disabled;
+
+  const comparisonKey = currentPreviewItem
+    ? [currentPreviewItem.id, orientationKey(currentPreviewItem.orientation), materialId, density, supportKey].join("|")
+    : "";
+  const comparisonKeyRef = useRef(comparisonKey);
+  comparisonKeyRef.current = comparisonKey;
+  const fetchComparison = useCallback(async () => {
+    const key = comparisonKeyRef.current;
+    const itemId = key.split("|")[0];
+    if (!itemId) return;
+    setComparing(true);
+    try {
+      const res = await apiClient.getPrintAnalysisOrientations(itemId, {
+        material_id: materialId,
+        density_percent: density,
+        supports: supportSettingsRef.current,
+      });
+      if (comparisonKeyRef.current !== key) return;
+      setComparison({ key, data: res.data ?? null, error: res.data ? null : res.error || "Could not compare orientations." });
+    } catch (e) {
+      if (comparisonKeyRef.current === key) {
+        setComparison({ key, data: null, error: e instanceof Error ? e.message : "Could not compare orientations." });
+      }
+    } finally {
+      setComparing(false);
+    }
+  }, [density, materialId]);
+  const currentComparison = comparison?.key === comparisonKey ? comparison : null;
+
+  // Look for a better orientation in the background once the part is estimated (drives the hint).
+  useEffect(() => {
+    const wanted = supportsAvailable && supportMode !== "none";
+    if (!comparisonKey || !wanted || busy || updating || comparison?.key === comparisonKey) return;
+    const timer = setTimeout(() => void fetchComparison(), ORIENTATION_HINT_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [comparisonKey, supportsAvailable, supportMode, busy, updating, comparison?.key, fetchComparison]);
+
+  const onCompare = () => {
+    if (!currentComparison?.data) void fetchComparison();
+  };
+  const hint =
+    !showComparison && !currentDraftPending && supportMode !== "none"
+      ? orientationHint(currentComparison?.data ?? null)
+      : null;
+  const applySuggested = () => {
+    const data = currentComparison?.data;
+    if (!data || !currentPreviewItem) return;
+    changeOrientation(currentPreviewItem.id, data.candidates[data.best_index]?.orientation ?? null);
+  };
+
+  const previewBreakdown = currentPreviewItem?.breakdown ?? null;
+  const previewSupports = useMemo(() => {
+    if (!supportsAvailable) return null;
+    let mode: SupportViewMode;
+    if (!supportModesSelectable) mode = (previewBreakdown?.support_mode as SupportViewMode | undefined) ?? "everywhere";
+    else if (supportMode !== "auto") mode = supportMode;
+    else mode = previewBreakdown && !currentDraftPending ? (previewBreakdown.support_mode as SupportViewMode) : "buildplate";
+    const angle = supportAngle ?? previewBreakdown?.support_angle_deg ?? defaultSupportAngle;
+    const supportG = previewBreakdown?.support_g ?? 0;
+    const summary =
+      currentDraftPending || orientingIds.has(currentItemId ?? "")
+        ? "Supports: updating…"
+        : previewBreakdown && supportG > 0.05
+          ? `Supports ~${supportG < 10 ? supportG.toFixed(1) : Math.round(supportG)} g${
+              previewBreakdown.support_material_code ? ` (${previewBreakdown.support_material_code})` : ""
+            }`
+          : null;
+    return {
+      mode,
+      angleDeg: angle,
+      color: supportMaterialId !== "same" ? "#f59e0b" : null,
+      summary,
+    };
+  }, [
+    supportsAvailable,
+    supportModesSelectable,
+    supportMode,
+    previewBreakdown,
+    currentDraftPending,
+    supportAngle,
+    defaultSupportAngle,
+    orientingIds,
+    currentItemId,
+    supportMaterialId,
+  ]);
+  const previewTimeline = previewBreakdown
+    ? {
+        progress: previewBreakdown.progress ?? null,
+        printMinutes: previewBreakdown.total_min,
+        warmupMinutes: previewBreakdown.warmup_min,
+      }
+    : currentPreviewItem
+      ? { printMinutes: currentPreviewItem.timeMinutesEach }
+      : null;
+  const onFacePicked = (normal: Vec3) => {
+    if (currentPreviewItem) changeOrientation(currentPreviewItem.id, layFlat(currentOrientation, normal));
+  };
 
   useEffect(() => {
     setPreviewIndex(initialPreviewIndexRef.current);
@@ -1000,54 +1284,49 @@ export function Print3DBookingPanel({
     setPreviewIndex(Math.max(0, Math.min(index, previewEntries.length - 1)));
   };
 
-  return (
-    <Card className="mb-6 border-primary/20">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">3D model upload</CardTitle>
-        <CardDescription>
-          Upload a single STL or a ZIP containing multiple STL files. Changing material or density
-          updates weight and time instantly without re-uploading.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm font-bold text-amber-900">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
-        <div className="space-y-2">
-          <Label>Material</Label>
-          <Select value={materialId} onValueChange={setMaterialId} disabled={disabled || analyzingStl}>
-            <SelectTrigger>
-              <SelectValue placeholder={materials.length ? "Select material" : "No materials configured"} />
-            </SelectTrigger>
-            <SelectContent>
-              {materials.map((m) => (
-                <SelectItem key={m.id} value={String(m.id)}>
-                  {m.name} — ₹{m.price_per_gram}/g
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {materialsLoaded && materials.length === 0 && (
-            <p className="text-sm text-destructive" role="alert" data-testid="print-no-materials">
-              {NO_FABRICATION_MATERIALS_MESSAGE}
-            </p>
-          )}
-        </div>
+  const hasParts = completedItems.length > 0;
+  const materialSection = (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="print-material">Material</Label>
+        <Select value={materialId} onValueChange={setMaterialId} disabled={disabled || analyzingStl}>
+          <SelectTrigger id="print-material">
+            <SelectValue placeholder={materials.length ? "Select material" : "No materials configured"} />
+          </SelectTrigger>
+          <SelectContent>
+            {materials.map((m) => (
+              <SelectItem key={m.id} value={String(m.id)}>
+                {m.name} — ₹{m.price_per_gram}/g
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {materialsLoaded && materials.length === 0 && (
+          <p className="text-sm text-destructive" role="alert" data-testid="print-no-materials">
+            {NO_FABRICATION_MATERIALS_MESSAGE}
+          </p>
+        )}
+      </div>
 
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <Label>Density</Label>
-            <span className="text-sm text-muted-foreground">{density}%</span>
-          </div>
-          <Slider
-            min={MIN_DENSITY}
-            max={100}
-            step={5}
-            value={[density]}
-            onValueChange={([v]) => setDensity(v)}
-            disabled={disabled || analyzingStl}
-          />
+      <div className="space-y-3">
+        <div className="flex justify-between">
+          <Label>Density</Label>
+          <span className="text-sm text-muted-foreground">{density}%</span>
         </div>
+        <Slider
+          min={MIN_DENSITY}
+          max={100}
+          step={5}
+          value={[density]}
+          onValueChange={([v]) => setDensity(v)}
+          disabled={disabled || analyzingStl}
+          aria-label="Density"
+        />
+      </div>
+    </>
+  );
 
-        {supportsAvailable && (
+  const supportsSection = supportsAvailable ? (
           <div className="space-y-3 rounded-md border p-3" data-testid="print-supports">
             <div className="space-y-2">
               <Label htmlFor="print-support-mode">Supports</Label>
@@ -1178,8 +1457,22 @@ export function Print3DBookingPanel({
               </div>
             )}
           </div>
-        )}
+  ) : null;
 
+  return (
+    <Card className="mb-6 border-primary/20" data-testid="print-3d-panel">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg">3D print: upload, orient and estimate</CardTitle>
+        <CardDescription>
+          Upload a single STL or a ZIP of several STL files, place each part on the printer&apos;s plate the way it
+          should be printed, then pick the material. Weight, supports, time and charges update as you go.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <p className="text-sm font-bold text-amber-900">{PRINT_3D_TENTATIVE_CHARGE_NOTE}</p>
+
+        <section className="space-y-4" aria-labelledby="print-step-upload">
+        <PrintStepHeading id="print-step-upload" step={1} title="Upload your model" done={!!file && !tooLarge && !serverSizeError} />
         {sizeLimit && (
           <p className="flex items-start gap-2 text-sm text-muted-foreground" data-testid="print-max-size">
             <Ruler className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -1305,9 +1598,53 @@ export function Print3DBookingPanel({
             <Progress value={progress} className="h-2" />
           </div>
         )}
+        </section>
 
+        <section className="space-y-4" aria-labelledby="print-step-orient">
+        <PrintStepHeading
+          id="print-step-orient"
+          step={2}
+          title="Orient & supports"
+          done={hasParts && !orientedSizeErrors.length}
+          detail={previewEntries.length ? undefined : "Upload a model to see it on the printer's plate."}
+        />
+        {orientedSizeErrors.length > 0 && (
+          <div
+            role="alert"
+            data-testid="print-orientation-size-error"
+            className="flex gap-2 rounded-md border border-destructive-border bg-destructive-subtle p-3 text-sm text-destructive-subtle-foreground"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <ul className="space-y-1">
+              {orientedSizeErrors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {hint && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-info-border bg-info-subtle p-3 text-sm text-info-subtle-foreground"
+            data-testid="print-orientation-hint"
+            role="status"
+          >
+            <span className="flex items-start gap-2">
+              <Lightbulb className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {hint}
+            </span>
+            <span className="flex gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowComparison(true)}>
+                Compare
+              </Button>
+              <Button type="button" size="sm" onClick={applySuggested} disabled={!orientationEnabled}>
+                Turn it
+              </Button>
+            </span>
+          </div>
+        )}
+        <div className={cn("grid gap-4", previewEntries.length > 0 && "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
         {previewEntries.length > 0 && (
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {previewEntries.length > 1 && (
               <div className="flex items-center gap-2">
                 <Button
@@ -1368,15 +1705,63 @@ export function Print3DBookingPanel({
                       }
                     : null
                 }
+                orientation={currentOrientation}
+                sizeLimit={sizeLimit}
+                supports={previewSupports}
+                timeline={previewTimeline}
+                pickFace={pickFace && orientationEnabled}
+                onFacePicked={onFacePicked}
+                onMeshReady={setPlacedMesh}
               />
             </Suspense>
           </div>
         )}
+        <div className="space-y-4">
+          {currentPreviewItem ? (
+            <PrintOrientationControls
+              orientation={currentOrientation}
+              onChange={(next) => changeOrientation(currentPreviewItem.id, next)}
+              largestFace={largestFace}
+              pickFace={pickFace}
+              onPickFaceChange={setPickFace}
+              comparison={currentComparison?.data ?? null}
+              comparing={comparing}
+              compareError={currentComparison?.error ?? null}
+              onCompare={onCompare}
+              showComparison={showComparison}
+              onShowComparisonChange={setShowComparison}
+              saving={currentDraftPending || orientingIds.has(currentPreviewItem.id)}
+              disabled={!orientationEnabled}
+            />
+          ) : (
+            previewEntries.length > 0 &&
+            !tooLarge &&
+            !serverSizeError && (
+              <p className="text-sm text-muted-foreground" data-testid="print-orientation-waiting">
+                You can turn the part to need fewer supports once it is analysed.
+              </p>
+            )
+          )}
+          {supportsSection}
+        </div>
+        </div>
+        </section>
 
-        {completedItems.length > 0 && !analyzingStl && !recalculating && (
+        <section className="space-y-4" aria-labelledby="print-step-material">
+          <PrintStepHeading id="print-step-material" step={3} title="Material & settings" done={hasParts && !!materialId} />
+          {materialSection}
+        </section>
+
+        <section className="space-y-4" aria-labelledby="print-step-estimate">
+        <PrintStepHeading
+          id="print-step-estimate"
+          step={4}
+          title="Estimate & charges"
+          detail={hasParts ? undefined : "Weight, print time and charges appear once the model is analysed."}
+        />
+        {completedItems.length > 0 && !analyzingStl && (
           <>
-            <Separator />
-            <div className="space-y-2" data-testid="print-parts">
+            <div className={cn("space-y-2 transition-opacity", recalculating && "opacity-60")} data-testid="print-parts" aria-busy={recalculating}>
               <p className="text-sm font-medium">
                 {completedItems.length > 1 ? `Parts (${completedItems.length})` : "Part"}
               </p>
@@ -1387,12 +1772,30 @@ export function Print3DBookingPanel({
                   const previewIdx = zipIdx >= 0 ? zipIdx : idx;
                   const canPreview = isZipUpload && zipStlEntries.length > 1;
                   const isActive = canPreview && previewIdx === previewIndex;
+                  const itemOrientation = item.id in orientationDrafts ? orientationDrafts[item.id] : item.orientation ?? null;
                   return (
                     <div
                       key={item.id}
                       data-testid={`print-part-${item.id}`}
-                      className={cn("space-y-2 p-3", isActive && "bg-primary/10")}
+                      className={cn("flex gap-3 p-3", isActive && "bg-primary/10")}
                     >
+                      <button
+                        type="button"
+                        className={cn(
+                          "h-14 w-14 shrink-0 overflow-hidden rounded-md border bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          (isActive || !canPreview) && "border-primary/50",
+                        )}
+                        onClick={() => goToPreview(previewIdx)}
+                        aria-label={`Show ${item.partName} in the 3D preview`}
+                        data-testid={`print-part-thumb-${item.id}`}
+                      >
+                        <StlThumbnail
+                          buffer={previewEntries[previewIdx]?.buffer ?? null}
+                          orientation={itemOrientation}
+                          color={previewColor?.color_hex ?? previewColor?.color ?? previewColor?.colour ?? null}
+                        />
+                      </button>
+                      <div className="min-w-0 flex-1 space-y-2">
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem]">
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground" htmlFor={`print-part-name-${item.id}`}>
@@ -1438,10 +1841,12 @@ export function Print3DBookingPanel({
                             × {item.quantity} = {formatPrintWeightGrams(item.weightGrams)} · {item.timeMinutes} min
                           </span>
                         )}
-                        {(savingPartIds.has(item.id) || pendingQtyIds.has(item.id)) && (
+                        {itemOrientation && <span data-testid="print-part-orientation">{describeOrientation(itemOrientation)}</span>}
+                        {(savingPartIds.has(item.id) || pendingQtyIds.has(item.id) || orientingIds.has(item.id)) && (
                           <span data-testid="print-part-updating">Updating…</span>
                         )}
                       </p>
+                      </div>
                     </div>
                   );
                 })}
@@ -1564,7 +1969,124 @@ export function Print3DBookingPanel({
             {analysis?.error_message || batch?.error_message || "Analysis failed"}
           </p>
         )}
+        </section>
+
+        {hasParts && (
+          <PrintEstimateBar
+            weightGrams={totals.weight}
+            supportWeightGrams={totals.supportWeight}
+            supportCode={supportCode}
+            timeMinutes={totals.time}
+            totals={estimateTotals}
+            updating={busy || holdReady}
+            charge={charge}
+            ownMaterial={ownMaterial}
+          />
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function PrintStepHeading({
+  id,
+  step,
+  title,
+  done,
+  detail,
+}: {
+  id: string;
+  step: number;
+  title: string;
+  done?: boolean;
+  detail?: string;
+}) {
+  return (
+    <div className="space-y-1 border-b pb-2">
+      <h3 id={id} className="flex items-center gap-2 text-sm font-semibold">
+        <span
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums",
+            done ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40 text-muted-foreground",
+          )}
+          aria-hidden
+        >
+          {done ? <Check className="h-3.5 w-3.5" /> : step}
+        </span>
+        <span>
+          <span className="sr-only">Step {step}: </span>
+          {title}
+        </span>
+      </h3>
+      {detail && <p className="pl-8 text-xs text-muted-foreground">{detail}</p>}
+    </div>
+  );
+}
+
+/** Always-visible running estimate (sticks to the bottom of the screen while the user works on the part). */
+export function PrintEstimateBar({
+  weightGrams,
+  supportWeightGrams,
+  supportCode,
+  timeMinutes,
+  totals,
+  updating,
+  charge,
+  ownMaterial,
+}: {
+  weightGrams: number;
+  supportWeightGrams: number;
+  supportCode: string;
+  timeMinutes: number;
+  totals: PrintEstimateTotals | null;
+  updating: boolean;
+  charge?: { amount: string | number | null; loading?: boolean } | null;
+  ownMaterial: boolean;
+}) {
+  const split = totals
+    ? [
+        `model ${Math.round(totals.modelG * 10) / 10} g`,
+        totals.supportG > 0.05 ? `supports ${Math.round(totals.supportG * 10) / 10} g` : null,
+        totals.wasteG > 0.05 ? `waste ${Math.round(totals.wasteG * 10) / 10} g` : null,
+      ].filter(Boolean)
+    : [];
+  const amount = charge?.amount;
+  const hasAmount = amount !== null && amount !== undefined && amount !== "" && Number.isFinite(Number(amount));
+  return (
+    <div
+      className="sticky bottom-0 z-10 -mx-2 rounded-lg border bg-background/95 p-3 shadow-md backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-0"
+      data-testid="print-estimate-bar"
+      aria-live="polite"
+      aria-busy={updating}
+    >
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="col-span-2 sm:col-span-1">
+          <dt className="text-xs text-muted-foreground">Weight</dt>
+          <dd className="font-semibold tabular-nums" data-testid="print-bar-weight">
+            {formatPrintWeightGrams(weightGrams)}
+            {supportWeightGrams > 0 ? ` + ${formatPrintWeightGrams(supportWeightGrams)}${supportCode ? ` ${supportCode}` : ""}` : ""}
+            {split.length > 0 && <span className="ml-1 text-xs font-normal text-muted-foreground">({split.join(" · ")})</span>}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Print time</dt>
+          <dd className="font-semibold tabular-nums" data-testid="print-bar-time">
+            {formatPrintDuration(timeMinutes)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-muted-foreground">Charge{ownMaterial ? " (own material)" : ""}</dt>
+          <dd className="font-semibold tabular-nums" data-testid="print-bar-charge">
+            {charge?.loading ? "Calculating…" : hasAmount ? formatINRAmount(amount as string | number) : "Shown with the booking"}
+          </dd>
+        </div>
+      </dl>
+      {updating && (
+        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          Updating the estimate…
+        </p>
+      )}
+    </div>
   );
 }

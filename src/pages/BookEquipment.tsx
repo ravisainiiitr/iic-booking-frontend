@@ -9577,6 +9577,10 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     onAnalyzingChange={setPrint3dAnalyzing}
                     onUpdatingChange={setFabricationUpdating}
                     onSizeBlockChange={setPrint3dSizeBlock}
+                    charge={{
+                      amount: chargeCalculated && calculatedCharge && !chargeCalculationFailed ? calculatedCharge.total_charge : null,
+                      loading: loadingCharge,
+                    }}
                     disabled={repeatParamsLocked}
                   />
                 )}
