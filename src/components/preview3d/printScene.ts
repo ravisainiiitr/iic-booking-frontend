@@ -122,6 +122,11 @@ export function buildPrintScene(
     frame.position.y = bed.z / 2;
     stage.content.add(frame);
   }
+  if (overLimit) {
+    const outline = new THREE.Box3Helper(modelBox, new THREE.Color(OVER_LIMIT_RED));
+    outline.name = "over-limit-outline";
+    stage.content.add(outline);
+  }
   stage.addContactShadow(modelBox, 0.04, 0.55);
 
   const overlay = createDimensionGroup(modelBox, {
@@ -129,7 +134,7 @@ export function buildPrintScene(
     z: `${formatMm(size.z)} mm`,
     y: `${formatMm(size.y)} mm`,
   });
-  const plateLabel = labelTexture(`Plate ${formatMm(plateW)} × ${formatMm(plateD)} mm`);
+  const plateLabel = labelTexture(`Build plate ${formatMm(plateW)} × ${formatMm(plateD)} mm`);
   if (plateLabel) {
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: plateLabel.texture, depthTest: false, transparent: true, sizeAttenuation: false, opacity: 0.85 }),
@@ -143,6 +148,8 @@ export function buildPrintScene(
 
   const plateBox = new THREE.Box3(new THREE.Vector3(-plateW / 2, 0, -plateD / 2), new THREE.Vector3(plateW / 2, Math.max(size.y, 1), plateD / 2));
   const shadowBox = modelBox.clone().expandByScalar(Math.max(size.x, size.y, size.z) * 0.6);
-  stage.setFocus(modelBox, { sheet: plateBox, shadowBox });
+  // The opening view shows the whole plate with the model (centred on it), including any part hanging over.
+  const homeBox = modelBox.clone().union(plateBox);
+  stage.setFocus(homeBox, { sheet: plateBox, shadowBox });
   return { materials: [material], size, exceedsBed };
 }

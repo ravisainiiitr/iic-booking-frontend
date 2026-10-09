@@ -27,6 +27,7 @@ import {
 } from "@/components/LaserCutBookingPanel";
 import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Print3DBookingPanel";
 import { FABRICATION_QUANTITY_LABEL } from "@/lib/fabricationProfiles";
+import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 
 const BookedStlPreview = lazy(() => import("@/components/BookedStlPreview"));
 
@@ -44,6 +45,8 @@ export interface FabricationBookingFields {
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
   fabrication_workflow?: { rejected?: boolean } | null;
+  /** 3D printer's maximum print size set by the OIC (the preview's build plate); null when not set. */
+  equipment_max_print_size?: MaxPrintSizePayload | null;
 }
 
 function absoluteApiUrl(url: string): string {
@@ -287,7 +290,7 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
               <BookedDxfPreview parts={parts} ownMaterial={Boolean(booking.own_material)} />
             ) : (
               <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading preview" />}>
-                <BookedStlPreview parts={parts} />
+                <BookedStlPreview parts={parts} maxPrintSize={booking.equipment_max_print_size ?? null} />
               </Suspense>
             ))}
         </div>

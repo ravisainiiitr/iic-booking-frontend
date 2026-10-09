@@ -87,6 +87,7 @@ export interface Print3DBookingValues {
 interface Print3DBookingPanelProps {
   equipmentId: number | string;
   materials?: PrintMaterial[];
+  /** Preview build plate when the printer has no maximum print size (default 220 × 220 × 250 mm). */
   bedSize?: { x: number; y: number; z: number };
   /** Equipment's maximum print size (`max_print_size` of the detail API); when omitted it comes with the materials. */
   maxPrintSize?: MaxPrintSizePayload | null;
@@ -227,7 +228,7 @@ function buildItemsFromBatch(batch: PrintAnalysisBatchResult): Print3DFileItem[]
 export function Print3DBookingPanel({
   equipmentId,
   materials: materialsProp,
-  bedSize: defaultBedSize = { x: 220, y: 220, z: 250 },
+  bedSize: defaultBedSize,
   maxPrintSize,
   estimateUserType,
   ownMaterialCharge,
@@ -274,7 +275,7 @@ export function Print3DBookingPanel({
     () => printSizeLimitFrom(maxPrintSize !== undefined ? maxPrintSize : fetchedMaxPrintSize),
     [maxPrintSize, fetchedMaxPrintSize],
   );
-  const bedSize = previewBedSize(sizeLimit) ?? defaultBedSize;
+  const bedSize = sizeLimit || !defaultBedSize ? previewBedSize(sizeLimit) : defaultBedSize;
   const sizeErrors = sizeChecks.filter((c) => c.error);
   const sizeWarnings = sizeChecks.filter((c) => c.warning);
   const tooLarge = sizeErrors.length > 0;

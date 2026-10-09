@@ -336,4 +336,43 @@ describe("BookedStlPreview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Previous model" }));
     expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledTimes(2);
   });
+
+  it("draws the default 220 × 220 mm plate when the printer has no maximum size", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValue({ buffer: boxStl(240, 10, 5) });
+    render(<BookedStlPreview parts={[part(1)]} maxPrintSize={null} />);
+
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    const [, , , bed, , options] = three.buildPrintScene.mock.calls[0];
+    expect(bed).toEqual({ x: 220, y: 220, z: 250 });
+    expect(options).toEqual({ overLimit: false });
+    expect(screen.getByTestId("stl-preview-plate").textContent).toBe("Build plate 220 × 220 mm");
+    expect(screen.queryByTestId("stl-preview-too-large")).toBeNull();
+  });
+
+  it("uses the OIC's maximum print size as the plate and highlights a model that is too large", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValue({ buffer: boxStl(300, 10, 5) });
+    render(
+      <BookedStlPreview parts={[part(1)]} maxPrintSize={{ x: "256", y: "256", z: "256", allow_rotation: true }} />,
+    );
+
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    const [, , , bed, , options] = three.buildPrintScene.mock.calls[0];
+    expect(bed).toEqual({ x: 256, y: 256, z: 256 });
+    expect(options).toEqual({ overLimit: true });
+    expect(screen.getByTestId("stl-preview-plate").textContent).toBe("Build plate 256 × 256 mm");
+    expect(screen.getByTestId("stl-preview-too-large").textContent).toBe(
+      "Too large for this printer (maximum 256 × 256 × 256 mm).",
+    );
+  });
+
+  it("does not highlight a model that fits the configured plate", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValue({ buffer: boxStl(200, 10, 5) });
+    render(<BookedStlPreview parts={[part(1)]} maxPrintSize={{ x: 256, y: 256, z: 256 }} />);
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    expect(three.buildPrintScene.mock.calls[0][5]).toEqual({ overLimit: false });
+    expect(screen.queryByTestId("stl-preview-too-large")).toBeNull();
+  });
 });

@@ -1,12 +1,18 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { apiClient, type FabricationPart } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import {
+  checkStlSize,
+  formatPrintSizeLimit,
+  previewBedSize,
+  printSizeLimitFrom,
+  type MaxPrintSizePayload,
+} from "@/lib/printSizeLimit";
 
 // three.js viewer: loaded only when a model is previewed.
 const StlModelPreview = lazy(() => import("@/components/StlModelPreview").then((m) => ({ default: m.StlModelPreview })));
 
-const DEFAULT_BED = { x: 220, y: 220, z: 250 };
 const FRAME_HEIGHT = "h-[420px] sm:h-[460px]";
 
 function num(value: string | number | null | undefined): number | null {
@@ -15,14 +21,23 @@ function num(value: string | number | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** 3D preview of the STL files attached to a 3D print booking; each model is downloaded when first shown. */
-export function BookedStlPreview({ parts }: { parts: FabricationPart[] }) {
+/** 3D preview of the STL files attached to a 3D print booking; each model is downloaded when first shown.
+ * The build plate is the printer's maximum print size set by the OIC (220 × 220 mm when not set). */
+export function BookedStlPreview({
+  parts,
+  maxPrintSize,
+}: {
+  parts: FabricationPart[];
+  maxPrintSize?: MaxPrintSizePayload | null;
+}) {
   const [index, setIndex] = useState(0);
   const [buffers, setBuffers] = useState<Record<string, ArrayBuffer | null>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const safeIndex = Math.min(index, Math.max(0, parts.length - 1));
   const part = parts[safeIndex];
   const id = part?.analysis_id;
+  const sizeLimit = useMemo(() => printSizeLimitFrom(maxPrintSize), [maxPrintSize]);
+  const bedSize = useMemo(() => previewBedSize(sizeLimit), [sizeLimit]);
 
   useEffect(() => {
     if (!id || id in buffers) return;
@@ -37,9 +52,16 @@ export function BookedStlPreview({ parts }: { parts: FabricationPart[] }) {
     };
   }, [id, buffers]);
 
+  const buffer = part ? buffers[part.analysis_id] : undefined;
+  const sizeCheck = useMemo(() => {
+    if (!sizeLimit || !buffer) return null;
+    const check = checkStlSize(part?.filename || "model.stl", buffer, sizeLimit);
+    if (!check.size) return null;
+    return { tooLarge: !!check.error, rotated: check.rotated, limitLabel: formatPrintSizeLimit(sizeLimit) };
+  }, [sizeLimit, buffer, part?.filename]);
+
   if (!part) return null;
   const multi = parts.length > 1;
-  const buffer = buffers[part.analysis_id];
   const error = errors[part.analysis_id];
 
   return (
@@ -87,7 +109,8 @@ export function BookedStlPreview({ parts }: { parts: FabricationPart[] }) {
           <StlModelPreview
             key={part.analysis_id}
             buffer={buffer}
-            bedSize={DEFAULT_BED}
+            bedSize={bedSize}
+            sizeCheck={sizeCheck}
             materialName={part.material_name || null}
             materialCode={part.material_code || null}
             stats={{

@@ -110,10 +110,14 @@ export function tinyModelWarning(size: Size3): string | null {
   );
 }
 
-/** Build volume for the 3D preview: blank axes are 0 so the preview sizes them from the model. */
-export function previewBedSize(limit: PrintSizeLimit | null): { x: number; y: number; z: number } | undefined {
-  if (!limit) return undefined;
-  return { x: limit.x ?? 0, y: limit.y ?? 0, z: limit.z ?? 0 };
+/** Build plate (and height) drawn by the 3D preview when the OIC has not set a maximum print size. */
+export const DEFAULT_PREVIEW_BED = { x: 220, y: 220, z: 250 } as const;
+
+/** Build volume for the 3D preview: the printer's maximum print size set by the OIC. A blank plate axis is
+ * drawn at the default 220 mm and a blank height draws no build-volume frame; nothing set = 220 × 220 × 250. */
+export function previewBedSize(limit: PrintSizeLimit | null): { x: number; y: number; z: number } {
+  if (!limit) return { ...DEFAULT_PREVIEW_BED };
+  return { x: limit.x ?? DEFAULT_PREVIEW_BED.x, y: limit.y ?? DEFAULT_PREVIEW_BED.y, z: limit.z ?? 0 };
 }
 
 export interface StlSizeCheck {

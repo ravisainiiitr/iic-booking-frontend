@@ -276,6 +276,11 @@ export function StlModelPreview({
             />
             {appearance.label}
           </PreviewChip>
+          {bedSize && bedSize.x > 0 && bedSize.y > 0 && (
+            <PreviewChip testId="stl-preview-plate" className={cn(overLimit && "text-destructive")}>
+              Build plate {formatMm(bedSize.x)} × {formatMm(bedSize.y)} mm
+            </PreviewChip>
+          )}
           {(Number.isFinite(weight) && weight > 0) || (Number.isFinite(minutes) && minutes > 0) ? (
             <PreviewChip testId="stl-preview-stats">
               {Number.isFinite(weight) && weight > 0 && <span>{Math.ceil(weight)} g</span>}

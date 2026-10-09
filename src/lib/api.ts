@@ -439,8 +439,109 @@ export interface PrintAnalysisResult {
     layer_height_mm?: number;
     infill_percent?: number;
     density_percent?: number;
+    support_mode?: PrintSupportMode;
+    support_density_pct?: number;
+    support_angle_deg?: number;
+    support_material_id?: number;
+    support_material_code?: string;
     [key: string]: unknown;
   };
+  /** Model breakdown of one copy (null for files estimated before the breakdown existed). */
+  estimate_breakdown?: PrintEstimateBreakdown | null;
+}
+
+export type PrintSupportMode = "auto" | "none" | "buildplate" | "everywhere";
+
+/** Support choice sent with an STL upload, recalculation or estimate preview (blank = printer default). */
+export interface PrintSupportSettings {
+  support_mode?: PrintSupportMode;
+  support_density_pct?: number | null;
+  support_angle_deg?: number | null;
+  /** A support material offered on the printer; null / "same" = the model material. */
+  support_material_id?: number | "same" | null;
+}
+
+/** Weight / time breakdown of one copy from the estimate model. */
+export interface PrintEstimateBreakdown {
+  technology: string;
+  preset?: string;
+  model_g: number;
+  support_g: number;
+  waste_g: number;
+  total_g: number;
+  /** Charged at the model material's rate (includes supports printed in it). */
+  model_material_g: number;
+  /** Supports in a separate support material (0 when the same material). */
+  support_material_g: number;
+  print_min: number;
+  support_min: number;
+  warmup_min: number;
+  total_min: number;
+  layers: number;
+  layer_height_mm: number;
+  infill_percent: number | null;
+  support_mode: Exclude<PrintSupportMode, "auto">;
+  support_mode_requested?: PrintSupportMode;
+  support_mode_label?: string;
+  support_angle_deg?: number;
+  support_density_pct?: number;
+  support_material_code?: string;
+  overhang_area_mm2?: number;
+  overhang_plate_mm2?: number;
+  notes?: string[];
+}
+
+/** Printer support defaults from the print-materials API. */
+export interface PrintSupportDefaults {
+  technology: string;
+  technology_label?: string;
+  supports_available: boolean;
+  /** Users may choose none / build plate / everywhere (FDM and resin). */
+  modes_selectable: boolean;
+  density_pct: number;
+  angle_deg: number;
+  angle_range: [number, number];
+  auto_min_overhang_mm2?: number;
+  layer_height_mm?: number;
+}
+
+/** Read-only estimate of one analysed STL for what-if settings (`GET /print-analyses/<id>/estimate/`). */
+export interface PrintEstimatePreview {
+  analysis_id: string;
+  material_id: number | null;
+  /** Per copy, model material (whole grams). */
+  weight_grams: number;
+  /** Per copy, separate support material (whole grams; 0 when the same material). */
+  support_weight_grams: number;
+  support_material_id?: number | null;
+  /** Per copy. */
+  estimated_time_minutes: number;
+  quantity: number;
+  estimate_breakdown: PrintEstimateBreakdown;
+}
+
+function appendSupportSettings(target: FormData | URLSearchParams, supports?: PrintSupportSettings | null) {
+  if (!supports) return;
+  if (supports.support_mode) target.append("support_mode", supports.support_mode);
+  if (supports.support_density_pct !== undefined) {
+    target.append("support_density_pct", supports.support_density_pct == null ? "" : String(supports.support_density_pct));
+  }
+  if (supports.support_angle_deg !== undefined) {
+    target.append("support_angle_deg", supports.support_angle_deg == null ? "" : String(supports.support_angle_deg));
+  }
+  if (supports.support_material_id !== undefined) {
+    target.append("support_material_id", supports.support_material_id == null ? "same" : String(supports.support_material_id));
+  }
+}
+
+function supportSettingsBody(supports?: PrintSupportSettings | null): Record<string, unknown> {
+  if (!supports) return {};
+  const body: Record<string, unknown> = {};
+  if (supports.support_mode) body.support_mode = supports.support_mode;
+  if (supports.support_density_pct !== undefined) body.support_density_pct = supports.support_density_pct ?? "";
+  if (supports.support_angle_deg !== undefined) body.support_angle_deg = supports.support_angle_deg ?? "";
+  if (supports.support_material_id !== undefined) body.support_material_id = supports.support_material_id ?? "same";
+  return body;
 }
 
 export interface PrintAnalysisBatchResult {
@@ -4848,6 +4949,9 @@ class ApiClient {
       materials: PrintMaterial[];
       no_materials_message?: string;
       max_print_size?: MaxPrintSizePayload | null;
+      /** Separate support materials the OIC offers on this printer (empty = model material only). */
+      support_materials?: PrintMaterial[];
+      support_defaults?: PrintSupportDefaults;
     }>(endpoint);
   }
 
@@ -4859,6 +4963,7 @@ class ApiClient {
       density_percent?: number;
       /** @deprecated use density_percent */
       infill_percent?: number;
+      supports?: PrintSupportSettings | null;
     },
   ) {
     const formData = new FormData();
@@ -4866,6 +4971,7 @@ class ApiClient {
     formData.append("material_id", String(params.material_id));
     const density = params.density_percent ?? params.infill_percent;
     if (density != null) formData.append("density_percent", String(density));
+    appendSupportSettings(formData, params.supports);
     const url = `${this.baseURL.replace(/\/$/, "")}/equipments/${equipmentId}/analyze-stl/`;
     const headers: HeadersInit = {
       ...(this.getToken() ? { Authorization: `Token ${this.getToken()}` } : {}),
@@ -5020,6 +5126,7 @@ class ApiClient {
       material_id: string | number;
       density_percent?: number;
       infill_percent?: number;
+      supports?: PrintSupportSettings | null;
     },
   ) {
     const density = params.density_percent ?? params.infill_percent;
@@ -5028,6 +5135,7 @@ class ApiClient {
       body: JSON.stringify({
         material_id: params.material_id,
         density_percent: density,
+        ...supportSettingsBody(params.supports),
       }),
     });
   }
@@ -5060,6 +5168,7 @@ class ApiClient {
       material_id: string | number;
       density_percent?: number;
       infill_percent?: number;
+      supports?: PrintSupportSettings | null;
     },
   ) {
     const density = params.density_percent ?? params.infill_percent;
@@ -5068,8 +5177,22 @@ class ApiClient {
       body: JSON.stringify({
         material_id: params.material_id,
         density_percent: density,
+        ...supportSettingsBody(params.supports),
       }),
     });
+  }
+
+  /** Read-only estimate of one analysed STL for other settings; nothing is saved (also for booked files). */
+  async getPrintAnalysisEstimate(
+    analysisId: string,
+    params: { material_id?: string | number; density_percent?: number; supports?: PrintSupportSettings | null } = {},
+  ) {
+    const qs = new URLSearchParams();
+    if (params.material_id != null && params.material_id !== "") qs.append("material_id", String(params.material_id));
+    if (params.density_percent != null) qs.append("density_percent", String(params.density_percent));
+    appendSupportSettings(qs, params.supports);
+    const q = qs.toString();
+    return this.request<PrintEstimatePreview>(`/print-analyses/${analysisId}/estimate/${q ? `?${q}` : ""}`);
   }
 
   /** Download proforma invoice PDF (IIT Roorkee letterhead, user details, date/time, disclaimer). */

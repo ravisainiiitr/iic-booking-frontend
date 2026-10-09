@@ -103,6 +103,12 @@ describe("fitsPrintSize", () => {
     expect(printSizeError("a.stl", [30, 10, 900], l)).toContain("maximum print size of 20 × 20 × any mm.");
     expect(previewBedSize(l)).toEqual({ x: 20, y: 20, z: 0 });
   });
+
+  it("draws the OIC's maximum size as the preview plate, 220 × 220 × 250 mm when not set", () => {
+    expect(previewBedSize(null)).toEqual({ x: 220, y: 220, z: 250 });
+    expect(previewBedSize(printSizeLimitFrom({ x: "256", y: "256", z: "256" }))).toEqual({ x: 256, y: 256, z: 256 });
+    expect(previewBedSize(printSizeLimitFrom({ x: null, y: "180", z: null }))).toEqual({ x: 220, y: 180, z: 0 });
+  });
 });
 
 describe("checkStlSize", () => {
