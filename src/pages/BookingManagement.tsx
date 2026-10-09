@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
+import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { scrollWhenReady } from "@/lib/scrollWhenReady";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
@@ -141,19 +142,25 @@ interface Booking extends BookingRef {
   charge_recalculation_pending_amount?: string | null;
 }
 
-/** Sortable list columns after S.No., Booking ID and Status; the % columns share the spare width and truncate. */
-const LIST_COLUMNS: Array<{ key: string; label: string; className?: string }> = [
+/**
+ * Sortable list columns after S.No., Booking ID and Status. The other columns are as wide as their content;
+ * the name columns share the width left over and end in "…" (heading included) when it runs out.
+ */
+const NAME_COLUMN_CLASS = "w-[30%] min-w-[4rem] max-w-0";
+const LAST_COLUMN_CLASS = "pr-3";
+const LIST_COLUMNS: Array<{ key: string; label: string; title?: string; className?: string; truncate?: boolean }> = [
   { key: "equipment_code", label: "Equipment" },
-  { key: "user_name", label: "User Name", className: "w-[25%]" },
-  { key: "supervisor_name", label: "Supervisor Name", className: "w-[25%]" },
+  { key: "user_name", label: "User Name", title: "User Name", className: NAME_COLUMN_CLASS, truncate: true },
+  { key: "supervisor_name", label: "Supervisor Name", title: "Supervisor Name", className: NAME_COLUMN_CLASS, truncate: true },
   { key: "user_phone", label: "User Mobile" },
-  { key: "start_time", label: "Booking Date & Time" },
-  { key: "duration", label: "Duration", className: "text-right" },
+  { key: "start_time", label: "Date & Time", title: "Booking Date & Time" },
+  { key: "duration", label: "Duration", className: LAST_COLUMN_CLASS },
 ];
-const HEAD_CLASS = "px-3 whitespace-nowrap";
-const CELL_CLASS = "px-3 py-3 whitespace-nowrap";
-/** max-w-0 lets the column take only the width left over, so long text ends in "…" instead of wrapping. */
-const TRUNCATE_CELL_CLASS = `${CELL_CLASS} max-w-0 truncate`;
+const HEAD_CLASS = "px-1.5 whitespace-nowrap";
+const CELL_CLASS = "px-1.5 py-3 whitespace-nowrap";
+/** Matches the sticky Booking ID offset in index.css. */
+const SNO_CLASS = "w-[3.25rem] min-w-[3.25rem] px-1 text-center";
+const TRUNCATE_CELL_CLASS = `${CELL_CLASS} ${NAME_COLUMN_CLASS} truncate`;
 
 const DEFAULT_PAGE_SIZE = 10;
 /** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
@@ -167,6 +174,7 @@ function defaultStaffStatusFilter(userType: string | number | null | undefined):
 const BookingManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const embedded = useEmbeddedMode();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsOffset, setBookingsOffset] = useState(0);
   const [loadingBookings, setLoadingBookings] = useState(true);
@@ -548,7 +556,7 @@ const BookingManagement = () => {
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-5">
+      <main className={`container mx-auto py-5 ${embedded ? "px-2" : "px-4"}`}>
         <StandaloneOnly>
           <div className="mb-4">
             <h1 className="text-3xl font-bold">View Booking</h1>
@@ -624,10 +632,10 @@ const BookingManagement = () => {
                 className={`p-0 overflow-x-auto transition-opacity ${loadingBookings ? "opacity-60" : ""}`}
                 aria-busy={loadingBookings || undefined}
               >
-                <Table className="view-booking-table" stackOnMobile>
+                <Table className="view-booking-table text-[0.8125rem]" stackOnMobile>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className={`${HEAD_CLASS} w-16 min-w-[4rem] px-2 text-center`}>S.No.</TableHead>
+                      <TableHead className={`${HEAD_CLASS} ${SNO_CLASS}`}>S.No.</TableHead>
                       <SortableTableHead
                         sortKey="booking_ref"
                         ordering={ordering}
@@ -646,6 +654,8 @@ const BookingManagement = () => {
                           onSort={handleSort}
                           className={`${HEAD_CLASS} ${col.className ?? ""}`}
                           disabled={loadingBookings}
+                          title={col.title}
+                          truncate={col.truncate}
                         >
                           {col.label}
                         </SortableTableHead>
@@ -655,14 +665,14 @@ const BookingManagement = () => {
                   <TableBody>
                     {bookings.map((booking, index) => (
                       <TableRow key={booking.booking_id} className="group">
-                        <TableCell className={`${CELL_CLASS} px-2 text-center text-muted-foreground tabular-nums`}>
+                        <TableCell className={`${CELL_CLASS} ${SNO_CLASS} text-muted-foreground tabular-nums`}>
                           {rangeStart + index}
                         </TableCell>
                         <TableCell className={`${CELL_CLASS} font-medium`}>
                           <button
                             type="button"
                             onClick={() => showBookingDetail(booking)}
-                            className={`inline-flex items-center gap-1.5 whitespace-nowrap hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+                            className={`inline-flex items-center gap-1 whitespace-nowrap hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
                               booking.status.toUpperCase() === "COMPLETED"
                                 ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
                                 : "text-primary hover:text-primary/80"
@@ -684,17 +694,17 @@ const BookingManagement = () => {
                         </TableCell>
                         <TableCell className={CELL_CLASS}>
                           <Badge
-                            className={`whitespace-nowrap ${bookingStatusBadgeClass(bookingBadgeStatus(booking))}`}
+                            className={`whitespace-nowrap px-2 max-md:whitespace-normal md:max-w-[9rem] 2xl:max-w-none ${bookingStatusBadgeClass(bookingBadgeStatus(booking))}`}
                             title={
                               booking.results_overdue?.overdue
                                 ? `Results were due by ${booking.results_overdue.due_display} (overdue by ${booking.results_overdue.overdue_by})`
                                 : booking.results_overdue?.due_display
                                   ? `Results due by ${booking.results_overdue.due_display}`
-                                  : undefined
+                                  : booking.status_display
                             }
                             data-testid={booking.list_status === RESULT_OVERDUE_STATUS ? "results-overdue-badge" : undefined}
                           >
-                            {booking.status_display}
+                            <span className="md:truncate">{booking.status_display}</span>
                           </Badge>
                         </TableCell>
                         <TableCell className={CELL_CLASS} title={booking.equipment_name || undefined}>
@@ -710,7 +720,7 @@ const BookingManagement = () => {
                         <TableCell className={`${CELL_CLASS} tabular-nums text-muted-foreground`}>
                           {formatBookingDateTimeShort(booking.start_time)}
                         </TableCell>
-                        <TableCell className={`${CELL_CLASS} text-right tabular-nums`}>
+                        <TableCell className={`${CELL_CLASS} ${LAST_COLUMN_CLASS} tabular-nums`}>
                           {formatDuration(booking.total_time_minutes)}
                         </TableCell>
                       </TableRow>

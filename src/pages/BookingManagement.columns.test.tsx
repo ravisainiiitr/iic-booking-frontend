@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter } from "react-router-dom";
 import BookingManagement from "./BookingManagement";
 
-const api = vi.hoisted(() => ({ getBookings: vi.fn() }));
+const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
 const auth = vi.hoisted(() => ({ userType: "admin" }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -20,7 +20,12 @@ vi.mock("@/lib/api", () => ({
   apiClient: new Proxy(
     {},
     {
-      get: (_t, prop) => (prop === "getBookings" ? api.getBookings : vi.fn(async () => ({ data: {} }))),
+      get: (_t, prop) =>
+        prop === "getBookings"
+          ? api.getBookings
+          : prop === "exportBookings"
+            ? api.exportBookings
+            : vi.fn(async () => ({ data: {} })),
     },
   ),
 }));
@@ -52,7 +57,7 @@ const EXPECTED_HEADERS = [
   "User Name",
   "Supervisor Name",
   "User Mobile",
-  "Booking Date & Time",
+  "Date & Time",
   "Duration",
 ];
 
@@ -73,6 +78,7 @@ async function renderList() {
 
 beforeEach(() => {
   api.getBookings.mockResolvedValue({ data: { bookings: [row], total_count: 1 } });
+  api.exportBookings.mockResolvedValue({ rowCount: 1 });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -128,9 +134,49 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     const id = within(table).getByRole("button", { name: /IICNMR TXI202600002/ });
     expect(id.className).toContain("whitespace-nowrap");
     const duration = within(table).getByText("23h 59m").closest("td")!;
-    expect(duration.className).toMatch(/\btext-right\b/);
+    expect(duration.className).not.toMatch(/\btext-right\b/);
     expect(duration.className).toContain("tabular-nums");
     expect(cells[0].className).toMatch(/\btext-center\b/);
+    const durationHeader = within(table).getByRole("columnheader", { name: /^Duration/ });
+    expect(durationHeader.className).not.toMatch(/\btext-right\b/);
+  });
+
+  it("labels the date column Date & Time and shows Booking Date & Time on hover", async () => {
+    const table = await renderList();
+    const header = within(table).getByRole("columnheader", { name: "Booking Date & Time" });
+    expect(header.textContent?.trim()).toBe("Date & Time");
+    const button = within(header).getByRole("button");
+    expect(button.getAttribute("title")).toMatch(/^Booking Date & Time\b/);
+    expect(button.getAttribute("aria-label")).toBe("Booking Date & Time");
+    expect(within(table).queryByText("Booking Date & Time")).toBeNull();
+  });
+
+  it("lets the name headings shorten with the full name on hover, and keeps the S.No. width the sticky offset expects", async () => {
+    const table = await renderList();
+    for (const name of ["User Name", "Supervisor Name"]) {
+      const header = within(table).getByRole("columnheader", { name });
+      expect(header.className).toMatch(/\bmax-w-0\b/);
+      expect(within(header).getByText(name).className).toMatch(/\btruncate\b/);
+      expect(within(header).getByRole("button").getAttribute("title")).toMatch(new RegExp(`^${name}\\b`));
+    }
+    const sno = within(table).getByRole("columnheader", { name: "S.No." });
+    expect(sno.className).toContain("w-[3.25rem]");
+  });
+
+  it("keeps the export request free of on-screen headings, so the file's column names do not change", async () => {
+    const table = await renderList();
+    fireEvent.click(within(within(table).getByRole("columnheader", { name: "Booking Date & Time" })).getByRole("button"));
+    await waitFor(() => expect(lastOrdering()).toBe("start_time"));
+    await screen.findByText("IICNMR TXI202600002");
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /CSV/ }));
+    await waitFor(() => expect(api.exportBookings).toHaveBeenCalledTimes(1));
+    const [format, view, filters] = api.exportBookings.mock.calls[0];
+    expect([format, view]).toEqual(["csv", "staff"]);
+    expect(api.exportBookings.mock.calls[0]).toHaveLength(3);
+    expect(filters).toMatchObject({ ordering: "start_time" });
+    expect(JSON.stringify(filters)).not.toMatch(/Date & Time|Duration|User Name/);
   });
 
   it("still sorts by the remaining columns", async () => {

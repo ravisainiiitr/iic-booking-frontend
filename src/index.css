@@ -643,7 +643,7 @@
   }
 }
 
-/* View Booking: when the table is wider than the page, S.No. (4rem wide) and Booking ID stay in view while it scrolls sideways. */
+/* View Booking: when the table is wider than the page, S.No. (3.25rem wide) and Booking ID stay in view while it scrolls sideways. */
 @media (min-width: 768px) {
   .view-booking-table :is(th, td):nth-child(-n + 2) {
     position: sticky;
@@ -654,7 +654,7 @@
     left: 0;
   }
   .view-booking-table :is(th, td):nth-child(2) {
-    left: 4rem;
+    left: 3.25rem;
   }
   .view-booking-table thead th:nth-child(-n + 2) {
     z-index: 11;
