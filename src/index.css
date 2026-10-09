@@ -643,6 +643,28 @@
   }
 }
 
+/* View Booking: when the table is wider than the page, S.No. (4rem wide) and Booking ID stay in view while it scrolls sideways. */
+@media (min-width: 768px) {
+  .view-booking-table :is(th, td):nth-child(-n + 2) {
+    position: sticky;
+    z-index: 1;
+    background: hsl(var(--card));
+  }
+  .view-booking-table :is(th, td):first-child {
+    left: 0;
+  }
+  .view-booking-table :is(th, td):nth-child(2) {
+    left: 4rem;
+  }
+  .view-booking-table thead th:nth-child(-n + 2) {
+    z-index: 11;
+    background: linear-gradient(hsl(var(--muted) / 0.4), hsl(var(--muted) / 0.4)), hsl(var(--card));
+  }
+  .view-booking-table tbody tr:hover > td:nth-child(-n + 2) {
+    background: linear-gradient(hsl(var(--muted) / 0.6), hsl(var(--muted) / 0.6)), hsl(var(--card));
+  }
+}
+
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .h-1.w-16,
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer > div:last-child,
 .dashboard-menu-nav .dashboard-uniform-cards > .cursor-pointer .text-muted-foreground,

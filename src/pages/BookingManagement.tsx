@@ -141,6 +141,20 @@ interface Booking extends BookingRef {
   charge_recalculation_pending_amount?: string | null;
 }
 
+/** Sortable list columns after S.No., Booking ID and Status; the % columns share the spare width and truncate. */
+const LIST_COLUMNS: Array<{ key: string; label: string; className?: string }> = [
+  { key: "equipment_name", label: "Equipment", className: "w-[26%]" },
+  { key: "user_name", label: "User Name", className: "w-[17%]" },
+  { key: "supervisor_name", label: "Supervisor Name", className: "w-[17%]" },
+  { key: "user_phone", label: "User Mobile" },
+  { key: "start_time", label: "Booking Date & Time" },
+  { key: "duration", label: "Duration", className: "text-right" },
+];
+const HEAD_CLASS = "px-3 whitespace-nowrap";
+const CELL_CLASS = "px-3 py-3 whitespace-nowrap";
+/** max-w-0 lets the column take only the width left over, so long text ends in "…" instead of wrapping. */
+const TRUNCATE_CELL_CLASS = `${CELL_CLASS} max-w-0 truncate`;
+
 const DEFAULT_PAGE_SIZE = 10;
 /** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
 const DEFAULT_ORDERING = "default";
@@ -610,35 +624,27 @@ const BookingManagement = () => {
                 className={`p-0 overflow-x-auto transition-opacity ${loadingBookings ? "opacity-60" : ""}`}
                 aria-busy={loadingBookings || undefined}
               >
-                <Table className="min-w-[720px]" stackOnMobile>
+                <Table className="view-booking-table" stackOnMobile>
                   <TableHeader>
                     <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="w-14 font-semibold">S.No</TableHead>
+                      <TableHead className={`${HEAD_CLASS} w-16 min-w-[4rem] px-2 text-center`}>S.No.</TableHead>
                       <SortableTableHead
                         sortKey="booking_ref"
                         ordering={ordering}
                         onSort={handleSort}
-                        className="font-semibold"
+                        className={HEAD_CLASS}
                         disabled={loadingBookings}
                       >
                         Booking ID
                       </SortableTableHead>
-                      <TableHead className="font-semibold uppercase tracking-wide">Status</TableHead>
-                      {[
-                        { key: "equipment_name", label: "Equipment Name" },
-                        { key: "user_name", label: "User Name" },
-                        { key: "supervisor_name", label: "Supervisor Name" },
-                        { key: "user_phone", label: "User Mobile" },
-                        { key: "user_email", label: "User Email" },
-                        { key: "start_time", label: "Booking Start Date" },
-                        { key: "duration", label: "Duration" },
-                      ].map((col) => (
+                      <TableHead className={HEAD_CLASS}>Status</TableHead>
+                      {LIST_COLUMNS.map((col) => (
                         <SortableTableHead
                           key={col.key}
                           sortKey={col.key}
                           ordering={ordering}
                           onSort={handleSort}
-                          className="font-semibold"
+                          className={`${HEAD_CLASS} ${col.className ?? ""}`}
                           disabled={loadingBookings}
                         >
                           {col.label}
@@ -649,12 +655,14 @@ const BookingManagement = () => {
                   <TableBody>
                     {bookings.map((booking, index) => (
                       <TableRow key={booking.booking_id} className="group">
-                        <TableCell className="text-muted-foreground tabular-nums">{rangeStart + index}</TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className={`${CELL_CLASS} px-2 text-center text-muted-foreground tabular-nums`}>
+                          {rangeStart + index}
+                        </TableCell>
+                        <TableCell className={`${CELL_CLASS} font-medium`}>
                           <button
                             type="button"
                             onClick={() => showBookingDetail(booking)}
-                            className={`inline-flex items-center gap-1.5 hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
+                            className={`inline-flex items-center gap-1.5 whitespace-nowrap hover:underline font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded ${
                               booking.status.toUpperCase() === "COMPLETED"
                                 ? "text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400"
                                 : "text-primary hover:text-primary/80"
@@ -674,7 +682,7 @@ const BookingManagement = () => {
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className={CELL_CLASS}>
                           <Badge
                             className={`whitespace-nowrap ${bookingStatusBadgeClass(bookingBadgeStatus(booking))}`}
                             title={
@@ -689,19 +697,20 @@ const BookingManagement = () => {
                             {booking.status_display}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
-                          {booking.equipment_name}
+                        <TableCell className={TRUNCATE_CELL_CLASS} title={booking.equipment_name || undefined}>
+                          {booking.equipment_name || "—"}
                         </TableCell>
-                        <TableCell>{booking.user_name || "—"}</TableCell>
-                        <TableCell>{booking.wallet_owner_name || "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap">{booking.user_phone || "—"}</TableCell>
-                        <TableCell className="max-w-[180px] truncate" title={booking.user_email}>
-                          {booking.user_email || "—"}
+                        <TableCell className={TRUNCATE_CELL_CLASS} title={booking.user_name || undefined}>
+                          {booking.user_name || "—"}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                        <TableCell className={TRUNCATE_CELL_CLASS} title={booking.wallet_owner_name || undefined}>
+                          {booking.wallet_owner_name || "—"}
+                        </TableCell>
+                        <TableCell className={`${CELL_CLASS} tabular-nums`}>{booking.user_phone || "—"}</TableCell>
+                        <TableCell className={`${CELL_CLASS} tabular-nums text-muted-foreground`}>
                           {formatBookingDateTimeShort(booking.start_time)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className={`${CELL_CLASS} text-right tabular-nums`}>
                           {formatDuration(booking.total_time_minutes)}
                         </TableCell>
                       </TableRow>

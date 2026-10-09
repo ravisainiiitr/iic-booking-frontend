@@ -155,7 +155,7 @@ describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
     renderPage();
     await screen.findByText("XPS202600001");
     const table = screen.getByRole("table");
-    expect(within(table).getAllByRole("columnheader")[0].textContent).toBe("S.No");
+    expect(within(table).getAllByRole("columnheader")[0].textContent).toBe("S.No.");
     const firstCell = () => within(screen.getAllByRole("row")[1]).getAllByRole("cell")[0].textContent;
     expect(firstCell()).toBe("1");
 
@@ -172,7 +172,7 @@ describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
     await waitFor(() => expect(lastCall().search).toBe("xps"));
     fireEvent.change(screen.getByLabelText("Start date"), { target: { value: "01-10-2026" } });
     await waitFor(() => expect(lastCall().start_date).toBe("2026-10-01"));
-    fireEvent.click(screen.getByRole("button", { name: /Equipment Name/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Equipment/ }));
     await waitFor(() => expect(lastCall().ordering).toBeTruthy());
 
     fireEvent.keyDown(screen.getByRole("button", { name: "Export" }), { key: "Enter" });
@@ -302,7 +302,7 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
     await screen.findByText("XPS202600001");
     expect(lastCall().ordering).toBe("default");
     expect(screen.queryByRole("button", { name: "Default order" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Equipment Name/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Equipment/ }));
     await waitFor(() => expect(lastCall().ordering).toBe("equipment_name"));
     fireEvent.click(screen.getByRole("button", { name: "Default order" }));
     await waitFor(() => expect(lastCall().ordering).toBe("default"));
