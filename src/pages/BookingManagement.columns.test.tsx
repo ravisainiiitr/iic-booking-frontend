@@ -32,7 +32,7 @@ const SUPERVISOR = "Prof. Example Supervisor";
 const row = {
   booking_id: 7,
   virtual_booking_id: "IICNMR TXI202600002",
-  equipment_code: "IICNMR TXI",
+  equipment_code: "NMR TXI",
   equipment_name: EQUIPMENT,
   user_name: USER,
   user_email: "demo.user@example.test",
@@ -99,6 +99,8 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
         .map((th) => th.textContent?.trim());
       expect(headers).toEqual(EXPECTED_HEADERS);
       expect(within(table).queryByText(/email/i)).toBeNull();
+      expect(within(table).queryByText(EQUIPMENT)).toBeNull();
+      expect(within(table).getByText("NMR TXI").getAttribute("title")).toBe(EQUIPMENT);
       expect(within(table).queryByText(row.user_email)).toBeNull();
       expect(within(table).getByText(row.user_phone)).toBeTruthy();
       expect(within(table).getByText("23h 59m")).toBeTruthy();
@@ -115,11 +117,14 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     for (const cell of cells) {
       expect(cell.className).toContain("whitespace-nowrap");
     }
-    for (const text of [EQUIPMENT, USER, SUPERVISOR]) {
+    for (const text of [USER, SUPERVISOR]) {
       const cell = within(table).getByText(text).closest("td")!;
       expect(cell.className).toMatch(/\btruncate\b/);
       expect(cell.getAttribute("title")).toBe(text);
     }
+    const equipment = within(table).getByText("NMR TXI").closest("td")!;
+    expect(equipment.className).not.toMatch(/\btruncate\b/);
+    expect(equipment.className).not.toMatch(/w-\[/);
     const id = within(table).getByRole("button", { name: /IICNMR TXI202600002/ });
     expect(id.className).toContain("whitespace-nowrap");
     const duration = within(table).getByText("23h 59m").closest("td")!;
@@ -144,5 +149,21 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     await screen.findByText("IICNMR TXI202600002");
     sortBy("Duration");
     await waitFor(() => expect(lastOrdering()).toBe("duration"));
+  });
+
+  it("sorts Equipment by code through the booking ID (department + code) and marks only that column", async () => {
+    const table = await renderList();
+    const header = (label: string) => within(table).getByRole("columnheader", { name: new RegExp(`^${label}`) });
+
+    fireEvent.click(within(header("Equipment")).getByRole("button"));
+    await waitFor(() => expect(lastOrdering()).toBe("booking_ref"));
+    await screen.findByText("IICNMR TXI202600002");
+    expect(header("Equipment").getAttribute("aria-sort")).toBe("ascending");
+    expect(header("Booking ID").getAttribute("aria-sort")).toBe("none");
+
+    fireEvent.click(within(header("Equipment")).getByRole("button"));
+    await waitFor(() => expect(lastOrdering()).toBe("-booking_ref"));
+    await screen.findByText("IICNMR TXI202600002");
+    expect(header("Equipment").getAttribute("aria-sort")).toBe("descending");
   });
 });

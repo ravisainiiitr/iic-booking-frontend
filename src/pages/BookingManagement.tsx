@@ -51,6 +51,7 @@ import { BookingExportMenu } from "@/components/BookingExportMenu";
 import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
 import { useRowsPerPage } from "@/hooks/use-rows-per-page";
 import { SortableTableHead } from "@/components/SortableTableHead";
+import { parseOrdering } from "@/lib/tableOrdering";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
 import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwaitingCard";
@@ -143,9 +144,9 @@ interface Booking extends BookingRef {
 
 /** Sortable list columns after S.No., Booking ID and Status; the % columns share the spare width and truncate. */
 const LIST_COLUMNS: Array<{ key: string; label: string; className?: string }> = [
-  { key: "equipment_name", label: "Equipment", className: "w-[26%]" },
-  { key: "user_name", label: "User Name", className: "w-[17%]" },
-  { key: "supervisor_name", label: "Supervisor Name", className: "w-[17%]" },
+  { key: "equipment_code", label: "Equipment" },
+  { key: "user_name", label: "User Name", className: "w-[25%]" },
+  { key: "supervisor_name", label: "Supervisor Name", className: "w-[25%]" },
   { key: "user_phone", label: "User Mobile" },
   { key: "start_time", label: "Booking Date & Time" },
   { key: "duration", label: "Duration", className: "text-right" },
@@ -154,6 +155,18 @@ const HEAD_CLASS = "px-3 whitespace-nowrap";
 const CELL_CLASS = "px-3 py-3 whitespace-nowrap";
 /** max-w-0 lets the column take only the width left over, so long text ends in "…" instead of wrapping. */
 const TRUNCATE_CELL_CLASS = `${CELL_CLASS} max-w-0 truncate`;
+
+/**
+ * The booking list API has no equipment-code sort key; the virtual booking ID starts with the
+ * department and equipment code, so sorting by it orders the bookings by code within a department.
+ */
+const API_SORT_KEYS: Record<string, string> = { equipment_code: "booking_ref" };
+
+function apiOrdering(ordering: string): string {
+  const { key, desc } = parseOrdering(ordering);
+  const apiKey = API_SORT_KEYS[key];
+  return apiKey ? `${desc ? "-" : ""}${apiKey}` : ordering;
+}
 
 const DEFAULT_PAGE_SIZE = 10;
 /** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
@@ -307,7 +320,7 @@ const BookingManagement = () => {
 
   /** Filters, search and sort on screen; shared by the list and Export so both show the same bookings. */
   const listFilters = (): BookingListFilters => {
-    const params: BookingListFilters = { ordering: ordering || DEFAULT_ORDERING };
+    const params: BookingListFilters = { ordering: apiOrdering(ordering) || DEFAULT_ORDERING };
     if (statusFilter !== "all") params.list_status = statusFilter;
     if (searchTerm) params.search = searchTerm;
     if (startDate) params.start_date = startDate;
@@ -697,8 +710,8 @@ const BookingManagement = () => {
                             {booking.status_display}
                           </Badge>
                         </TableCell>
-                        <TableCell className={TRUNCATE_CELL_CLASS} title={booking.equipment_name || undefined}>
-                          {booking.equipment_name || "—"}
+                        <TableCell className={CELL_CLASS} title={booking.equipment_name || undefined}>
+                          {booking.equipment_code || booking.equipment_name || "—"}
                         </TableCell>
                         <TableCell className={TRUNCATE_CELL_CLASS} title={booking.user_name || undefined}>
                           {booking.user_name || "—"}
