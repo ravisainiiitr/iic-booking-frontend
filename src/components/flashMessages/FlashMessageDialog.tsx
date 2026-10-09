@@ -192,7 +192,10 @@ export function FlashMessageDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !saving && onOpenChange(v)}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl" data-testid="flash-message-dialog">
+      <DialogContent
+        className="max-h-[92vh] grid-cols-[minmax(0,1fr)] overflow-y-auto sm:max-w-2xl"
+        data-testid="flash-message-dialog"
+      >
         <DialogHeader>
           <DialogTitle>{mode.kind === "edit" ? "Edit flash message" : "New flash message"}</DialogTitle>
           <DialogDescription>
