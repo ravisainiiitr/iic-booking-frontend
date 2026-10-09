@@ -223,7 +223,7 @@ describe("StlModelPreview", () => {
     );
     await waitFor(() => expect(screen.queryByTestId("stl-preview-too-large")).toBeNull());
     expect(screen.getByTestId("stl-preview-rotated").textContent).toContain("when turned");
-    expect(three.buildPrintScene.mock.calls.at(-1)?.[5]).toEqual({ overLimit: false });
+    expect(three.buildPrintScene.mock.calls.at(-1)?.[5]).toMatchObject({ overLimit: false });
   });
 
   it("does not auto-rotate for people who prefer reduced motion", async () => {

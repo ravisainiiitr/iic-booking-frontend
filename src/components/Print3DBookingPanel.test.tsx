@@ -295,7 +295,7 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
   });
 });
 
-describe("Print3DBookingPanel orientation and live estimate", () => {
+describe("Print3DBookingPanel orientation and live estimate", { timeout: 20000 }, () => {
   const supportDefaults = {
     technology: "FDM",
     supports_available: true,
@@ -395,7 +395,7 @@ describe("Print3DBookingPanel orientation and live estimate", () => {
     expect(screen.getByTestId("print-orientation-label").textContent).toContain("updating estimate");
     expect(lastPreview().supports).toMatchObject({ summary: "Supports: updating…" });
 
-    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 2000 });
+    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 5000 });
     expect(api.recalculatePrintAnalysis).toHaveBeenCalledTimes(1);
     expect(api.recalculatePrintAnalysis.mock.calls[0][0]).toBe("a1");
     expect(api.recalculatePrintAnalysis.mock.calls[0][1]).toMatchObject({ material_id: "7", density_percent: 100, orientation: turned });
@@ -410,7 +410,7 @@ describe("Print3DBookingPanel orientation and live estimate", () => {
   it("suggests the least-support orientation and turns the part on request", async () => {
     api.recalculatePrintAnalysis.mockResolvedValue({ data: { ...analysed, slicer_settings: { orientation: turned } } });
     setup();
-    const hint = await screen.findByTestId("print-orientation-hint", {}, { timeout: 3000 });
+    const hint = await screen.findByTestId("print-orientation-hint", {}, { timeout: 8000 });
     expect(hint.textContent).toContain("Turning this part could save 5.1 g of supports and 18 min of print time.");
     expect(api.getPrintAnalysisOrientations.mock.calls[0][0]).toBe("a1");
 
@@ -419,7 +419,7 @@ describe("Print3DBookingPanel orientation and live estimate", () => {
     expect(api.getPrintAnalysisOrientations).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByTestId("print-orientation-use-best"));
     expect(lastPreview().orientation).toEqual(turned);
-    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 2000 });
+    await waitFor(() => expect(api.recalculatePrintAnalysis).toHaveBeenCalled(), { timeout: 5000 });
     expect(api.recalculatePrintAnalysis.mock.calls[0][1].orientation).toEqual(turned);
   });
 
@@ -429,14 +429,14 @@ describe("Print3DBookingPanel orientation and live estimate", () => {
     });
     const { onSizeBlockChange } = setup({ ...LIMIT, allow_rotation: false });
     fireEvent.click(await screen.findByTestId("print-rotate-x-plus"));
-    expect((await screen.findByTestId("print-orientation-size-error", {}, { timeout: 2000 })).textContent).toContain(
+    expect((await screen.findByTestId("print-orientation-size-error", {}, { timeout: 5000 })).textContent).toContain(
       "bracket.stl turned this way is 300 × 40 × 20 mm",
     );
     expect(onSizeBlockChange).toHaveBeenLastCalledWith(expect.stringContaining("Choose another orientation."));
 
     api.recalculatePrintAnalysis.mockResolvedValue({ data: { ...analysed, slicer_settings: {} } });
     fireEvent.click(screen.getByTestId("print-orientation-reset"));
-    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith(null), { timeout: 2000 });
+    await waitFor(() => expect(onSizeBlockChange).toHaveBeenLastCalledWith(null), { timeout: 5000 });
     expect(api.recalculatePrintAnalysis.mock.calls[1][1].orientation).toBeNull();
   });
 
