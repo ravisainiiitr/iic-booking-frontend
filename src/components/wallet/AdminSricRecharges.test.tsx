@@ -174,4 +174,37 @@ describe("AdminSricRecharges", () => {
       expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ status: "needs_review", page: 1 })),
     );
   });
+
+  it("badges test entries, shows a reversed credit with its adjustment and can hide test entries", async () => {
+    const testRow = {
+      ...base,
+      id: 9,
+      reference: "SWR-000009",
+      ledger_id: "TEST-L-2001",
+      status: "credited",
+      status_display: "Reversed",
+      credited_at: "2026-10-09T20:00:00+05:30",
+      is_test: true,
+      reversed: true,
+      reversed_at: "2026-10-09T20:10:00+05:30",
+      reversal_ref: "WAD-2026-000123",
+      reversed_by_name: "Main Admin",
+    };
+    const res = listResponse();
+    api.getAdminSricRecharges.mockResolvedValue({ data: { ...res.data, results: [...rows, testRow], test_count: 1 } });
+    render(<AdminSricRecharges />);
+    const row = await screen.findByTestId("sric-row-9");
+    expect(within(row).getByText("TEST")).toBeTruthy();
+    expect(within(row).getByText("Reversed")).toBeTruthy();
+    expect(within(row).getByRole("link", { name: "WAD-2026-000123" }).getAttribute("href")).toBe("/admin/wallet-ledger/41");
+    expect(within(row).getByText("Not applicable (reversed)")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: /Verify/ })).toBeNull();
+    expect(within(screen.getByTestId("sric-row-3")).queryByText("TEST")).toBeNull();
+    expect(screen.getByText(/test entries are not counted in totals or exports/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("switch", { name: /Show test entries/ }));
+    await waitFor(() =>
+      expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ test: "hide", page: 1 })),
+    );
+  });
 });

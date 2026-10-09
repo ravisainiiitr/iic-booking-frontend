@@ -110,4 +110,16 @@ describe("SricRechargePanel", () => {
     expect((await screen.findByRole("status")).textContent).toContain("Please wait 42 seconds");
     expect((screen.getByTestId("sric-refresh-button") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("badges a test entry and shows a reversed credit", async () => {
+    const testRow = { ...creditedRow, id: 12, ledger_id: "TEST-L-0043", is_test: true, reversed: true, reversed_at: "2026-10-09T20:10:00+05:30" };
+    api.getMySricRecharges.mockResolvedValue(info([testRow, creditedRow]));
+    render(<SricRechargePanel />);
+    const list = await screen.findByTestId("sric-recent-list");
+    expect(list.querySelectorAll("li")[0].textContent).toContain("TEST");
+    expect(list.querySelectorAll("li")[0].textContent).toContain("Reversed");
+    expect(screen.getByText(/This credit was reversed by the IIC office/)).toBeTruthy();
+    expect(list.querySelectorAll("li")[1].textContent).not.toContain("TEST");
+    expect(list.querySelectorAll("li")[1].textContent).toContain("Credited");
+  });
 });

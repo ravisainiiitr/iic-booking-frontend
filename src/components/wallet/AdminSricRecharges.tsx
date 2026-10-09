@@ -3,7 +3,7 @@ import { BadgeCheck, Ban, Check, Loader2, RefreshCw, Search, Settings2 } from "l
 import { toast } from "sonner";
 
 import { ExportMenu } from "@/components/ExportMenu";
-import { SricStatusBadge } from "@/components/wallet/SricRechargePanel";
+import { SricStatusBadge, SricTestBadge } from "@/components/wallet/SricRechargePanel";
 import { formatDateTime } from "@/components/walletModes/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,8 @@ type Filters = {
   date_from: string;
   date_to: string;
   search: string;
+  /** "" lists test entries (with a TEST badge); "hide" leaves them out. */
+  test: "" | "hide";
 };
 
 const EMPTY_FILTERS: Filters = {
@@ -74,6 +76,7 @@ const EMPTY_FILTERS: Filters = {
   date_from: "",
   date_to: "",
   search: "",
+  test: "",
 };
 
 function amountText(row: SricRechargeRow) {
@@ -214,6 +217,7 @@ export default function AdminSricRecharges() {
             ))}
             <span className="self-center text-xs text-muted-foreground">
               Credited total (filtered): {formatMoney(data?.credited_total ?? 0)}
+              {data?.test_count ? " · test entries are not counted in totals or exports" : ""}
             </span>
           </div>
 
@@ -280,6 +284,16 @@ export default function AdminSricRecharges() {
                 />
               </div>
             </div>
+            {data?.test_count ? (
+              <div className="flex items-end gap-2 pb-2">
+                <Switch
+                  id="sric-filter-test"
+                  checked={filters.test !== "hide"}
+                  onCheckedChange={(c) => setFilter("test", c ? "" : "hide")}
+                />
+                <Label htmlFor="sric-filter-test">Show test entries ({data.test_count})</Label>
+              </div>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -361,7 +375,24 @@ export default function AdminSricRecharges() {
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-right tabular-nums">{amountText(row)}</TableCell>
                       <TableCell className="max-w-[16rem] text-xs">
-                        <SricStatusBadge status={row.status} label={ADMIN_STATUS_LABEL[row.status]} />
+                        <div className="flex flex-wrap gap-1">
+                          {row.is_test ? <SricTestBadge /> : null}
+                          <SricStatusBadge status={row.status} label={ADMIN_STATUS_LABEL[row.status]} reversed={row.reversed} />
+                        </div>
+                        {row.reversed ? (
+                          <span className="mt-1 block text-muted-foreground">
+                            Debited back by{" "}
+                            {row.matched_user && row.reversal_ref ? (
+                              <a className="font-mono text-primary underline-offset-2 hover:underline" href={`/admin/wallet-ledger/${row.matched_user.id}`}>
+                                {row.reversal_ref}
+                              </a>
+                            ) : (
+                              <span className="font-mono">{row.reversal_ref || "a ledger adjustment"}</span>
+                            )}
+                            {row.reversed_at ? ` on ${formatDateTime(row.reversed_at)}` : ""}
+                            {row.reversed_by_name ? ` by ${row.reversed_by_name}` : ""}
+                          </span>
+                        ) : null}
                         {row.review_message && row.status !== "credited" ? (
                           <span className="mt-1 block text-muted-foreground">{row.review_message}</span>
                         ) : null}
@@ -376,7 +407,9 @@ export default function AdminSricRecharges() {
                         ) : null}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {row.status === "credited" ? (
+                        {row.reversed ? (
+                          <span className="text-muted-foreground">Not applicable (reversed)</span>
+                        ) : row.status === "credited" ? (
                           row.fund_receipt_verified ? (
                             <span className="text-emerald-700 dark:text-emerald-400">
                               Verified
@@ -963,7 +996,10 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
               {settings.recent_messages.map((m) => (
                 <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 p-2">
                   <span>{formatDateTime(m.received_at || m.processed_at)}</span>
-                  <span>{m.status_display}</span>
+                  <span className="flex items-center gap-1">
+                    {m.is_test ? <SricTestBadge /> : null}
+                    {m.status_display}
+                  </span>
                   <span>{m.row_count} row(s)</span>
                   <span className={m.authenticated ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400"}>
                     {m.authenticated ? "Origin verified" : "Origin not verified"}

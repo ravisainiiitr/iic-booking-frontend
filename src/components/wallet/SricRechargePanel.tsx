@@ -28,10 +28,24 @@ const FACULTY_STATUS_LABEL: Record<SricRechargeStatus, string> = {
   rejected: "Not credited",
 };
 
-export function SricStatusBadge({ status, label }: { status: SricRechargeStatus; label?: string }) {
+const REVERSED_TONE = "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-600 dark:bg-slate-900/60 dark:text-slate-300";
+
+export function SricStatusBadge({ status, label, reversed = false }: { status: SricRechargeStatus; label?: string; reversed?: boolean }) {
   return (
-    <Badge variant="outline" className={cn("whitespace-nowrap font-medium", STATUS_TONE[status])}>
-      {label ?? FACULTY_STATUS_LABEL[status]}
+    <Badge variant="outline" className={cn("whitespace-nowrap font-medium", reversed ? REVERSED_TONE : STATUS_TONE[status])}>
+      {reversed ? "Reversed" : (label ?? FACULTY_STATUS_LABEL[status])}
+    </Badge>
+  );
+}
+
+export function SricTestBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="whitespace-nowrap border-violet-300 bg-violet-50 font-semibold text-violet-800 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-300"
+      title="Entry from a test run; not counted in totals or exports"
+    >
+      TEST
     </Badge>
   );
 }
@@ -201,7 +215,11 @@ export default function SricRechargePanel({ onCredited, compact = false }: SricR
                   <p className="text-xs text-muted-foreground">
                     {row.credited_at ? `Credited ${formatDateTime(row.credited_at)}` : `Received ${formatDateTime(row.email_date || row.created_at)}`}
                   </p>
-                  {row.status === "rejected" ? (
+                  {row.reversed ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      This credit was reversed by the IIC office{row.reversed_at ? ` on ${formatDateTime(row.reversed_at)}` : ""}.
+                    </p>
+                  ) : row.status === "rejected" ? (
                     <p className="mt-1 text-xs text-muted-foreground">
                       This recharge was not credited. Please contact the IIC office.
                     </p>
@@ -211,7 +229,10 @@ export default function SricRechargePanel({ onCredited, compact = false }: SricR
                     </p>
                   ) : null}
                 </div>
-                <SricStatusBadge status={row.status} />
+                <div className="flex shrink-0 gap-1">
+                  {row.is_test ? <SricTestBadge /> : null}
+                  <SricStatusBadge status={row.status} reversed={row.reversed} />
+                </div>
               </li>
             ))}
           </ul>

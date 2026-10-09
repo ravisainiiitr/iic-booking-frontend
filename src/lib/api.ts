@@ -964,6 +964,13 @@ export interface SricRechargeRow {
   email_date: string | null;
   created_at: string | null;
   fund_receipt_verified: boolean;
+  /** Entry from a test run (excluded from totals and exports). */
+  is_test?: boolean;
+  /** Credit debited back by a Main Administrator ledger adjustment. */
+  reversed?: boolean;
+  reversed_at?: string | null;
+  reversal_ref?: string;
+  reversed_by_name?: string;
   pi_name?: string;
   employee_id?: string;
   row_number?: number;
@@ -1017,6 +1024,7 @@ export interface SricAdminListResponse {
   financial_years: string[];
   receivers: SricReceiverInfo[];
   credited_total: string;
+  test_count?: number;
   scan_enabled: boolean;
   auto_credit_enabled: boolean;
   last_scan_at: string | null;
@@ -1069,6 +1077,7 @@ export interface SricRechargeSettings {
     authenticated: boolean;
     auth_verdict: string;
     attachment_name: string;
+    is_test?: boolean;
   }[];
 }
 
