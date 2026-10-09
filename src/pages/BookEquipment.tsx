@@ -6323,7 +6323,9 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     setFabricationOwnMaterial(values.ownMaterial);
     lastCalculatedValuesRef.current = '';
     // Weight, material and time are read from the STL analysis on the server; A stays Quantity Required.
-    setPrintPartsKey(JSON.stringify([values.weightGrams, values.materialCode, values.timeMinutes]));
+    setPrintPartsKey(
+      JSON.stringify([values.weightGrams, values.materialCode, values.timeMinutes, values.supportWeightGrams ?? 0, values.supportMaterialCode ?? ""]),
+    );
   }, []);
 
   const handleLaserCutReady = useCallback((values: LaserCutBookingValues | null) => {

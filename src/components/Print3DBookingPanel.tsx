@@ -20,8 +20,21 @@ import {
   apiClient,
   type PrintAnalysisBatchResult,
   type PrintAnalysisResult,
+  type PrintEstimateBreakdown,
   type PrintMaterial,
+  type PrintSupportDefaults,
+  type PrintSupportMode,
+  type PrintSupportSettings,
 } from "@/lib/api";
+import {
+  PRINT_ESTIMATE_NOTE,
+  SUPPORT_MODE_OPTIONS,
+  formatAreaMm2,
+  formatPrintDuration,
+  printEstimateSummary,
+  sumPrintEstimates,
+  supportModeSummary,
+} from "@/lib/printEstimate";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import {
@@ -69,15 +82,25 @@ export interface Print3DFileItem {
   weightGrams: number;
   timeMinutes: number;
   status: PrintAnalysisResult["status"];
+  /** Supports in a separate support material, one copy (whole grams; 0 when printed in the model material). */
+  supportWeightGramsEach?: number;
+  supportMaterialCode?: string;
+  /** Model breakdown of one copy (model / supports / waste, warm-up). */
+  breakdown?: PrintEstimateBreakdown | null;
 }
 
 export interface Print3DBookingValues {
   analysisId?: string;
   batchId?: string;
-  /** Totals for all files and copies. */
+  /** Totals for all files and copies (model material, including supports printed in it). */
   weightGrams: number;
   materialCode: string;
   timeMinutes: number;
+  /** Separate support material, totals for all files and copies (0 when supports use the model material). */
+  supportWeightGrams?: number;
+  supportMaterialCode?: string;
+  /** The support choice sent with the files. */
+  supports?: PrintSupportSettings;
   items: Print3DFileItem[];
   /** Changes whenever quantities, material or the own-material choice change. */
   partsKey: string;
@@ -114,6 +137,8 @@ export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename
   const quantity = Math.max(1, Math.floor(Number(a.quantity) || 1));
   const weightEach = ceilPrintWeightGrams(a.weight_grams);
   const timeEach = Number(a.estimated_time_minutes ?? 0);
+  const breakdown = a.estimate_breakdown ?? null;
+  const supportCode = breakdown?.support_material_code || "";
   return {
     id: a.id,
     filename,
@@ -124,6 +149,9 @@ export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename
     weightGrams: weightEach * quantity,
     timeMinutes: timeEach * quantity,
     status: a.status,
+    supportWeightGramsEach: supportCode ? ceilPrintWeightGrams(breakdown?.support_material_g) : 0,
+    supportMaterialCode: supportCode,
+    breakdown,
   };
 }
 
@@ -270,6 +298,26 @@ export function Print3DBookingPanel({
   const [sizeChecks, setSizeChecks] = useState<StlSizeCheck[]>([]);
   const [serverSizeError, setServerSizeError] = useState<string | null>(null);
   const initialPreviewIndexRef = useRef(0);
+  const [supportDefaults, setSupportDefaults] = useState<PrintSupportDefaults | null>(null);
+  const [supportMaterials, setSupportMaterials] = useState<PrintMaterial[]>([]);
+  const [supportMode, setSupportMode] = useState<PrintSupportMode>("auto");
+  const [supportAdvanced, setSupportAdvanced] = useState(false);
+  /** null = the printer profile's default. */
+  const [supportDensity, setSupportDensity] = useState<number | null>(null);
+  const [supportAngle, setSupportAngle] = useState<number | null>(null);
+  const [supportMaterialId, setSupportMaterialId] = useState("same");
+  const supportSettings = useMemo<PrintSupportSettings>(
+    () => ({
+      support_mode: supportMode,
+      support_density_pct: supportDensity,
+      support_angle_deg: supportAngle,
+      support_material_id: supportMaterialId === "same" ? null : Number(supportMaterialId),
+    }),
+    [supportMode, supportDensity, supportAngle, supportMaterialId],
+  );
+  const supportSettingsRef = useRef(supportSettings);
+  supportSettingsRef.current = supportSettings;
+  const supportKey = JSON.stringify(supportSettings);
 
   const sizeLimit = useMemo(
     () => printSizeLimitFrom(maxPrintSize !== undefined ? maxPrintSize : fetchedMaxPrintSize),
@@ -342,10 +390,16 @@ export function Print3DBookingPanel({
     }
   }, [materialsProp, materialId]);
 
+  const hasMaterialsProp = Boolean(materialsProp?.length);
   useEffect(() => {
-    if (materialsProp?.length) return;
+    // Also fetched when the page passes the materials: the printer's support options come with them.
     const userTypeOpts = estimateUserType ? { user_type: estimateUserType } : undefined;
-    void apiClient.getEquipmentPrintMaterials(equipmentId, userTypeOpts).then((res) => {
+    let cancelled = false;
+    void Promise.resolve(apiClient.getEquipmentPrintMaterials(equipmentId, userTypeOpts)).then((res) => {
+      if (cancelled || !res) return;
+      setSupportDefaults(res.data?.support_defaults ?? null);
+      setSupportMaterials(res.data?.support_materials ?? []);
+      if (hasMaterialsProp) return;
       setFetchedMaxPrintSize(res.data?.max_print_size ?? null);
       if (res.data?.materials?.length) {
         setMaterials(res.data.materials);
@@ -356,7 +410,16 @@ export function Print3DBookingPanel({
       }
       setMaterialsLoaded(!res.error);
     });
-  }, [equipmentId, materialsProp, estimateUserType]);
+    return () => {
+      cancelled = true;
+    };
+  }, [equipmentId, hasMaterialsProp, estimateUserType]);
+
+  useEffect(() => {
+    if (supportMaterialId !== "same" && !supportMaterials.some((m) => String(m.id) === supportMaterialId)) {
+      setSupportMaterialId("same");
+    }
+  }, [supportMaterials, supportMaterialId]);
 
   useEffect(() => {
     return () => {
@@ -391,6 +454,8 @@ export function Print3DBookingPanel({
       lastReadyRef.current = { items, code: materialCode };
       const totalWeight = items.reduce((sum, i) => sum + i.weightGrams, 0);
       const totalTime = items.reduce((sum, i) => sum + i.timeMinutes, 0);
+      const supportWeight = items.reduce((sum, i) => sum + (i.supportWeightGramsEach ?? 0) * i.quantity, 0);
+      const supportCode = items.find((i) => i.supportMaterialCode)?.supportMaterialCode ?? "";
       const own = ownMaterialRef.current;
       onReady({
         analysisId: items.length === 1 ? items[0].id : analysisIdRef.current ?? undefined,
@@ -398,8 +463,16 @@ export function Print3DBookingPanel({
         weightGrams: totalWeight,
         materialCode,
         timeMinutes: totalTime,
+        supportWeightGrams: supportWeight,
+        supportMaterialCode: supportCode,
+        supports: supportSettingsRef.current,
         items,
-        partsKey: JSON.stringify([own, materialCode, items.map((i) => [i.id, i.quantity, i.weightGramsEach, i.timeMinutesEach])]),
+        partsKey: JSON.stringify([
+          own,
+          materialCode,
+          items.map((i) => [i.id, i.quantity, i.weightGramsEach, i.timeMinutesEach, i.supportWeightGramsEach ?? 0]),
+          supportCode,
+        ]),
         ownMaterial: own,
       });
     },
@@ -534,6 +607,7 @@ export function Print3DBookingPanel({
           file: selectedFile,
           material_id: materialId,
           density_percent: density,
+          supports: supportSettingsRef.current,
         });
         if (res.error || !res.data) {
           setProgress(0);
@@ -618,6 +692,7 @@ export function Print3DBookingPanel({
         const res = await apiClient.recalculatePrintAnalysisBatch(batchIdRef.current, {
           material_id: materialId,
           density_percent: density,
+          supports: supportSettingsRef.current,
         });
         if (res.error || !res.data) {
           toast.error(res.error || "Recalculation failed");
@@ -634,6 +709,7 @@ export function Print3DBookingPanel({
       const res = await apiClient.recalculatePrintAnalysis(analysisId, {
         material_id: materialId,
         density_percent: density,
+        supports: supportSettingsRef.current,
       });
       if (res.error || !res.data) {
         toast.error(res.error || "Recalculation failed");
@@ -666,7 +742,7 @@ export function Print3DBookingPanel({
     return () => {
       if (settingsRecalcTimerRef.current) clearTimeout(settingsRecalcTimerRef.current);
     };
-  }, [density, materialId, analyzingStl, disabled]);
+  }, [density, materialId, supportKey, analyzingStl, disabled]);
 
   const onFileSelected = async (selected: File | null) => {
     if (!selected) return;
@@ -764,8 +840,16 @@ export function Print3DBookingPanel({
   const totals = useMemo(() => {
     const weight = completedItems.reduce((s, i) => s + i.weightGrams, 0) * sets;
     const time = completedItems.reduce((s, i) => s + i.timeMinutes, 0) * sets;
-    return { weight, time };
+    const supportWeight = completedItems.reduce((s, i) => s + (i.supportWeightGramsEach ?? 0) * i.quantity, 0) * sets;
+    return { weight, time, supportWeight };
   }, [completedItems, sets]);
+  const estimateTotals = useMemo(() => sumPrintEstimates(completedItems, sets), [completedItems, sets]);
+  const supportCode = completedItems.find((i) => i.supportMaterialCode)?.supportMaterialCode ?? "";
+  const supportsAvailable = supportDefaults?.supports_available === true;
+  const supportModesSelectable = supportsAvailable && supportDefaults?.modes_selectable !== false;
+  const defaultSupportDensity = supportDefaults?.density_pct ?? 15;
+  const defaultSupportAngle = supportDefaults?.angle_deg ?? 45;
+  const [angleMin, angleMax] = supportDefaults?.angle_range ?? [30, 70];
 
   const previewEntries = useMemo((): ZipStlEntry[] => {
     if (isZipUpload && zipStlEntries.length > 0) return zipStlEntries;
@@ -840,6 +924,139 @@ export function Print3DBookingPanel({
             disabled={disabled || analyzingStl}
           />
         </div>
+
+        {supportsAvailable && (
+          <div className="space-y-3 rounded-md border p-3" data-testid="print-supports">
+            <div className="space-y-2">
+              <Label htmlFor="print-support-mode">Supports</Label>
+              {supportModesSelectable ? (
+                <Select
+                  value={supportMode}
+                  onValueChange={(v) => setSupportMode(v as PrintSupportMode)}
+                  disabled={disabled || analyzingStl}
+                >
+                  <SelectTrigger id="print-support-mode" data-testid="print-support-mode">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SUPPORT_MODE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-sm text-muted-foreground">This printer always prints supports wherever the model needs them.</p>
+              )}
+              {supportModesSelectable && (
+                <p className="text-xs text-muted-foreground">
+                  {SUPPORT_MODE_OPTIONS.find((o) => o.value === supportMode)?.hint}
+                </p>
+              )}
+              {estimateTotals && (
+                <p className="text-xs text-muted-foreground" data-testid="print-overhangs">
+                  {estimateTotals.overhangAreaMm2 >= 1
+                    ? `Detected overhangs: ${formatAreaMm2(estimateTotals.overhangAreaMm2)} (${formatAreaMm2(
+                        estimateTotals.overhangPlateMm2,
+                      )} with a clear path to the build plate)`
+                    : "No overhangs that need support were detected."}
+                  {" · "}Estimated with: <span className="font-medium text-foreground">{supportModeSummary(estimateTotals)}</span>
+                </p>
+              )}
+            </div>
+
+            {supportMaterials.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="print-support-material">Support material</Label>
+                <Select value={supportMaterialId} onValueChange={setSupportMaterialId} disabled={disabled || analyzingStl}>
+                  <SelectTrigger id="print-support-material" data-testid="print-support-material">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="same">Same as model material</SelectItem>
+                    {supportMaterials.map((m) => (
+                      <SelectItem key={m.id} value={String(m.id)}>
+                        {m.name} — ₹{m.price_per_gram}/g
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {supportModesSelectable && (
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0"
+                  aria-expanded={supportAdvanced}
+                  onClick={() => setSupportAdvanced((v) => !v)}
+                  data-testid="print-support-advanced-toggle"
+                >
+                  {supportAdvanced ? "Hide advanced support settings" : "Advanced support settings"}
+                </Button>
+                {supportAdvanced && (
+                  <div className="space-y-4" data-testid="print-support-advanced">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <Label>Support density</Label>
+                        <span className="text-muted-foreground" data-testid="print-support-density">
+                          {supportDensity ?? defaultSupportDensity}%{supportDensity == null ? " (printer default)" : ""}
+                        </span>
+                      </div>
+                      <Slider
+                        min={5}
+                        max={40}
+                        step={1}
+                        value={[supportDensity ?? defaultSupportDensity]}
+                        onValueChange={([v]) => setSupportDensity(v)}
+                        disabled={disabled || analyzingStl}
+                        aria-label="Support density"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <Label>Overhang angle threshold</Label>
+                        <span className="text-muted-foreground" data-testid="print-support-angle">
+                          {supportAngle ?? defaultSupportAngle}°{supportAngle == null ? " (default)" : ""}
+                        </span>
+                      </div>
+                      <Slider
+                        min={angleMin}
+                        max={angleMax}
+                        step={5}
+                        value={[supportAngle ?? defaultSupportAngle]}
+                        onValueChange={([v]) => setSupportAngle(v)}
+                        disabled={disabled || analyzingStl}
+                        aria-label="Overhang angle threshold"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Surfaces leaning further than this from vertical get supports; a larger angle means fewer supports.
+                      </p>
+                    </div>
+                    {(supportDensity != null || supportAngle != null) && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSupportDensity(null);
+                          setSupportAngle(null);
+                        }}
+                        disabled={disabled || analyzingStl}
+                      >
+                        Use printer defaults
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {sizeLimit && (
           <p className="flex items-start gap-2 text-sm text-muted-foreground" data-testid="print-max-size">
@@ -1120,10 +1337,18 @@ export function Print3DBookingPanel({
                     {formatPrintWeightGrams(totals.weight)}
                   </dd>
                 </div>
+                {totals.supportWeight > 0 && (
+                  <div>
+                    <dt className="text-muted-foreground">Support material{supportCode ? ` (${supportCode})` : ""}</dt>
+                    <dd className="font-medium" data-testid="print-total-support-weight">
+                      {formatPrintWeightGrams(totals.supportWeight)}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt className="text-muted-foreground">Total print time</dt>
                   <dd className="font-medium" data-testid="print-total-time">
-                    {totals.time} min
+                    {totals.time} min{totals.time >= 60 ? ` (${formatPrintDuration(totals.time)})` : ""}
                   </dd>
                 </div>
                 <div>
@@ -1143,6 +1368,15 @@ export function Print3DBookingPanel({
                   </div>
                 ) : null}
               </dl>
+              {estimateTotals && (
+                <div className="rounded-md bg-muted/40 p-2 text-xs" data-testid="print-estimate-breakdown">
+                  <p className="font-medium text-foreground">{printEstimateSummary(estimateTotals)}</p>
+                  <p className="text-muted-foreground">
+                    {PRINT_ESTIMATE_NOTE}
+                    {estimateTotals.notes.length ? ` ${estimateTotals.notes.join(" ")}` : ""}
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1157,7 +1391,8 @@ export function Print3DBookingPanel({
             <span>
               I will bring my own printing material.
               <span className="block text-xs text-muted-foreground">
-                A fixed charge of ₹{Number(ownMaterialCharge).toFixed(2)} replaces the material cost.
+                A fixed charge of ₹{Number(ownMaterialCharge).toFixed(2)} replaces the material cost (model and supports);
+                machine time is still charged.
               </span>
             </span>
           </label>
