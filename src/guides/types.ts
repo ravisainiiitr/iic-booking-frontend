@@ -37,6 +37,8 @@ export interface GuideFeatureFlags {
   /** The assistant can confirm bookings in chat for this user. */
   inChatBooking: boolean;
   projectGrant: boolean;
+  /** Project funds arrive through the SRIC portal (New Wallet Recharge) instead of Project Grant requests. */
+  projectGrantRetired: boolean;
   directCash: boolean;
   onlineGateway: boolean;
   peerTransfer: boolean;
@@ -55,6 +57,7 @@ export const DEFAULT_GUIDE_FLAGS: GuideFeatureFlags = {
   assistant: false,
   inChatBooking: false,
   projectGrant: false,
+  projectGrantRetired: false,
   directCash: true,
   onlineGateway: false,
   peerTransfer: true,

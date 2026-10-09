@@ -10,6 +10,8 @@ export type WalletModeFlags = {
   onlineGateway: boolean;
   peerTransfer: boolean;
   creditFacility: boolean;
+  /** Project Grant requests are replaced by SRIC wallet recharge (emailed CSV from rnd.iitr.ac.in). */
+  projectGrantRetired?: boolean;
   /** Departments that switch an enabled option off, keyed by department id. */
   departmentOverrides?: Record<string, Partial<Omit<WalletModeFlags, "departmentOverrides">>>;
 };
@@ -46,6 +48,7 @@ export function walletModeFlagsFromSettings(data: Record<string, unknown> | null
     onlineGateway: pick("online_gateway_recharge_enabled", DEFAULT_WALLET_MODE_FLAGS.onlineGateway),
     peerTransfer: pick("peer_transfer_enabled", DEFAULT_WALLET_MODE_FLAGS.peerTransfer),
     creditFacility: pick("credit_facility_enabled", DEFAULT_WALLET_MODE_FLAGS.creditFacility),
+    projectGrantRetired: pick("project_grant_retired", false),
     departmentOverrides: parseDepartmentOverrides(data?.department_modes),
   };
 }

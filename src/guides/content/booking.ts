@@ -317,12 +317,14 @@ export function memberWalletSection(g: Gate): GuideSection {
 export function ownerWalletSection(g: Gate): GuideSection {
   const f = g.flags;
   const faculty = g.is("faculty");
+  const sric = faculty && f.projectGrantRetired;
   const methods = compact([
-    g.when(faculty && f.projectGrant, "Project Grant (approved by the SRIC Office)"),
+    g.when(sric, "From a project through the SRIC portal (rnd.iitr.ac.in)"),
+    g.when(faculty && !sric && f.projectGrant, "Project Grant (approved by the SRIC Office)"),
     g.when(f.directCash, "Direct Cash Deposit / Bank Transfer"),
     g.when(f.onlineGateway, "Pay online (card, UPI or net banking; a convenience fee applies)"),
   ]);
-  const anySwitchedOff = (faculty && (!f.projectGrant || !f.peerTransfer || !f.creditFacility)) || !f.directCash;
+  const anySwitchedOff = (faculty && ((!f.projectGrant && !sric) || !f.peerTransfer || !f.creditFacility)) || !f.directCash;
 
   return {
     id: "wallet",
@@ -331,7 +333,7 @@ export function ownerWalletSection(g: Gate): GuideSection {
     group: "Wallet",
     intro: compact([
       faculty
-        ? "Open Wallet management. Your wallet has a sub-wallet per department, and linked students book against it and can recharge it too (Project Grant stays faculty-only)."
+        ? `Open Wallet management. Your wallet has a sub-wallet per department, and linked students book against it and can recharge it too (${sric ? "recharges from a project" : "Project Grant"} stay faculty-only).`
         : "Open Wallet management to see your balance, recharges and transactions.",
       g.when(methods.length > 0, `Recharge methods available to you: ${methods.join("; ")}.`),
     ]),
@@ -342,7 +344,11 @@ export function ownerWalletSection(g: Gate): GuideSection {
           ? "Click Recharge Wallet, choose the Recharge method and the sub-wallet in Credit to, enter the Amount (₹) and tick I agree to the above undertaking."
           : "Click Recharge Wallet, choose the Recharge method, enter the Amount (₹) and accept the undertaking.",
       }),
-      g.when(faculty && f.projectGrant, {
+      g.when(sric, {
+        title: "Recharge from a project",
+        body: "Click Recharge Wallet → From a project (SRIC portal), or How to recharge on the Wallet page. Click Open SRIC portal (rnd.iitr.ac.in opens in a new tab), go to Ledger → New Wallet Recharge, select the project, choose the Receiver Type (IIC or Tinkering), enter the amount and a remark and click Submit Recharge. The portal picks it up within 5 minutes; click Refresh to check now.",
+      }),
+      g.when(faculty && !sric && f.projectGrant, {
         title: "Project Grant",
         body: "Select your project, or click Add Project. The request goes to the SRIC Office after you verify it.",
       }),
@@ -365,8 +371,9 @@ export function ownerWalletSection(g: Gate): GuideSection {
     ]),
     rules: compact([
       g.when(methods.length > 0, "The minimum recharge is ₹100. Each request shows its status and, if declined, the reason."),
-      g.when(faculty && f.projectGrant, "Project Grant decline reasons: Wrong Project Code, Insufficient Funds in the Project, Project Already Closed or Other."),
-      g.when(faculty && f.projectGrant, "Declined by SRIC: the amount stays as an auto-approved credit and is recovered from your next approved recharge."),
+      g.when(sric, "An SRIC recharge is credited to the department of the Receiver Type you chose, once per Ledger ID, and you get a confirmation email. Your recent SRIC recharges are listed with their status."),
+      g.when(faculty && !sric && f.projectGrant, "Project Grant decline reasons: Wrong Project Code, Insufficient Funds in the Project, Project Already Closed or Other."),
+      g.when(faculty && !sric && f.projectGrant, "Declined by SRIC: the amount stays as an auto-approved credit and is recovered from your next approved recharge."),
       g.when(faculty && f.peerTransfer, "Transfers stay within the same department grant and need no admin approval."),
       g.when(faculty && f.creditFacility, "Credit requests are approved by the Main Administrator; only one facility can be active at a time."),
       g.when(f.externalBooking, "Funds are held when you request a bank transfer."),

@@ -53,6 +53,7 @@ const DisruptionHistory = lazyPage(() => import("@/pages/DisruptionHistory"));
 const EquipmentFlashMessages = lazyPage(() => import("@/pages/EquipmentFlashMessages"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
 const WalletPeerTransfer = lazyPage(() => import("@/pages/WalletPeerTransfer"));
+const WalletSricRecharge = lazyPage(() => import("@/pages/WalletSricRecharge"));
 const WalletCreditFacilityRequest = lazyPage(() => import("@/pages/WalletCreditFacilityRequest"));
 const WalletDirectRecharge = lazyPage(() => import("@/pages/WalletDirectRecharge"));
 const AdminWalletCreditManagement = lazyPage(() => import("@/pages/AdminWalletCreditManagement"));
@@ -272,6 +273,7 @@ export default function AppRoutes() {
           <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/wallet/transfer" element={<WalletPeerTransfer />} />
+          <Route path="/wallet/recharge-from-project" element={<WalletSricRecharge />} />
           <Route path="/wallet/credit-facility" element={<WalletCreditFacilityRequest />} />
           <Route path="/wallet/direct-recharge" element={<WalletDirectRecharge />} />
           <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />

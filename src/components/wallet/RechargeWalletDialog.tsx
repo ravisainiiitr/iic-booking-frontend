@@ -30,6 +30,7 @@ import {
   type RechargeProject,
 } from "@/lib/walletRecharge";
 import { cn } from "@/lib/utils";
+import SricRechargePanel from "@/components/wallet/SricRechargePanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -57,7 +58,7 @@ type Department = { id: number; name: string; code: string | null };
 type SubWalletBalance = { department_id: number; balance: string };
 type OtpStep = "form" | "otp" | "sric" | "done";
 type StudentPath = "cash" | "online";
-type RechargeMethod = OfflineRechargeMode | "online_gateway";
+type RechargeMethod = OfflineRechargeMode | "online_gateway" | "sric_portal";
 
 const ONLINE_MAX_AMOUNT = 100000;
 
@@ -88,6 +89,7 @@ export type RechargeWalletDialogProps = {
 };
 
 function initialMethod(isFaculty: boolean, flags: WalletModeFlags): RechargeMethod {
+  if (isFaculty && flags.projectGrantRetired) return "sric_portal";
   if (isFaculty && flags.projectGrant) return "project_grant";
   if (flags.directCash) return "direct_cash_deposit";
   if (flags.onlineGateway) return "online_gateway";
@@ -95,6 +97,7 @@ function initialMethod(isFaculty: boolean, flags: WalletModeFlags): RechargeMeth
 }
 
 function methodEnabled(method: RechargeMethod, flags: WalletModeFlags): boolean {
+  if (method === "sric_portal") return Boolean(flags.projectGrantRetired);
   if (method === "project_grant") return flags.projectGrant;
   if (method === "online_gateway") return flags.onlineGateway;
   return flags.directCash;
@@ -268,7 +271,8 @@ export default function RechargeWalletDialog({
 
   const isOnline = isStudentRecharge ? studentPath === "online" : mode === "online_gateway";
   const isProjectGrant = isFaculty && !isOnline && mode === "project_grant";
-  const isCashPath = !isOnline && !isProjectGrant;
+  const isSricPortal = isFaculty && !isStudentRecharge && mode === "sric_portal";
+  const isCashPath = !isOnline && !isProjectGrant && !isSricPortal;
   const offlineMode: OfflineRechargeMode = isProjectGrant ? "project_grant" : "direct_cash_deposit";
   const selectedProject = useMemo(
     () => projects.find((p) => p.id === selectedProjectId) ?? null,
@@ -291,7 +295,7 @@ export default function RechargeWalletDialog({
           ? `Online payment: ${AWAITING_APPROVAL_TEXT}.`
           : null;
 
-  const blocker =
+  const formBlocker =
     methodBlocker ??
     (isOnline
       ? !departmentId
@@ -308,6 +312,7 @@ export default function RechargeWalletDialog({
           projectId: selectedProjectId,
           undertakingAccepted,
         }));
+  const blocker = isSricPortal ? null : formBlocker;
 
   const loadProjects = useCallback(async (): Promise<RechargeProject[]> => {
     setLoadingProjects(true);
@@ -691,12 +696,13 @@ export default function RechargeWalletDialog({
 
   const steps = useMemo(() => {
     const list: string[] = ["Method"];
+    if (isSricPortal) return [...list, "SRIC portal"];
     if (isProjectGrant) list.push("Project");
     list.push("Amount");
     if (!isOnline) list.push("Undertaking");
     list.push(isOnline ? "Payment" : "Verification");
     return list;
-  }, [isProjectGrant, isOnline]);
+  }, [isProjectGrant, isOnline, isSricPortal]);
   const stepIndex = (name: string) => steps.indexOf(name) + 1;
 
   const showProjectPicker = isProjectGrant && !addingProject && projects.length > 0 && (!selectedProject || changingProject);
@@ -977,7 +983,15 @@ export default function RechargeWalletDialog({
       ) : (
         <Section index={stepIndex("Method")} title="Recharge method">
           <div role="radiogroup" aria-label="Recharge method" className="grid gap-2">
-            {isFaculty ? (
+            {isFaculty && flags.projectGrantRetired ? (
+              <OptionCard
+                selected={mode === "sric_portal"}
+                onSelect={() => selectMode("sric_portal")}
+                title="From a project (SRIC portal)"
+                description="Raise a New Wallet Recharge on rnd.iitr.ac.in; it is credited here automatically."
+                disabled={busy}
+              />
+            ) : isFaculty ? (
               <OptionCard
                 selected={mode === "project_grant"}
                 onSelect={() => selectMode("project_grant")}
@@ -1007,6 +1021,18 @@ export default function RechargeWalletDialog({
         </Section>
       )}
 
+      {isSricPortal ? (
+        <Section index={stepIndex("SRIC portal")} title="Recharge on the SRIC portal">
+          <SricRechargePanel compact onCredited={onSubmitted} />
+        </Section>
+      ) : (
+        renderFundingForm()
+      )}
+    </div>
+  );
+
+  const renderFundingForm = () => (
+    <>
       {isProjectGrant ? (
         <Section index={stepIndex("Project")} title="Project">
           {renderProjectSection()}
@@ -1120,7 +1146,7 @@ export default function RechargeWalletDialog({
           </Section>
         </>
       )}
-    </div>
+    </>
   );
 
   const renderOtp = () => (
@@ -1267,7 +1293,9 @@ export default function RechargeWalletDialog({
 
           <div className="flex flex-col gap-2 border-t bg-muted/30 px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="min-h-[1rem] text-xs text-muted-foreground sm:max-w-[55%]" aria-live="polite">
-              {otpStep === "form"
+              {otpStep === "form" && isSricPortal
+                ? "Recharges raised on the SRIC portal are credited to your wallet here."
+                : otpStep === "form"
                 ? formError
                   ? <span className="text-destructive">{formError}</span>
                   : showBlockers && blocker
@@ -1276,7 +1304,11 @@ export default function RechargeWalletDialog({
                 : null}
             </p>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              {otpStep === "form" ? (
+              {otpStep === "form" && isSricPortal ? (
+                <Button type="button" variant="outline" onClick={onClose}>
+                  Close
+                </Button>
+              ) : otpStep === "form" ? (
                 <>
                   <Button type="button" variant="ghost" onClick={requestClose} disabled={busy}>
                     Cancel

@@ -82,7 +82,8 @@ const CATALOG: CatalogItem[] = [
   // Wallet
   { id: "member-limit", roles: WALLET_MEMBERS, kind: "new", theme: "wallet", icon: "wallet", title: "Supervisor spending limit", benefit: "See your weekly and monthly limit and usage before you book.", sectionId: "wallet", href: "/wallet" },
   { id: "wallet-buttons", roles: ["faculty"], when: (f) => f.peerTransfer || f.creditFacility, kind: "improved", theme: "wallet", icon: "wallet", title: "Wallet actions together", benefit: "Transfer, Credit Facility and Recharge Wallet sit side by side at the top.", sectionId: "wallet", href: "/wallet" },
-  { id: "project-grant", roles: ["faculty"], when: (f) => f.projectGrant, kind: "new", theme: "wallet", icon: "receipt", title: "Recharge from a Project Grant", benefit: "Fund your wallet from a sponsored project and see any decline reason.", sectionId: "wallet", href: "/wallet" },
+  { id: "sric-wallet-recharge", roles: ["faculty"], when: (f) => f.projectGrantRetired, kind: "new", theme: "wallet", icon: "receipt", title: "Recharge from a project via SRIC", benefit: "Raise a New Wallet Recharge on rnd.iitr.ac.in; it is credited here and you get an email.", sectionId: "wallet", href: "/wallet/recharge-from-project" },
+  { id: "project-grant", roles: ["faculty"], when: (f) => f.projectGrant && !f.projectGrantRetired, kind: "new", theme: "wallet", icon: "receipt", title: "Recharge from a Project Grant", benefit: "Fund your wallet from a sponsored project and see any decline reason.", sectionId: "wallet", href: "/wallet" },
 
   // Your students
   { id: "spending-limits", roles: ["faculty"], kind: "new", theme: "students", icon: "users", title: "Spending limits per student", benefit: "Cap what each student can spend from your wallet per week or month.", sectionId: "students", href: "/student-management" },

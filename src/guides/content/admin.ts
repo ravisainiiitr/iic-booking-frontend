@@ -152,6 +152,14 @@ export const adminGuide: RoleGuide = {
             body: "Approve, Decline or Cancel requests and Verify Fund Receipt. Upload SRIC cash book matches requests with cash-book entries dated on or after the date set in Wallet Recharge Routing Emails (30 Sep 2026, the portal launch); older or undated rows are ignored and counted in the upload summary.",
           },
           {
+            title: "SRIC recharges",
+            body: "Faculty recharge from a project on rnd.iitr.ac.in (Ledger → New Wallet Recharge); SRIC emails a Wallet_Recharge.csv that the portal reads every 5 minutes or on Refresh. Open Wallet recharge requests → SRIC recharges to see each row with its Ledger ID, financial year, project, Employee ID, receiver and status. Filter by status, financial year, receiver, fund receipt, date or search, and export. Credit a Ready to credit or Needs review row (choose the faculty member or receiver if they were not matched), select several ready rows and click Credit selected, or Reject with a reason. Verify records whether the fund receipt was checked, with remarks. Duplicates are listed but cannot be credited.",
+          },
+          {
+            title: "SRIC recharge settings",
+            body: "In SRIC recharges click Settings to switch Read SRIC emails and Auto-credit SRIC recharges on or off, set an optional auto-credit limit, review alert and CC addresses, and the email origin checks. Receiver Project mapping links each CSV code (IIC-000-002 and TINK-000-01 are preset) to a department sub-wallet; add a code for a new receiver. Recent SRIC emails shows each email's status, rows and whether its origin was verified.",
+          },
+          {
             title: "Send reminder to SRIC",
             body: "For a pending request, or an approved one whose funds have not been received, click the bell icon. Check the To and CC recipients, add a note or extra CC if needed, read the preview, tick the confirmation and click Send reminder. The email repeats every detail of the original request with Reminder #N; SRIC recipients of a pending request get fresh Approve / Decline links and the requester is copied without links. The count and last sent time show on the row.",
           },
@@ -174,6 +182,8 @@ export const adminGuide: RoleGuide = {
           "Every IITR Student linked to a supervisor's wallet can recharge it for the same departments as the supervisor, with the methods these switches allow; Project Grant stays faculty-only. There is no separate student switch to turn on.",
           "Direct wallet recharge is off by default. Only the Main Administrator and people with a current permission can use it, and each recharge is recorded with who made it, when, the permission used and the IP address.",
           "A Project Grant request declined by SRIC becomes an auto-approved credit, recovered from the user's next approved recharge.",
+          "Project Grant requests are retired: new ones are refused with a pointer to the SRIC procedure, and earlier approved or declined requests stay visible. Direct Cash Deposit / Bank Transfer and online payment are unchanged.",
+          "Each SRIC Ledger ID is credited once per financial year (April–March, from the email date). Rows with an unknown receiver, an unmatched Employee ID or an unverified email origin wait in Needs review; with Auto-credit off, matched rows wait as Ready to credit. The faculty member is emailed when a row is credited.",
           "Only the Main Administrator can send SRIC reminders or delete recharge requests. Another reminder for the same request can be sent after 10 minutes.",
           "A request that has credited the wallet cannot be deleted; debit it in the Wallet ledger first. Deleting a pending request cancels it, releases its matched cash-book entry and hides it from lists, counts and exports. Every deletion and reminder is recorded in the audit log.",
         ],

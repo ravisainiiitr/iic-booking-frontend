@@ -1906,6 +1906,22 @@ const Wallet = () => {
 
         <ReturnToBookingBanner />
         <DirectRechargeEntry />
+        {!isShared && isFacultyEffective && walletModeFlags.projectGrantRetired ? (
+          <div
+            className="mb-5 flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+            data-testid="sric-recharge-entry"
+          >
+            <div className="text-sm">
+              <p className="font-medium text-foreground">Recharge from a project through the SRIC portal</p>
+              <p className="text-muted-foreground">
+                Raise a New Wallet Recharge on rnd.iitr.ac.in; it is credited to your wallet here.
+              </p>
+            </div>
+            <Button onClick={() => navigate("/wallet/recharge-from-project")} className="sm:shrink-0">
+              How to recharge
+            </Button>
+          </div>
+        ) : null}
 
         <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
           <div className="min-w-0 space-y-5">

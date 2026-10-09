@@ -58,6 +58,8 @@ import {
 } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AdminSricRecharges from "@/components/wallet/AdminSricRecharges";
 import { formatDMY } from "@/lib/dateFormat";
 
 interface AuditLog {
@@ -271,6 +273,7 @@ export default function AdminWalletRechargeRequests() {
   const [cashbookFilter, setCashbookFilter] = useState<string>("__all__");
   const [searchParams, setSearchParams] = useSearchParams();
   const overdueOnly = searchParams.get("overdue") === "1";
+  const activeTab = isAdmin && searchParams.get("tab") === "sric" ? "sric" : "requests";
   const [cashbookRow, setCashbookRow] = useState<WalletRechargeRequestRow | null>(null);
   const [linkingEntryId, setLinkingEntryId] = useState<number | null>(null);
   const [cashbookUploading, setCashbookUploading] = useState(false);
@@ -615,7 +618,27 @@ export default function AdminWalletRechargeRequests() {
           <p className="text-muted-foreground mt-1">{roleCaption}</p>
         </div>
 
-        <Card>
+        {isAdmin ? (
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => {
+              const next = new URLSearchParams(searchParams);
+              if (value === "sric") next.set("tab", "sric");
+              else next.delete("tab");
+              setSearchParams(next, { replace: true });
+            }}
+            className="mb-4"
+          >
+            <TabsList>
+              <TabsTrigger value="requests">Recharge requests</TabsTrigger>
+              <TabsTrigger value="sric">SRIC recharges</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        ) : null}
+
+        {activeTab === "sric" ? <AdminSricRecharges /> : null}
+
+        <Card className={activeTab === "sric" ? "hidden" : undefined}>
           <CardHeader className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>

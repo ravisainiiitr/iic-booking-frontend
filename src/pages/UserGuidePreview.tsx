@@ -14,6 +14,7 @@ const ALL_ON: GuideFeatureFlags = {
   assistant: true,
   inChatBooking: true,
   projectGrant: true,
+  projectGrantRetired: true,
   directCash: true,
   onlineGateway: true,
   peerTransfer: true,

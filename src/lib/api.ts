@@ -935,6 +935,143 @@ export interface LedgerOptions {
   max_amount: string;
 }
 
+export type SricRechargeStatus =
+  | 'credited'
+  | 'awaiting_credit'
+  | 'needs_review'
+  | 'duplicate'
+  | 'failed'
+  | 'rejected';
+
+export interface SricRechargeRow {
+  id: number;
+  reference: string;
+  project_number: string;
+  ledger_id: string;
+  receiver_code: string;
+  receiver_label: string;
+  department_id: number | null;
+  department_name: string;
+  amount: string | null;
+  amount_raw: string;
+  financial_year: string;
+  status: SricRechargeStatus;
+  status_display: string;
+  review_reason: string;
+  review_message: string;
+  credited_at: string | null;
+  balance_after: string | null;
+  email_date: string | null;
+  created_at: string | null;
+  fund_receipt_verified: boolean;
+  pi_name?: string;
+  employee_id?: string;
+  row_number?: number;
+  origin_verified?: boolean;
+  auth_verdict?: string;
+  matched_user?: { id: number; name: string; email: string; emp_id: string } | null;
+  credited_by_name?: string;
+  confirmation_sent_at?: string | null;
+  duplicate_of_id?: number | null;
+  duplicate_of_reference?: string;
+  fund_receipt_verified_by_name?: string;
+  fund_receipt_verified_at?: string | null;
+  fund_receipt_verification_remarks?: string;
+  rejection_reason?: string;
+  rejected_at?: string | null;
+  rejected_by_name?: string;
+  can_credit?: boolean;
+  can_reject?: boolean;
+  can_verify?: boolean;
+}
+
+export interface SricReceiverInfo {
+  code: string;
+  label: string;
+  department_name?: string;
+}
+
+export interface SricMyRechargesResponse {
+  portal_url: string;
+  scan_enabled: boolean;
+  auto_credit_enabled: boolean;
+  last_scan_at: string | null;
+  receivers: SricReceiverInfo[];
+  results: SricRechargeRow[];
+}
+
+export interface SricRefreshResponse {
+  status: string;
+  debounced: boolean;
+  message: string;
+  results: SricRechargeRow[];
+  scan?: Record<string, unknown>;
+}
+
+export interface SricAdminListResponse {
+  results: SricRechargeRow[];
+  count: number;
+  page: number;
+  page_size: number;
+  status_counts: Partial<Record<SricRechargeStatus, number>>;
+  financial_years: string[];
+  receivers: SricReceiverInfo[];
+  credited_total: string;
+  scan_enabled: boolean;
+  auto_credit_enabled: boolean;
+  last_scan_at: string | null;
+  last_scan_result: Record<string, unknown>;
+}
+
+export interface SricUserOption {
+  id: number;
+  name: string;
+  email: string;
+  emp_id: string;
+  user_type: string;
+  is_faculty: boolean;
+  department_name: string;
+}
+
+export interface SricReceiverMapping {
+  id: number;
+  code: string;
+  label: string;
+  department_id: number | null;
+  department_name: string;
+  is_active: boolean;
+}
+
+export interface SricRechargeSettings {
+  scan_enabled: boolean;
+  auto_credit_enabled: boolean;
+  sender_email: string;
+  attachment_name: string;
+  auto_credit_max_amount: string | null;
+  trusted_authserv_ids: string;
+  require_internal_relay: boolean;
+  trusted_relay_ranges: string;
+  gateway_marker_header: string;
+  gateway_marker_value: string;
+  confirmation_cc_emails: string;
+  review_alert_emails: string;
+  last_scan_at: string | null;
+  last_scan_result: Record<string, unknown>;
+  mappings: SricReceiverMapping[];
+  departments: { id: number; name: string; code: string }[];
+  recent_messages: {
+    id: number;
+    received_at: string | null;
+    processed_at: string | null;
+    status: string;
+    status_display: string;
+    row_count: number;
+    authenticated: boolean;
+    auth_verdict: string;
+    attachment_name: string;
+  }[];
+}
+
 export interface LedgerOwnersResponse {
   count: number;
   page: number;
@@ -6005,6 +6142,81 @@ class ApiClient {
     }
     const q = qs.toString();
     return q ? `?${q}` : '';
+  }
+
+  async getMySricRecharges() {
+    return this.request<SricMyRechargesResponse>('/wallet/sric-recharges/', { method: 'GET' });
+  }
+
+  async refreshMySricRecharges() {
+    return this.request<SricRefreshResponse>('/wallet/sric-recharges/refresh/', { method: 'POST', body: '{}' });
+  }
+
+  async getAdminSricRecharges(params: Record<string, string | number | boolean | null | undefined> = {}) {
+    return this.request<SricAdminListResponse>(`/admin/sric-wallet-recharges/${this.ledgerQuery(params)}`, { method: 'GET' });
+  }
+
+  async refreshAdminSricRecharges() {
+    return this.request<SricRefreshResponse>('/admin/sric-wallet-recharges/refresh/', { method: 'POST', body: '{}' });
+  }
+
+  async creditSricRecharge(id: number, payload: { user_id?: number; receiver_code?: string; note?: string } = {}) {
+    return this.request<{ message: string; row: SricRechargeRow }>(`/admin/sric-wallet-recharges/${id}/credit/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async creditReadySricRecharges(ids: number[]) {
+    return this.request<{ credited: number; skipped: number; errors: { id: number; error: string }[] }>(
+      '/admin/sric-wallet-recharges/credit-ready/',
+      { method: 'POST', body: JSON.stringify({ ids }) },
+    );
+  }
+
+  async rejectSricRecharge(id: number, reason: string) {
+    return this.request<{ message: string; row: SricRechargeRow }>(`/admin/sric-wallet-recharges/${id}/reject/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async verifySricRecharge(id: number, verified: boolean, remarks: string) {
+    return this.request<{ message: string; row: SricRechargeRow }>(`/admin/sric-wallet-recharges/${id}/verify/`, {
+      method: 'POST',
+      body: JSON.stringify({ verified, remarks }),
+    });
+  }
+
+  async lookupSricRechargeUser(q: string) {
+    return this.request<{ results: SricUserOption[] }>(
+      `/admin/sric-wallet-recharges/user-lookup/?q=${encodeURIComponent(q)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getSricRechargeSettings() {
+    return this.request<SricRechargeSettings>('/admin/sric-wallet-recharges/settings/', { method: 'GET' });
+  }
+
+  async updateSricRechargeSettings(payload: Partial<SricRechargeSettings>) {
+    return this.request<SricRechargeSettings>('/admin/sric-wallet-recharges/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async saveSricReceiverMapping(payload: {
+    id?: number;
+    code?: string;
+    label?: string;
+    department_id?: number | null;
+    is_active?: boolean;
+  }) {
+    return this.request<SricRechargeSettings>('/admin/sric-wallet-recharges/mappings/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   async getWalletLedgerOwners(params: Record<string, string | number | boolean | null | undefined> = {}) {
