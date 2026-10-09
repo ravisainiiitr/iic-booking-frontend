@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowDownLeft, ArrowUpRight, Receipt, RotateCcw, Scale, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Receipt, RotateCcw, Scale, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 
 import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ export default function TransactionsPanel({
   options,
   reloadKey = 0,
   onOpenOwner,
+  relatedUser = null,
+  onClearRelatedUser,
 }: {
   /** Set on an owner's page; empty for All transactions. */
   ownerId?: number | null;
@@ -51,6 +53,9 @@ export default function TransactionsPanel({
   options: LedgerOptions | null;
   reloadKey?: number;
   onOpenOwner?: (ownerId: number) => void;
+  /** Limits the list to transactions naming this user as the booking user. */
+  relatedUser?: { id: number; name: string } | null;
+  onClearRelatedUser?: () => void;
 }) {
   const { user } = useAuth();
   const global = !ownerId;
@@ -72,11 +77,15 @@ export default function TransactionsPanel({
     () => ({ ...filters, search: searchTerm, booking: bookingTerm }),
     [filters, searchTerm, bookingTerm],
   );
-  const params = useMemo(() => transactionFilterParams(effective, ordering, ownerId), [effective, ordering, ownerId]);
+  const relatedUserId = relatedUser?.id ?? null;
+  const params = useMemo(
+    () => transactionFilterParams(effective, ordering, ownerId, undefined, relatedUserId),
+    [effective, ordering, ownerId, relatedUserId],
+  );
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, bookingTerm]);
+  }, [searchTerm, bookingTerm, relatedUserId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,6 +165,20 @@ export default function TransactionsPanel({
 
       <Card>
         <CardContent className="space-y-3 p-4">
+          {relatedUser ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm dark:border-sky-900 dark:bg-sky-950/40">
+              <UserRound className="h-4 w-4 text-sky-700 dark:text-sky-300" aria-hidden />
+              <span>
+                Showing transactions for bookings by <span className="font-medium">{relatedUser.name}</span>
+              </span>
+              {onClearRelatedUser ? (
+                <Button variant="ghost" size="sm" className="ml-auto h-7" onClick={onClearRelatedUser}>
+                  <X className="mr-1 h-3.5 w-3.5" aria-hidden />
+                  Show all
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="wl-tx-search" className="text-xs">
@@ -414,6 +437,9 @@ export default function TransactionsPanel({
                             {t.description || "—"}
                           </div>
                           {t.remarks ? <div className="mt-0.5 text-xs text-muted-foreground">{t.remarks}</div> : null}
+                          {t.related_user_name && !relatedUser ? (
+                            <div className="text-xs text-muted-foreground">User: {t.related_user_name}</div>
+                          ) : null}
                           {t.external_reference ? (
                             <div className="text-xs text-muted-foreground">Reference no.: {t.external_reference}</div>
                           ) : null}

@@ -320,6 +320,15 @@ export default function AdminSection() {
   }, [sectionKey]);
 
   useEffect(() => {
+    if (sectionKey !== "users") return;
+    const openUserId = Number((location.state as { openUserId?: number } | null)?.openUserId);
+    if (!openUserId) return;
+    navigate(location.pathname, { replace: true });
+    void openEdit({ [idField]: openUserId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionKey]);
+
+  useEffect(() => {
     const check = async () => {
       const token = apiClient.getToken();
       if (!token) {

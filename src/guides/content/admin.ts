@@ -128,6 +128,10 @@ export const adminGuide: RoleGuide = {
             body: "Finance → Wallet ledger lists every wallet owner with category, department, sub-wallet balances, linked students, account status and last transaction. Search after two letters, filter by department, category, sub-wallet, balance or transaction dates, sort by name, balance or last transaction, and export. Click an owner to see their details, sub-wallets, linked students and every transaction with its source, booking ID, balance after and who made it; filter by date (Today, Last 7 or 30 days, This month, This financial year or a custom range), type, source, sub-wallet, amount, booking ID or performed by. All transactions shows the same ledger across every wallet.",
           },
           {
+            title: "Linked students",
+            body: "In Wallet owners, click the students count on a row to open a side panel listing that owner's linked students with their status, spend and last booking; search or filter by status there, and click a student to see their transactions. Filter owners by Linked students (has or none) and sort by the Students column. On an owner's page the Linked students tab shows each student's enrolment no., email, department, category, link status with request and approval dates, the sub-wallets they booked against, any weekly and monthly caps set by the owner with this week's and month's use, total spent from this wallet (charges less refunds) and in a chosen period, and last booking. Search, filter by status or period, sort and export. Click a student's name to see only their transactions, or the profile icon to open them in User Management.",
+          },
+          {
             title: "Credit or debit a wallet",
             body: "On an owner's page click Credit or Debit (or the buttons on a sub-wallet). Choose the sub-wallet, enter the amount, select a reason (Manual adjustment, Correction, Refund outside system, Grant top-up or Other), add remarks and an optional receipt or UTR number, and choose whether to email the owner. Review shows the current and new balance; confirm to post the entry. A credit can open a sub-wallet for a new department.",
           },
@@ -155,6 +159,7 @@ export const adminGuide: RoleGuide = {
         rules: [
           "Only the Main Administrator can open the Wallet ledger or credit and debit wallets. A debit cannot take a sub-wallet below ₹0.00, and bookings are not changed.",
           "The Wallet ledger is the only place to credit or debit a wallet by hand. Sub-wallets and Sub-wallet transactions in User Management and the Django admin are view only: entries cannot be deleted, a sub-wallet cannot be moved to another user or department, and a sub-wallet with a balance cannot be deleted. Correct a mistake with a new credit or debit.",
+          "Linked students are those whose request to book against the owner's wallet was approved; pending, declined, removed and withdrawn requests are shown with their status. Users whose profile names the owner as supervisor but who have no approved wallet link are listed separately as Supervised (not linked to wallet) and cannot book against it.",
           "Every credit and debit is recorded with a reference (WAC- or WAD-), your name, the time, the reason and the IP address, and appears in the owner's transactions. Submitting the same entry twice posts it only once.",
           "Users see a switched-off mode greyed out with Awaiting Competent Authority Approval. The department is that of the sub-wallet being funded, debited or transferred from.",
           "A department can only switch an option off; while a master switch is off, the option is off in every department. Credit limit caps apply to every department.",

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronRight, Landmark, ListOrdered, RotateCcw, Search, ShieldAlert, Users, Wallet } from "lucide-react";
+import { ChevronRight, GraduationCap, Landmark, ListOrdered, RotateCcw, Search, ShieldAlert, Users, Wallet } from "lucide-react";
 
 import { ExportMenu } from "@/components/ExportMenu";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
+import { LinkedStudentsDrawer } from "@/components/walletLedger/LinkedStudents";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
 import { FilterSelect, LedgerPagination, SortHeader, SummaryStat } from "@/components/walletLedger/shared";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,11 @@ const STATUS_OPTIONS: LedgerOption[] = [
   { value: "inactive", label: "Inactive account" },
 ];
 
+const HAS_STUDENTS_OPTIONS: LedgerOption[] = [
+  { value: "yes", label: "Has linked students" },
+  { value: "no", label: "No linked students" },
+];
+
 export function MainAdminOnlyNotice() {
   return (
     <Card className="mx-auto mt-8 max-w-lg">
@@ -66,6 +72,7 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [drawerOwner, setDrawerOwner] = useState<{ id: number; name: string } | null>(null);
 
   const effective = useMemo(() => ({ ...filters, search: searchTerm }), [filters, searchTerm]);
   const params = useMemo(() => ownerFilterParams(effective, ordering), [effective, ordering]);
@@ -226,6 +233,14 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
               options={STATUS_OPTIONS}
               allLabel="Any status"
             />
+            <FilterSelect
+              id="wl-owner-students"
+              label="Linked students"
+              value={filters.has_students}
+              onChange={(v) => update({ has_students: v })}
+              options={HAS_STUDENTS_OPTIONS}
+              allLabel="With or without"
+            />
             <div className="space-y-1.5">
               <Label htmlFor="wl-owner-afrom" className="text-xs">
                 Transactions from
@@ -347,7 +362,27 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
                         <TableCell className={cn("whitespace-nowrap text-right font-semibold tabular-nums", balanceTone(o.total_balance))}>
                           {formatLedgerAmount(o.total_balance)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{o.linked_students}</TableCell>
+                        <TableCell className="text-right">
+                          <button
+                            type="button"
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors",
+                              o.linked_students > 0
+                                ? "border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
+                                : "border-border text-muted-foreground hover:bg-muted",
+                            )}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDrawerOwner({ id: o.owner_id, name: o.name });
+                            }}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            aria-label={`Linked students of ${o.name}: ${o.linked_students}`}
+                            title="Show linked students"
+                          >
+                            <GraduationCap className="h-3.5 w-3.5" aria-hidden />
+                            {o.linked_students}
+                          </button>
+                        </TableCell>
                         <TableCell>
                           <Badge variant={o.status === "active" ? "secondary" : "outline"} className={cn(o.status !== "active" && "text-muted-foreground")}>
                             {o.status === "active" ? "Active" : "Inactive"}
@@ -380,6 +415,18 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
           />
         </CardContent>
       </Card>
+
+      <LinkedStudentsDrawer
+        owner={drawerOwner}
+        onOpenChange={(v) => {
+          if (!v) setDrawerOwner(null);
+        }}
+        onOpenOwner={(ownerId, student) =>
+          student
+            ? navigate(`/admin/wallet-ledger/${ownerId}?student=${student.id}`, { state: { studentName: student.name } })
+            : navigate(`/admin/wallet-ledger/${ownerId}?tab=students`)
+        }
+      />
     </div>
   );
 }

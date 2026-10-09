@@ -1,13 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Building2, GraduationCap, Loader2, Mail, Phone, UserRound, Wallet } from "lucide-react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  Building2,
+  GraduationCap,
+  ListOrdered,
+  Loader2,
+  Mail,
+  Phone,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 
 import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import AdjustWalletDialog from "@/components/walletLedger/AdjustWalletDialog";
+import { LinkedStudentsPanel, type StudentRef } from "@/components/walletLedger/LinkedStudents";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type LedgerOptions, type LedgerOwnerDetail } from "@/lib/api";
 import { formatDMYTime } from "@/lib/dateFormat";
@@ -17,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { MainAdminOnlyNotice } from "./AdminWalletLedger";
 
 type Adjust = { direction: "credit" | "debit"; subWalletId: number | null } | null;
+type OwnerTab = "transactions" | "students";
 
 export default function AdminWalletLedgerOwner() {
   const navigate = useNavigate();
@@ -30,7 +45,40 @@ export default function AdminWalletLedgerOwner() {
   const [error, setError] = useState<string | null>(null);
   const [adjust, setAdjust] = useState<Adjust>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [showStudents, setShowStudents] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [studentNames, setStudentNames] = useState<Record<number, string>>({});
+  const tab: OwnerTab = searchParams.get("tab") === "students" ? "students" : "transactions";
+  const studentId = Number(searchParams.get("student")) || 0;
+  const relatedUser = studentId
+    ? {
+        id: studentId,
+        name:
+          studentNames[studentId] ||
+          (location.state as { studentName?: string } | null)?.studentName ||
+          owner?.students.find((s) => s.id === studentId)?.name ||
+          "the selected student",
+      }
+    : null;
+
+  const changeTab = (next: OwnerTab) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === "transactions") params.delete("tab");
+    else params.set("tab", next);
+    setSearchParams(params, { replace: true });
+  };
+
+  const showTransactionsFor = (student: StudentRef | null) => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("tab");
+    if (student) {
+      params.set("student", String(student.id));
+      setStudentNames((m) => ({ ...m, [student.id]: student.name }));
+    } else {
+      params.delete("student");
+    }
+    setSearchParams(params, { replace: true });
+  };
 
   const load = useCallback(async () => {
     if (!ownerId) return;
@@ -243,39 +291,48 @@ export default function AdminWalletLedgerOwner() {
                     <button
                       type="button"
                       className="flex w-full items-center justify-between text-sm font-medium"
-                      onClick={() => setShowStudents((s) => !s)}
-                      aria-expanded={showStudents}
-                      disabled={owner.students.length === 0}
+                      onClick={() => changeTab("students")}
                     >
                       <span className="inline-flex items-center gap-2">
                         <GraduationCap className="h-4 w-4 text-muted-foreground" aria-hidden />
                         Linked students ({owner.students.length})
                       </span>
-                      {owner.students.length > 0 ? (
-                        <span className="text-xs text-primary dark:text-sky-300">{showStudents ? "Hide" : "Show"}</span>
-                      ) : null}
+                      <span className="text-xs text-primary dark:text-sky-300">View</span>
                     </button>
-                    {showStudents ? (
-                      <ul className="mt-2 divide-y rounded-lg border text-sm">
-                        {owner.students.map((st) => (
-                          <li key={st.id} className="flex flex-wrap items-center justify-between gap-x-3 px-3 py-2">
-                            <span className="font-medium">{st.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {[st.enrollment, st.user_type_label, st.department_name].filter(Boolean).join(" · ")}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <section aria-label="Transactions" className="space-y-3">
-              <h2 className="text-base font-semibold">Transactions</h2>
-              <TransactionsPanel ownerId={owner.owner_id} subWallets={owner.sub_wallets} options={options} reloadKey={reloadKey} />
-            </section>
+            <Tabs value={tab} onValueChange={(v) => changeTab(v as OwnerTab)} className="space-y-3">
+              <TabsList className="h-auto gap-1 p-1">
+                <TabsTrigger value="transactions" className="gap-2 px-3 py-1.5">
+                  <ListOrdered className="h-4 w-4" aria-hidden />
+                  Transactions
+                </TabsTrigger>
+                <TabsTrigger value="students" className="gap-2 px-3 py-1.5">
+                  <GraduationCap className="h-4 w-4" aria-hidden />
+                  Linked students ({owner.students.length})
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="transactions" className="mt-0">
+                <TransactionsPanel
+                  ownerId={owner.owner_id}
+                  subWallets={owner.sub_wallets}
+                  options={options}
+                  reloadKey={reloadKey}
+                  relatedUser={relatedUser}
+                  onClearRelatedUser={() => showTransactionsFor(null)}
+                />
+              </TabsContent>
+              <TabsContent value="students" className="mt-0">
+                <LinkedStudentsPanel
+                  ownerId={owner.owner_id}
+                  onShowTransactions={showTransactionsFor}
+                  onOpenProfile={(id) => navigate("/admin/section/users", { state: { openUserId: id } })}
+                />
+              </TabsContent>
+            </Tabs>
 
             <AdjustWalletDialog
               open={adjust !== null}

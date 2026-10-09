@@ -27,6 +27,7 @@ export interface OwnerFilters {
   status: string;
   activity_from: string;
   activity_to: string;
+  has_students: string;
 }
 
 export const EMPTY_OWNER_FILTERS: OwnerFilters = {
@@ -40,6 +41,7 @@ export const EMPTY_OWNER_FILTERS: OwnerFilters = {
   status: "",
   activity_from: "",
   activity_to: "",
+  has_students: "",
 };
 
 export interface TransactionFilters {
@@ -130,9 +132,11 @@ export function transactionFilterParams(
   ordering: string,
   ownerId?: number | null,
   today?: Date,
+  relatedUserId?: number | null,
 ): Params {
   const range = f.date_preset === "custom" ? { from: f.date_from, to: f.date_to } : presetRange(f.date_preset, today);
   return compact({
+    related_user: relatedUserId ? String(relatedUserId) : "",
     search: f.search,
     booking: f.booking,
     type: f.type,
@@ -150,6 +154,50 @@ export function transactionFilterParams(
     ordering,
   });
 }
+
+export interface LinkedStudentFilters {
+  search: string;
+  status: string;
+  date_preset: DatePreset;
+  date_from: string;
+  date_to: string;
+}
+
+export const EMPTY_LINKED_STUDENT_FILTERS: LinkedStudentFilters = {
+  search: "",
+  status: "",
+  date_preset: "all",
+  date_from: "",
+  date_to: "",
+};
+
+export function linkedStudentParams(f: LinkedStudentFilters, ordering: string, ownerId: number, today?: Date): Params {
+  const range = f.date_preset === "custom" ? { from: f.date_from, to: f.date_to } : presetRange(f.date_preset, today);
+  return compact({
+    owner: String(ownerId),
+    search: f.search,
+    status: f.status,
+    date_from: range.from,
+    date_to: range.to,
+    ordering,
+  });
+}
+
+export const LINK_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "linked", label: "Linked" },
+  { value: "pending", label: "Pending approval" },
+  { value: "declined", label: "Declined" },
+  { value: "removed", label: "Removed by owner" },
+  { value: "cancelled", label: "Withdrawn by student" },
+];
+
+export const LINK_STATUS_TONE: Record<string, string> = {
+  linked: "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+  pending: "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200",
+  declined: "border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
+  removed: "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
+  cancelled: "border-border bg-muted/50 text-muted-foreground",
+};
 
 export function countActive<T extends object>(filters: T, empty: T, ignore: Array<keyof T> = []): number {
   return (Object.keys(filters) as Array<keyof T>).filter(

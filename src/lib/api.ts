@@ -773,6 +773,69 @@ export interface LedgerTransactionsResponse {
   results: LedgerTransaction[];
 }
 
+export type LedgerLinkStatus = "linked" | "pending" | "declined" | "removed" | "cancelled";
+
+export interface LedgerLinkedStudent {
+  s_no: number;
+  join_request_id: number;
+  student_id: number;
+  name: string;
+  enrollment: string;
+  email: string;
+  department_name: string;
+  user_type: string;
+  user_type_label: string;
+  is_active: boolean;
+  status: LedgerLinkStatus;
+  status_label: string;
+  requested_at: string | null;
+  responded_at: string | null;
+  sub_wallets: Array<{ id: number; department_name: string }>;
+  spending_limit_enabled: boolean;
+  weekly_limit: string | null;
+  monthly_limit: string | null;
+  week_spent: string | null;
+  month_spent: string | null;
+  total_charged: string;
+  total_refunded: string;
+  total_spent: string;
+  range_spent: string;
+  last_charge_at: string | null;
+  last_booking_at: string | null;
+}
+
+export interface LedgerSupervisedUser {
+  s_no: number;
+  student_id: number;
+  name: string;
+  enrollment: string;
+  email: string;
+  department_name: string;
+  user_type_label: string;
+  is_active: boolean;
+}
+
+export interface LedgerLinkedStudentsResponse {
+  owner_id: number;
+  owner_name: string;
+  count: number;
+  summary: {
+    linked: number;
+    pending: number;
+    removed: number;
+    declined: number;
+    cancelled: number;
+    with_limits: number;
+    total_spent: string;
+    range_spent: string;
+    supervised: number;
+  };
+  period: { week_start: string; week_end: string; month_start: string };
+  statuses: LedgerOption[];
+  results: LedgerLinkedStudent[];
+  supervised: LedgerSupervisedUser[];
+}
+
 export interface LedgerAdjustmentTarget {
   owner_id: number;
   sub_wallet_id?: number | null;
@@ -5676,6 +5739,13 @@ class ApiClient {
   async getWalletLedgerTransactions(params: Record<string, string | number | boolean | null | undefined> = {}) {
     return this.request<LedgerTransactionsResponse>(
       `/admin/wallet-ledger/transactions/${this.ledgerQuery(params)}`,
+      { method: 'GET' },
+    );
+  }
+
+  async getWalletLedgerLinkedStudents(params: Record<string, string | number | boolean | null | undefined>) {
+    return this.request<LedgerLinkedStudentsResponse>(
+      `/admin/wallet-ledger/linked-students/${this.ledgerQuery(params)}`,
       { method: 'GET' },
     );
   }
