@@ -30,6 +30,10 @@ export const operatorGuide: RoleGuide = {
           body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, samples to receive, messages to answer and results overdue.",
         },
         {
+          title: "Urgent bookings",
+          body: "When the Officer In Charge allocates an urgent booking on your equipment, you get an email with the booking ID, the date and time slots, the requester category and the sample details; Open booking takes you to it in View Booking.",
+        },
+        {
           title: "Mobile number",
           body: "If My Profile has no valid 10-digit mobile number, a short Complete your profile prompt asks for it after you sign in, on the dashboard or the app's Today. Remind me later asks again at your next sign-in.",
         },

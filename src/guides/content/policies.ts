@@ -63,7 +63,7 @@ export function urgentSection(g: Gate): GuideSection | null {
       }),
       g.only(["faculty"], {
         title: "Approve your students' requests",
-        body: "Open Urgent booking requests on the dashboard, then Manage urgent requests. Read the reason and approve or reject; the Officer In Charge decides next.",
+        body: "Open Urgent booking requests on the dashboard, then Manage urgent requests and click View / Decide. The top of the details shows the required time, slots, samples, amount and whether the wallet can pay; the student's reason sits beside the supervisor comment. Add an optional comment (the student and the Officer In Charge see it), then click Approve or Reject; the Officer In Charge decides next.",
       }),
     ]),
     rules: compact([

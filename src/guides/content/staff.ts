@@ -127,17 +127,20 @@ export function urgentApprovalSection(g: Gate): GuideSection {
         title: "Email and sign-in alerts",
         body: "You get an email when a Type B request is raised for your equipment (including equipment you cover as temporary OIC) and, for a student's request, another when the supervisor approves it and it is ready to allocate. The email shows the request ID, requester category, required time, amount, preferred dates and reason; Open urgent request takes you to it. After you sign in, the items needing your attention list up to 5 waiting requests; click one to open its details directly.",
       },
-      { title: "Decide", body: "Click Review, read the reason, the requirement (sample details, required time, amount and preferred dates) and any document, then approve or reject." },
+      {
+        title: "Decide",
+        body: "Click Review. The top of the details shows the required time, slots, samples, amount (with the 50% surcharge), whether the wallet can pay and the user's approved urgent requests in the last 6 months. Reason given by user and Supervisor comment (with the supervisor's decision and date, or Awaiting supervisor / Not required) sit side by side, followed by the sample details, any document and the preferred dates. Add optional decision notes, then approve or reject.",
+      },
       {
         title: "Approve & allocate",
-        body: "A Type B request marked No slots · you allocate has no slots. Click Approve & allocate, choose a date (any day, including weekends, holidays, closed or maintenance slots, which show a warning) and tick slots that cover the required time, or click Select back-to-back slots. Check the amount and the wallet balance, add an optional note, then click Allocate booking.",
+        body: "A Type B request marked No slots · OIC allocates has no slots. Click Approve & allocate to open the weekly calendar used in Change slot status. Pick a year and month or use Previous Week / Next Week to reach any week, including weeks not yet open to users. Click slots to select them (selections are kept when you change week), or click Select back-to-back slots. Weekends, holidays, Not Available, closed and maintenance slots can be chosen and are listed as a warning; only slots booked by someone else and past slots cannot. Check the selected time against the required time, the amount and the wallet, add an optional note, then click Allocate booking.",
       },
       { title: "Export", body: "Export downloads every request matching the filters as Excel (.xlsx), CSV or PDF." },
     ],
     rules: [
       "Students' requests reach you only after their supervisor approves.",
       "The user's wallet is charged only after final approval.",
-      "Allocate booking stays off while the wallet is short of the amount; the shortfall is shown. Once allocated, the booking is confirmed and the user and the supervisor get the usual confirmation email.",
+      "Allocate booking stays off while the wallet is short of the amount; the shortfall is shown. Once allocated, the booking is confirmed, the chosen slots become Booked (their previous status is kept in Disruption history), the user and the supervisor get the usual confirmation email, and the equipment's lab operator gets an email with the booking ID, slots, requester category and sample details.",
       ...(g.is("admin")
         ? ["Requests expire after the period shown above the list. Click Change next to it to set the period; it applies to every department."]
         : ["Requests expire after the period shown above the list. It applies to every department, so only the Main Administrator can change it."]),

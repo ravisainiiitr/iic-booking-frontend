@@ -80,7 +80,7 @@ export const deptAdminGuide: RoleGuide = {
         },
         {
           title: "Decide urgent requests",
-          body: "In Urgent Requests click Review, add optional notes, then Accept & allocate or Reject. Type A (rush relief) and Type B (urgent with reason) both appear; a Type B request can be accepted only after the supervisor approves. For a Type B request without slots, Approve & allocate lets you choose the day and slots and checks the amount and the wallet first. Delete removes a request.",
+          body: "In Urgent Requests click Review, add optional notes, then Accept & allocate or Reject. Type A (rush relief) and Type B (urgent with reason) both appear; a Type B request can be accepted only after the supervisor approves. The details show the key facts at the top and the user's reason beside the supervisor comment. For a Type B request without slots, Approve & allocate opens the weekly calendar so you can book any day (including weekends, holidays and closed slots) and checks the amount and the wallet first; the lab operator is emailed once it is booked. Delete removes a request.",
         },
         {
           title: "Manage the waitlist",
