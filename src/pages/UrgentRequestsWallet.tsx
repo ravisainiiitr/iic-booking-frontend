@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, type UrgentRequestRequirement } from "@/lib/api";
-import { UrgentRequirementSummary } from "@/components/urgent/UrgentRequirementSummary";
+import { apiClient } from "@/lib/api";
+import { UrgentRequestDetailDialog, type UrgentRequestDetailData } from "@/components/urgent/UrgentRequestDetailDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -20,7 +19,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -34,7 +32,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
-import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useWorkspaceChrome } from "@/components/WorkspaceHeaderActions";
@@ -58,31 +55,7 @@ type WalletRequestRow = {
 };
 
 /** Full detail (same as Urgent request details for admin/OIC). Used when Supervisor clicks View/Decide. */
-type UrgentRequestDetail = {
-  id: number;
-  request_type: string;
-  user_id: number;
-  user_name: string;
-  user_email: string;
-  equipment_id: number;
-  equipment_code: string;
-  equipment_name: string;
-  requested_at: string;
-  disclaimer_accepted: boolean;
-  number_of_samples: number;
-  slots_requested: number;
-  duration_minutes: number | null;
-  evidence_file_url: string | null;
-  evidence_original_name: string;
-  reviewer_comment?: string;
-  wallet_approved_at: string | null;
-  wallet_approved_by_name: string | null;
-  wallet_notes: string;
-  pending_wallet_approval: boolean;
-  status: string;
-  admin_notes: string;
-  decided_at: string | null;
-  decided_by_name: string | null;
+type UrgentRequestDetail = UrgentRequestDetailData & {
   no_slot_log_count: number;
   no_slot_log_entries: Array<{
     requested_at: string;
@@ -90,20 +63,6 @@ type UrgentRequestDetail = {
     slots_requested: number;
     duration_minutes: number | null;
   }>;
-  hold_booking_id: number | null;
-  hold_booking_summary: {
-    booking_id: string | number;
-    real_booking_id?: number;
-    total_charge: string | null;
-    total_time_minutes: number;
-    slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
-    input_values: Record<string, unknown>;
-    input_values_by_key?: BookingInputValues;
-    input_fields?: BookingInputFieldDef[];
-    charge_breakdown?: Array<{ description: string; amount: number }> | null;
-  } | null;
-  requires_slot_allocation?: boolean;
-  requirement?: UrgentRequestRequirement | null;
 };
 
 const WALLET_DISCLAIMER =
@@ -249,6 +208,26 @@ const UrgentRequestsWallet = () => {
     }
   };
 
+  const downloadEvidence = async (requestId: number, originalName: string | undefined) => {
+    setEvidenceLoading(true);
+    try {
+      const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(requestId);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = sanitizeEvidenceFilename(originalName, requestId);
+      a.target = "_blank";
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to open evidence");
+    } finally {
+      setEvidenceLoading(false);
+    }
+  };
+
   const renderEvidenceCell = (row: WalletRequestRow) => {
     if (!row.evidence_file_url && !row.evidence_original_name) return "—";
     return (
@@ -256,26 +235,7 @@ const UrgentRequestsWallet = () => {
         type="button"
         variant="link"
         className="h-auto p-0 text-primary inline-flex items-center gap-1"
-        onClick={async () => {
-          setEvidenceLoading(true);
-          try {
-            const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(row.id);
-            const filename = sanitizeEvidenceFilename(row.evidence_original_name, row.id);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            a.target = "_blank";
-            a.rel = "noopener";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed to open evidence");
-          } finally {
-            setEvidenceLoading(false);
-          }
-        }}
+        onClick={() => void downloadEvidence(row.id, row.evidence_original_name)}
       >
         <FileText className="h-4 w-4" />
         {row.evidence_original_name || "View"}
@@ -491,177 +451,81 @@ const UrgentRequestsWallet = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) { setDetailRow(null); setViewParamsOpen(false); } }}>
-          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Urgent request details</DialogTitle>
-              <DialogDescription>
-                {detailRow?.status === "EXPIRED"
-                  ? "This request has expired. No further action is possible."
-                  : detailRow?.pending_wallet_approval
-                    ? "Check the reason and approve or reject. Your approval forwards the request to the Officer in charge for final decision."
-                    : "You have already decided this request."}
-              </DialogDescription>
-            </DialogHeader>
-            {detailRow && (
-              <div className="space-y-4">
-                <p className="text-xs text-muted-foreground rounded-md border bg-muted/30 p-2">
-                  The wallet is charged (including the 50% urgent surcharge) only after the Officer in charge gives final approval.
-                </p>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Type:</span>{" "}
-                    {detailRow.request_type === "REVIEWER_URGENT" ? "Urgent with reason (50% surcharge)" : "Rush relief (no surcharge)"}
-                  </div>
-                  {detailRow.hold_booking_summary?.total_charge != null && (
-                    <div>
-                      <span className="text-muted-foreground">Estimated charge:</span>{" "}
-                      ₹{Number(detailRow.hold_booking_summary.total_charge).toFixed(2)}
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-muted-foreground">User:</span> {detailRow.user_name} ({detailRow.user_email})
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Equipment:</span> {detailRow.equipment_name}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Requested at:</span>{" "}
-                    {detailRow.requested_at ? format(new Date(detailRow.requested_at), "dd MMM yyyy, HH:mm") : "—"}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Samples / Slots:</span> {detailRow.number_of_samples} / {detailRow.slots_requested}
-                    {detailRow.duration_minutes != null ? `, ${detailRow.duration_minutes} min` : ""}
-                  </div>
-                  {detailRow.request_type === "REVIEWER_URGENT" && (
-                    <>
-                      <div className="col-span-2 flex items-center gap-2">
-                        <span className="text-muted-foreground">Evidence:</span>
-                        {detailRow.evidence_file_url || detailRow.evidence_original_name ? (
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0 text-primary inline-flex items-center gap-1"
-                            disabled={evidenceLoading}
-                            onClick={async () => {
-                              setEvidenceLoading(true);
-                              try {
-                                const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(detailRow.id);
-                                const filename = sanitizeEvidenceFilename(detailRow.evidence_original_name, detailRow.id);
-                                const a = document.createElement("a");
-                                a.href = blobUrl;
-                                a.download = filename;
-                                a.target = "_blank";
-                                a.rel = "noopener";
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-                              } catch (e) {
-                                toast.error(e instanceof Error ? e.message : "Failed to open evidence");
-                              } finally {
-                                setEvidenceLoading(false);
-                              }
-                            }}
-                          >
-                            {evidenceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                            {detailRow.evidence_original_name || "View attachment"}
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                        ) : (
-                          "—"
-                        )}
-                      </div>
-                      {detailRow.reviewer_comment ? (
-                        <div className="col-span-2 space-y-1">
-                          <span className="text-muted-foreground text-sm">Reason:</span>
-                          <p className="text-sm whitespace-pre-wrap rounded-md border bg-muted/20 p-2">{detailRow.reviewer_comment}</p>
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-                {detailRow.requirement ? <UrgentRequirementSummary requirement={detailRow.requirement} /> : null}
-                {detailRow.hold_booking_id != null && detailRow.hold_booking_summary && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setViewParamsOpen(true)}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      View user parameters
-                    </Button>
-                    <span className="text-xs text-muted-foreground">Slot(s) and inputs selected by the user for this request.</span>
-                  </div>
-                )}
-                <div>
-                  <Label className="text-sm font-medium">Booking requests by users ({detailRow.no_slot_log_entries?.length ?? 0} recent)</Label>
-                  <div className="mt-2 border rounded-md overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Time</TableHead>
-                          <TableHead>Samples</TableHead>
-                          <TableHead>Slots</TableHead>
-                          <TableHead>Duration (min)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(detailRow.no_slot_log_entries || []).map((e, i) => (
-                          <TableRow key={i}>
-                            <TableCell className="text-sm">
-                              {e.requested_at ? format(new Date(e.requested_at), "dd MMM HH:mm") : "—"}
-                            </TableCell>
-                            <TableCell>{e.number_of_samples}</TableCell>
-                            <TableCell>{e.slots_requested}</TableCell>
-                            <TableCell>{e.duration_minutes ?? "—"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="wallet-notes">Your notes (optional)</Label>
-                  <Textarea
-                    id="wallet-notes"
-                    value={walletNotes}
-                    onChange={(e) => setWalletNotes(e.target.value)}
-                    placeholder="Add a note for the student and Officer in charge..."
-                    rows={3}
-                  />
-                </div>
+        <UrgentRequestDetailDialog
+          detail={detailRow}
+          viewer="supervisor"
+          onClose={() => {
+            setDetailRow(null);
+            setViewParamsOpen(false);
+          }}
+          description={
+            detailRow?.status === "EXPIRED"
+              ? "This request has expired. No further action is possible."
+              : detailRow?.pending_wallet_approval
+                ? "Check the reason and evidence, then approve or reject. Your approval forwards the request to the Officer in charge for the final decision; the wallet is charged (including the 50% urgent surcharge) only after that."
+                : "You have already decided this request."
+          }
+          notes={{
+            id: "wallet-notes",
+            label: "Your comment (optional, shown to the student and the Officer in charge)",
+            value: walletNotes,
+            onChange: setWalletNotes,
+            placeholder: "Add a comment for the student and Officer in charge...",
+            show: !!detailRow?.pending_wallet_approval,
+          }}
+          onOpenEvidence={detailRow ? () => void downloadEvidence(detailRow.id, detailRow.evidence_original_name) : undefined}
+          evidenceLoading={evidenceLoading}
+          onViewParams={() => setViewParamsOpen(true)}
+          actions={
+            detailRow?.pending_wallet_approval ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="border-red-600 text-red-600 hover:bg-red-50"
+                  disabled={actionLoading}
+                  onClick={() => handleApproveReject(detailRow.id, "REJECT")}
+                >
+                  {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                  Reject
+                </Button>
+                <Button disabled={actionLoading} onClick={() => handleApproveReject(detailRow.id, "APPROVE")}>
+                  {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                  Approve
+                </Button>
+              </>
+            ) : null
+          }
+        >
+          {detailRow && (detailRow.no_slot_log_entries?.length ?? 0) > 0 ? (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Recent booking attempts without free slots ({detailRow.no_slot_log_entries.length})
+              </h3>
+              <div className="overflow-hidden rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Samples</TableHead>
+                      <TableHead>Slots</TableHead>
+                      <TableHead>Duration (min)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {detailRow.no_slot_log_entries.map((e, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-sm">{e.requested_at ? format(new Date(e.requested_at), "dd MMM HH:mm") : "—"}</TableCell>
+                        <TableCell>{e.number_of_samples}</TableCell>
+                        <TableCell>{e.slots_requested}</TableCell>
+                        <TableCell>{e.duration_minutes ?? "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDetailRow(null)}>
-                Close
-              </Button>
-              {detailRow?.pending_wallet_approval && (
-                <>
-                  <Button
-                    variant="outline"
-                    className="text-red-600 border-red-600 hover:bg-red-50"
-                    disabled={actionLoading}
-                    onClick={() => detailRow && handleApproveReject(detailRow.id, "REJECT")}
-                  >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                    Reject
-                  </Button>
-                  <Button
-                    disabled={actionLoading}
-                    onClick={() => detailRow && handleApproveReject(detailRow.id, "APPROVE")}
-                  >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                    Approve
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </section>
+          ) : null}
+        </UrgentRequestDetailDialog>
 
         <Dialog open={viewParamsOpen} onOpenChange={setViewParamsOpen}>
           <DialogContent className="max-w-xl max-h-[90dvh] overflow-y-auto">

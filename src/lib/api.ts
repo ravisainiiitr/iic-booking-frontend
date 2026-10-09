@@ -1757,6 +1757,9 @@ export interface UrgentRequestCreated {
 
 export interface UrgentAllocationSlot {
   id: number;
+  /** Slot date (YYYY-MM-DD) in the facility's time zone. */
+  date?: string;
+  past?: boolean;
   start_datetime: string | null;
   end_datetime: string | null;
   status: string;
@@ -1768,8 +1771,12 @@ export interface UrgentAllocationSlot {
 
 export interface UrgentAllocationSlotsResponse {
   date: string;
+  start_date?: string;
+  end_date?: string;
   is_weekend: boolean;
   holiday: string | null;
+  /** Holidays in the range: date (YYYY-MM-DD) → name. */
+  holidays?: Record<string, string>;
   slot_duration_minutes: number;
   required_minutes: number | null;
   required_slots: number | null;
@@ -10050,10 +10057,14 @@ class ApiClient {
     });
   }
 
-  /** OIC: every slot of one date (any status) to allocate a Type B request without slots. */
-  async getUrgentAllocationSlots(requestId: number, date: string) {
+  /** OIC: every slot (any status) of one date or a range of up to 7 days, to allocate a Type B request without slots. */
+  async getUrgentAllocationSlots(requestId: number, range: string | { start_date: string; end_date: string }) {
+    const q =
+      typeof range === 'string'
+        ? `date=${encodeURIComponent(range)}`
+        : `start_date=${encodeURIComponent(range.start_date)}&end_date=${encodeURIComponent(range.end_date)}`;
     return this.request<UrgentAllocationSlotsResponse>(
-      `/urgent-booking-requests/${requestId}/allocation-slots/?date=${encodeURIComponent(date)}`,
+      `/urgent-booking-requests/${requestId}/allocation-slots/?${q}`,
       { method: 'GET' }
     );
   }
@@ -10212,6 +10223,9 @@ class ApiClient {
       supervisor_approval_required?: boolean;
       supervisor_decision?: string;
       supervisor_name?: string | null;
+      supervisor_decided_at?: string | null;
+      requester_category?: string;
+      wallet_check?: { has_wallet: boolean; available: string; sufficient: boolean; shortfall: string; message: string } | null;
       status: string;
       admin_notes: string;
       decided_at: string | null;

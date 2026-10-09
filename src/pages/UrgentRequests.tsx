@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, type UrgentRequestRequirement } from "@/lib/api";
+import { apiClient } from "@/lib/api";
 import UrgentAllocateDialog, { type UrgentAllocateTarget } from "@/components/UrgentAllocateDialog";
-import { UrgentRequirementSummary } from "@/components/urgent/UrgentRequirementSummary";
+import { UrgentRequestDetailDialog, urgentDecisionFacts, type UrgentRequestDetailData } from "@/components/urgent/UrgentRequestDetailDialog";
 import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,10 +29,9 @@ import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
 import { ExportMenu } from "@/components/ExportMenu";
-import { ArrowLeft, Loader2, Check, X, FileText, ExternalLink, Clock } from "lucide-react";
+import { ArrowLeft, Loader2, Check, X, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
-import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import { InlineDateTime, StackedDateTime } from "@/components/StaffListCells";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { cn } from "@/lib/utils";
@@ -57,34 +53,8 @@ function getSecondsRemaining(expiryAtIso: string | null): number {
   return Math.max(0, Math.floor((expiry - now) / 1000));
 }
 
-type UrgentRequestRow = {
-  id: number;
-  request_type: string;
-  user_id: number;
-  user_name: string;
-  user_email: string;
-  equipment_id: number;
-  equipment_code: string;
-  equipment_name: string;
-  requested_at: string;
+type UrgentRequestRow = UrgentRequestDetailData & {
   disclaimer_accepted: boolean;
-  number_of_samples: number;
-  slots_requested: number;
-  duration_minutes: number | null;
-  evidence_file_url: string | null;
-  evidence_original_name: string;
-  reviewer_comment?: string;
-  wallet_approved_at: string | null;
-  wallet_approved_by_name: string | null;
-  wallet_notes: string;
-  pending_wallet_approval: boolean;
-  supervisor_approval_required?: boolean;
-  supervisor_name?: string | null;
-  status: string;
-  admin_notes: string;
-  decided_at: string | null;
-  decided_by_name: string | null;
-  expiry_at: string | null;
   no_slot_log_count: number;
   no_slot_log_entries: Array<{
     requested_at: string;
@@ -92,26 +62,6 @@ type UrgentRequestRow = {
     slots_requested: number;
     duration_minutes: number | null;
   }>;
-  requester_approved_urgent_last_6_months?: Array<{
-    id: number;
-    requested_at: string | null;
-    decided_at: string | null;
-  }>;
-  hold_booking_id: number | null;
-  hold_booking_summary: {
-    booking_id: string | number;
-    real_booking_id?: number;
-    total_charge: string | null;
-    total_time_minutes: number;
-    slot_times: Array<{ start: string | null; end: string | null; label?: string | null }>;
-    input_values: Record<string, unknown>;
-    input_values_by_key?: BookingInputValues;
-    input_fields?: BookingInputFieldDef[];
-    charge_breakdown?: Array<{ description: string; amount: number }> | null;
-  } | null;
-  /** Type B without slots: the OIC chooses the slots with Approve & allocate. */
-  requires_slot_allocation?: boolean;
-  requirement?: UrgentRequestRequirement | null;
 };
 
 /** Type B request whose slots the OIC still has to choose (no held slots). */
@@ -391,15 +341,36 @@ const UrgentRequests = () => {
     );
   };
 
+  /** Opens the list row straight away, then fills in the detail-only facts (wallet check, supervisor decision date). */
+  const openDetail = (row: UrgentRequestRow) => {
+    setDetailRow(row);
+    setAdminNotes(row.admin_notes || "");
+    void apiClient.getUrgentRequestDetail(row.id).then((res) => {
+      if (!res.data) return;
+      const full = res.data as unknown as Partial<UrgentRequestRow>;
+      setDetailRow((current) => (current?.id === row.id ? { ...current, ...full } : current));
+    });
+  };
+
+  const openEvidence = async (row: UrgentRequestRow) => {
+    setEvidenceLoading(true);
+    try {
+      const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(row.id);
+      window.open(blobUrl, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to open evidence");
+    } finally {
+      setEvidenceLoading(false);
+    }
+  };
+
   const renderOpenButton = (row: UrgentRequestRow, actionable: boolean, className?: string) => (
     <Button
       variant={actionable ? "default" : "outline"}
       size="sm"
       className={cn("h-8", className)}
-      onClick={() => {
-        setDetailRow(row);
-        setAdminNotes(row.admin_notes || "");
-      }}
+      onClick={() => openDetail(row)}
     >
       {actionable ? "Review" : "View"}
     </Button>
@@ -673,198 +644,110 @@ const UrgentRequests = () => {
           </CardContent>
         </Card>
 
-        <Dialog open={!!detailRow} onOpenChange={(open) => { if (!open) { setDetailRow(null); setViewParamsOpen(false); } }}>
-          <DialogContent className="max-w-2xl max-h-[90dvh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Urgent request</DialogTitle>
-              <DialogDescription>
-                {detailRow?.status === "EXPIRED"
-                  ? "Expired without a decision. The held slots were released."
-                  : detailRow?.status === "PENDING" && detailRow?.pending_wallet_approval
-                    ? "Waiting for the supervisor. You can reject now; Accept unlocks after supervisor approval."
-                    : detailRow?.status === "PENDING" && needsSlotAllocation(detailRow)
-                      ? "The user did not choose slots. Approve & allocate lets you pick the day and time (any day); the amount and the wallet are checked before booking. Reject makes no charge."
-                      : detailRow?.status === "PENDING"
-                        ? "Accept confirms the held slots at the category rate + 50% urgent surcharge. Reject releases them with no charge."
-                        : null}
-              </DialogDescription>
-            </DialogHeader>
-            {detailRow && (
-              <div className="space-y-4">
-                <dl className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-lg border border-border/60 bg-muted/20 p-3 text-sm sm:grid-cols-2">
-                  <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">User</dt>
-                    <dd>
-                      <RequesterIdentityButton
-                        userId={detailRow.user_id}
-                        name={detailRow.user_name}
-                        email={detailRow.user_email}
-                        userNotes={detailRow.reviewer_comment}
-                      />
-                    </dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-muted-foreground">Equipment</dt>
-                    <dd>{detailRow.equipment_name}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Requested</dt>
-                    <dd>{detailRow.requested_at ? format(new Date(detailRow.requested_at), "dd MMM yyyy, HH:mm") : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Samples / slots</dt>
-                    <dd>
-                      {detailRow.number_of_samples} / {detailRow.slots_requested}
-                      {detailRow.duration_minutes != null ? ` · ${detailRow.duration_minutes} min` : ""}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Supervisor approval</dt>
-                    <dd>
-                      {detailRow.pending_wallet_approval
-                        ? "Pending"
-                        : detailRow.wallet_approved_at
-                          ? `${detailRow.wallet_approved_by_name || "Approved"} · ${format(new Date(detailRow.wallet_approved_at), "dd MMM yyyy")}`
-                          : detailRow.supervisor_approval_required === false
-                            ? "Not required (wallet owner)"
-                            : "—"}
-                      {detailRow.wallet_notes && (
-                        <span className="block text-xs text-muted-foreground">Note: {detailRow.wallet_notes}</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Approved urgent requests (last 6 months)</dt>
-                    <dd>
-                      {(detailRow.requester_approved_urgent_last_6_months ?? []).length === 0
-                        ? "None"
-                        : (detailRow.requester_approved_urgent_last_6_months ?? [])
-                            .map((a) => (a.decided_at ? format(new Date(a.decided_at), "dd MMM yyyy") : "—"))
-                            .join(", ")}
-                    </dd>
-                  </div>
-                </dl>
-
-                {detailRow.reviewer_comment ? (
-                  <div className="space-y-1">
-                    <Label className="text-xs font-normal text-muted-foreground">Reason given by user</Label>
-                    <p className="whitespace-pre-wrap rounded-md border bg-muted/20 p-2 text-sm">{detailRow.reviewer_comment}</p>
-                  </div>
-                ) : null}
-
-                {detailRow.requirement ? <UrgentRequirementSummary requirement={detailRow.requirement} /> : null}
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {detailRow.evidence_file_url || detailRow.evidence_original_name ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={evidenceLoading}
-                      onClick={async () => {
-                        setEvidenceLoading(true);
-                        try {
-                          const blobUrl = await apiClient.fetchUrgentRequestEvidenceBlobUrl(detailRow.id);
-                          window.open(blobUrl, "_blank", "noopener");
-                          setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-                        } catch (e) {
-                          toast.error(e instanceof Error ? e.message : "Failed to open evidence");
-                        } finally {
-                          setEvidenceLoading(false);
-                        }
-                      }}
-                    >
-                      {evidenceLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                      <span className="max-w-[220px] truncate">{detailRow.evidence_original_name || "Evidence"}</span>
-                      <ExternalLink className="ml-1.5 h-3 w-3" />
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">No evidence attached</span>
-                  )}
-                  {detailRow.hold_booking_id != null && detailRow.hold_booking_summary && (
-                    <Button type="button" variant="outline" size="sm" onClick={() => setViewParamsOpen(true)}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      Slots &amp; parameters
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="admin-notes">Decision notes (optional)</Label>
-                  <Textarea
-                    id="admin-notes"
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="Optional notes for this decision"
-                    rows={2}
-                  />
-                </div>
-              </div>
-            )}
-            <DialogFooter className="gap-2 sm:items-center sm:justify-between">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-red-600 sm:mr-auto"
-                disabled={deleteLoading}
-                onClick={() => {
-                  if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
-                    handleDelete(detailRow.id);
-                  }
-                }}
-              >
-                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Delete
-              </Button>
-              <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="outline" onClick={() => setDetailRow(null)}>
-                Close
-              </Button>
-              {detailRow?.status === "PENDING" && (
-                <>
+        <UrgentRequestDetailDialog
+          detail={detailRow}
+          viewer="oic"
+          onClose={() => {
+            setDetailRow(null);
+            setViewParamsOpen(false);
+          }}
+          description={
+            detailRow?.status === "EXPIRED"
+              ? "Expired without a decision. Any held slots were released."
+              : detailRow?.status === "PENDING" && detailRow.pending_wallet_approval
+                ? "Waiting for the supervisor. You can reject now; approval unlocks after the supervisor approves."
+                : detailRow?.status === "PENDING" && needsSlotAllocation(detailRow)
+                  ? "The user did not choose slots. Approve & allocate opens the weekly calendar so you can book any day and time; the amount and the wallet are checked before booking. Reject makes no charge."
+                  : detailRow?.status === "PENDING"
+                    ? "Accept confirms the held slots at the category rate + 50% urgent surcharge. Reject releases them with no charge."
+                    : null
+          }
+          requester={
+            detailRow ? (
+              <RequesterIdentityButton
+                userId={detailRow.user_id}
+                name={detailRow.user_name}
+                email={detailRow.user_email}
+                userNotes={detailRow.reviewer_comment}
+              />
+            ) : null
+          }
+          notes={{
+            id: "admin-notes",
+            label: "Decision notes (optional)",
+            value: adminNotes,
+            onChange: setAdminNotes,
+            placeholder: "Optional notes for this decision (shown to the user)",
+            show: detailRow?.status === "PENDING",
+          }}
+          onOpenEvidence={detailRow ? () => void openEvidence(detailRow) : undefined}
+          evidenceLoading={evidenceLoading}
+          onViewParams={() => setViewParamsOpen(true)}
+          footerStart={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-red-600"
+              disabled={deleteLoading}
+              onClick={() => {
+                if (detailRow && window.confirm("Delete this urgent request? This cannot be undone.")) {
+                  handleDelete(detailRow.id);
+                }
+              }}
+            >
+              {deleteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Delete
+            </Button>
+          }
+          actions={
+            detailRow?.status === "PENDING" ? (
+              <>
+                <Button
+                  variant="outline"
+                  className="border-red-600 text-red-600 hover:bg-red-50"
+                  disabled={actionLoading}
+                  onClick={() => handleApproveReject(detailRow.id, "REJECTED")}
+                >
+                  {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <X className="mr-2 h-4 w-4" />}
+                  Reject
+                </Button>
+                {needsSlotAllocation(detailRow) && detailRow.requirement ? (
                   <Button
-                    variant="outline"
-                    className="text-red-600 border-red-600 hover:bg-red-50"
-                    disabled={actionLoading}
-                    onClick={() => detailRow && handleApproveReject(detailRow.id, "REJECTED")}
+                    disabled={actionLoading || detailRow.pending_wallet_approval}
+                    onClick={() =>
+                      detailRow.requirement &&
+                      setAllocateTarget({
+                        id: detailRow.id,
+                        user_name: detailRow.user_name,
+                        user_email: detailRow.user_email,
+                        equipment_name: detailRow.equipment_name,
+                        requirement: detailRow.requirement,
+                        samples: urgentDecisionFacts(detailRow).samples,
+                      })
+                    }
+                    title={detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Choose slots on any day in the weekly calendar and book them for the user"}
                   >
-                    {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                    Reject
+                    <Check className="mr-2 h-4 w-4" />
+                    Approve &amp; allocate
                   </Button>
-                  {needsSlotAllocation(detailRow) && detailRow.requirement ? (
-                    <Button
-                      disabled={actionLoading || detailRow.pending_wallet_approval}
-                      onClick={() =>
-                        detailRow.requirement &&
-                        setAllocateTarget({
-                          id: detailRow.id,
-                          user_name: detailRow.user_name,
-                          user_email: detailRow.user_email,
-                          equipment_name: detailRow.equipment_name,
-                          requirement: detailRow.requirement,
-                        })
-                      }
-                      title={detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Choose slots on any day and book them for the user"}
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      Approve &amp; allocate
-                    </Button>
-                  ) : (
-                    <Button
-                      disabled={actionLoading || (detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval)}
-                      onClick={() => detailRow && handleApproveReject(detailRow.id, "APPROVED")}
-                      title={detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval ? "Supervisor must approve first" : "Accept and allocate held slots (urgent charge includes 50% surcharge)"}
-                    >
-                      {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                      Accept &amp; allocate
-                    </Button>
-                  )}
-                </>
-              )}
-              </div>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                ) : (
+                  <Button
+                    disabled={actionLoading || (detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval)}
+                    onClick={() => handleApproveReject(detailRow.id, "APPROVED")}
+                    title={
+                      detailRow.request_type === "REVIEWER_URGENT" && detailRow.pending_wallet_approval
+                        ? "Supervisor must approve first"
+                        : "Accept and allocate held slots (urgent charge includes 50% surcharge)"
+                    }
+                  >
+                    {actionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    Accept &amp; allocate
+                  </Button>
+                )}
+              </>
+            ) : null
+          }
+        />
 
         <UrgentAllocateDialog
           open={allocateTarget != null}
