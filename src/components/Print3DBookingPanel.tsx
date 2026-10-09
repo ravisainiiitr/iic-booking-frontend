@@ -38,6 +38,13 @@ import {
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import {
+  LIVE_INPUT_DEBOUNCE_MS,
+  OWN_PRINT_UPLOAD_HINT,
+  ownMaterialChargeNote,
+  parseWholeQuantity,
+  printModelSize,
+} from "@/lib/ownMaterialSizing";
+import {
   checkStlSize,
   formatPrintSizeLimit,
   previewBedSize,
@@ -87,6 +94,8 @@ export interface Print3DFileItem {
   supportMaterialCode?: string;
   /** Model breakdown of one copy (model / supports / waste, warm-up). */
   breakdown?: PrintEstimateBreakdown | null;
+  /** Model size from the analysis ("X × Y × Z mm"), when known. */
+  modelSize?: string | null;
 }
 
 export interface Print3DBookingValues {
@@ -121,7 +130,10 @@ interface Print3DBookingPanelProps {
   /** Quantity Required (input A): the whole job is printed this many times. */
   jobQuantity?: number;
   onReady: (values: Print3DBookingValues | null) => void;
+  /** True while the STL is analysed or re-estimated. */
   onAnalyzingChange?: (analyzing: boolean) => void;
+  /** True while typed copies wait to be saved or are being saved (the charge is refreshed after). */
+  onUpdatingChange?: (updating: boolean) => void;
   /** Why the chosen file(s) cannot be booked (larger than the printer's maximum print size), or null. */
   onSizeBlockChange?: (message: string | null) => void;
   disabled?: boolean;
@@ -152,7 +164,18 @@ export function print3DItemFromAnalysis(a: PrintAnalysisResult, fallbackFilename
     supportWeightGramsEach: supportCode ? ceilPrintWeightGrams(breakdown?.support_material_g) : 0,
     supportMaterialCode: supportCode,
     breakdown,
+    modelSize: printModelSize(a.bounding_box),
   };
+}
+
+export const COPIES_DRAFT_ERROR = "Number of copies must be a whole number of at least 1.";
+
+function withId(set: Set<string>, id: string, on: boolean): Set<string> {
+  if (set.has(id) === on) return set;
+  const next = new Set(set);
+  if (on) next.add(id);
+  else next.delete(id);
+  return next;
 }
 
 function isBatchResult(
@@ -263,6 +286,7 @@ export function Print3DBookingPanel({
   jobQuantity = 1,
   onReady,
   onAnalyzingChange,
+  onUpdatingChange,
   onSizeBlockChange,
   disabled,
 }: Print3DBookingPanelProps) {
@@ -294,6 +318,15 @@ export function Print3DBookingPanel({
   const ownMaterialRef = useRef(false);
   ownMaterialRef.current = ownMaterial;
   const lastReadyRef = useRef<{ items: Print3DFileItem[]; code: string } | null>(null);
+  const batchRef = useRef<PrintAnalysisBatchResult | null>(null);
+  batchRef.current = batch;
+  const analysisRef = useRef<PrintAnalysisResult | null>(null);
+  analysisRef.current = analysis;
+  /** Parts whose typed copies are waiting for the debounce before they are saved. */
+  const [pendingQtyIds, setPendingQtyIds] = useState<Set<string>>(new Set());
+  const qtyTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const qtyInFlightRef = useRef<Record<string, boolean>>({});
+  const qtyQueuedRef = useRef<Record<string, number | undefined>>({});
   const [fetchedMaxPrintSize, setFetchedMaxPrintSize] = useState<MaxPrintSizePayload | null>(null);
   const [sizeChecks, setSizeChecks] = useState<StlSizeCheck[]>([]);
   const [serverSizeError, setServerSizeError] = useState<string | null>(null);
@@ -341,11 +374,27 @@ export function Print3DBookingPanel({
   const ownMaterialAvailable =
     ownMaterialCharge !== null && ownMaterialCharge !== undefined && String(ownMaterialCharge) !== "";
 
-  const busy = analyzingStl || recalculating || savingPartIds.size > 0;
+  const busy = analyzingStl || recalculating;
+  const updating = savingPartIds.size > 0 || pendingQtyIds.size > 0;
+  const qtyDraftInvalid = Object.values(partDrafts).some((d) => parseWholeQuantity(d.qty) === null);
+  /** While copies are being typed or saved, the booking page gets no values, so no stale charge is shown. */
+  const holdReady = updating || qtyDraftInvalid;
+  const holdReadyRef = useRef(false);
+  holdReadyRef.current = holdReady;
 
   useEffect(() => {
     onAnalyzingChange?.(busy);
   }, [busy, onAnalyzingChange]);
+  useEffect(() => {
+    onUpdatingChange?.(updating);
+  }, [updating, onUpdatingChange]);
+  useEffect(() => () => onUpdatingChange?.(false), [onUpdatingChange]);
+  useEffect(() => () => Object.values(qtyTimersRef.current).forEach(clearTimeout), []);
+  const cancelQtyEdits = useCallback(() => {
+    Object.values(qtyTimersRef.current).forEach(clearTimeout);
+    qtyTimersRef.current = {};
+    setPendingQtyIds(new Set());
+  }, []);
 
   useEffect(() => {
     if (!busy) {
@@ -452,6 +501,10 @@ export function Print3DBookingPanel({
         return;
       }
       lastReadyRef.current = { items, code: materialCode };
+      if (holdReadyRef.current) {
+        onReady(null);
+        return;
+      }
       const totalWeight = items.reduce((sum, i) => sum + i.weightGrams, 0);
       const totalTime = items.reduce((sum, i) => sum + i.timeMinutes, 0);
       const supportWeight = items.reduce((sum, i) => sum + (i.supportWeightGramsEach ?? 0) * i.quantity, 0);
@@ -486,9 +539,10 @@ export function Print3DBookingPanel({
   useEffect(() => {
     const last = lastReadyRef.current;
     if (last) applyReadyValues(last.items, last.code);
-    // Only the own-material choice re-emits here; file and material changes emit from their own handlers.
+    // Only the own-material choice and the end of a copies edit re-emit here; file and material changes emit
+    // from their own handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ownMaterial]);
+  }, [ownMaterial, holdReady]);
 
   const applySingleAnalysis = useCallback(
     (data: PrintAnalysisResult) => {
@@ -527,41 +581,84 @@ export function Print3DBookingPanel({
     [applyReadyValues, clearReady, selectedMaterial?.code],
   );
 
+  /** Merge a saved part into the current (latest) batch or analysis and re-emit the totals. */
+  const mergeSavedPart = useCallback(
+    (updated: PrintAnalysisResult) => {
+      const merge = (a: PrintAnalysisResult): PrintAnalysisResult =>
+        a.id === updated.id
+          ? { ...a, part_name: updated.part_name, display_part_name: updated.display_part_name, quantity: updated.quantity }
+          : a;
+      const code = lastReadyRef.current?.code;
+      const currentBatch = batchRef.current;
+      const currentAnalysis = analysisRef.current;
+      if (currentBatch) {
+        const nextBatch = { ...currentBatch, items: currentBatch.items.map(merge) };
+        batchRef.current = nextBatch;
+        setBatch(nextBatch);
+        if (code) applyReadyValues(buildItemsFromBatch(nextBatch), code);
+      } else if (currentAnalysis) {
+        const next = merge(currentAnalysis);
+        analysisRef.current = next;
+        setAnalysis(next);
+        if (code) applyReadyValues([print3DItemFromAnalysis(next, file?.name)], code);
+      }
+    },
+    [applyReadyValues, file?.name],
+  );
+
   const savePart = useCallback(
     async (itemId: string, data: { part_name?: string; quantity?: number }) => {
-      setSavingPartIds((s) => new Set(s).add(itemId));
+      setSavingPartIds((s) => withId(s, itemId, true));
       try {
         const res = await apiClient.updatePrintAnalysisPart(itemId, data);
         if (res.error || !res.data) {
           toast.error(res.error || "Could not update the part.");
           return false;
         }
-        const updated = res.data;
-        const merge = (a: PrintAnalysisResult): PrintAnalysisResult =>
-          a.id === updated.id
-            ? { ...a, part_name: updated.part_name, display_part_name: updated.display_part_name, quantity: updated.quantity }
-            : a;
-        const code = lastReadyRef.current?.code;
-        if (batch) {
-          const nextBatch = { ...batch, items: batch.items.map(merge) };
-          setBatch(nextBatch);
-          if (code) applyReadyValues(buildItemsFromBatch(nextBatch), code);
-        } else if (analysis) {
-          const next = merge(analysis);
-          setAnalysis(next);
-          if (code) applyReadyValues([print3DItemFromAnalysis(next, file?.name)], code);
-        }
+        mergeSavedPart(res.data);
         return true;
       } finally {
-        setSavingPartIds((s) => {
-          const next = new Set(s);
-          next.delete(itemId);
-          return next;
-        });
+        setSavingPartIds((s) => withId(s, itemId, false));
       }
     },
-    [analysis, applyReadyValues, batch, file?.name],
+    [mergeSavedPart],
   );
+
+  /** One copies save per part at a time; a value typed meanwhile is sent next and only the last answer counts. */
+  const sendQty = async (itemId: string, qty: number) => {
+    if (qtyInFlightRef.current[itemId]) {
+      qtyQueuedRef.current[itemId] = qty;
+      return;
+    }
+    qtyInFlightRef.current[itemId] = true;
+    setSavingPartIds((s) => withId(s, itemId, true));
+    let saved: PrintAnalysisResult | null = null;
+    let error: string | null = null;
+    try {
+      let next: number | undefined = qty;
+      while (next !== undefined) {
+        qtyQueuedRef.current[itemId] = undefined;
+        const res = await apiClient.updatePrintAnalysisPart(itemId, { quantity: next });
+        if (res.error || !res.data) error = res.error || "Could not update the part.";
+        else {
+          saved = res.data;
+          error = null;
+        }
+        next = qtyQueuedRef.current[itemId];
+      }
+    } finally {
+      qtyInFlightRef.current[itemId] = false;
+      if (saved) mergeSavedPart(saved);
+      if (error) {
+        toast.error(error);
+        const known = saved?.quantity ?? lastReadyRef.current?.items.find((i) => i.id === itemId)?.quantity;
+        if (known != null) {
+          setPartDrafts((d) => (d[itemId] ? { ...d, [itemId]: { ...d[itemId], qty: String(known) } } : d));
+        }
+      }
+      setSavingPartIds((s) => withId(s, itemId, false));
+    }
+  };
 
   const partDraft = (item: Print3DFileItem) => partDrafts[item.id] ?? { name: item.partName, qty: String(item.quantity) };
 
@@ -571,18 +668,41 @@ export function Print3DBookingPanel({
     await savePart(item.id, { part_name: draft.name.trim() });
   };
 
-  const commitPartQty = async (item: Print3DFileItem) => {
-    const draft = partDrafts[item.id];
-    if (!draft) return;
-    const qty = Number(draft.qty);
-    const reset = () => setPartDrafts((d) => ({ ...d, [item.id]: { ...draft, qty: String(item.quantity) } }));
-    if (!Number.isInteger(qty) || qty < 1) {
-      toast.error("Number of copies must be a whole number of at least 1.");
-      reset();
+  const setQtyPending = (id: string, on: boolean) => setPendingQtyIds((s) => withId(s, id, on));
+
+  /** Typing (or the number box arrows): save the copies once the user pauses, which refreshes the charge. */
+  const onPartQtyChange = (item: Print3DFileItem, text: string) => {
+    setPartDrafts((d) => ({ ...d, [item.id]: { ...partDraft(item), ...d[item.id], qty: text } }));
+    clearTimeout(qtyTimersRef.current[item.id]);
+    delete qtyTimersRef.current[item.id];
+    const qty = parseWholeQuantity(text);
+    if (qty === null || (qty === item.quantity && !qtyInFlightRef.current[item.id])) {
+      setQtyPending(item.id, false);
       return;
     }
-    if (qty === item.quantity) return;
-    if (!(await savePart(item.id, { quantity: qty }))) reset();
+    setQtyPending(item.id, true);
+    qtyTimersRef.current[item.id] = setTimeout(() => {
+      delete qtyTimersRef.current[item.id];
+      setQtyPending(item.id, false);
+      void sendQty(item.id, qty);
+    }, LIVE_INPUT_DEBOUNCE_MS);
+  };
+
+  const commitPartQty = (item: Print3DFileItem) => {
+    const draft = partDrafts[item.id];
+    if (!draft) return;
+    const qty = parseWholeQuantity(draft.qty);
+    if (qty === null) {
+      toast.error(COPIES_DRAFT_ERROR);
+      setPartDrafts((d) => ({ ...d, [item.id]: { ...draft, qty: String(item.quantity) } }));
+      return;
+    }
+    if (qtyTimersRef.current[item.id]) {
+      clearTimeout(qtyTimersRef.current[item.id]);
+      delete qtyTimersRef.current[item.id];
+      setQtyPending(item.id, false);
+      void sendQty(item.id, qty);
+    }
   };
 
   const runFullAnalysis = useCallback(
@@ -599,6 +719,7 @@ export function Print3DBookingPanel({
       analysisIdRef.current = null;
       batchIdRef.current = null;
       setPartDrafts({});
+      cancelQtyEdits();
       setServerSizeError(null);
       clearReady();
 
@@ -678,7 +799,7 @@ export function Print3DBookingPanel({
         setAnalyzingStl(false);
       }
     },
-    [applyBatchAnalysis, applySingleAnalysis, clearReady, density, equipmentId, materialId],
+    [applyBatchAnalysis, applySingleAnalysis, cancelQtyEdits, clearReady, density, equipmentId, materialId],
   );
 
   const recalculateFromSettings = useCallback(async () => {
@@ -816,6 +937,7 @@ export function Print3DBookingPanel({
     setBatch(null);
     setProgress(0);
     setPartDrafts({});
+    cancelQtyEdits();
     setSizeChecks([]);
     setServerSizeError(null);
     clearReady();
@@ -1301,10 +1423,8 @@ export function Print3DBookingPanel({
                             value={draft.qty}
                             disabled={disabled}
                             onFocus={() => canPreview && goToPreview(previewIdx)}
-                            onChange={(e) =>
-                              setPartDrafts((d) => ({ ...d, [item.id]: { ...partDraft(item), qty: e.target.value } }))
-                            }
-                            onBlur={() => void commitPartQty(item)}
+                            onChange={(e) => onPartQtyChange(item, e.target.value)}
+                            onBlur={() => commitPartQty(item)}
                           />
                         </div>
                       </div>
@@ -1318,7 +1438,9 @@ export function Print3DBookingPanel({
                             × {item.quantity} = {formatPrintWeightGrams(item.weightGrams)} · {item.timeMinutes} min
                           </span>
                         )}
-                        {savingPartIds.has(item.id) && <span>Saving…</span>}
+                        {(savingPartIds.has(item.id) || pendingQtyIds.has(item.id)) && (
+                          <span data-testid="print-part-updating">Updating…</span>
+                        )}
                       </p>
                     </div>
                   );
@@ -1391,11 +1513,51 @@ export function Print3DBookingPanel({
             <span>
               I will bring my own printing material.
               <span className="block text-xs text-muted-foreground">
-                A fixed charge of ₹{Number(ownMaterialCharge).toFixed(2)} replaces the material cost (model and supports);
-                machine time is still charged.
+                {ownMaterialChargeNote(ownMaterialCharge, "printing")}
               </span>
             </span>
           </label>
+        )}
+        {ownMaterialAvailable && ownMaterial && (
+          <div className="space-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm" data-testid="print-own-material-need">
+            {completedItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{OWN_PRINT_UPLOAD_HINT}</p>
+            ) : (
+              <>
+                <p>
+                  Material to bring:{" "}
+                  <span className="font-semibold tabular-nums" data-testid="print-own-material-grams">
+                    {formatPrintWeightGrams(totals.weight)}
+                  </span>
+                  {selectedMaterial ? ` of ${selectedMaterial.name}` : ""}
+                  {totals.supportWeight > 0 && supportCode ? (
+                    <span data-testid="print-own-material-support">
+                      {" "}
+                      + {formatPrintWeightGrams(totals.supportWeight)} of {supportCode} for supports
+                    </span>
+                  ) : null}
+                  {holdReady || busy ? <span className="ml-2 text-xs text-muted-foreground">Updating…</span> : null}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Auto-filled from the model estimate (model, supports and waste)
+                  {completedItems.some((i) => i.quantity > 1) || sets > 1 ? " for every copy" : ""}
+                  {sets > 1 ? ` and all ${sets} sets` : ""}. Bring a little extra in case a print has to be restarted.
+                </p>
+                {completedItems.some((i) => i.modelSize) && (
+                  <ul className="text-xs text-muted-foreground" data-testid="print-own-material-sizes">
+                    {completedItems
+                      .filter((i) => i.modelSize)
+                      .map((i) => (
+                        <li key={i.id}>
+                          {completedItems.length > 1 ? `${i.partName}: ` : "Model size: "}
+                          {i.modelSize}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
         )}
         {(analysis?.status === "FAILED" || batch?.status === "FAILED") && (
           <p className="text-sm text-destructive">

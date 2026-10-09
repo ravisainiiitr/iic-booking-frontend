@@ -294,6 +294,11 @@ export interface LaserCutAnalysis {
   dxf_download_url?: string;
   fit_error?: string | null;
   estimated_material_cost?: string | null;
+  /** Own sheet size entered by the user (null: use the size from the drawing). */
+  own_sheet_width_mm?: string | null;
+  own_sheet_height_mm?: string | null;
+  /** Own sheet size from the drawing: bounding box + margin, rounded up, turned to suit the machine bed. */
+  own_sheet_suggested?: { width_mm: string; height_mm: string; rotated: boolean } | null;
   cancelled_at?: string | null;
   superseded_at?: string | null;
 }
@@ -332,6 +337,9 @@ export interface FabricationPart {
   sheet_rate?: string | null;
   sheet_width_mm?: string | null;
   sheet_height_mm?: string | null;
+  /** Laser: sheet size the user brings on an own-material booking (entered, or from the drawing). */
+  own_sheet_width_mm?: string | null;
+  own_sheet_height_mm?: string | null;
   /** 3D print: staff-entered actual weight / time (totals for all copies). */
   actual_weight?: boolean;
   actual_time?: boolean;
@@ -5094,7 +5102,16 @@ class ApiClient {
 
   async updateLaserCutAnalysis(
     analysisId: string,
-    data: { part_name?: string; quantity?: number; material_id?: number | null; units?: string; own_material?: boolean },
+    data: {
+      part_name?: string;
+      quantity?: number;
+      material_id?: number | null;
+      units?: string;
+      own_material?: boolean;
+      /** Both null goes back to the size from the drawing. */
+      own_sheet_width_mm?: number | null;
+      own_sheet_height_mm?: number | null;
+    },
   ) {
     return this.request<LaserCutAnalysis>(`/laser-cut-analyses/${analysisId}/`, {
       method: "PATCH",

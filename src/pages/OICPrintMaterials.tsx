@@ -526,7 +526,8 @@ export default function OICPrintMaterials() {
                       placeholder="Leave empty to hide the option"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Charged once instead of the material cost when the user brings their own material.
+                      Charged once instead of the material cost when the user brings their own material. 0 (the
+                      default) means no material charge; machine time is still charged. Leave empty to hide the option.
                     </p>
                   </div>
                   <div className="space-y-2">

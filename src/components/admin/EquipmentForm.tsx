@@ -539,7 +539,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     completion_email_extra_text: "",
     fabrication_notification_emails: [],
     fabrication_notification_emails_text: "",
-    own_material_fixed_charge: "",
+    // New equipment offers "I will bring my own material" with no material charge.
+    own_material_fixed_charge: "0",
     fabrication_replace_window_hours: String(DEFAULT_REPLACE_WINDOW_HOURS),
     laser_sheet_materials: [],
     istem_portal_url: "",
@@ -2164,8 +2165,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
                 placeholder="e.g. 250"
               />
               <p className="text-xs text-muted-foreground">
-                Charged once instead of the material cost when the user brings their own material. Leave empty to hide
-                the option.
+                Charged once instead of the material cost when the user brings their own material. 0 (the default)
+                means no material charge; machine time is still charged. Leave empty to hide the option.
               </p>
             </div>
             <div className="space-y-2">

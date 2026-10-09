@@ -28,6 +28,7 @@ import {
 import { Print3DBookingPanel, type Print3DBookingValues } from "@/components/Print3DBookingPanel";
 import { FABRICATION_QUANTITY_LABEL } from "@/lib/fabricationProfiles";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
+import { formatMm } from "@/lib/ownMaterialSizing";
 
 const BookedStlPreview = lazy(() => import("@/components/BookedStlPreview"));
 
@@ -134,6 +135,16 @@ function filesLine(files: FabricationFileChange["new_files"]): string {
     .join(", ");
 }
 
+/** IIC sheet, or the user's own sheet turned to lie under the part as drawn. */
+function bookedSheetSize(p: FabricationPart, ownMaterial: boolean): { sheetWidthMm: number | null; sheetHeightMm: number | null } {
+  if (!ownMaterial) return { sheetWidthMm: num(p.sheet_width_mm), sheetHeightMm: num(p.sheet_height_mm) };
+  const w = num(p.own_sheet_width_mm);
+  const h = num(p.own_sheet_height_mm);
+  if (w == null || h == null) return { sheetWidthMm: null, sheetHeightMm: null };
+  const turn = (num(p.width_mm) ?? 0) > w;
+  return { sheetWidthMm: turn ? h : w, sheetHeightMm: turn ? w : h };
+}
+
 /** Preview of the DXFs attached to a booking; each drawing is fetched when it is first shown. */
 export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: FabricationPart[]; ownMaterial?: boolean }) {
   const [activeId, setActiveId] = useState<string | null>(parts[0]?.analysis_id ?? null);
@@ -173,8 +184,7 @@ export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: Fabric
         heightMm: num(p.height_mm),
         materialName: p.material_name || null,
         materialCode: p.material_code || null,
-        sheetWidthMm: ownMaterial ? null : num(p.sheet_width_mm),
-        sheetHeightMm: ownMaterial ? null : num(p.sheet_height_mm),
+        ...bookedSheetSize(p, ownMaterial),
         metrics: laserPartMetrics({
           widthMm: p.width_mm,
           heightMm: p.height_mm,
@@ -253,6 +263,11 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
                   {fabricationPartDetail(part)}
                   {part.filename ? ` · ${part.filename}` : ""}
                 </p>
+                {isLaser && booking.own_material && part.own_sheet_width_mm && part.own_sheet_height_mm && (
+                  <p className="text-xs text-muted-foreground" data-testid={`fabrication-own-sheet-${part.analysis_id}`}>
+                    Own sheet: {formatMm(part.own_sheet_width_mm)} × {formatMm(part.own_sheet_height_mm)} mm
+                  </p>
+                )}
               </div>
               {!printable && (
                 <Button
@@ -616,7 +631,11 @@ export function FabricationReplaceDialog({ booking, open, onOpenChange, onUpdate
                 <Checkbox checked={ownMaterial} onCheckedChange={(v) => setOwnMaterial(v === true)} aria-label="User brings own material" />
                 <span>
                   User brings their own material
-                  {state.own_material_fixed_charge ? ` (fixed charge ₹${Number(state.own_material_fixed_charge).toFixed(2)} instead of the material cost)` : ""}
+                  {Number(state.own_material_fixed_charge) > 0
+                    ? ` (fixed charge ₹${Number(state.own_material_fixed_charge).toFixed(2)} instead of the material cost)`
+                    : state.own_material_fixed_charge != null
+                      ? " (no material charge)"
+                      : ""}
                 </span>
               </label>
             )}

@@ -18,6 +18,7 @@ import {
   isFabricationProfile,
 } from "@/lib/api";
 import { FABRICATION_QUANTITY_KEY, PRINT_3D_SERVER_KEYS, fabricationJobQuantity } from "@/lib/fabricationProfiles";
+import { LIVE_INPUT_DEBOUNCE_MS as FABRICATION_CHARGE_DEBOUNCE_MS } from "@/lib/ownMaterialSizing";
 import { GroupAlternativesDialog } from "@/components/GroupAlternativesDialog";
 import { PreferredSlotBanner } from "@/components/PreferredSlotBanner";
 import { RepeatSampleUserCard } from "@/components/RepeatSampleUserCard";
@@ -1070,6 +1071,10 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
   const [printAnalysisId, setPrintAnalysisId] = useState<string | null>(null);
   const [printAnalysisBatchId, setPrintAnalysisBatchId] = useState<string | null>(null);
   const [print3dAnalyzing, setPrint3dAnalyzing] = useState(false);
+  /** A typed fabrication part quantity is waiting to be saved; the charge is refreshed right after. */
+  const [fabricationUpdating, setFabricationUpdating] = useState(false);
+  /** Inputs changed and a charge refresh is scheduled (debounce running). */
+  const [chargeRefreshPending, setChargeRefreshPending] = useState(false);
   /** 3D print: the uploaded model is larger than the printer's maximum print size, so booking is blocked. */
   const [print3dSizeBlock, setPrint3dSizeBlock] = useState<string | null>(null);
   const [laserCutBatchId, setLaserCutBatchId] = useState<string | null>(null);
@@ -1208,6 +1213,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
   const autoSlotSelectionRef = useRef<boolean>(true);
   const lastCalculatedValuesRef = useRef<string>('');
   const chargeRequestSeqRef = useRef(0);
+  /** Values hash of the charge request in flight ('' when none), so the same values are not requested twice. */
+  const chargeInFlightHashRef = useRef<string>('');
   // Admin manage-equipment: 'book' = book for user, 'status' = change slot status, null = show mode selector
   const [adminManageMode, setAdminManageMode] = useState<'book' | 'status' | null>(() =>
     slotStatusFilters && searchParams.get("mode") !== "book" ? "status" : null
@@ -4144,8 +4151,9 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     }
     const isFabrication = isFabricationProfile(equipmentDetail.profile_type);
 
-    // Skip if already loading to prevent concurrent calls (booking flow only; estimate re-queues)
-    if (loadingCharge && !isCalculateChargesFlow) {
+    // Skip if already loading to prevent concurrent calls (booking flow only; estimate re-queues). Fabrication
+    // charges follow typing live: a newer request supersedes the one in flight (its answer is ignored).
+    if (loadingCharge && !isCalculateChargesFlow && !isFabrication) {
       return;
     }
 
@@ -4162,6 +4170,9 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     });
     if (lastCalculatedValuesRef.current === currentValuesHash) {
       return; // Already calculated for these values
+    }
+    if (isFabrication && chargeInFlightHashRef.current === currentValuesHash) {
+      return; // Already being calculated for these values
     }
 
     // Validate required input fields before calculating (only if input fields exist)
@@ -4221,6 +4232,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     // This ensures slots only appear after successful charge calculation
 
     const requestSeq = ++chargeRequestSeqRef.current;
+    chargeInFlightHashRef.current = currentValuesHash;
 
     try {
       setLoadingCharge(true);
@@ -4328,6 +4340,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       setChargeErrorRaw({ message: String(error?.message || ""), network: error instanceof TypeError });
     } finally {
       if (requestSeq === chargeRequestSeqRef.current) {
+        chargeInFlightHashRef.current = '';
         setLoadingCharge(false);
       }
     }
@@ -4538,8 +4551,9 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       return;
     }
 
-    // Skip if already loading (booking flow only; estimate mode re-queues below)
-    if (loadingCharge && !isCalculateChargesFlow) {
+    const isFabricationEquipment = isFabricationProfile(equipmentDetail.profile_type);
+    // Skip if already loading (booking flow only; estimate mode re-queues below; fabrication supersedes)
+    if (loadingCharge && !isCalculateChargesFlow && !isFabricationEquipment) {
       return;
     }
 
@@ -4583,8 +4597,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
         fabricationKey: isFabricationProfile(equipmentDetail.profile_type) ? fabricationKey : null,
       });
       
-      // Skip if we already calculated (or failed) for these exact values
-      if (lastCalculatedValuesRef.current === currentValuesHash) {
+      // Skip if we already calculated (or failed) for these exact values, or they are being calculated
+      if (
+        lastCalculatedValuesRef.current === currentValuesHash ||
+        (isFabricationEquipment && chargeInFlightHashRef.current === currentValuesHash)
+      ) {
+        setChargeRefreshPending(false);
         return;
       }
 
@@ -4595,9 +4613,17 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
       // Admin booking for user with no input fields: run immediately so charge/slots/confirm populate
       const isAdminBookForUserNoInputs = isAdminOrOIC() && adminManageMode === "book" && adminBookForUserId && !hasInputFields;
-      const debounceMs = isCalculateChargesFlow ? 250 : isAdminBookForUserNoInputs ? 0 : 500;
+      const debounceMs = isCalculateChargesFlow
+        ? 250
+        : isAdminBookForUserNoInputs
+          ? 0
+          : isFabricationEquipment
+            ? FABRICATION_CHARGE_DEBOUNCE_MS
+            : 500;
 
+      if (isFabricationEquipment) setChargeRefreshPending(true);
       calculationTimeoutRef.current = setTimeout(() => {
+        setChargeRefreshPending(false);
         calculateCharge();
       }, debounceMs);
 
@@ -4605,8 +4631,10 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
         if (calculationTimeoutRef.current) {
           clearTimeout(calculationTimeoutRef.current);
         }
+        if (isFabricationEquipment) setChargeRefreshPending(false);
       };
     } else {
+      setChargeRefreshPending(false);
       // Reset charge calculation if required fields are not filled
       if (chargeCalculated || chargeCalculationFailed) {
         setChargeCalculated(false);
@@ -6306,8 +6334,17 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     }
   }, [equipmentDetail, inputFieldValues, repeatParamsLocked]);
 
+  /** Parts are being edited: an answer still on its way is for the old parts, so it must not be shown. */
+  const dropChargeInFlight = useCallback(() => {
+    if (!chargeInFlightHashRef.current) return;
+    chargeRequestSeqRef.current += 1;
+    chargeInFlightHashRef.current = '';
+    setLoadingCharge(false);
+  }, []);
+
   const handlePrint3DReady = useCallback((values: Print3DBookingValues | null) => {
     if (!values) {
+      dropChargeInFlight();
       setPrintAnalysisId(null);
       setPrintAnalysisBatchId(null);
       setPrintPartsKey(null);
@@ -6326,11 +6363,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     setPrintPartsKey(
       JSON.stringify([values.weightGrams, values.materialCode, values.timeMinutes, values.supportWeightGrams ?? 0, values.supportMaterialCode ?? ""]),
     );
-  }, []);
+  }, [dropChargeInFlight]);
 
   const handleLaserCutReady = useCallback((values: LaserCutBookingValues | null) => {
     lastCalculatedValuesRef.current = '';
     if (!values) {
+      dropChargeInFlight();
       setLaserCutBatchId(null);
       setLaserPartsKey(null);
       setChargeCalculated(false);
@@ -6342,7 +6380,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     setLaserCutBatchId(values.batchId);
     setLaserPartsKey(values.partsKey);
     setFabricationOwnMaterial(values.ownMaterial);
-  }, []);
+  }, [dropChargeInFlight]);
 
   useEffect(() => {
     setLaserCutBatchId(null);
@@ -6350,6 +6388,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     setPrintPartsKey(null);
     setPrint3dSizeBlock(null);
     setFabricationOwnMaterial(false);
+    setFabricationUpdating(false);
   }, [selectedEquipment?.id]);
 
   /** Prefer admin-configured source; otherwise first PERIODIC_TABLE field on this equipment. */
@@ -6842,6 +6881,13 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
   };
 
   const handleBooking = async () => {
+    if (
+      isFabricationProfile(equipmentDetail?.profile_type) &&
+      (chargeRefreshPending || loadingCharge || fabricationUpdating)
+    ) {
+      toast.error("The charge is being updated for your latest changes. Please wait a moment and try again.");
+      return;
+    }
     if (isUrgentTypeBHoldMode) {
       await handleUrgentTypeBSubmit();
       return;
@@ -9529,6 +9575,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     jobQuantity={fabricationQuantity}
                     onReady={handlePrint3DReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
+                    onUpdatingChange={setFabricationUpdating}
                     onSizeBlockChange={setPrint3dSizeBlock}
                     disabled={repeatParamsLocked}
                   />
@@ -9543,6 +9590,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     jobQuantity={fabricationQuantity}
                     onReady={handleLaserCutReady}
                     onAnalyzingChange={setPrint3dAnalyzing}
+                    onUpdatingChange={setFabricationUpdating}
                   />
                 )}
 
@@ -10404,11 +10452,13 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                   />
                   
                   {/* Progress while STL analysis or charge calculation is running */}
-                  {(print3dAnalyzing || loadingCharge) && (
-                    <div className="mt-4 space-y-2 rounded-lg border bg-muted/30 p-4">
+                  {(print3dAnalyzing || loadingCharge || fabricationUpdating) && (
+                    <div className="mt-4 space-y-2 rounded-lg border bg-muted/30 p-4" data-testid="charge-progress">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">
-                          {equipmentDetail?.profile_type === "LASER_CUT_2D"
+                          {fabricationUpdating && !print3dAnalyzing
+                            ? "Updating charge…"
+                            : equipmentDetail?.profile_type === "LASER_CUT_2D"
                             ? print3dAnalyzing
                               ? "Measuring drawings…"
                               : "Calculating charge…"
@@ -10491,6 +10541,15 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <h3 className="text-base font-semibold">
                         {repeatSourceBooking ? "Step 2: Repeat sample (no charge)" : "Step 2: Charge Calculation"}
+                        {isFabricationProfile(equipmentDetail?.profile_type) && (chargeRefreshPending || loadingCharge) && (
+                          <span
+                            className="ml-2 text-xs font-normal text-muted-foreground"
+                            role="status"
+                            data-testid="charge-updating"
+                          >
+                            Updating…
+                          </span>
+                        )}
                         {!chargeCalcExpanded && (
                           <span className="ml-2 text-sm font-normal text-muted-foreground">
                             ({formatINRAmount(calculatedCharge?.reward?.final_payable ?? calculatedCharge.total_charge)})

@@ -105,6 +105,10 @@ export function inputsSection(): GuideSection {
         body: "After you upload an STL, the preview shows your model on the printer's build plate (its maximum print size, or 220 × 220 mm when the lab has not set one) and turns red if the model is too large. Under Supports, Auto adds supports touching the build plate only when the model has overhangs (the detected overhang area is shown); you can choose None, Touching build plate only or Everywhere instead, and Advanced support settings lets you change the support density and overhang angle. Supports are printed in the model material unless you choose another support material offered by the lab. The totals show the estimated weight (model + supports + waste) and print time including warm-up.",
       },
       {
+        title: "3D printing and laser cutting",
+        body: "Upload your STL or DXF file. The charge updates as you type a part's copies or quantity (or use the number box arrows), a moment after you stop; the Review shows Updating… until it is ready. Tick I will bring my own printing material or I will bring my own sheet material to bring your own: for laser cutting each part's sheet size is filled from your design plus a 5 mm margin on each side (turned to suit the machine bed when that fits better), and for 3D printing the page shows how much material to bring and the model size. You can type a different sheet size; Reset to model size goes back to the size from your design.",
+      },
+      {
         title: "Edit inputs after booking",
         body: "Open the booking from View Booking and choose Edit User Inputs. If the charge goes up, click Pay ₹X now; use Cancel edit to back out.",
       },
