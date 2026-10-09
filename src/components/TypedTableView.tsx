@@ -18,15 +18,17 @@ export function TypedTableView({ tableConfig, value, label, className }: Props) 
   return (
     <div className={cn("overflow-x-auto rounded-lg border border-border/70", className)}>
       <table className="w-full border-collapse text-sm" aria-label={label}>
-        <thead>
-          <tr className="border-b border-border/70 bg-primary/10 dark:bg-primary/15">
-            {columns.map((header, ci) => (
-              <th key={ci} scope="col" className="border-r border-border/50 px-3 py-2 text-left font-semibold last:border-r-0">
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        {columns.length > 0 && (
+          <thead>
+            <tr className="border-b border-border/70 bg-primary/10 dark:bg-primary/15">
+              {columns.map((header, ci) => (
+                <th key={ci} scope="col" className="border-r border-border/50 px-3 py-2 text-left font-semibold last:border-r-0">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
         <tbody>
           {rows.map((row, ri) => (
             <tr key={ri} className="border-b border-border/40 last:border-0">

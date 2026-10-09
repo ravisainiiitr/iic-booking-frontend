@@ -164,6 +164,13 @@ describe("typed table display", () => {
     });
   });
 
+  it("shows rows saved while the field was a plain table, without headers", () => {
+    const legacy = [["1", "S1", "600", "Nitrogen", ""], ["2", "", "", "", ""]];
+    expect(typedTableDisplay(config, legacy)).toEqual({ columns: [], rows: [["1", "S1", "600", "Nitrogen", ""]] });
+    expect(typedTableDisplay(config, JSON.stringify(legacy)).rows).toHaveLength(1);
+    expect(formatBookingInputValue(linkedField, { C: [["1", "", ""]] })).toEqual({ kind: "empty" });
+  });
+
   it("formats a typed table for the job sheet and treats blank tables as empty", () => {
     expect(formatBookingInputValue(linkedField, { C: rows })).toMatchObject({ kind: "table", columns: expect.arrayContaining(["Sample code"]) });
     expect(formatBookingInputValue(linkedField, { C: [{}] })).toEqual({ kind: "empty" });

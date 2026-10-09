@@ -76,17 +76,20 @@ export default function TypedTableBuilderDialog({
     ? Math.min(Math.max(0, Math.trunc(Number(previewCount) || 0)), previewConfig?.rows.max_rows ?? 0)
     : null;
 
+  const previewWant = previewConfig
+    ? previewTarget ?? Math.max(previewConfig.rows.initial_rows ?? 1, previewConfig.rows.min_rows ?? 0)
+    : null;
+
   useEffect(() => {
-    if (!previewConfig) return;
+    if (!previewConfig || previewWant === null) return;
     setPreviewRows((prev) => {
-      const want = previewTarget ?? Math.max(previewConfig.rows.initial_rows ?? 1, previewConfig.rows.min_rows ?? 0);
-      if (previewTarget === null && prev.length > 0) return prev;
-      if (prev.length === want) return prev;
-      return prev.length > want
-        ? prev.slice(0, want)
-        : [...prev, ...Array.from({ length: want - prev.length }, () => newTypedTableRow(previewConfig))];
+      if (prev.length === previewWant) return prev;
+      return prev.length > previewWant
+        ? prev.slice(0, previewWant)
+        : [...prev, ...Array.from({ length: previewWant - prev.length }, () => newTypedTableRow(previewConfig))];
     });
-  }, [previewConfig, previewTarget]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resize only when the row rules change; rows added in the preview stay until then
+  }, [previewWant]);
 
   const setColumn = (uid: number, patch: Partial<TypedTableDraftColumn>) =>
     setDraft((d) => ({ ...d, columns: d.columns.map((c) => (c.uid === uid ? { ...c, ...patch } : c)) }));
@@ -293,6 +296,7 @@ export default function TypedTableBuilderDialog({
 
           <div className="space-y-2 lg:sticky lg:top-0 lg:self-start">
             <p className="text-sm font-medium">Preview (as users see it)</p>
+            <p className="text-xs text-muted-foreground">Rows added here are only for trying the table; they are not saved.</p>
             {linked && (
               <div className="flex items-center gap-2 text-xs">
                 <Label htmlFor="ttb-preview-count" className="text-xs font-normal">

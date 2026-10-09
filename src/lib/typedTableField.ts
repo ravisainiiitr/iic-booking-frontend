@@ -464,11 +464,32 @@ export function formatTypedTableCell(column: TypedTableColumn, value: unknown): 
   return String(value);
 }
 
-/** Header labels and display rows (with S.No. when configured) for read-only views. */
+/** Rows of a value saved while the field was a plain table (string[][] or its JSON); null otherwise. */
+function legacyPlainTableRows(raw: unknown): string[][] | null {
+  let value = raw;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(value) || value.length === 0 || !value.every((r) => Array.isArray(r))) return null;
+  return (value as unknown[][])
+    .map((row) => row.map((cell) => (cell == null ? "" : String(cell))))
+    .filter((row) => row.some((cell, i) => cell.trim() !== "" && !(i === 0 && /^\d+$/.test(cell.trim()))));
+}
+
+/**
+ * Header labels and display rows (with S.No. when configured) for read-only views. Values saved while the
+ * field was a plain table come back as their rows with no headers (their old columns are not known here).
+ */
 export function typedTableDisplay(
   config: TypedTableConfig,
   raw: unknown,
 ): { columns: string[]; rows: string[][] } {
+  const legacy = legacyPlainTableRows(raw);
+  if (legacy) return { columns: [], rows: legacy };
   const serial = config.rows.serial_column !== false;
   const rows = readTypedTableRows(raw)
     .filter((row) => !isTypedTableRowBlank(config, row))
