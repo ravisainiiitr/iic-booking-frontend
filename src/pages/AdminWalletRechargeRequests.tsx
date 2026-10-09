@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient, extractAdminListItems } from "@/lib/api";
-import { sricDeclineOutcome } from "@/lib/walletRecharge";
+import { apiClient, extractAdminListItems, type SricReminderPreview } from "@/lib/api";
+import { cashbookUploadSummary, formatCutoffDate, sricDeclineOutcome } from "@/lib/walletRecharge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -51,6 +53,8 @@ import {
   Upload,
   Wand2,
   AlertTriangle,
+  Trash2,
+  BellRing,
 } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
@@ -161,6 +165,15 @@ interface WalletRechargeRequestRow {
   fund_receipt_verification_remarks?: string;
   account_incharge_name?: string;
   account_incharge_email?: string;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by_name?: string;
+  deletion_reason?: string;
+  delete_blocked_reason?: string;
+  sric_reminder_count?: number;
+  sric_reminder_last_sent_at?: string | null;
+  sric_reminder_last_sent_by_name?: string;
+  sric_reminder_blocked_reason?: string;
 }
 
 interface CatalogDepartment {
@@ -264,6 +277,17 @@ export default function AdminWalletRechargeRequests() {
   const [cashbookAutoMatching, setCashbookAutoMatching] = useState(false);
   const cashbookFileRef = useRef<HTMLInputElement>(null);
   const canLoadCashbook = isAdmin || isFinance;
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [cashbookCutoff, setCashbookCutoff] = useState<string>("2026-09-30");
+  const [deleteRow, setDeleteRow] = useState<WalletRechargeRequestRow | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [informRequester, setInformRequester] = useState(false);
+  const [reminderRow, setReminderRow] = useState<WalletRechargeRequestRow | null>(null);
+  const [reminderNote, setReminderNote] = useState("");
+  const [reminderExtraCc, setReminderExtraCc] = useState("");
+  const [reminderPreview, setReminderPreview] = useState<SricReminderPreview | null>(null);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderConfirmed, setReminderConfirmed] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -291,6 +315,9 @@ export default function AdminWalletRechargeRequests() {
         );
       }
     })();
+    void apiClient.adminSingletonGet<{ cashbook_match_from_date?: string }>("walletSricSettings").then((res) => {
+      if (!res.error && res.data?.cashbook_match_from_date) setCashbookCutoff(res.data.cashbook_match_from_date);
+    });
   }, [canAccess, isAdmin]);
 
   const listFilters = () => {
@@ -312,6 +339,7 @@ export default function AdminWalletRechargeRequests() {
   const fetchRows = async () => {
     setLoading(true);
     const params: Record<string, string> = { ordering: "-created_at", page_size: "200", ...listFilters() };
+    if (isAdmin && showDeleted) params.show_deleted = "1";
     const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
     if (res.error) {
       toast.error(res.error);
@@ -326,7 +354,7 @@ export default function AdminWalletRechargeRequests() {
     if (!canAccess) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly, showDeleted]);
 
   const clearOverdue = () => {
     const next = new URLSearchParams(searchParams);
@@ -459,12 +487,77 @@ export default function AdminWalletRechargeRequests() {
       return;
     }
     const d = res.data;
-    toast.success(
-      `${d.stored} cash-book row${d.stored === 1 ? "" : "s"} loaded` +
-        (d.skipped_without_emp_or_receipt ? ` (${d.skipped_without_emp_or_receipt} without receipt/Emp No. skipped)` : "") +
-        `; ${d.matched} request${d.matched === 1 ? "" : "s"} auto-matched.`
-    );
+    if (d.cutoff_date) setCashbookCutoff(d.cutoff_date);
+    toast.success(cashbookUploadSummary(d, d.cutoff_date || cashbookCutoff));
     if (d.errors?.length) toast.message(d.errors.slice(0, 3).join("\n"));
+    fetchRows();
+  };
+
+  const openDelete = (row: WalletRechargeRequestRow) => {
+    setDeleteRow(row);
+    setDeleteReason("");
+    setInformRequester(false);
+  };
+
+  const submitDelete = async () => {
+    if (!deleteRow) return;
+    if (!deleteReason.trim()) {
+      toast.error("Enter the reason for deleting this request.");
+      return;
+    }
+    setSubmitting(true);
+    const res = await apiClient.adminWalletRechargeRequestDelete(deleteRow.id, {
+      reason: deleteReason.trim(),
+      inform_requester: informRequester,
+    });
+    setSubmitting(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.data?.message || "Request deleted");
+    setDeleteRow(null);
+    setDetailRow(null);
+    fetchRows();
+  };
+
+  const loadReminderPreview = async (row: WalletRechargeRequestRow, note: string, extraCc: string) => {
+    setReminderLoading(true);
+    const res = await apiClient.adminWalletRechargeSricReminderPreview(row.id, note.trim(), extraCc.trim());
+    setReminderLoading(false);
+    if (res.error || !res.data) {
+      toast.error(res.error || "Could not load the reminder preview");
+      setReminderPreview(null);
+      return;
+    }
+    setReminderConfirmed(false);
+    setReminderPreview(res.data);
+  };
+
+  const openReminder = (row: WalletRechargeRequestRow) => {
+    setReminderRow(row);
+    setReminderNote("");
+    setReminderExtraCc("");
+    setReminderConfirmed(false);
+    setReminderPreview(null);
+    void loadReminderPreview(row, "", "");
+  };
+
+  const submitReminder = async () => {
+    if (!reminderRow || !reminderConfirmed) return;
+    setSubmitting(true);
+    const res = await apiClient.adminWalletRechargeSricReminderSend(reminderRow.id, {
+      note: reminderNote.trim(),
+      extra_cc: reminderExtraCc.trim(),
+    });
+    setSubmitting(false);
+    if (res.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(res.data?.message || "Reminder sent");
+    setReminderRow(null);
+    setDetailRow(null);
     fetchRows();
   };
 
@@ -650,6 +743,14 @@ export default function AdminWalletRechargeRequests() {
               <span className="text-sm text-muted-foreground self-center ml-1">
                 {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
               </span>
+              {isAdmin ? (
+                <div className="flex items-center gap-2 self-center ml-auto">
+                  <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
+                  <Label htmlFor="show-deleted" className="text-sm font-normal">
+                    Show deleted
+                  </Label>
+                </div>
+              ) : null}
             </div>
             {overdueOnly ? (
               <div
@@ -703,8 +804,10 @@ export default function AdminWalletRechargeRequests() {
                   <ExternalLink className="h-3.5 w-3.5 ml-1" />
                 </Button>
                 <span className="text-xs text-muted-foreground basis-full">
-                  Auto-match applies an entry only when amount, Credited to Project No. and Emp No. identify exactly
-                  one request. Each receipt can be used once; re-uploading the same file never credits twice.
+                  Only cash-book entries dated on or after {formatCutoffDate(cashbookCutoff)} (portal launch) are
+                  matched; older entries in an uploaded file are ignored. Auto-match applies an entry only when
+                  amount, Credited to Project No. and Emp No. identify exactly one request. Each receipt can be used
+                  once; re-uploading the same file never credits twice.
                 </span>
               </div>
             ) : null}
@@ -802,6 +905,23 @@ export default function AdminWalletRechargeRequests() {
                               ₹{row.credit_settled_amount} adjusted against credit
                             </div>
                           ) : null}
+                          {row.is_deleted ? (
+                            <div className="mt-1">
+                              <Badge variant="outline" className="border-destructive/40 text-destructive">
+                                Deleted
+                              </Badge>
+                              <div className="text-xs text-muted-foreground mt-1" title={row.deletion_reason}>
+                                {formatDate(row.deleted_at)}
+                                {row.deleted_by_name ? ` · ${row.deleted_by_name}` : ""}
+                              </div>
+                            </div>
+                          ) : null}
+                          {(row.sric_reminder_count ?? 0) > 0 ? (
+                            <div className="text-xs text-muted-foreground mt-1" data-testid="reminder-info">
+                              {row.sric_reminder_count} reminder{row.sric_reminder_count === 1 ? "" : "s"} · last{" "}
+                              {formatDate(row.sric_reminder_last_sent_at)}
+                            </div>
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-sm">
                           {row.fund_receipt_verified ? (
@@ -853,7 +973,7 @@ export default function AdminWalletRechargeRequests() {
                             <Button aria-label="View details" variant="ghost" size="icon" onClick={() => openDetails(row)} title="Details">
                               <Eye className="h-4 w-4" aria-hidden />
                             </Button>
-                            {canVerifyFundReceipt && !row.fund_receipt_verified ? (
+                            {canVerifyFundReceipt && !row.fund_receipt_verified && !row.is_deleted ? (
                               <Button
                                 aria-label="Verify fund receipt"
                                 variant="ghost"
@@ -895,6 +1015,28 @@ export default function AdminWalletRechargeRequests() {
                                 title="Cancel"
                               >
                                 <Ban className="h-4 w-4" aria-hidden />
+                              </Button>
+                            ) : null}
+                            {isAdmin && !row.is_deleted && !row.sric_reminder_blocked_reason ? (
+                              <Button
+                                aria-label="Send reminder to SRIC"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openReminder(row)}
+                                title="Send reminder to SRIC"
+                              >
+                                <BellRing className="h-4 w-4 text-amber-600" aria-hidden />
+                              </Button>
+                            ) : null}
+                            {isAdmin && !row.is_deleted ? (
+                              <Button
+                                aria-label="Delete request"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openDelete(row)}
+                                title={row.delete_blocked_reason || "Delete request"}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
                               </Button>
                             ) : null}
                           </div>
@@ -1021,7 +1163,7 @@ export default function AdminWalletRechargeRequests() {
                     />
                     <DetailField label="Remarks" value={detailRow.fund_receipt_verification_remarks} />
                   </>
-                ) : canVerifyFundReceipt ? (
+                ) : canVerifyFundReceipt && !detailRow.is_deleted ? (
                   <Button size="sm" onClick={() => openVerify(detailRow)}>
                     <BadgeCheck className="h-4 w-4 mr-2" />
                     Verify against physical receipt
@@ -1056,6 +1198,48 @@ export default function AdminWalletRechargeRequests() {
                   <p className="text-sm text-muted-foreground">No matching cash-book entry received yet.</p>
                 )}
               </section>
+
+              {isAdmin ? (
+                <section className="rounded-lg border p-3 space-y-2" data-testid="detail-admin-actions">
+                  <h3 className="text-sm font-semibold">SRIC reminders and deletion</h3>
+                  <DetailField
+                    label="Reminders sent"
+                    value={
+                      (detailRow.sric_reminder_count ?? 0) > 0
+                        ? `${detailRow.sric_reminder_count} · last ${
+                            detailRow.sric_reminder_last_sent_at
+                              ? new Date(detailRow.sric_reminder_last_sent_at).toLocaleString()
+                              : "—"
+                          }${detailRow.sric_reminder_last_sent_by_name ? ` by ${detailRow.sric_reminder_last_sent_by_name}` : ""}`
+                        : "None"
+                    }
+                  />
+                  {detailRow.is_deleted ? (
+                    <>
+                      <DetailField
+                        label="Deleted"
+                        value={`${detailRow.deleted_at ? new Date(detailRow.deleted_at).toLocaleString() : "—"}${
+                          detailRow.deleted_by_name ? ` by ${detailRow.deleted_by_name}` : ""
+                        }`}
+                      />
+                      <DetailField label="Reason" value={detailRow.deletion_reason} />
+                    </>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {!detailRow.sric_reminder_blocked_reason ? (
+                        <Button size="sm" variant="outline" onClick={() => openReminder(detailRow)}>
+                          <BellRing className="h-4 w-4 mr-2" />
+                          Send reminder to SRIC
+                        </Button>
+                      ) : null}
+                      <Button size="sm" variant="outline" className="text-destructive" onClick={() => openDelete(detailRow)}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete request
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              ) : null}
 
               <section className="rounded-lg border p-3 space-y-2">
                 <h3 className="text-sm font-semibold">Uploaded / linked receipts</h3>
@@ -1194,6 +1378,207 @@ export default function AdminWalletRechargeRequests() {
           <DialogFooter>
             <Button variant="outline" disabled={linkingEntryId !== null} onClick={() => setCashbookRow(null)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!deleteRow} onOpenChange={(open) => !open && !submitting && setDeleteRow(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete recharge request</DialogTitle>
+            <DialogDescription>
+              The request is hidden from lists, filters, counts and exports (Main Administrator can still see it with
+              “Show deleted”). A pending request is cancelled first, so its SRIC email links stop working.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1 text-sm rounded-md border p-3 bg-muted/20" data-testid="delete-summary">
+            <div>
+              <span className="text-muted-foreground">Transaction: </span>
+              {deleteRow?.transaction_number || deleteRow?.request_id}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Amount: </span>₹{deleteRow?.amount}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Status: </span>
+              {deleteRow?.status_display || deleteRow?.status}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Requester: </span>
+              {deleteRow?.user_name} (Emp {deleteRow?.employee_number || deleteRow?.user_emp_id || "—"})
+            </div>
+          </div>
+          {deleteRow?.delete_blocked_reason ? (
+            <p
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {deleteRow.delete_blocked_reason}
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="delete-reason">Reason (required)</Label>
+                <Textarea
+                  id="delete-reason"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Duplicate of another request; raised by mistake"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="inform-requester"
+                  checked={informRequester}
+                  onCheckedChange={(v) => setInformRequester(v === true)}
+                />
+                <Label htmlFor="inform-requester" className="font-normal">
+                  Inform requester by email
+                </Label>
+              </div>
+            </>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={submitting} onClick={() => setDeleteRow(null)}>
+              Close
+            </Button>
+            {!deleteRow?.delete_blocked_reason ? (
+              <Button variant="destructive" disabled={submitting || !deleteReason.trim()} onClick={submitDelete}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Delete request
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!reminderRow} onOpenChange={(open) => !open && !submitting && setReminderRow(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Send reminder to SRIC
+              {reminderPreview ? ` — Reminder #${reminderPreview.reminder_number}` : ""}
+            </DialogTitle>
+            <DialogDescription>
+              {reminderRow?.transaction_number || reminderRow?.request_id} — ₹{reminderRow?.amount}. The reminder repeats
+              every detail of the original request email
+              {reminderPreview?.includes_action_links ? ", with fresh personal Approve / Decline links for each SRIC recipient" : ""}
+              . The requester gets a copy without action links.
+            </DialogDescription>
+          </DialogHeader>
+          {reminderLoading && !reminderPreview ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : reminderPreview ? (
+            <div className="space-y-4">
+              <div className="space-y-1 text-sm rounded-md border p-3 bg-muted/20" data-testid="reminder-recipients">
+                <div>
+                  <span className="text-muted-foreground">To (SRIC office): </span>
+                  {reminderPreview.to.join(", ") || "— none configured —"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">CC: </span>
+                  {reminderPreview.cc.join(", ") || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Subject: </span>
+                  {reminderPreview.subject}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Reminders already sent: </span>
+                  {reminderPreview.reminders_sent}
+                  {reminderPreview.last_sent_at ? ` · last ${new Date(reminderPreview.last_sent_at).toLocaleString()}` : ""}
+                </div>
+              </div>
+              {!reminderPreview.eligible ? (
+                <p className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+                  {reminderPreview.blocked_reason}
+                </p>
+              ) : null}
+              {reminderPreview.cooldown_seconds > 0 ? (
+                <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" role="alert">
+                  A reminder was sent recently. Another can be sent in about{" "}
+                  {Math.max(1, Math.ceil(reminderPreview.cooldown_seconds / 60))} minute(s).
+                </p>
+              ) : null}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="reminder-note">Additional note (optional)</Label>
+                  <Textarea
+                    id="reminder-note"
+                    value={reminderNote}
+                    onChange={(e) => {
+                      setReminderNote(e.target.value);
+                      setReminderConfirmed(false);
+                    }}
+                    rows={3}
+                    placeholder="e.g. Pending for two weeks; kindly take necessary action."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reminder-cc">Extra CC (optional)</Label>
+                  <Input
+                    id="reminder-cc"
+                    value={reminderExtraCc}
+                    onChange={(e) => {
+                      setReminderExtraCc(e.target.value);
+                      setReminderConfirmed(false);
+                    }}
+                    placeholder="Comma-separated addresses"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reminderLoading || !reminderRow}
+                    onClick={() => reminderRow && loadReminderPreview(reminderRow, reminderNote, reminderExtraCc)}
+                  >
+                    {reminderLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                    Update preview
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Email preview (as sent to the SRIC office)</Label>
+                <iframe
+                  title="Reminder email preview"
+                  sandbox=""
+                  srcDoc={reminderPreview.html}
+                  className="h-[26rem] w-full rounded-md border bg-white"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="reminder-confirm"
+                  checked={reminderConfirmed}
+                  onCheckedChange={(v) => setReminderConfirmed(v === true)}
+                />
+                <Label htmlFor="reminder-confirm" className="font-normal">
+                  I have checked the recipients and the email; send Reminder #{reminderPreview.reminder_number} now.
+                </Label>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Preview unavailable.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={submitting} onClick={() => setReminderRow(null)}>
+              Close
+            </Button>
+            <Button
+              disabled={
+                submitting ||
+                !reminderConfirmed ||
+                !reminderPreview?.eligible ||
+                (reminderPreview?.cooldown_seconds ?? 0) > 0 ||
+                !reminderPreview?.to.length
+              }
+              onClick={submitReminder}
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BellRing className="h-4 w-4 mr-2" />}
+              Send reminder
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +28,7 @@ interface WalletSricSettingsData {
   auto_read_cashbook_mailbox?: boolean;
   cashbook_sender_emails?: string;
   fund_receipt_overdue_days?: number;
+  cashbook_match_from_date?: string;
 }
 
 const CC_HELP =
@@ -56,6 +58,7 @@ export default function AdminWalletSricSettings() {
   const [autoReadMailbox, setAutoReadMailbox] = useState(true);
   const [cashbookSenders, setCashbookSenders] = useState("");
   const [overdueDays, setOverdueDays] = useState("15");
+  const [cashbookFrom, setCashbookFrom] = useState("2026-09-30");
 
   useEffect(() => {
     if (authLoading) return;
@@ -93,6 +96,7 @@ export default function AdminWalletSricSettings() {
           setAutoReadMailbox(res.data.auto_read_cashbook_mailbox ?? true);
           setCashbookSenders(res.data.cashbook_sender_emails ?? "");
           setOverdueDays(String(res.data.fund_receipt_overdue_days ?? 15));
+          setCashbookFrom(res.data.cashbook_match_from_date || "2026-09-30");
         }
       })
       .catch(() => toast.error("Failed to load SRIC office settings."))
@@ -115,6 +119,7 @@ export default function AdminWalletSricSettings() {
           auto_read_cashbook_mailbox: autoReadMailbox,
           cashbook_sender_emails: cashbookSenders,
           fund_receipt_overdue_days: Math.min(365, Math.max(1, Math.round(Number(overdueDays) || 15))),
+          cashbook_match_from_date: cashbookFrom || "2026-09-30",
         }
       : { bill_section_emails: billSectionEmails, cash_deposit_cc_emails: cashDepositCcEmails };
     const res = await apiClient.adminSingletonUpdate<WalletSricSettingsData>(
@@ -298,6 +303,19 @@ export default function AdminWalletSricSettings() {
                     <p className="text-sm text-muted-foreground">
                       Requests with no matching SRIC cash-book entry after this many days are shown to the Main
                       Administrator and the Account In-charge every time they open the dashboard.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cashbook-from">Match cash-book entries dated on or after</Label>
+                    <DateInput
+                      id="cashbook-from"
+                      value={cashbookFrom}
+                      onChange={(e) => setCashbookFrom(e.target.value)}
+                      className="max-w-[12rem]"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Portal launch (default 30-09-2026). Cash-book entries dated earlier, or without a date, are ignored
+                      when uploading, reading the mailbox and matching recharge requests.
                     </p>
                   </div>
                 </CardContent>

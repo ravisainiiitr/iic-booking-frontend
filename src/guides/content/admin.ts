@@ -149,7 +149,15 @@ export const adminGuide: RoleGuide = {
           },
           {
             title: "Wallet recharge requests",
-            body: "Approve, Decline or Cancel requests and Verify Fund Receipt.",
+            body: "Approve, Decline or Cancel requests and Verify Fund Receipt. Upload SRIC cash book matches requests with cash-book entries dated on or after the date set in Wallet Recharge Routing Emails (30 Sep 2026, the portal launch); older or undated rows are ignored and counted in the upload summary.",
+          },
+          {
+            title: "Send reminder to SRIC",
+            body: "For a pending request, or an approved one whose funds have not been received, click the bell icon. Check the To and CC recipients, add a note or extra CC if needed, read the preview, tick the confirmation and click Send reminder. The email repeats every detail of the original request with Reminder #N; SRIC recipients of a pending request get fresh Approve / Decline links and the requester is copied without links. The count and last sent time show on the row.",
+          },
+          {
+            title: "Delete a request",
+            body: "Click the bin icon, check the transaction, amount, status and requester, enter a reason and click Delete request. Tick Inform requester by email to notify them. Turn on Show deleted to see deleted requests.",
           },
           {
             title: "Credit requests",
@@ -166,6 +174,8 @@ export const adminGuide: RoleGuide = {
           "Every IITR Student linked to a supervisor's wallet can recharge it for the same departments as the supervisor, with the methods these switches allow; Project Grant stays faculty-only. There is no separate student switch to turn on.",
           "Direct wallet recharge is off by default. Only the Main Administrator and people with a current permission can use it, and each recharge is recorded with who made it, when, the permission used and the IP address.",
           "A Project Grant request declined by SRIC becomes an auto-approved credit, recovered from the user's next approved recharge.",
+          "Only the Main Administrator can send SRIC reminders or delete recharge requests. Another reminder for the same request can be sent after 10 minutes.",
+          "A request that has credited the wallet cannot be deleted; debit it in the Wallet ledger first. Deleting a pending request cancels it, releases its matched cash-book entry and hides it from lists, counts and exports. Every deletion and reminder is recorded in the audit log.",
         ],
         glossary: [
           { term: "Project Grant declines", meaning: "Wrong Project Code, Insufficient Funds in the Project, Project Already Closed or Other." },

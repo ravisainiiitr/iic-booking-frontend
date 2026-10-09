@@ -922,6 +922,21 @@ export interface WalletDirectRechargeInput {
 }
 
 /** Backend admin API endpoint path (no leading/trailing slash). Used for frontend admin CRUD. */
+export type SricReminderPreview = {
+  eligible: boolean;
+  blocked_reason: string;
+  cooldown_seconds: number;
+  reminder_number: number;
+  subject: string;
+  to: string[];
+  cc: string[];
+  includes_action_links: boolean;
+  text: string;
+  html: string;
+  reminders_sent: number;
+  last_sent_at: string | null;
+};
+
 export type OverdueFundReceiptRow = {
   id: number;
   transaction_number: string;
@@ -7893,9 +7908,42 @@ class ApiClient {
       parsed: number;
       stored: number;
       skipped_without_emp_or_receipt: number;
+      ignored_before_cutoff?: number;
+      ignored_undated?: number;
+      cutoff_date?: string;
       matched: number;
       errors: string[];
     }>(`${endpoint}cashbook-upload/`, { method: 'POST', body: formData });
+  }
+
+  /** Main Administrator: soft-delete a recharge request (blocked once it has credited a wallet). */
+  async adminWalletRechargeRequestDelete(
+    id: number | string,
+    payload: { reason: string; inform_requester?: boolean }
+  ) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; request?: unknown; error?: string; code?: string }>(
+      `${endpoint}${id}/delete-request/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** Main Administrator: recipients and full body of the next SRIC reminder (nothing is sent). */
+  async adminWalletRechargeSricReminderPreview(id: number | string, note?: string, extraCc?: string) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    const qs = new URLSearchParams();
+    if (note) qs.set('note', note);
+    if (extraCc) qs.set('extra_cc', extraCc);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return this.request<SricReminderPreview>(`${endpoint}${id}/sric-reminder-preview/${suffix}`, { method: 'GET' });
+  }
+
+  async adminWalletRechargeSricReminderSend(id: number | string, payload: { note?: string; extra_cc?: string }) {
+    const endpoint = this.getAdminEndpoint('walletRechargeRequests');
+    return this.request<{ message?: string; reminder_number?: number; request?: unknown; error?: string }>(
+      `${endpoint}${id}/sric-reminder/`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
   }
 
   // Booking endpoints

@@ -246,6 +246,32 @@ export function sricDeclineOutcome(r: {
   return Number(r.decline_credit_outstanding || 0) > 0 ? "credit_outstanding" : "credit_recovered";
 }
 
+/** "2026-09-30" -> "30 Sep 2026" (cash-book matching cutoff). */
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function formatCutoffDate(iso: string | null | undefined): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  const month = m ? SHORT_MONTHS[Number(m[2]) - 1] : undefined;
+  if (!m || !month) return "30 Sep 2026";
+  return `${Number(m[3])} ${month} ${m[1]}`;
+}
+
+export type CashbookUploadResult = {
+  stored: number;
+  skipped_without_emp_or_receipt?: number;
+  ignored_before_cutoff?: number;
+  ignored_undated?: number;
+  matched: number;
+};
+
+export function cashbookUploadSummary(d: CashbookUploadResult, cutoffIso?: string | null): string {
+  const parts = [`${d.stored} cash-book row${d.stored === 1 ? "" : "s"} loaded`];
+  if (d.ignored_before_cutoff) parts.push(`ignored: before ${formatCutoffDate(cutoffIso)}: ${d.ignored_before_cutoff}`);
+  if (d.ignored_undated) parts.push(`ignored: no date: ${d.ignored_undated}`);
+  if (d.skipped_without_emp_or_receipt) parts.push(`${d.skipped_without_emp_or_receipt} without receipt/Emp No. skipped`);
+  return `${parts.join("; ")}; ${d.matched} request${d.matched === 1 ? "" : "s"} auto-matched.`;
+}
+
 export const DECLINE_REASON_LABELS: Record<string, string> = {
   wrong_project_grant: "Wrong Project Code",
   insufficient_balance: "Insufficient Funds in the Project",
