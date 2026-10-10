@@ -74,7 +74,7 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
       { title: "Training Policy", body: "Set the training rules on the same page, including whether course demonstrations are free." },
       {
         title: "Operator & fair-use rules",
-        body: "On the same page set the selection cooling period, faculty-group repeat penalty, duty caps per week and semester, cooling days between duty blocks, confirmation deadline, rotation weights and the indicative honorarium rate. OICs can set rules for their own equipment.",
+        body: "On the same page set the selection cooling period, faculty-group repeat penalty, duty caps per week and semester, cooling days between duty blocks, confirmation deadline, rotation weights and the indicative honorarium rate. Department administrators can set rules for their department and OICs for their own equipment; the most specific rules apply.",
       },
     ],
     rules: [

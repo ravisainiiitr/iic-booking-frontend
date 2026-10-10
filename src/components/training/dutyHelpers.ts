@@ -1,5 +1,18 @@
 import { academicStartYear, academicYearLabel } from "@/lib/academicYears";
-import type { AccountingQuery, CalendarSlot, DutyMode, DutyPlanInput, FairnessRow } from "@/lib/trainingOpsTypes";
+import type { AccountingQuery, CalendarSlot, DutyMode, DutyPlanInput, FairnessRow, ShiftLine } from "@/lib/trainingOpsTypes";
+
+const CHECKIN_EARLY_MS = 30 * 60_000;
+
+/** Check-in/out the OIC can do on the operator's behalf right now (same window as the server). */
+export function liveShiftAction(
+  line: Pick<ShiftLine, "status" | "allocation_status" | "start" | "end">,
+  now: Date = new Date(),
+): "check-in" | "check-out" | null {
+  if (line.status === "CHECKED_IN") return "check-out";
+  if (line.status !== "SCHEDULED" || line.allocation_status !== "CONFIRMED") return null;
+  const t = now.getTime();
+  return t >= new Date(line.start).getTime() - CHECKIN_EARLY_MS && t <= new Date(line.end).getTime() ? "check-in" : null;
+}
 
 export const WEEKDAYS = [
   { value: 0, short: "Mon", label: "Monday" },

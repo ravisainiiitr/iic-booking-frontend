@@ -6,6 +6,7 @@ import {
   formatHours,
   periodQuery,
   groupSlotsByDay,
+  liveShiftAction,
   mergeSelectedSlots,
   nextInRotation,
   planPayload,
@@ -118,6 +119,16 @@ describe("dutyHelpers", () => {
   it("lists academic years July-June, newest first", () => {
     expect(academicYearChoices(2, new Date(2026, 9, 10))).toEqual(["2026-27", "2025-26"]);
     expect(academicYearChoices(1, new Date(2027, 2, 1))).toEqual(["2026-27"]);
+  });
+
+  it("offers OIC check-in only in the server's window and for confirmed duty", () => {
+    const line = { status: "SCHEDULED" as const, allocation_status: "CONFIRMED" as const, start: "2026-10-10T10:00:00Z", end: "2026-10-10T12:00:00Z" };
+    expect(liveShiftAction(line, new Date("2026-10-10T09:20:00Z"))).toBeNull();
+    expect(liveShiftAction(line, new Date("2026-10-10T09:31:00Z"))).toBe("check-in");
+    expect(liveShiftAction(line, new Date("2026-10-10T12:01:00Z"))).toBeNull();
+    expect(liveShiftAction({ ...line, allocation_status: "PENDING" }, new Date("2026-10-10T10:30:00Z"))).toBeNull();
+    expect(liveShiftAction({ ...line, status: "CHECKED_IN" })).toBe("check-out");
+    expect(liveShiftAction({ ...line, status: "COMPLETED" })).toBeNull();
   });
 
   it("turns the period selector into accounting filters", () => {

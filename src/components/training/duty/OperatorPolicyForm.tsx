@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiClient } from "@/lib/api";
 import { trainingApi } from "@/lib/trainingApi";
 import type { OperatorPolicy, OperatorPolicyFields, OperatorPolicyOverview } from "@/lib/trainingOpsTypes";
 import type { TrainingEquipmentRef } from "@/lib/trainingTypes";
@@ -76,10 +78,14 @@ function scopeLabel(p: OperatorPolicy): string {
 }
 
 /** Fair-use rules for selection cooling, duty caps/rotation and certificate reminders. */
-export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allowGlobal?: boolean; defaultScope?: "GLOBAL" | "EQUIPMENT" }) {
+type Scope = "GLOBAL" | "DEPARTMENT" | "EQUIPMENT";
+
+export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allowGlobal?: boolean; defaultScope?: Scope }) {
   const [overview, setOverview] = useState<OperatorPolicyOverview | null>(null);
-  const [scope, setScope] = useState<"GLOBAL" | "EQUIPMENT">(defaultScope ?? "GLOBAL");
+  const [scope, setScope] = useState<Scope>(defaultScope ?? "GLOBAL");
   const [equipment, setEquipment] = useState<TrainingEquipmentRef | null>(null);
+  const [departmentId, setDepartmentId] = useState<number | null>(null);
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<OperatorPolicy[] | null>(null);
@@ -92,12 +98,17 @@ export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allow
     }
     const ov = res.data!;
     setOverview(ov);
+    const global = ov.policies.find((p) => p.scope === "GLOBAL") ?? ov.defaults;
     const base =
       scope === "EQUIPMENT"
         ? ov.effective
-        : ov.policies.find((p) => p.scope === "GLOBAL") ?? ov.defaults;
+        : scope === "DEPARTMENT"
+          ? departmentId
+            ? ov.policies.find((p) => p.scope === "DEPARTMENT" && p.department?.id === departmentId) ?? global
+            : null
+          : global;
     setForm(base ? toForm(base) : null);
-  }, [scope, equipment]);
+  }, [scope, equipment, departmentId]);
 
   useEffect(() => {
     void load();
@@ -107,14 +118,34 @@ export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allow
     if (overview && !overview.can_edit_global && scope === "GLOBAL" && !defaultScope) setScope("EQUIPMENT");
   }, [overview, scope, defaultScope]);
 
+  useEffect(() => {
+    if (!overview) return;
+    if (overview.department_id) {
+      setDepartmentId((d) => d ?? overview.department_id);
+    } else if (overview.can_edit_global && !departments.length) {
+      void apiClient.getDepartments("internal").then((res) => {
+        const list = res.data?.departments;
+        if (Array.isArray(list)) setDepartments(list.map((d) => ({ id: d.id, name: d.name })));
+      });
+    }
+  }, [overview, departments.length]);
+
   const canEditGlobal = Boolean(overview?.can_edit_global) && allowGlobal;
+  const canEditDepartment = Boolean(overview?.can_edit_global || overview?.department_id);
   const current = useMemo(() => {
     if (!overview) return null;
     if (scope === "GLOBAL") return overview.policies.find((p) => p.scope === "GLOBAL") ?? null;
+    if (scope === "DEPARTMENT") {
+      return (
+        overview.policies.find((p) => p.scope === "DEPARTMENT" && p.department?.id === departmentId) ??
+        (departmentId ? overview.policies.find((p) => p.scope === "GLOBAL") ?? null : null)
+      );
+    }
     return overview.effective;
-  }, [overview, scope]);
+  }, [overview, scope, departmentId]);
   const problem = form ? formProblem(form) : "";
-  const editable = scope === "GLOBAL" ? canEditGlobal : Boolean(equipment);
+  const targetChosen = scope === "GLOBAL" || (scope === "EQUIPMENT" ? Boolean(equipment) : Boolean(departmentId));
+  const editable = scope === "GLOBAL" ? canEditGlobal : targetChosen;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
 
@@ -125,6 +156,7 @@ export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allow
       trainingApi.publishOperatorPolicy({
         scope,
         equipment_id: scope === "EQUIPMENT" ? equipment?.equipment_id : undefined,
+        department_id: scope === "DEPARTMENT" ? departmentId ?? undefined : undefined,
         ...Object.fromEntries(NUMBER_FIELDS.map((f) => [f.key, Number(form[f.key])])),
         selection_cooldown_blocks: form.selection_cooldown_blocks,
         duty_confirmation_required: form.duty_confirmation_required,
@@ -184,6 +216,11 @@ export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allow
               All equipment
             </Button>
           ) : null}
+          {canEditDepartment ? (
+            <Button type="button" size="sm" variant={scope === "DEPARTMENT" ? "default" : "outline"} onClick={() => setScope("DEPARTMENT")}>
+              One department
+            </Button>
+          ) : null}
           <Button type="button" size="sm" variant={scope === "EQUIPMENT" ? "default" : "outline"} onClick={() => setScope("EQUIPMENT")}>
             One equipment
           </Button>
@@ -192,18 +229,39 @@ export function OperatorPolicyForm({ allowGlobal = true, defaultScope }: { allow
               <EquipmentPicker managed value={equipment} onChange={setEquipment} placeholder="Equipment you manage" />
             </div>
           ) : null}
+          {scope === "DEPARTMENT" && overview.can_edit_global ? (
+            <div className="min-w-[16rem] flex-1">
+              <Select value={departmentId ? String(departmentId) : ""} onValueChange={(v) => setDepartmentId(Number(v))}>
+                <SelectTrigger aria-label="Department">
+                  <SelectValue placeholder="Choose a department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={String(d.id)}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
         </div>
         {current ? (
           <p className="text-xs text-muted-foreground">
             In force: {scopeLabel(current)} · version {current.version || "default"}
             {current.published_at ? ` · published ${formatDateTime(current.published_at)}${current.created_by ? ` by ${current.created_by}` : ""}` : ""}
             {scope === "EQUIPMENT" && current.scope !== "EQUIPMENT" ? ". Saving creates rules just for this equipment." : ""}
+            {scope === "DEPARTMENT" && current.scope !== "DEPARTMENT"
+              ? ". Saving creates rules for every equipment of this department (equipment rules still take precedence)."
+              : ""}
           </p>
-        ) : scope === "EQUIPMENT" && !equipment ? (
-          <p className="text-sm text-muted-foreground">Choose equipment to see or override its rules.</p>
+        ) : !targetChosen ? (
+          <p className="text-sm text-muted-foreground">
+            {scope === "EQUIPMENT" ? "Choose equipment to see or override its rules." : "Choose a department to see or override its rules."}
+          </p>
         ) : null}
 
-        {form && (scope === "GLOBAL" || equipment) ? (
+        {form && targetChosen ? (
           <>
             <fieldset className="space-y-3 rounded-lg border border-border/70 p-3">
               <legend className="px-1 text-sm font-semibold">Fair selection for trainings</legend>
