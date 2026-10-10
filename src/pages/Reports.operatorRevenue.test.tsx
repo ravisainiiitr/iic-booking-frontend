@@ -129,6 +129,34 @@ describe("Reports & Statistics revenue visibility", () => {
   });
 });
 
+describe("Reports utilization factor", () => {
+  const renderWith = async (overrides: Record<string, unknown>) => {
+    getCurrentUser.mockResolvedValue({ data: { id: 5, user_type: "operator", rbac_permissions: ["reports.view"] } });
+    const report = equipmentReport(false);
+    getEquipmentReportData.mockResolvedValue({ data: { ...report.data, summary: { ...summary, ...overrides } } });
+    render(
+      <MemoryRouter>
+        <Reports />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Utilization factor");
+  };
+
+  it("explains the weekly view window formula", async () => {
+    await renderWith({ utilization_booked_hours: 4, utilization_available_hours: 10 });
+    expect(
+      screen.getByText("Booked hours ÷ available hours within weekly view window, excluding weekends and holidays"),
+    ).toBeTruthy();
+    expect(screen.getByText("40.00%")).toBeTruthy();
+    expect(screen.getByLabelText("How the utilization factor is calculated")).toBeTruthy();
+  });
+
+  it("shows N/A when there are no available hours", async () => {
+    await renderWith({ utilization_factor: null });
+    expect(screen.getByText("N/A")).toBeTruthy();
+  });
+});
+
 describe("Reports booking details revenue visibility", () => {
   it("hides the amount card and column when money is not visible", async () => {
     getBookingStats.mockResolvedValue(stats(false));
