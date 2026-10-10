@@ -96,8 +96,32 @@ describe("BookingDetailCard job sheet", () => {
           width_mm: "200.00",
           height_mm: "100.00",
           area_mm2: "20000.00",
+          time_estimate: {
+            cut_length_mm: 996.4,
+            pierces: 6,
+            cut_speed_mm_s: 16,
+            pierce_s: 0.5,
+            seconds_each: 72.4,
+            cutting_seconds_each: 66,
+            pierce_seconds_each: 4.2,
+            travel_seconds_each: 2.2,
+            minutes_total: 6,
+            warning: null,
+          },
         },
       ],
+      laser_time_estimate: {
+        preset: "co2_laser",
+        preset_label: "CO2 laser cutter (non-metals, 80-150 W)",
+        cutting_min: 6,
+        setup_min: 10,
+        sheets: 1,
+        sheet_min: 3,
+        allowance_pct: 10,
+        allowance_min: 1.9,
+        total_min: 21,
+        warnings: [],
+      },
       fabrication_file_changes: [],
       fabrication_files_replaceable: { allowed: false, reason: null },
     } as unknown as BookingDetailCardBooking;
@@ -111,6 +135,10 @@ describe("BookingDetailCard job sheet", () => {
     expect(html).toContain("Acrylic sheet 3 mm · 200 × 100 mm (0.0200 m² each)");
     expect(html).toContain("User brings own material");
     expect(html).toContain("Download bracket.dxf");
+    expect(html).toContain("Machine time: 1 min 12 s each · 996 mm cut · 6 pierces");
+    expect(html).toContain("Estimated machine time");
+    expect(html).toContain("21 min");
+    expect(html).toContain("Loading 1 sheet");
   });
 
   it("leaves the booking owner's view unchanged", () => {

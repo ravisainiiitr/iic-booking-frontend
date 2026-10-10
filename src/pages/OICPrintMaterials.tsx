@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { SupportedMaterialsCard } from "@/components/admin/SupportedMaterialsCard";
 import { PrintEstimateProfileCard } from "@/components/admin/PrintEstimateProfileCard";
+import { LaserEstimateProfileCard } from "@/components/admin/LaserEstimateProfileCard";
 import { getUserTypeDisplayName, USER_TYPE_DISPLAY_NAMES } from "@/lib/userTypes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -334,7 +335,9 @@ export default function OICPrintMaterials() {
     }
     setEquipments((prev) =>
       prev.map((e) =>
-        e.equipment_id === updated.equipment_id ? { ...e, supported_material_ids: updated.supported_material_ids ?? [] } : e
+        e.equipment_id === updated.equipment_id
+          ? { ...e, supported_material_ids: updated.supported_material_ids ?? [], laser_estimate: updated.laser_estimate ?? e.laser_estimate }
+          : e
       )
     );
     toast.success("Supported materials saved.");
@@ -635,6 +638,20 @@ export default function OICPrintMaterials() {
                       e.equipment_id === updated.equipment_id
                         ? { ...e, print_estimate: updated.print_estimate }
                         : e,
+                    ),
+                  )
+                }
+              />
+            )}
+
+            {t === "laser" && selected.laser_estimate && (
+              <LaserEstimateProfileCard
+                equipment={selected}
+                disabled={disabled}
+                onSaved={(updated) =>
+                  setEquipments((prev) =>
+                    prev.map((e) =>
+                      e.equipment_id === updated.equipment_id ? { ...e, laser_estimate: updated.laser_estimate } : e,
                     ),
                   )
                 }

@@ -106,7 +106,7 @@ export function inputsSection(): GuideSection {
       },
       {
         title: "3D printing and laser cutting",
-        body: "Upload your STL or DXF file. The charge updates as you type a part's copies or quantity (or use the number box arrows), a moment after you stop; the Review shows Updating… until it is ready. Tick I will bring my own printing material or I will bring my own sheet material to bring your own: for laser cutting each part's sheet size is filled from your design plus a 5 mm margin on each side (turned to suit the machine bed when that fits better), and for 3D printing the page shows how much material to bring and the model size. You can type a different sheet size; Reset to model size goes back to the size from your design.",
+        body: "Upload your STL or DXF file. The charge updates as you type a part's copies or quantity (or use the number box arrows), a moment after you stop; the Review shows Updating… until it is ready. Tick I will bring my own printing material or I will bring my own sheet material to bring your own: for laser cutting each part's sheet size is filled from your design plus a 5 mm margin on each side (turned to suit the machine bed when that fits better), and for 3D printing the page shows how much material to bring and the model size. You can type a different sheet size; Reset to model size goes back to the size from your design. For laser cutting, each part shows its machine time from the cut path in your drawing (cut length and pierces), and the Review shows the estimated machine time of the whole job (cutting, setup and sheet loading), which sets how long a slot you need.",
       },
       {
         title: "3D printing: see the supports and turn the part",
