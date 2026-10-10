@@ -38,23 +38,10 @@ import { ArrowLeft, Send, Loader2, ClipboardList, Check, X, Download } from "luc
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { format } from "date-fns";
+import { academicYearOptions, type AcademicYearOption } from "@/lib/academicYears";
 
 type SemesterOption = { id: number; code: string; name: string };
 type EquipmentOption = { equipment_id: number; code: string; name: string };
-
-function extractAcademicYearLabel(s: SemesterOption): string {
-  const text = `${s.code || ""} ${s.name || ""}`;
-  const yyyyShort = text.match(/\b(\d{4}-\d{2})\b/);
-  if (yyyyShort?.[1]) return yyyyShort[1];
-  const yyyyFull = text.match(/\b(\d{4}-\d{4})\b/);
-  if (yyyyFull?.[1]) {
-    const [a, b] = yyyyFull[1].split("-");
-    return `${a}-${b.slice(-2)}`;
-  }
-  const single = text.match(/\b(20\d{2})\b/);
-  if (single?.[1]) return single[1];
-  return s.name || s.code || `Year-${s.id}`;
-}
 
 export default function TANominationCall() {
   const navigate = useNavigate();
@@ -63,13 +50,14 @@ export default function TANominationCall() {
   const isOperatorOrManager = userType === "operator" || userType === "manager" || userType === "admin";
 
   const [semesters, setSemesters] = useState<SemesterOption[]>([]);
+  const [serverYears, setServerYears] = useState<AcademicYearOption[] | null>(null);
   const [equipments, setEquipments] = useState<EquipmentOption[]>([]);
   const [loadingSemesters, setLoadingSemesters] = useState(true);
   const [loadingEquipments, setLoadingEquipments] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [equipmentId, setEquipmentId] = useState<string>("");
-  const [semesterId, setSemesterId] = useState<string>("");
+  const [academicYear, setAcademicYear] = useState<string>("");
   const [numberOfOperators, setNumberOfOperators] = useState<string>("1");
   const [eligibilityCriteria, setEligibilityCriteria] = useState("");
   const [expectedDutyHours, setExpectedDutyHours] = useState("");
@@ -91,18 +79,13 @@ export default function TANominationCall() {
     remarks: "",
   });
 
-  const academicYearOptions = useMemo(() => {
-    const byYear = new Map<string, SemesterOption>();
-    for (const s of semesters) {
-      const year = extractAcademicYearLabel(s);
-      const existing = byYear.get(year);
-      // Prefer latest row (higher id) for that year.
-      if (!existing || s.id > existing.id) byYear.set(year, s);
-    }
-    return Array.from(byYear.entries())
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .map(([year, sem]) => ({ year, semesterId: String(sem.id) }));
-  }, [semesters]);
+  const yearOptions = useMemo(() => academicYearOptions(serverYears, semesters), [serverYears, semesters]);
+
+  useEffect(() => {
+    if (academicYear || !yearOptions.length) return;
+    const preferred = yearOptions.find((o) => o.is_current && o.available) ?? yearOptions.find((o) => o.available);
+    if (preferred) setAcademicYear(preferred.label);
+  }, [academicYear, yearOptions]);
 
   useEffect(() => {
     if (!isOperatorOrManager) {
@@ -116,6 +99,7 @@ export default function TANominationCall() {
         setSemesters([]);
       } else {
         setSemesters(res.data?.semesters ?? []);
+        setServerYears(res.data?.academic_years ?? null);
       }
     });
     apiClient.getEquipments().then((res) => {
@@ -233,7 +217,8 @@ export default function TANominationCall() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!equipmentId || !semesterId || !nominationDeadline) {
+    const year = yearOptions.find((o) => o.label === academicYear);
+    if (!equipmentId || !year || !nominationDeadline) {
       toast.error("Please select equipment, academic year, and nomination deadline.");
       return;
     }
@@ -246,7 +231,8 @@ export default function TANominationCall() {
     try {
       const res = await apiClient.createTANominationCall({
         equipment_id: parseInt(equipmentId, 10),
-        semester_id: parseInt(semesterId, 10),
+        academic_year: year.label,
+        ...(year.semester_id != null ? { semester_id: year.semester_id } : {}),
         number_of_operators_required: num,
         eligibility_criteria: eligibilityCriteria.trim() || undefined,
         expected_duty_hours: expectedDutyHours.trim() || undefined,
@@ -305,7 +291,7 @@ export default function TANominationCall() {
               <div>
                 <CardTitle className="text-xl">New call</CardTitle>
                 <CardDescription className="text-sm mt-0.5">
-                  Choose equipment, semester, and operators required, then notify faculty.
+                  Choose equipment, academic year, and operators required, then notify faculty.
                 </CardDescription>
               </div>
             </div>
@@ -330,18 +316,21 @@ export default function TANominationCall() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="semester">Academic Year *</Label>
-                  <Select value={semesterId} onValueChange={setSemesterId} required>
+                  <Select value={academicYear} onValueChange={setAcademicYear} required disabled={loadingSemesters}>
                     <SelectTrigger id="semester">
                       <SelectValue placeholder={loadingSemesters ? "Loading…" : "Select academic year"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {academicYearOptions.map((opt) => (
-                        <SelectItem key={opt.semesterId} value={opt.semesterId}>
-                          {opt.year}
+                      {yearOptions.map((opt) => (
+                        <SelectItem key={opt.label} value={opt.label} disabled={!opt.available}>
+                          {opt.label}
+                          {opt.is_current ? " (current)" : ""}
+                          {!opt.available ? " — closed" : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">Academic year runs July to June.</p>
                 </div>
               </div>
 

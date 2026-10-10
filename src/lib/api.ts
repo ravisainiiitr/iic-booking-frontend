@@ -17,6 +17,7 @@ function withAppClient<T extends Record<string, unknown>>(body: T): T & { client
   return isNativeApp() ? { ...body, client: "iic_app" } : body;
 }
 import type { MyBookingQuota } from "@/lib/bookingQuota";
+import type { AcademicYearOption } from "@/lib/academicYears";
 import { quotaBreakdownQuery, type QuotaBreakdown, type QuotaBreakdownRequest } from "@/lib/quotaBreakdown";
 import { myBookingAttemptsQuery, type MyBookingAttemptsPage, type MyBookingAttemptsQuery } from "@/lib/myBookingAttempts";
 import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
@@ -11011,6 +11012,8 @@ class ApiClient {
     if (params?.active_only) sp.append('active_only', '1');
     const q = sp.toString();
     return this.request<{
+      /** Current and next academic year (always), plus years with an active semester. Older servers omit it. */
+      academic_years?: AcademicYearOption[];
       semesters: Array<{
         id: number;
         code: string;
@@ -11120,7 +11123,9 @@ class ApiClient {
   /** OIC/Admin: create a TA nomination call. OIC only for their equipment; Admin any. Sends email to all Faculty. */
   async createTANominationCall(data: {
     equipment_id: number;
-    semester_id: number;
+    /** e.g. "2026-27"; the server finds or creates the semester for it. */
+    academic_year?: string;
+    semester_id?: number;
     number_of_operators_required: number;
     eligibility_criteria?: string;
     expected_duty_hours?: string;
