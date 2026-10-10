@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import RefundRequestsPanel from "@/components/admin-insights/RefundRequestsPanel";
 import {
   BreakdownBars,
   ClearFilters,
@@ -28,6 +30,7 @@ import { useInsights } from "@/components/admin-insights/useInsights";
 import {
   CHART_COLORS,
   EMPTY_CANCELLATION_FILTERS,
+  EMPTY_REFUND_FILTERS,
   filtersFromSearch,
   formatDuration,
   formatPercent,
@@ -77,7 +80,19 @@ function changeText(current: number, previous: number) {
 }
 
 export default function CancellationsDashboard() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "refunds" ? "refunds" : "cancellations";
+  const switchView = (next: string) =>
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        if (next === "refunds") out.set("view", "refunds");
+        else out.delete("view");
+        return out;
+      },
+      { replace: true },
+    );
+  const [refundInitial] = useState(() => filtersFromSearch(EMPTY_REFUND_FILTERS, searchParams));
   const [filters, setFilters] = useState<CancellationFilters>(() =>
     filtersFromSearch(EMPTY_CANCELLATION_FILTERS, searchParams),
   );
@@ -132,6 +147,17 @@ export default function CancellationsDashboard() {
           />
         </StandaloneOnly>
 
+        <Tabs value={view} onValueChange={switchView}>
+          <TabsList>
+            <TabsTrigger value="cancellations">Cancellations</TabsTrigger>
+            <TabsTrigger value="refunds">Refund requests</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {view === "refunds" ? (
+          <RefundRequestsPanel initial={refundInitial} />
+        ) : (
+        <>
         <Card>
           <CardContent className="space-y-3 p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
@@ -513,6 +539,8 @@ export default function CancellationsDashboard() {
             />
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
     </PageShell>
   );

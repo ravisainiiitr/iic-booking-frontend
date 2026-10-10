@@ -24,6 +24,7 @@ import {
   TrendChart,
 } from "@/components/admin-insights/InsightParts";
 import { useInsights } from "@/components/admin-insights/useInsights";
+import UserCardDrawer from "@/components/admin-insights/UserCardDrawer";
 import {
   CHART_COLORS,
   EMPTY_USER_FILTERS,
@@ -51,6 +52,10 @@ export default function UsersOverview() {
   const [trend, setTrend] = useState<"month" | "week">("month");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [cardUser, setCardUser] = useState<number | null>(() => {
+    const raw = searchParams.get("user");
+    return raw && /^\d+$/.test(raw) ? Number(raw) : null;
+  });
 
   const filterParams = useMemo(() => userQuery(filters, { sort: ordering, trend }), [filters, ordering, trend]);
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
@@ -445,7 +450,14 @@ export default function UsersOverview() {
                     rows.map((r) => (
                       <TableRow key={r.id} className="hover:bg-muted/50">
                         <TableCell>
-                          <div className="font-medium">{r.name || <Muted />}</div>
+                          <button
+                            type="button"
+                            className="text-left font-medium text-primary underline-offset-2 hover:underline"
+                            onClick={() => setCardUser(r.id)}
+                            title="Open the user card"
+                          >
+                            {r.name || r.email || `User ${r.id}`}
+                          </button>
                           {!r.is_active ? <div className="text-xs text-amber-700 dark:text-amber-400">Inactive</div> : null}
                         </TableCell>
                         <TableCell>
@@ -503,6 +515,7 @@ export default function UsersOverview() {
           </CardContent>
         </Card>
       </div>
+      <UserCardDrawer userId={cardUser} onClose={() => setCardUser(null)} />
     </PageShell>
   );
 }

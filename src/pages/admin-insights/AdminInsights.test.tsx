@@ -2,13 +2,23 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { CancellationInsights, EquipmentInsights, UserInsights } from "@/lib/adminInsights";
+import type {
+  CancellationInsights,
+  EquipmentInsights,
+  RefundRequestInsights,
+  UserCard,
+  UserInsights,
+  WalletBookings,
+} from "@/lib/adminInsights";
 
 const state = vi.hoisted(() => ({
   api: {
     getAdminEquipmentInsights: vi.fn(),
     getAdminUserInsights: vi.fn(),
     getAdminCancellationInsights: vi.fn(),
+    getAdminRefundRequestInsights: vi.fn(),
+    getAdminUserCard: vi.fn(),
+    getAdminWalletBookings: vi.fn(),
   },
 }));
 
@@ -211,6 +221,154 @@ const cancellationData: CancellationInsights = {
   },
 };
 
+const refundUser = {
+  id: 41,
+  name: "Asha Rao",
+  email: "asha@example.com",
+  category: "iitr_student",
+  category_display: "IITR Students",
+  department: "Physics",
+};
+
+const refundData: RefundRequestInsights = {
+  ...page,
+  date_from: "2026-09-11",
+  date_to: "2026-10-10",
+  default_window_hours: 48,
+  repeat_min: 2,
+  summary: {
+    total: 9,
+    bookings_created: 363,
+    rate: 0.0248,
+    within_window: 9,
+    unique_users: 6,
+    unique_users_within_window: 6,
+    repeat_refunders: 1,
+    refund_total: 7441,
+    by_source: [
+      { key: "self_service", label: "Cancelled by the user", count: 9 },
+      { key: "request", label: "Request for admin approval", count: 0 },
+      { key: "partial", label: "Partial (some slots)", count: 0 },
+    ],
+    by_status: [{ key: "refunded", label: "Refunded", count: 9 }],
+    by_window: [
+      { key: "within", label: "Within the window", count: 9 },
+      { key: "outside", label: "Inside the cut-off", count: 0 },
+    ],
+    by_equipment: [{ id: 3, label: "FE-SEM", code: "SEM1", count: 4 }],
+    repeaters: [
+      { user: refundUser, count: 3, within_window: 3, bookings: 3, refund_total: 2400, last_requested_at: "2026-10-08T10:00:00+05:30" },
+    ],
+    previous: { date_from: "2026-08-12", date_to: "2026-09-10", total: 0, unique_users: 0 },
+    change: 9,
+  },
+  results: [
+    {
+      id: "c7",
+      source: "self_service",
+      source_display: "Cancelled by the user",
+      booking: { pk: 777, display_id: "IIC-0777", status: "REFUNDED", status_display: "Refunded" },
+      user: refundUser,
+      equipment: { id: 3, name: "FE-SEM", code: "SEM1" },
+      requested_at: "2026-10-08T10:00:00+05:30",
+      slot_start: "2026-10-12T10:00:00+05:30",
+      lead_minutes: 5760,
+      window_hours: 48,
+      within_window: true,
+      status: "refunded",
+      status_display: "Refunded",
+      responded_at: null,
+      refund: 800,
+      wallet_transaction: { id: 9001, amount: 800, created_at: "2026-10-08T10:00:01+05:30", description: "Refund", wallet_owner_id: 12 },
+      note: "",
+    },
+  ],
+  options: {
+    equipment: [{ id: 3, name: "FE-SEM", code: "SEM1" }],
+    categories: [{ value: "iitr_student", label: "IITR Students" }],
+    departments: [{ id: 2, name: "Physics" }],
+    sources: [{ value: "self_service", label: "Cancelled by the user" }],
+    statuses: [{ value: "refunded", label: "Refunded" }],
+    windows: [{ value: "within", label: "Within the window" }],
+  },
+};
+
+const booking = (pk: number, user: { id: number; name: string }) => ({
+  pk,
+  display_id: `IIC-${pk}`,
+  equipment: { id: 3, name: "FE-SEM", code: "SEM1" },
+  user,
+  slot_start: "2026-10-12T10:00:00+05:30",
+  status: "BOOKED",
+  status_display: "Booked",
+  charge: 500,
+  created_at: "2026-10-05T10:00:00+05:30",
+});
+
+const cardFor = (id: number, name: string, extra: Partial<UserCard> = {}): UserCard => ({
+  profile: {
+    id,
+    name,
+    email: `${name.split(" ")[0].toLowerCase()}@example.com`,
+    phone: "9876543210",
+    profile_picture_url: null,
+    user_type_display: "IITR Student",
+    category: "iitr_student",
+    category_display: "IITR Students",
+    programme_display: "PhD / research",
+    employee_id: "21PH001",
+    designation: "",
+    degree_name: "Ph.D.",
+    department: { id: 2, name: "Physics", type: "INTERNAL" },
+    supervisor: null,
+    is_active: true,
+    is_test_account: false,
+    date_joined: "2026-01-05T10:00:00+05:30",
+    last_login: "2026-10-09T10:00:00+05:30",
+  },
+  wallet: null,
+  linked_wallet: null,
+  certifications: [],
+  bookings: { total: 1, charged: 500, cancelled: 0, recent: [booking(901, { id, name })] },
+  ...extra,
+});
+
+const studentCard = cardFor(41, "Asha Rao", {
+  wallet: { owner_id: 12, is_owner: false, balance: 1500 },
+  certifications: [
+    { id: 1, equipment: "FE-SEM", level: "Independent user", status: "ACTIVE", status_display: "Active", awarded_at: null, valid_until: null, certificate_no: "" },
+  ],
+});
+studentCard.profile.supervisor = { id: 12, name: "Prof. Mehta", email: "mehta@example.com" };
+const supervisorCard = cardFor(12, "Prof. Mehta", { linked_wallet: { owner_id: 12, linked_users: 2 } });
+
+const walletBookings: WalletBookings = {
+  owner: { id: 12, name: "Prof. Mehta" },
+  summary: {
+    linked_users: 2,
+    bookings: 2,
+    charged: 1000,
+    cancelled: 0,
+    by_member: [
+      { id: 12, name: "Prof. Mehta", email: "mehta@example.com", is_owner: true, bookings: 1, charged: 500, cancelled: 0 },
+      { id: 41, name: "Asha Rao", email: "asha@example.com", is_owner: false, bookings: 1, charged: 500, cancelled: 0 },
+    ],
+  },
+  results: [booking(902, { id: 12, name: "Prof. Mehta" }), booking(901, { id: 41, name: "Asha Rao" })],
+  count: 2,
+  page: 1,
+  page_size: 10,
+  total_pages: 1,
+  options: {
+    members: [
+      { id: 12, name: "Prof. Mehta", email: "mehta@example.com", is_owner: true },
+      { id: 41, name: "Asha Rao", email: "asha@example.com", is_owner: false },
+    ],
+    equipment: [{ id: 3, name: "FE-SEM", code: "SEM1" }],
+    statuses: [{ value: "BOOKED", label: "Booked" }],
+  },
+};
+
 beforeAll(() => {
   Element.prototype.scrollIntoView ??= () => {};
   Element.prototype.hasPointerCapture ??= () => false;
@@ -221,6 +379,9 @@ beforeEach(() => {
   state.api.getAdminEquipmentInsights.mockResolvedValue({ data: equipmentData });
   state.api.getAdminUserInsights.mockResolvedValue({ data: userData });
   state.api.getAdminCancellationInsights.mockResolvedValue({ data: cancellationData });
+  state.api.getAdminRefundRequestInsights.mockResolvedValue({ data: refundData });
+  state.api.getAdminUserCard.mockImplementation(async (id: number) => ({ data: id === 12 ? supervisorCard : studentCard }));
+  state.api.getAdminWalletBookings.mockResolvedValue({ data: walletBookings });
 });
 
 afterEach(() => {
@@ -307,6 +468,42 @@ describe("UsersOverview", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weekly" }));
     await waitFor(() => expect(lastParams(state.api.getAdminUserInsights)).toMatchObject({ trend: "week" }));
   });
+
+  it("opens the user card from the name, then the supervisor's card with bookings by linked users", async () => {
+    render(
+      <MemoryRouter>
+        <UsersOverview />
+      </MemoryRouter>,
+    );
+    const table = await screen.findByRole("region", { name: "Users" });
+    fireEvent.click(within(table).getByRole("button", { name: "Asha Rao" }));
+
+    const drawer = await screen.findByRole("dialog");
+    expect(await within(drawer).findByText("ID: 21PH001")).toBeTruthy();
+    expect(state.api.getAdminUserCard).toHaveBeenLastCalledWith(41);
+    expect(within(drawer).getByRole("img", { name: "No photo for Asha Rao" })).toBeTruthy();
+    expect(within(drawer).getByText("FE-SEM · Independent user")).toBeTruthy();
+    expect(within(drawer).getByRole("link", { name: /Supervisor's wallet/ }).getAttribute("href")).toBe("/admin/wallet-ledger/12");
+    expect(within(drawer).getByRole("link", { name: "IIC-901" })).toBeTruthy();
+    expect(within(drawer).getByRole("link", { name: "View all bookings" }).getAttribute("href")).toBe(
+      "/booking-management?search=asha%40example.com&status=all",
+    );
+    expect(within(drawer).queryByRole("region", { name: "Bookings by linked users" })).toBeNull();
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Prof. Mehta" }));
+    expect(await within(drawer).findByRole("region", { name: "Totals per linked user" })).toBeTruthy();
+    expect(state.api.getAdminWalletBookings).toHaveBeenLastCalledWith(12, expect.objectContaining({ with_options: true }));
+    const linked = within(drawer).getByRole("region", { name: "Linked users' bookings" });
+    expect(within(linked).getByRole("link", { name: "IIC-902" })).toBeTruthy();
+
+    fireEvent.click(within(drawer).getByText("(wallet owner)", { selector: "span" }));
+    await waitFor(() =>
+      expect(state.api.getAdminWalletBookings.mock.calls.at(-1)?.[1]).toMatchObject({ member: "12", page: 1 }),
+    );
+
+    fireEvent.click(within(drawer).getByRole("button", { name: "Back" }));
+    expect(await within(drawer).findByText("ID: 21PH001")).toBeTruthy();
+  });
 });
 
 describe("CancellationsDashboard", () => {
@@ -341,5 +538,27 @@ describe("CancellationsDashboard", () => {
     expect(await screen.findByText("Only the Main Administrator can view this.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("link", { name: "IIC-0555" })).toBeTruthy();
+  });
+
+  it("lists refund requests with the window, wallet credit and repeat refunders", async () => {
+    render(
+      <MemoryRouter initialEntries={["/admin/insights/cancellations?view=refunds"]}>
+        <CancellationsDashboard />
+      </MemoryRouter>,
+    );
+    const table = await screen.findByRole("region", { name: "Refund requests" });
+    expect(within(table).getByRole("link", { name: "IIC-0777" })).toBeTruthy();
+    expect(within(table).getByText("Yes (48 h)")).toBeTruthy();
+    expect(within(table).getByRole("link", { name: "Credit #9001" }).getAttribute("href")).toBe("/admin/wallet-ledger/12");
+    expect(screen.getByText("2.5%")).toBeTruthy();
+    expect(lastParams(state.api.getAdminRefundRequestInsights)).toMatchObject({ with_options: true, sort: "-requested_at" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Asha Rao.*3 requests/ }));
+    await waitFor(() => expect(lastParams(state.api.getAdminRefundRequestInsights)).toMatchObject({ user: "41", page: 1 }));
+    fireEvent.click(screen.getByRole("button", { name: /Booked, then refunded in the window/ }));
+    await waitFor(() => expect(lastParams(state.api.getAdminRefundRequestInsights)).toMatchObject({ window: "within" }));
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Cancellations" }));
+    expect(await screen.findByRole("region", { name: "Cancellations" })).toBeTruthy();
   });
 });

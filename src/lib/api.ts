@@ -29,7 +29,10 @@ import {
   type CancellationInsights,
   type EquipmentInsights,
   type InsightParams,
+  type RefundRequestInsights,
+  type UserCard,
   type UserInsights,
+  type WalletBookings,
 } from "@/lib/adminInsights";
 import type { ModeAvailabilityResponse } from "@/lib/modeAvailability";
 import type {
@@ -1968,6 +1971,12 @@ export interface AdminDashboardSummary {
     refunded: number;
     bookings_created: number;
     rate: number | null;
+    /** Users' refund requests before the slot (self-service, admin approval and partial). */
+    refund_requests?: number;
+    refund_users?: number;
+    refund_users_within_window?: number;
+    repeat_refunders?: number;
+    refund_rate?: number | null;
   } | null;
   waitlist: { active: number } | null;
   booking_attempts: {
@@ -6980,6 +6989,23 @@ class ApiClient {
   /** Main Admin / Dept Admin: Cancellations dashboard. */
   async getAdminCancellationInsights(params: InsightParams = {}) {
     return this.request<CancellationInsights>(`/admin/insights/cancellations/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: users' refund requests before the slot (Cancellations page). */
+  async getAdminRefundRequestInsights(params: InsightParams = {}) {
+    return this.request<RefundRequestInsights>(`/admin/insights/refund-requests/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: user card opened from the Users overview. */
+  async getAdminUserCard(userId: number) {
+    return this.request<UserCard>(`/admin/insights/users/${userId}/`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: bookings by every user linked to the user's wallet. */
+  async getAdminWalletBookings(userId: number, params: InsightParams = {}) {
+    return this.request<WalletBookings>(`/admin/insights/users/${userId}/wallet-bookings/${insightQuery(params)}`, {
+      method: 'GET',
+    });
   }
 
   /** OIC / Lab in-charge: bookings whose slot time is over but which are not marked Completed yet. */

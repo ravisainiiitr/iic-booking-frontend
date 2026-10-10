@@ -130,10 +130,14 @@ function Kpi({ icon: Icon, label, value, hint, tone = "primary", onClick, compac
 }
 
 function cancellationHint(c: NonNullable<AdminDashboardSummary["cancellations"]>): string {
+  const counts =
+    c.refund_requests != null
+      ? `${c.total} cancellations · ${c.refund_requests} refund request${c.refund_requests === 1 ? "" : "s"}`
+      : null;
   const rate = c.rate != null ? `${(c.rate * 100).toFixed(1)}% of ${c.bookings_created} bookings` : "No bookings made";
   const diff = c.total - c.previous_total;
   const trend = diff === 0 ? "same as the 30 days before" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} vs the 30 days before`;
-  return `${rate} · ${trend}`;
+  return counts ? `${counts} · ${rate}` : `${rate} · ${trend}`;
 }
 
 function SectionCard({ title, description, action, children, className }: {

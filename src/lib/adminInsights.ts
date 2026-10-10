@@ -296,6 +296,215 @@ export const EMPTY_CANCELLATION_FILTERS: CancellationFilters = {
   search: "",
 };
 
+/* ------------------------------------------------------------------ refund requests */
+
+export type RefundSource = "self_service" | "request" | "partial";
+export type RefundStatus = "refunded" | "no_refund" | "pending" | "approved" | "rejected" | "withdrawn";
+
+export interface RefundUser {
+  id: number;
+  name: string;
+  email: string;
+  category: string;
+  category_display: string;
+  department: string;
+}
+
+export interface RefundRequestRow {
+  id: string;
+  source: RefundSource;
+  source_display: string;
+  booking: { pk: number; display_id: string; status: string; status_display: string };
+  user: RefundUser;
+  equipment: { id: number; name: string; code: string };
+  requested_at: string | null;
+  slot_start: string | null;
+  lead_minutes: number | null;
+  /** The equipment's cancel / reschedule hours (default 48). */
+  window_hours: number;
+  /** Requested at least ``window_hours`` before the slot; null when the slot time is not known. */
+  within_window: boolean | null;
+  status: RefundStatus;
+  status_display: string;
+  responded_at: string | null;
+  refund: number | null;
+  wallet_transaction: {
+    id: number;
+    amount: number;
+    created_at: string | null;
+    description: string;
+    /** Wallet ledger owner (Main Administrator only). */
+    wallet_owner_id: number | null;
+  } | null;
+  note: string;
+}
+
+export interface RepeatRefunder {
+  user: RefundUser;
+  count: number;
+  within_window: number;
+  bookings: number;
+  refund_total: number;
+  last_requested_at: string | null;
+}
+
+export interface RefundRequestInsights extends InsightPage<RefundRequestRow> {
+  date_from: string;
+  date_to: string;
+  default_window_hours: number;
+  repeat_min: number;
+  summary: {
+    total: number;
+    bookings_created: number;
+    rate: number | null;
+    within_window: number;
+    unique_users: number;
+    unique_users_within_window: number;
+    repeat_refunders: number;
+    refund_total: number;
+    by_source: Breakdown[];
+    by_status: Breakdown[];
+    by_window: Breakdown[];
+    by_equipment: Array<{ id: number; label: string; code: string; count: number }>;
+    repeaters: RepeatRefunder[];
+    previous: { date_from: string; date_to: string; total: number; unique_users: number };
+    change: number;
+  };
+  options?: {
+    equipment: Array<NamedOption & { code: string }>;
+    categories: Option[];
+    departments: NamedOption[];
+    sources: Option[];
+    statuses: Option[];
+    windows: Option[];
+  };
+}
+
+export interface RefundFilters {
+  date_from: string;
+  date_to: string;
+  equipment: string;
+  source: string;
+  status: string;
+  window: string;
+  category: string;
+  department: string;
+  user: string;
+  search: string;
+}
+
+export const EMPTY_REFUND_FILTERS: RefundFilters = {
+  date_from: "",
+  date_to: "",
+  equipment: "",
+  source: "",
+  status: "",
+  window: "",
+  category: "",
+  department: "",
+  user: "",
+  search: "",
+};
+
+/* ------------------------------------------------------------------ user card */
+
+export interface UserCardBooking {
+  pk: number;
+  display_id: string;
+  equipment: { id: number; name: string; code: string };
+  user: { id: number; name: string };
+  slot_start: string | null;
+  status: string;
+  status_display: string;
+  charge: number;
+  created_at: string | null;
+}
+
+export interface UserCard {
+  profile: {
+    id: number;
+    name: string;
+    email: string;
+    phone: string;
+    profile_picture_url: string | null;
+    user_type_display: string;
+    category: string;
+    category_display: string;
+    programme_display: string;
+    employee_id: string;
+    designation: string;
+    degree_name: string;
+    department: { id: number; name: string; type: string } | null;
+    supervisor: { id: number; name: string; email: string } | null;
+    is_active: boolean;
+    is_test_account: boolean;
+    date_joined: string | null;
+    last_login: string | null;
+  };
+  /** The wallet the user books from (Main Administrator only). */
+  wallet: { owner_id: number; is_owner: boolean; balance: number } | null;
+  /** Set when the user owns a wallet: bookings by its linked users are available. */
+  linked_wallet: { owner_id: number; linked_users: number } | null;
+  certifications: Array<{
+    id: number;
+    equipment: string;
+    level: string;
+    status: string;
+    status_display: string;
+    awarded_at: string | null;
+    valid_until: string | null;
+    certificate_no: string;
+  }>;
+  bookings: { total: number; charged: number; cancelled: number; recent: UserCardBooking[] };
+}
+
+export interface WalletMember {
+  id: number;
+  name: string;
+  email: string;
+  is_owner: boolean;
+}
+
+export interface WalletBookings {
+  owner: { id: number; name: string };
+  summary: {
+    linked_users: number;
+    bookings: number;
+    charged: number;
+    cancelled: number;
+    by_member: Array<WalletMember & { bookings: number; charged: number; cancelled: number }>;
+  };
+  results: UserCardBooking[];
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  options?: { members: WalletMember[]; equipment: Array<NamedOption & { code: string }>; statuses: Option[] };
+}
+
+export interface WalletBookingFilters {
+  member: string;
+  equipment: string;
+  status: string;
+  date_from: string;
+  date_to: string;
+  search: string;
+}
+
+export const EMPTY_WALLET_BOOKING_FILTERS: WalletBookingFilters = {
+  member: "",
+  equipment: "",
+  status: "",
+  date_from: "",
+  date_to: "",
+  search: "",
+};
+
+/** Booking Management with the user's email as the search and every status. */
+export function userBookingsPath(email: string): string {
+  return `/booking-management?${new URLSearchParams({ search: email, status: "all" }).toString()}`;
+}
+
 /* ------------------------------------------------------------------ helpers */
 
 /** Query parameters with empty values dropped (``false`` too, so unchecked boxes are not sent). */

@@ -142,6 +142,19 @@ describe("AdminOverview", () => {
     expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/cancellations");
   });
 
+  it("shows cancellations and refund requests together on the card", async () => {
+    api.getAdminDashboardSummary.mockResolvedValue({
+      data: summary({
+        cancellations: {
+          days: 30, total: 9, previous_total: 0, late: 0, refunded: 7441, bookings_created: 363, rate: 0.0248,
+          refund_requests: 9, refund_users: 6, refund_users_within_window: 6, repeat_refunders: 1, refund_rate: 0.0248,
+        },
+      }),
+    });
+    render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} />);
+    expect(await screen.findByText("9 cancellations · 9 refund requests · 2.5% of 363 bookings")).toBeTruthy();
+  });
+
   it("keeps the insight cards plain when the pages are not in the user's menu or the server is older", async () => {
     render(<AdminOverview onOpen={vi.fn()} canOpen={() => false} />);
     await screen.findByText("Administration overview");

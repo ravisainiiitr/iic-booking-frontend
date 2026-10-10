@@ -1,19 +1,16 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Building2, IdCard, Mail, Maximize2, Phone } from "lucide-react";
+import type { ReactNode } from "react";
+import { Building2, IdCard, Mail, Phone } from "lucide-react";
 
+import IdPhoto from "@/components/IdPhoto";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import type { LedgerOwnerDetail } from "@/lib/api";
 import { formatDMYTime } from "@/lib/dateFormat";
-import { getInitials } from "@/lib/displayName";
 import { balanceTone, formatLedgerAmount } from "@/lib/walletLedger";
 import { cn } from "@/lib/utils";
 
-const PORTRAIT = "w-28 sm:w-[7.5rem] aspect-[4/5] shrink-0 rounded-lg border";
-
-function IdField({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+export function IdField({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 items-start gap-2">
       <span className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden>
@@ -28,14 +25,6 @@ function IdField({ icon, label, children }: { icon: ReactNode; label: string; ch
 }
 
 export default function OwnerIdCard({ owner }: { owner: LedgerOwnerDetail }) {
-  const [photoFailed, setPhotoFailed] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-
-  useEffect(() => {
-    setPhotoFailed(false);
-  }, [owner.profile_picture_url]);
-
-  const photo = owner.profile_picture_url && !photoFailed ? owner.profile_picture_url : null;
   const subtitle = [owner.designation, owner.user_type_label].filter(Boolean).join(" · ");
 
   return (
@@ -53,43 +42,13 @@ export default function OwnerIdCard({ owner }: { owner: LedgerOwnerDetail }) {
 
       <div className="space-y-4 p-5">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          {photo ? (
-            <button
-              type="button"
-              className={cn(
-                PORTRAIT,
-                "group relative overflow-hidden bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              )}
-              onClick={() => setPreviewOpen(true)}
-              aria-label={`Enlarge photo of ${owner.name}`}
-              title="View larger photo"
-            >
-              <img
-                src={photo}
-                alt={owner.name}
-                className="h-full w-full object-cover"
-                onError={() => setPhotoFailed(true)}
-              />
-              <span
-                className="absolute bottom-1 right-1 rounded bg-black/50 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                aria-hidden
-              >
-                <Maximize2 className="h-3 w-3" />
-              </span>
-            </button>
-          ) : (
-            <div
-              className={cn(
-                PORTRAIT,
-                "flex items-center justify-center bg-gradient-to-br from-primary/15 to-violet-500/15 text-3xl font-semibold text-primary dark:text-sky-300",
-              )}
-              role="img"
-              aria-label={`No photo for ${owner.name}`}
-              data-testid="owner-photo-fallback"
-            >
-              {getInitials(owner.name, { email: owner.email, max: 2 })}
-            </div>
-          )}
+          <IdPhoto
+            url={owner.profile_picture_url}
+            name={owner.name}
+            email={owner.email}
+            caption={subtitle || "Wallet holder photo"}
+            fallbackTestId="owner-photo-fallback"
+          />
 
           <div className="w-full min-w-0 flex-1 space-y-3 text-center sm:text-left">
             <div>
@@ -143,18 +102,6 @@ export default function OwnerIdCard({ owner }: { owner: LedgerOwnerDetail }) {
           {owner.last_transaction_at ? formatDMYTime(owner.last_transaction_at) : "none"}
         </p>
       </div>
-
-      {photo ? (
-        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{owner.name}</DialogTitle>
-              <DialogDescription>{subtitle || "Wallet holder photo"}</DialogDescription>
-            </DialogHeader>
-            <img src={photo} alt={owner.name} className="max-h-[70vh] w-full rounded-lg border bg-muted object-contain" />
-          </DialogContent>
-        </Dialog>
-      ) : null}
     </Card>
   );
 }

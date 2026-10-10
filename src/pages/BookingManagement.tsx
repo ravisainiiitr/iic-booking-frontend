@@ -184,14 +184,18 @@ const BookingManagement = () => {
   const expandId = searchParams.get("expand");
   /** null until a link or the user picks a status: the list then uses the role's default. */
   const [chosenStatusFilter, setStatusFilter] = useState<string | null>(() =>
-    expandId ? "all" : searchParams.get("results") === "overdue" ? RESULT_OVERDUE_STATUS : null,
+    expandId || searchParams.get("status") === "all"
+      ? "all"
+      : searchParams.get("results") === "overdue"
+        ? RESULT_OVERDUE_STATUS
+        : null,
   );
   const fetchSeqRef = useRef(0);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useRowsPerPage("view-booking", user?.id, DEFAULT_PAGE_SIZE);
   const [totalCount, setTotalCount] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("search") ?? "");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
