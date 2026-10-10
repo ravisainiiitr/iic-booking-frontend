@@ -14073,6 +14073,10 @@ class ApiClient {
         month_year?: string;
         report_duration_suffix?: string;
         department_name?: string;
+        /** Slot-hour period actually counted (portal go-live → now), e.g. "05 Oct 2026 – 10 Oct 2026". */
+        utilization_period_display?: string;
+        /** "" when it equals the requested period, else "Effective period for utilization: …". */
+        utilization_period_note?: string;
       };
       equipment: Array<{
         equipment_id: number;
@@ -14095,7 +14099,8 @@ class ApiClient {
         available_hours_working_window?: number;
         available_hours_weekend_or_holiday?: number;
         completed_slot_hours_working_window?: number;
-        utilization_vs_working_capacity?: number;
+        /** Completed ÷ the utilization's available hours; null when there are no such hours. */
+        utilization_vs_working_capacity?: number | null;
         /** Booked ÷ slot hours inside the weekly view window on working days; null when there are no such hours. */
         utilization_factor?: number | null;
         utilization_booked_hours?: number;
@@ -14148,13 +14153,15 @@ class ApiClient {
         utilization_period_from?: string | null;
         utilization_period_to?: string | null;
         utilization_period_clamped?: boolean;
+        utilization_period_display?: string;
+        utilization_period_note?: string;
         portal_go_live_date?: string | null;
         revenue_total?: number;
         revenue_internal?: number;
         revenue_external?: number;
         available_hours_working_window?: number;
         completed_hours_in_working_window?: number;
-        utilization_vs_working_capacity?: number;
+        utilization_vs_working_capacity?: number | null;
       };
       financial?: {
         revenue_by_user_type?: Array<{ user_type_snapshot: string; total: string | number; count: number }>;

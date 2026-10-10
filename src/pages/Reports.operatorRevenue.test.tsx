@@ -156,36 +156,60 @@ describe("Reports utilization factor", () => {
     expect(screen.getByText("N/A")).toBeTruthy();
   });
 
+  const NOTE = "Effective period for utilization: 05 Oct 2026 – 10 Oct 2026 (portal go-live 05 Oct 2026)";
+
   it("shows the effective period when it starts at portal go-live", async () => {
-    await renderWith({
-      utilization_period_from: "2026-10-05",
-      utilization_period_to: "2026-10-31",
-      utilization_period_clamped: true,
-      portal_go_live_date: "2026-10-05",
+    getCurrentUser.mockResolvedValue({ data: { id: 5, user_type: "operator", rbac_permissions: ["reports.view"] } });
+    const report = equipmentReport(false);
+    getEquipmentReportData.mockResolvedValue({
+      data: {
+        ...report.data,
+        report_header: {
+          institute_name: "Institute Instrumentation Centre",
+          organization: "Indian Institute of Technology Roorkee",
+          report_title: "Equipment Performance Report",
+          period_display: "01 Jan 2026 – 10 Oct 2026",
+          report_duration_suffix: " (till current date)",
+          utilization_period_display: "05 Oct 2026 – 10 Oct 2026",
+          utilization_period_note: NOTE,
+        },
+        summary: { ...summary, utilization_period_display: "05 Oct 2026 – 10 Oct 2026", utilization_period_note: NOTE },
+      },
     });
-    expect(screen.getByText("Since 05-10-2026 (portal go-live)")).toBeTruthy();
+    render(
+      <MemoryRouter>
+        <Reports />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(NOTE)).toBeTruthy();
+    expect(screen.getByText("Counted: 05 Oct 2026 – 10 Oct 2026")).toBeTruthy();
   });
 
   it("explains a period entirely before portal go-live", async () => {
-    await renderWith({
-      utilization_factor: null,
-      utilization_period_from: null,
-      utilization_period_to: null,
-      utilization_period_clamped: true,
-      portal_go_live_date: "2026-10-05",
-    });
-    expect(screen.getByText("Period is before portal go-live (05-10-2026)")).toBeTruthy();
-    expect(screen.getByText("N/A")).toBeTruthy();
+    const none = "Effective period for utilization: none (period is before portal go-live, 05 Oct 2026)";
+    await renderWith({ utilization_factor: null, utilization_period_display: "", utilization_period_note: none });
+    expect(screen.getByText(none)).toBeTruthy();
+    expect(screen.getAllByText("N/A").length).toBeGreaterThan(0);
   });
 
-  it("adds no period note when the period starts after go-live", async () => {
+  it("adds no period note when the period is inside go-live to today", async () => {
+    await renderWith({ utilization_period_display: "06 Oct 2026 – 09 Oct 2026", utilization_period_note: "" });
+    expect(screen.queryByText(/Effective period|Counted:/)).toBeNull();
+  });
+
+  it("uses one denominator for the utilization, availability and capacity cards", async () => {
     await renderWith({
-      utilization_period_from: "2026-11-01",
-      utilization_period_to: "2026-11-30",
-      utilization_period_clamped: false,
-      portal_go_live_date: "2026-10-05",
+      utilization_factor: 1,
+      utilization_booked_hours: 52.5,
+      utilization_available_hours: 52.5,
+      available_hours_working_window: 52.5,
+      completed_hours_in_working_window: 33,
+      utilization_vs_working_capacity: 0.6286,
     });
-    expect(screen.queryByText(/portal go-live/)).toBeNull();
+    expect(screen.getByText("100.00%")).toBeTruthy();
+    expect(screen.getByText("52.50h")).toBeTruthy();
+    expect(screen.getByText("62.86%")).toBeTruthy();
+    expect(document.body.textContent).toContain("Completed: 33.00h");
   });
 });
 

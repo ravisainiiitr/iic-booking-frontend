@@ -117,27 +117,16 @@ const UTILIZATION_FORMULA =
 const UTILIZATION_FORMULA_DETAIL =
   `${UTILIZATION_FORMULA}. Only slot time between each equipment's Weekly view from and to (24h) on working days ` +
   "counts; slots crossing the window or midnight are clipped. Available hours include free, booked, not utilized, " +
-  "maintenance and operator-absent slots; blocked slots are left out. N/A when there are no such hours.";
+  "maintenance and operator-absent slots, so downtime lowers the factor; slots blocked for other reasons are not " +
+  "offered and are left out. Only slot time from the portal go-live date up to now counts. N/A when there are no " +
+  "such hours.";
 
 const formatUtilization = (value: number | null | undefined, digits = 1) =>
   value == null ? "N/A" : `${(Number(value) * 100).toFixed(digits)}%`;
 
-const isoToDmy = (iso: string) => iso.split("-").reverse().join("-");
-
-/** Mirrors the backend caption: empty unless the portal go-live date shortened the period. */
-const utilizationPeriodCaption = (summary: {
-  utilization_period_from?: string | null;
-  utilization_period_to?: string | null;
-  utilization_period_clamped?: boolean;
-  portal_go_live_date?: string | null;
-}) => {
-  if (!summary.portal_go_live_date) return "";
-  const goLive = isoToDmy(summary.portal_go_live_date);
-  if (summary.utilization_period_from === null && "utilization_period_to" in summary) {
-    return `Period is before portal go-live (${goLive})`;
-  }
-  return summary.utilization_period_clamped ? `Since ${goLive} (portal go-live)` : "";
-};
+/** Backend note, e.g. "Effective period for utilization: 05 Oct 2026 – 10 Oct 2026 (portal go-live …)". */
+const utilizationPeriodCaption = (source?: { utilization_period_note?: string } | null) =>
+  source?.utilization_period_note ?? "";
 
 const getStatusColor = (status: string) => STATUS_COLORS[status] ?? "#94a3b8";
 const getStatusLabel = (status: string) => STATUS_LABELS[status] ?? status.replace(/_/g, " ");
@@ -223,6 +212,9 @@ function ReportBanner({ header }: { header: NonNullable<EquipmentReportData>["re
         {durationHuman}
         {durationSuffix}
       </p>
+      {header.utilization_period_note ? (
+        <p className="mt-1 text-sm text-sky-100/90">{header.utilization_period_note}</p>
+      ) : null}
     </div>
   );
 }
@@ -1324,10 +1316,8 @@ const Reports = () => {
                             </UiTooltipTrigger>
                             <UiTooltipContent className="max-w-xs text-xs font-normal">
                               {UTILIZATION_FORMULA_DETAIL}
-                              {equipmentReportData.summary.portal_go_live_date &&
-                                ` Slots before the portal go-live date (${isoToDmy(
-                                  equipmentReportData.summary.portal_go_live_date,
-                                )}) are not counted.`}
+                              {equipmentReportData.summary.utilization_period_display &&
+                                ` Counted: ${equipmentReportData.summary.utilization_period_display}.`}
                             </UiTooltipContent>
                           </UiTooltip>
                         </UiTooltipProvider>
@@ -1336,7 +1326,9 @@ const Reports = () => {
                         {UTILIZATION_FORMULA}
                         {utilizationPeriodCaption(equipmentReportData.summary) && (
                           <span className="block font-medium text-foreground/80">
-                            {utilizationPeriodCaption(equipmentReportData.summary)}
+                            {equipmentReportData.summary.utilization_period_display
+                              ? `Counted: ${equipmentReportData.summary.utilization_period_display}`
+                              : utilizationPeriodCaption(equipmentReportData.summary)}
                           </span>
                         )}
                       </CardDescription>
@@ -1364,11 +1356,13 @@ const Reports = () => {
                         <Clock className="h-4 w-4 text-primary" />
                         Working-window availability
                       </CardTitle>
-                      <CardDescription>Mon–Fri, excl. holidays · slot time window</CardDescription>
+                      <CardDescription>
+                        Available hours of the utilization factor · Mon–Fri, excl. holidays · weekly view window
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-1">
                       <div className="text-2xl font-semibold text-primary dark:text-sky-100">
-                        {Number(equipmentReportData.summary.available_hours_working_window || 0).toFixed(2)}h
+                        {Number(equipmentReportData.summary.utilization_available_hours || 0).toFixed(2)}h
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Completed in same window:{" "}
@@ -1382,11 +1376,15 @@ const Reports = () => {
                         <Package className="h-4 w-4 text-primary" />
                         Utilization vs capacity
                       </CardTitle>
-                      <CardDescription>Completed hours / available working-window hours</CardDescription>
+                      <CardDescription>Completed hours ÷ the same available hours</CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-1">
                       <div className="text-2xl font-semibold text-primary dark:text-sky-100">
-                        {((Number(equipmentReportData.summary.utilization_vs_working_capacity || 0) || 0) * 100).toFixed(2)}%
+                        {formatUtilization(equipmentReportData.summary.utilization_vs_working_capacity, 2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Completed: {Number(equipmentReportData.summary.completed_hours_in_working_window || 0).toFixed(2)}h
+                        of {Number(equipmentReportData.summary.utilization_available_hours || 0).toFixed(2)}h
                       </div>
                     </CardContent>
                   </Card>
@@ -1736,8 +1734,8 @@ const Reports = () => {
                                 {Number(eq.utilization_available_hours ?? 0).toFixed(1)}h in the weekly view window
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                Utilization vs working capacity:{" "}
-                                {((Number(eq.utilization_vs_working_capacity ?? 0) || 0) * 100).toFixed(1)}% · Weekend /
+                                Utilization vs capacity (completed):{" "}
+                                {formatUtilization(eq.utilization_vs_working_capacity)} · Weekend /
                                 holiday slot hours: {Number(eq.available_hours_weekend_or_holiday ?? 0).toFixed(1)}h
                               </p>
                             </div>
