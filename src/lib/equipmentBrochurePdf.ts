@@ -511,6 +511,11 @@ export async function exportDepartmentBrochurePdf(
     doc.setFontSize(9);
     doc.setTextColor(...PDF_BRAND_RGB);
     doc.text(pdfSafe(`${dept} — Facilities`), marginX, 32);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(29, 78, 216);
+    const back = "Back to contents";
+    const backX = pageW - marginX - doc.getTextWidth(back);
+    doc.textWithLink(back, backX, 32, { pageNumber: 1 });
     doc.setDrawColor(...PDF_BRAND_RGB);
     doc.setLineWidth(0.4);
     doc.line(marginX, 38, pageW - marginX, 38);
@@ -545,6 +550,11 @@ export async function exportDepartmentBrochurePdf(
     rowY += rowH;
     rowsLeft -= 1;
   }
+
+  doc.outline.add(null, "Contents", { pageNumber: 1 });
+  inputs.forEach((input, i) => {
+    doc.outline.add(null, pdfSafe(`${i + 1}. ${equipmentTitle(input)}`), { pageNumber: startPages[i] });
+  });
 
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
