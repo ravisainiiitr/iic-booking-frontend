@@ -280,6 +280,31 @@ describe("Owner page and credit / debit", () => {
     expect(lastCall(state.api.getWalletLedgerTransactions)).toMatchObject({ owner: "5" });
   });
 
+  it("shows the owner's photo on the ID card, enlarges it, and falls back to initials if it fails", async () => {
+    state.api.getWalletLedgerOwner.mockResolvedValue({
+      data: { ...detail, profile_picture_url: "https://api.example.test/api/users/5/profile-picture/" },
+    });
+    renderOwner();
+    const enlarge = await screen.findByRole("button", { name: "Enlarge photo of Prof. Asha Rao" });
+    const img = within(enlarge).getByRole("img", { name: "Prof. Asha Rao" });
+    expect(img.getAttribute("src")).toBe("https://api.example.test/api/users/5/profile-picture/");
+    expect(screen.getByText("ID: E100")).toBeTruthy();
+    fireEvent.click(enlarge);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "Prof. Asha Rao" })).toBeTruthy();
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.error(img);
+    expect((await screen.findByTestId("owner-photo-fallback")).textContent).toBe("AR");
+    expect(screen.queryByRole("button", { name: /Enlarge photo/ })).toBeNull();
+  });
+
+  it("shows initials on the ID card when the owner has no photo", async () => {
+    renderOwner();
+    expect((await screen.findByTestId("owner-photo-fallback")).textContent).toBe("AR");
+    expect(screen.queryByRole("button", { name: /Enlarge photo/ })).toBeNull();
+  });
+
   it("credits after a confirmation step showing the new balance", async () => {
     renderOwner();
     fireEvent.click(await screen.findByRole("button", { name: "Credit IIC" }));

@@ -4,27 +4,22 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
-  Building2,
   GraduationCap,
   ListOrdered,
   Loader2,
-  Mail,
-  Phone,
-  UserRound,
   Wallet,
 } from "lucide-react";
 
 import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import AdjustWalletDialog from "@/components/walletLedger/AdjustWalletDialog";
 import { LinkedStudentsPanel, type StudentRef } from "@/components/walletLedger/LinkedStudents";
+import OwnerIdCard from "@/components/walletLedger/OwnerIdCard";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type LedgerOptions, type LedgerOwnerDetail } from "@/lib/api";
-import { formatDMYTime } from "@/lib/dateFormat";
 import { balanceTone, formatLedgerAmount } from "@/lib/walletLedger";
 import { cn } from "@/lib/utils";
 
@@ -178,67 +173,8 @@ export default function AdminWalletLedgerOwner() {
               </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
-              <Card>
-                <CardContent className="space-y-4 p-5">
-                  <div className="flex items-start gap-3">
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden>
-                      <UserRound className="h-5 w-5" />
-                    </span>
-                    <div className="min-w-0">
-                      <h2 className="truncate text-lg font-semibold">{owner.name}</h2>
-                      <p className="text-sm text-muted-foreground">
-                        {[owner.designation, owner.user_type_label].filter(Boolean).join(" · ")}
-                      </p>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        <Badge variant={owner.status === "active" ? "secondary" : "outline"}>
-                          {owner.status === "active" ? "Active account" : "Inactive account"}
-                        </Badge>
-                        {owner.employee_id ? <Badge variant="outline">ID: {owner.employee_id}</Badge> : null}
-                      </div>
-                    </div>
-                  </div>
-                  <dl className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <dt className="sr-only">Department</dt>
-                      <dd>{owner.department_name || "—"}</dd>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <dt className="sr-only">Email</dt>
-                      <dd className="break-all">{owner.email || "—"}</dd>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                      <dt className="sr-only">Phone</dt>
-                      <dd>{owner.phone || "—"}</dd>
-                    </div>
-                  </dl>
-                  <div className="grid grid-cols-3 gap-2 rounded-lg border bg-muted/30 p-3 text-center">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Balance</p>
-                      <p className={cn("font-semibold tabular-nums", balanceTone(owner.total_balance))}>
-                        {formatLedgerAmount(owner.total_balance)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Credits</p>
-                      <p className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
-                        {formatLedgerAmount(owner.total_credits)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Debits</p>
-                      <p className="font-semibold tabular-nums text-red-600 dark:text-red-400">{formatLedgerAmount(owner.total_debits)}</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Wallet since {owner.wallet_created_at ? formatDMYTime(owner.wallet_created_at) : "—"} · Last transaction{" "}
-                    {owner.last_transaction_at ? formatDMYTime(owner.last_transaction_at) : "none"}
-                  </p>
-                </CardContent>
-              </Card>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.5fr)]">
+              <OwnerIdCard owner={owner} />
 
               <Card>
                 <CardHeader className="pb-2">
