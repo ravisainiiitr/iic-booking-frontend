@@ -360,6 +360,16 @@ export interface FabricationPart {
   support_material_code?: string;
   support_weight_g_each?: number | null;
   support_weight_g_total?: number | null;
+  /** 3D print: support structure, interface and brim / raft (absent on estimates made before they existed). */
+  support_type?: string;
+  support_type_label?: string;
+  support_interface?: boolean;
+  adhesion?: string;
+  adhesion_label?: string;
+  adhesion_g_each?: number | null;
+  model_g_each?: number | null;
+  /** Per copy make-up of the model-material weight, e.g. "model 8.0 g + supports 3.2 g + raft 0.5 g". */
+  weight_composition?: string;
 }
 
 export interface FabricationFileChange {
@@ -463,6 +473,46 @@ export interface PrintEstimateProfile {
   calibration: PrintEstimateCalibration | null;
   support_material_ids: number[];
   supports_available: boolean;
+  /** Support types and bed adhesion of the printer's technology, with the OIC's choices. */
+  support_options?: PrintSupportOptionsConfig;
+}
+
+export interface PrintSupportTypeConfig extends PrintSupportTypeOption {
+  enabled: boolean;
+  default_volume_factor: number;
+  default_speed_factor: number;
+}
+
+export interface PrintSupportOptionsConfig {
+  types: PrintSupportTypeConfig[];
+  default_type: string;
+  adhesion: Array<PrintAdhesionOption & { enabled: boolean }>;
+}
+
+/** What the OIC sends to change the support options (anything omitted is kept). */
+export interface PrintSupportOptionsUpdate {
+  types?: string[];
+  default_type?: string;
+  factors?: Record<string, { volume_factor?: number | null; speed_factor?: number | null }>;
+  adhesion?: string[];
+}
+
+/** A support structure offered on a printer (Normal, Tree, …). */
+export interface PrintSupportTypeOption {
+  key: string;
+  label: string;
+  description: string;
+  slicers?: string;
+  /** Support material relative to grid columns (1 = normal). */
+  volume_factor: number;
+  /** Support print speed relative to grid (1 = normal). */
+  speed_factor: number;
+}
+
+export interface PrintAdhesionOption {
+  key: string;
+  label: string;
+  description: string;
 }
 
 /** A Fabrication Materials master-list entry, with the equipment it was added for. */
@@ -513,6 +563,9 @@ export interface PrintAnalysisResult {
     support_angle_deg?: number;
     support_material_id?: number;
     support_material_code?: string;
+    support_type?: string;
+    support_interface?: boolean;
+    adhesion?: string;
     /** Placement on the plate (3×3 rotation, row-major, STL axes); absent = as uploaded. */
     orientation?: number[];
     [key: string]: unknown;
@@ -530,6 +583,12 @@ export interface PrintSupportSettings {
   support_angle_deg?: number | null;
   /** A support material offered on the printer; null / "same" = the model material. */
   support_material_id?: number | "same" | null;
+  /** Support structure key (null = the printer's default). */
+  support_type?: string | null;
+  /** Interface (roof) layers under the overhangs (null = on). */
+  support_interface?: boolean | null;
+  /** Bed adhesion: none / brim / raft (null = none). */
+  adhesion?: string | null;
 }
 
 /** Weight / time breakdown of one copy from the estimate model. */
@@ -559,6 +618,15 @@ export interface PrintEstimateBreakdown {
   support_material_code?: string;
   overhang_area_mm2?: number;
   overhang_plate_mm2?: number;
+  support_type?: string;
+  support_type_label?: string;
+  support_volume_factor?: number;
+  support_interface?: boolean;
+  /** Brim / raft in the model material (included in total_g and model_material_g). */
+  adhesion?: string;
+  adhesion_label?: string;
+  adhesion_g?: number;
+  adhesion_min?: number;
   /** Cumulative share (0–1) of the print time after each equal slice of the height (after warm-up). */
   progress?: number[];
   notes?: string[];
@@ -576,6 +644,14 @@ export interface PrintSupportDefaults {
   angle_range: [number, number];
   auto_min_overhang_mm2?: number;
   layer_height_mm?: number;
+  /** Support structures the OIC offers on this printer (empty where there is no choice). */
+  support_types?: PrintSupportTypeOption[];
+  default_support_type?: string;
+  /** Interface layers the printer adds under overhangs (0 = no interface option). */
+  interface_layers?: number;
+  /** FDM bed adhesion options (always includes "none"); empty on other technologies. */
+  adhesion_types?: PrintAdhesionOption[];
+  brim_width_mm?: number | null;
 }
 
 /** Read-only estimate of one analysed STL for what-if settings (`GET /print-analyses/<id>/estimate/`). */
@@ -634,6 +710,11 @@ function appendSupportSettings(target: FormData | URLSearchParams, supports?: Pr
   if (supports.support_material_id !== undefined) {
     target.append("support_material_id", supports.support_material_id == null ? "same" : String(supports.support_material_id));
   }
+  if (supports.support_type !== undefined) target.append("support_type", supports.support_type ?? "");
+  if (supports.support_interface !== undefined) {
+    target.append("support_interface", supports.support_interface == null ? "" : String(supports.support_interface));
+  }
+  if (supports.adhesion !== undefined) target.append("adhesion", supports.adhesion ?? "");
 }
 
 function supportSettingsBody(supports?: PrintSupportSettings | null): Record<string, unknown> {
@@ -643,6 +724,9 @@ function supportSettingsBody(supports?: PrintSupportSettings | null): Record<str
   if (supports.support_density_pct !== undefined) body.support_density_pct = supports.support_density_pct ?? "";
   if (supports.support_angle_deg !== undefined) body.support_angle_deg = supports.support_angle_deg ?? "";
   if (supports.support_material_id !== undefined) body.support_material_id = supports.support_material_id ?? "same";
+  if (supports.support_type !== undefined) body.support_type = supports.support_type ?? "";
+  if (supports.support_interface !== undefined) body.support_interface = supports.support_interface ?? "";
+  if (supports.adhesion !== undefined) body.adhesion = supports.adhesion ?? "";
   return body;
 }
 
@@ -11448,6 +11532,8 @@ class ApiClient {
     print_estimate_calibration?: "fit" | "apply" | "off";
     /** 3D printers: master-list materials offered as a separate support material. */
     print_estimate_support_material_ids?: number[];
+    /** 3D printers: support types / adhesion offered, default type and per-type factors. */
+    print_estimate_support_options?: PrintSupportOptionsUpdate;
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",

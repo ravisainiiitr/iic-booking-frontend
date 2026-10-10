@@ -33,10 +33,12 @@ import {
   formatAreaMm2,
   formatPrintDuration,
   printEstimateSummary,
+  printWeightSplit,
   sumPrintEstimates,
   supportModeSummary,
   type PrintEstimateTotals,
 } from "@/lib/printEstimate";
+import { PrintAdhesionSelect, PrintSupportTypeSelect } from "@/components/PrintSupportTypeControls";
 import { extractStlFilesFromZip, type ZipStlEntry } from "@/lib/extractZipStlFiles";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import {
@@ -393,14 +395,21 @@ export function Print3DBookingPanel({
   const [supportDensity, setSupportDensity] = useState<number | null>(null);
   const [supportAngle, setSupportAngle] = useState<number | null>(null);
   const [supportMaterialId, setSupportMaterialId] = useState("same");
+  /** null = the printer's default type / interface on. */
+  const [supportType, setSupportType] = useState<string | null>(null);
+  const [supportInterface, setSupportInterface] = useState<boolean | null>(null);
+  const [adhesion, setAdhesion] = useState("none");
   const supportSettings = useMemo<PrintSupportSettings>(
     () => ({
       support_mode: supportMode,
       support_density_pct: supportDensity,
       support_angle_deg: supportAngle,
       support_material_id: supportMaterialId === "same" ? null : Number(supportMaterialId),
+      support_type: supportType,
+      support_interface: supportInterface,
+      adhesion,
     }),
-    [supportMode, supportDensity, supportAngle, supportMaterialId],
+    [supportMode, supportDensity, supportAngle, supportMaterialId, supportType, supportInterface, adhesion],
   );
   const supportSettingsRef = useRef(supportSettings);
   supportSettingsRef.current = supportSettings;
@@ -527,6 +536,11 @@ export function Print3DBookingPanel({
       setSupportMaterialId("same");
     }
   }, [supportMaterials, supportMaterialId]);
+
+  useEffect(() => {
+    if (supportType && !supportDefaults?.support_types?.some((t) => t.key === supportType)) setSupportType(null);
+    if (adhesion !== "none" && !supportDefaults?.adhesion_types?.some((a) => a.key === adhesion)) setAdhesion("none");
+  }, [supportDefaults, supportType, adhesion]);
 
   useEffect(() => {
     return () => {
@@ -1146,6 +1160,10 @@ export function Print3DBookingPanel({
   const defaultSupportDensity = supportDefaults?.density_pct ?? 15;
   const defaultSupportAngle = supportDefaults?.angle_deg ?? 45;
   const [angleMin, angleMax] = supportDefaults?.angle_range ?? [30, 70];
+  const supportTypes = supportDefaults?.support_types ?? [];
+  const adhesionTypes = supportDefaults?.adhesion_types ?? [];
+  const effectiveSupportType = supportType ?? supportDefaults?.default_support_type ?? supportTypes[0]?.key ?? "";
+  const interfaceSelectable = (supportDefaults?.interface_layers ?? 0) > 0;
 
   const previewEntries = useMemo((): ZipStlEntry[] => {
     if (isZipUpload && zipStlEntries.length > 0) return zipStlEntries;
@@ -1363,6 +1381,15 @@ export function Print3DBookingPanel({
               )}
             </div>
 
+            {supportMode !== "none" && (
+              <PrintSupportTypeSelect
+                types={supportTypes}
+                value={effectiveSupportType}
+                onChange={setSupportType}
+                disabled={disabled || analyzingStl}
+              />
+            )}
+
             {supportMaterials.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="print-support-material">Support material</Label>
@@ -1397,6 +1424,24 @@ export function Print3DBookingPanel({
                 </Button>
                 {supportAdvanced && (
                   <div className="space-y-4" data-testid="print-support-advanced">
+                    {interfaceSelectable && supportMode !== "none" && (
+                      <label className="flex cursor-pointer items-start gap-2 text-sm">
+                        <Checkbox
+                          checked={supportInterface !== false}
+                          onCheckedChange={(v) => setSupportInterface(v === true ? null : false)}
+                          disabled={disabled || analyzingStl}
+                          aria-label="Support interface"
+                          data-testid="print-support-interface"
+                        />
+                        <span>
+                          Support interface (roof)
+                          <span className="block text-xs text-muted-foreground">
+                            {supportDefaults?.interface_layers} dense layers under the overhangs give a smoother underside;
+                            off saves a little material but leaves a rougher surface.
+                          </span>
+                        </span>
+                      </label>
+                    )}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <Label>Support density</Label>
@@ -1434,7 +1479,7 @@ export function Print3DBookingPanel({
                         Surfaces leaning further than this from vertical get supports; a larger angle means fewer supports.
                       </p>
                     </div>
-                    {(supportDensity != null || supportAngle != null) && (
+                    {(supportDensity != null || supportAngle != null || supportInterface != null) && (
                       <Button
                         type="button"
                         variant="outline"
@@ -1442,6 +1487,7 @@ export function Print3DBookingPanel({
                         onClick={() => {
                           setSupportDensity(null);
                           setSupportAngle(null);
+                          setSupportInterface(null);
                         }}
                         disabled={disabled || analyzingStl}
                       >
@@ -1739,6 +1785,16 @@ export function Print3DBookingPanel({
             )
           )}
           {supportsSection}
+          {adhesionTypes.length > 1 && (
+            <div className="rounded-md border p-3">
+              <PrintAdhesionSelect
+                options={adhesionTypes}
+                value={adhesion}
+                onChange={setAdhesion}
+                disabled={disabled || analyzingStl}
+              />
+            </div>
+          )}
         </div>
         </div>
         </section>
@@ -2040,13 +2096,7 @@ export function PrintEstimateBar({
   charge?: { amount: string | number | null; loading?: boolean } | null;
   ownMaterial: boolean;
 }) {
-  const split = totals
-    ? [
-        `model ${Math.round(totals.modelG * 10) / 10} g`,
-        totals.supportG > 0.05 ? `supports ${Math.round(totals.supportG * 10) / 10} g` : null,
-        totals.wasteG > 0.05 ? `waste ${Math.round(totals.wasteG * 10) / 10} g` : null,
-      ].filter(Boolean)
-    : [];
+  const split = totals ? printWeightSplit(totals) : [];
   const amount = charge?.amount;
   const hasAmount = amount !== null && amount !== undefined && amount !== "" && Number.isFinite(Number(amount));
   return (

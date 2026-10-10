@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { PrintEstimateBreakdown } from "@/lib/api";
-import { formatPrintDuration, printEstimateSummary, sumPrintEstimates, supportModeSummary } from "@/lib/printEstimate";
+import {
+  formatPrintDuration,
+  printEstimateSummary,
+  printWeightSplit,
+  sumPrintEstimates,
+  supportModeSummary,
+  supportTypeMaterialNote,
+} from "@/lib/printEstimate";
 
 function breakdown(over: Partial<PrintEstimateBreakdown> = {}): PrintEstimateBreakdown {
   return {
@@ -59,5 +66,28 @@ describe("print estimate breakdown", () => {
     const totals = sumPrintEstimates([{ breakdown: breakdown({ support_g: 0, waste_g: 0, warmup_min: 0, total_min: 30 }), quantity: 1 }]);
     expect(totals && printEstimateSummary(totals)).toBe("Model 18.2 g; ~30 min");
     expect(sumPrintEstimates([{ breakdown: null, quantity: 1 }])).toBeNull();
+  });
+
+  it("adds the support type and brim / raft to the summary and the weight split", () => {
+    const tree = breakdown({ support_type: "tree", support_type_label: "Tree", adhesion: "brim", adhesion_label: "Brim", adhesion_g: 0.6 });
+    const totals = sumPrintEstimates([{ breakdown: tree, quantity: 2 }]);
+    expect(totals && printEstimateSummary(totals)).toBe(
+      "Model 36.4 g + supports 6.2 g + brim 1.2 g + waste 1.0 g; ~5 h 10 m incl. 20 min warm-up",
+    );
+    expect(totals && supportModeSummary(totals)).toBe("Tree · auto → touching build plate only · brim");
+    expect(totals && printWeightSplit(totals)).toEqual(["model 36.4 g", "supports 6.2 g", "brim 1.2 g", "waste 1 g"]);
+
+    const mixed = sumPrintEstimates([
+      { breakdown: tree, quantity: 1 },
+      { breakdown: breakdown({ support_type_label: "Organic tree", adhesion: "raft", adhesion_label: "Raft", adhesion_g: 2 }), quantity: 1 },
+    ]);
+    expect(mixed && supportModeSummary(mixed)).toBe("Mixed types · auto → touching build plate only · brim / raft");
+    expect(mixed && printEstimateSummary(mixed)).toContain("brim / raft 2.6 g");
+  });
+
+  it("describes a support type's material against Normal", () => {
+    expect(supportTypeMaterialNote(0.55)).toBe("About 45% less support material than Normal");
+    expect(supportTypeMaterialNote(1.05)).toBe("About 5% more support material than Normal");
+    expect(supportTypeMaterialNote(1)).toBe("");
   });
 });

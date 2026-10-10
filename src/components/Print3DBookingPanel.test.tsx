@@ -246,6 +246,9 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
       support_density_pct: null,
       support_angle_deg: null,
       support_material_id: null,
+      support_type: null,
+      support_interface: null,
+      adhesion: "none",
     });
 
     const summary = await screen.findByTestId("print-estimate-breakdown");
@@ -277,6 +280,76 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
     expect(onReady).toHaveBeenLastCalledWith(
       expect.objectContaining({ weightGrams: 38, supportWeightGrams: 6, supportMaterialCode: "PVA" }),
     );
+  });
+
+  it("offers the printer's support types, interface and bed adhesion and shows them in the breakdown", async () => {
+    api.getEquipmentPrintMaterials.mockResolvedValue({
+      data: {
+        materials: [pla],
+        support_defaults: {
+          technology: "FDM",
+          supports_available: true,
+          modes_selectable: true,
+          density_pct: 12,
+          angle_deg: 45,
+          angle_range: [30, 70],
+          support_types: [
+            { key: "normal", label: "Normal (grid)", description: "Straight columns.", volume_factor: 1, speed_factor: 1 },
+            { key: "tree", label: "Tree", description: "Branches to the overhangs.", slicers: "Cura Tree", volume_factor: 0.55, speed_factor: 0.85 },
+          ],
+          default_support_type: "normal",
+          interface_layers: 2,
+          adhesion_types: [
+            { key: "none", label: "Skirt / none", description: "No extra material." },
+            { key: "raft", label: "Raft", description: "A lattice under the part." },
+          ],
+        },
+      },
+    });
+    api.analyzeEquipmentStl.mockResolvedValue({
+      data: {
+        id: "a4",
+        status: "COMPLETED",
+        weight_grams: 23,
+        estimated_time_minutes: 160,
+        material_code_snapshot: "PLA",
+        estimate_breakdown: {
+          ...breakdown,
+          support_g: 1.7,
+          support_type: "tree",
+          support_type_label: "Tree",
+          adhesion: "raft",
+          adhesion_label: "Raft",
+          adhesion_g: 1.4,
+          total_g: 21.8,
+          total_min: 160,
+        },
+      },
+    });
+    const { input } = renderPanel(vi.fn(), null);
+    expect((await screen.findByTestId("print-support-type-hint")).textContent).toContain("Straight columns.");
+
+    fireEvent.click(screen.getByTestId("print-support-type"));
+    fireEvent.click(await screen.findByRole("option", { name: "Tree" }));
+    const hint = screen.getByTestId("print-support-type-hint").textContent;
+    expect(hint).toContain("About 45% less support material than Normal");
+    expect(hint).toContain("Like: Cura Tree.");
+    fireEvent.click(screen.getByTestId("print-adhesion"));
+    fireEvent.click(await screen.findByRole("option", { name: "Raft" }));
+    fireEvent.click(screen.getByTestId("print-support-advanced-toggle"));
+    fireEvent.click(screen.getByTestId("print-support-interface"));
+
+    fireEvent.change(input, { target: { files: [stlFile("bracket.stl", boxStl(40, 20, 10))] } });
+    await waitFor(() => expect(api.analyzeEquipmentStl).toHaveBeenCalled());
+    expect(api.analyzeEquipmentStl.mock.calls[0][1].supports).toMatchObject({
+      support_type: "tree",
+      support_interface: false,
+      adhesion: "raft",
+    });
+    const summary = await screen.findByTestId("print-estimate-breakdown");
+    expect(summary.textContent).toContain("Model 18.2 g + supports 1.7 g + raft 1.4 g + waste 0.5 g");
+    expect(screen.getByTestId("print-overhangs").textContent).toContain("Tree · auto → touching build plate only · raft");
+    expect(screen.getByTestId("print-bar-weight").textContent).toContain("raft 1.4 g");
   });
 
   it("hides the supports choice for printers without supports and old analyses show no breakdown", async () => {

@@ -87,6 +87,52 @@ describe("PrintEstimateProfileCard", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(row));
   });
 
+  it("lets the OIC choose the support types, default, factors and bed adhesion", async () => {
+    const withTypes: FabricationEquipmentRow = {
+      ...row,
+      print_estimate: {
+        ...row.print_estimate!,
+        support_options: {
+          types: [
+            { key: "normal", label: "Normal (grid)", description: "Columns.", enabled: true, volume_factor: 1, speed_factor: 1, default_volume_factor: 1, default_speed_factor: 1 },
+            { key: "lines", label: "Lines", description: "Lines.", enabled: true, volume_factor: 0.85, speed_factor: 1.1, default_volume_factor: 0.85, default_speed_factor: 1.1 },
+            { key: "tree", label: "Tree", description: "Branches.", enabled: true, volume_factor: 0.55, speed_factor: 0.85, default_volume_factor: 0.55, default_speed_factor: 0.85 },
+          ],
+          default_type: "normal",
+          adhesion: [
+            { key: "none", label: "Skirt / none", description: "", enabled: true },
+            { key: "brim", label: "Brim", description: "", enabled: true },
+            { key: "raft", label: "Raft", description: "", enabled: true },
+          ],
+        },
+      },
+    };
+    api.updateFabricationMaterialEquipment.mockResolvedValue({ data: { equipment: withTypes } });
+    render(<PrintEstimateProfileCard equipment={withTypes} master={master} onSaved={vi.fn()} />);
+    expect(screen.getByTestId("support-type-row-tree").textContent).toContain("Branches.");
+
+    fireEvent.click(screen.getByLabelText("Offer Lines supports"));
+    fireEvent.click(screen.getByLabelText("Tree is the default"));
+    fireEvent.change(screen.getByLabelText("Tree material factor"), { target: { value: "9" } });
+    fireEvent.click(screen.getByLabelText("Offer Raft"));
+    fireEvent.click(screen.getByRole("button", { name: "Save estimate settings" }));
+    expect(toast.error).toHaveBeenCalledWith("Tree: material factor must be between 0.05 and 3.");
+    expect(api.updateFabricationMaterialEquipment).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Tree material factor"), { target: { value: "0.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save estimate settings" }));
+    await waitFor(() => expect(api.updateFabricationMaterialEquipment).toHaveBeenCalled());
+    expect(api.updateFabricationMaterialEquipment.mock.calls[0][0]).toEqual({
+      equipment_id: 69,
+      print_estimate_support_options: {
+        types: ["normal", "tree"],
+        default_type: "tree",
+        factors: { tree: { volume_factor: 0.5 } },
+        adhesion: ["none", "brim"],
+      },
+    });
+  });
+
   it("refuses an out-of-range value and applies a fitted calibration", async () => {
     api.updateFabricationMaterialEquipment.mockResolvedValue({ data: { equipment: row } });
     render(<PrintEstimateProfileCard equipment={row} master={master} onSaved={vi.fn()} />);

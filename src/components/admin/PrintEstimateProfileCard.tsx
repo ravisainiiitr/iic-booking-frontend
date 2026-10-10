@@ -16,6 +16,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  PrintSupportTypesSettings,
+  supportOptionsDraft,
+  supportOptionsUpdate,
+  type SupportOptionsDraft,
+} from "@/components/admin/PrintSupportTypesSettings";
 
 const DETECTED = "__detected__";
 
@@ -69,6 +75,7 @@ export function PrintEstimateProfileCard({
   const [preset, setPreset] = useState(DETECTED);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [supportIds, setSupportIds] = useState<number[]>([]);
+  const [typesDraft, setTypesDraft] = useState<SupportOptionsDraft>(() => supportOptionsDraft(undefined));
   const [busy, setBusy] = useState<null | "save" | "fit" | "apply" | "off">(null);
 
   useEffect(() => {
@@ -76,10 +83,12 @@ export function PrintEstimateProfileCard({
     setPreset(profile.preset || DETECTED);
     setDraft(overrideDraft(profile));
     setSupportIds(profile.support_material_ids ?? []);
+    setTypesDraft(supportOptionsDraft(profile.support_options));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipment.equipment_id, profile]);
 
   const savedDraft = useMemo(() => (profile ? overrideDraft(profile) : {}), [profile]);
+  const savedTypesDraft = useMemo(() => supportOptionsDraft(profile?.support_options), [profile]);
   const activeMaterials = useMemo(() => master.filter((m) => m.is_active !== false), [master]);
   if (!profile) return null;
 
@@ -87,7 +96,11 @@ export function PrintEstimateProfileCard({
   const cleanedDraft = Object.fromEntries(Object.entries(draft).filter(([, v]) => v.trim() !== ""));
   const overridesChanged = JSON.stringify(cleanedDraft) !== JSON.stringify(savedDraft);
   const supportsChanged = JSON.stringify([...supportIds].sort((a, b) => a - b)) !== JSON.stringify(profile.support_material_ids ?? []);
-  const dirty = presetChanged || overridesChanged || supportsChanged;
+  const typesChanged = JSON.stringify(typesDraft) !== JSON.stringify(savedTypesDraft);
+  const typesConfig = profile.support_options
+    ? { ...profile.support_options, types: profile.supports_available ? profile.support_options.types : [] }
+    : null;
+  const dirty = presetChanged || overridesChanged || supportsChanged || typesChanged;
 
   const send = async (payload: Parameters<typeof apiClient.updateFabricationMaterialEquipment>[0], kind: NonNullable<typeof busy>) => {
     setBusy(kind);
@@ -117,6 +130,13 @@ export function PrintEstimateProfileCard({
       }
       overrides[p.key] = n;
     }
+    // The support types belong to the printer's technology: a new printer type shows its own after saving.
+    const sendTypes = typesChanged && !presetChanged && typesConfig;
+    const types = sendTypes ? supportOptionsUpdate(typesDraft, typesConfig) : null;
+    if (types?.error) {
+      toast.error(types.error);
+      return;
+    }
     const ok = await send(
       {
         equipment_id: equipment.equipment_id,
@@ -124,6 +144,7 @@ export function PrintEstimateProfileCard({
         // A different printer technology resets the parameters on the server.
         ...(overridesChanged && !presetChanged ? { print_estimate_overrides: overrides } : {}),
         ...(supportsChanged ? { print_estimate_support_material_ids: supportIds } : {}),
+        ...(types?.value ? { print_estimate_support_options: types.value } : {}),
       },
       "save",
     );
@@ -229,6 +250,15 @@ export function PrintEstimateProfileCard({
               ))}
             </div>
           </div>
+        )}
+
+        {typesConfig && (
+          <PrintSupportTypesSettings
+            config={typesConfig}
+            draft={typesDraft}
+            onChange={setTypesDraft}
+            disabled={disabled || presetChanged}
+          />
         )}
 
         <Button type="button" onClick={() => void onSave()} disabled={disabled || !dirty || busy !== null}>
