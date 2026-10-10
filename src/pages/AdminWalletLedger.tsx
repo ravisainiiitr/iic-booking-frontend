@@ -288,10 +288,10 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className={cn("min-w-[1100px] text-sm", loading && "opacity-60")} aria-busy={loading}>
+              <Table serial={false} className={cn("min-w-[1100px] text-sm", loading && "opacity-60")} aria-busy={loading}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">S.No</TableHead>
+                    <TableHead className="w-14">S.No.</TableHead>
                     <SortHeader label="Wallet owner" sortKey="name" ordering={ordering} onSort={onSort} />
                     <TableHead>Category</TableHead>
                     <SortHeader label="Department" sortKey="department" ordering={ordering} onSort={onSort} />

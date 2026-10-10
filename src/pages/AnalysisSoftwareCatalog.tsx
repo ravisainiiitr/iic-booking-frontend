@@ -428,7 +428,7 @@ export default function AnalysisSoftwareCatalog() {
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog…
               </div>
             ) : (
-              <Table>
+              <Table serialAfterFirstColumn={canManage}>
                 <TableHeader>
                   <TableRow>
                     {canManage && (

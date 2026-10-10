@@ -340,7 +340,7 @@ const AdminSettingsSupport = () => {
             ) : (
               <>
             <div className="overflow-x-auto rounded-xl border max-md:border-0">
-              <Table stackOnMobile>
+              <Table stackOnMobile serialStart={page * PAGE_SIZE + 1}>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
                         <TableHead className="w-[72px]">ID</TableHead>

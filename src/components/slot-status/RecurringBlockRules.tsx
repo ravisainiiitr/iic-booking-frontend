@@ -65,6 +65,7 @@ function SkippedBookedTable({ rows, total }: { rows: SkippedBookedSlot[]; total:
       <table className="ui-table w-full text-xs">
         <thead className="sticky top-0 z-10 uppercase tracking-[0.06em]">
           <tr>
+            <th className="w-[3.25rem] px-1 py-1 font-semibold whitespace-nowrap">S.No.</th>
             <th className="px-2 py-1 font-semibold">Date</th>
             <th className="px-2 py-1 font-semibold">Time</th>
             <th className="px-2 py-1 font-semibold">Booking</th>
@@ -72,8 +73,9 @@ function SkippedBookedTable({ rows, total }: { rows: SkippedBookedSlot[]; total:
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {rows.map((r, index) => (
             <tr key={r.slot_id}>
+              <td className="w-[3.25rem] px-1 py-1 tabular-nums">{index + 1}</td>
               <td className="px-2 py-1 whitespace-nowrap">
                 {r.weekday} {formatRuleDate(r.date)}
               </td>
@@ -102,14 +104,16 @@ function SkippedOtherTable({ rows, total }: { rows: SkippedOtherSlot[]; total: n
       <table className="ui-table w-full text-xs">
         <thead className="sticky top-0 z-10 uppercase tracking-[0.06em]">
           <tr>
+            <th className="w-[3.25rem] px-1 py-1 font-semibold whitespace-nowrap">S.No.</th>
             <th className="px-2 py-1 font-semibold">Date</th>
             <th className="px-2 py-1 font-semibold">Time</th>
             <th className="px-2 py-1 font-semibold">Left as it is because</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {rows.map((r, index) => (
             <tr key={r.slot_id}>
+              <td className="w-[3.25rem] px-1 py-1 tabular-nums">{index + 1}</td>
               <td className="px-2 py-1 whitespace-nowrap">
                 {r.weekday} {formatRuleDate(r.date)}
               </td>

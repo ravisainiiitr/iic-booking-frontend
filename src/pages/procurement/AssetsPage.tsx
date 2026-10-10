@@ -22,6 +22,7 @@ import {
   LoadingRow,
   money,
   NativeSelect,
+  pageSerialStart,
   Pager,
   ReasonDialog,
   SectionCard,
@@ -92,7 +93,7 @@ function AssetsList() {
           </form>
           {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
           <div className="overflow-x-auto">
-            <Table>
+            <Table serialStart={pageSerialStart(q.data)}>
               <TableHeader>
                 <TableRow>
                   <TableHead>Number</TableHead>

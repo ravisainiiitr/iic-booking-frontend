@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { pmGet, pmPatch, pmPost, type Page, type PmCategory, type PmGstRate, type PmItem, type PmVendor } from "@/lib/procurementApi";
-import { EmptyRow, Field, humanize, LoadingRow, NativeSelect, Pager, ReasonDialog, SectionCard, usePm, useRunner } from "./shared";
+import { EmptyRow, Field, humanize, LoadingRow, NativeSelect, pageSerialStart, Pager, ReasonDialog, SectionCard, usePm, useRunner } from "./shared";
 
 const NATURES = ["CONSUMABLE", "NON_CONSUMABLE", "LIMITED_LIFE_ASSET", "MINOR_ASSET", "MAJOR_ASSET", "AMC_SERVICE", "GENERAL_OFFICE"];
 
@@ -56,7 +56,7 @@ function Vendors() {
     <SectionCard title="Vendors" description="GSTIN is checksum-validated and PAN is derived from it." actions={<Button size="sm" onClick={() => setEditing("new")}><Plus className="mr-2 h-4 w-4" />Add vendor</Button>}>
       <SearchBox placeholder="Name, code, GSTIN or contact" onSearch={(s) => { setPage(1); setSearch(s); }} />
       <div className="overflow-x-auto">
-        <Table>
+        <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>
               <TableHead>Code</TableHead>
@@ -167,7 +167,7 @@ function Items() {
     <SectionCard title="Items" description="Department item master used by requests, bills and the stock ledger." actions={<Button size="sm" onClick={() => setAdding(true)}><Plus className="mr-2 h-4 w-4" />Add item</Button>}>
       <SearchBox placeholder="Name, code, HSN or specification" onSearch={(s) => { setPage(1); setSearch(s); }} />
       <div className="overflow-x-auto">
-        <Table>
+        <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>
               <TableHead>Code</TableHead>

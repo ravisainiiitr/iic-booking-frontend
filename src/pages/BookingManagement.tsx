@@ -634,7 +634,7 @@ const BookingManagement = () => {
                 className={`p-0 overflow-x-auto transition-opacity ${loadingBookings ? "opacity-60" : ""}`}
                 aria-busy={loadingBookings || undefined}
               >
-                <Table className="view-booking-table text-[0.8125rem]" stackOnMobile>
+                <Table serial={false} className="view-booking-table text-[0.8125rem]" stackOnMobile>
                   <TableHeader>
                     <TableRow>
                       <TableHead className={`${HEAD_CLASS} ${SNO_CLASS}`}>S.No.</TableHead>

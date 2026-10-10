@@ -172,7 +172,7 @@ const AdminSettingsAuth = () => {
 
                 <div className="space-y-2">
                   <Label>Per user type (minutes) — leave empty to use default</Label>
-                  <Table>
+                  <Table serial={false}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>User type</TableHead>

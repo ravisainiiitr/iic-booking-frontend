@@ -295,10 +295,10 @@ export function LinkedStudentsPanel({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className={cn("min-w-[1300px] text-sm", loading && "opacity-60")} aria-busy={loading} aria-label="Linked students">
+              <Table serial={false} className={cn("min-w-[1300px] text-sm", loading && "opacity-60")} aria-busy={loading} aria-label="Linked students">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">S.No</TableHead>
+                    <TableHead className="w-14">S.No.</TableHead>
                     <SortHeader label="Student" sortKey="name" ordering={ordering} onSort={onSort} />
                     <SortHeader label="Department" sortKey="department" ordering={ordering} onSort={onSort} />
                     <TableHead>Category</TableHead>

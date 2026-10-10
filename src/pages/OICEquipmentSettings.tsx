@@ -898,7 +898,7 @@ export default function OICEquipmentSettings() {
                           by all equipment in this group{groupPeers ? `: ${groupPeers}` : ""}.
                         </p>
                         <div className="overflow-x-auto rounded-md border">
-                          <Table>
+                          <Table serial={false}>
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Quota type</TableHead>

@@ -54,6 +54,7 @@ export async function exportWalletTransactionsExcel(
   // Export libraries load on demand so the Wallet / booking pages don't ship them up front.
   const XLSX = await import("xlsx");
   const header = [
+    "S.No.",
     "Equipment Name",
     "Booked by",
     "Date & Time",
@@ -63,7 +64,8 @@ export async function exportWalletTransactionsExcel(
     "Amount (INR)",
     "Balance Remaining (INR)",
   ];
-  const data = rows.map((r) => [
+  const data = rows.map((r, index) => [
+    index + 1,
     r.equipment_name ?? "",
     r.related_user_name ?? "",
     new Date(r.created_at).toLocaleString(),
@@ -75,6 +77,7 @@ export async function exportWalletTransactionsExcel(
   ]);
   const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
   ws["!cols"] = [
+    { wch: 6 },
     { wch: 28 },
     { wch: 22 },
     { wch: 22 },
@@ -111,7 +114,8 @@ export async function exportWalletTransactionsPdf(
     mastheadMaxWidth: 300,
   });
 
-  const body = rows.map((r) => [
+  const body = rows.map((r, index) => [
+    String(index + 1),
     (r.equipment_name ?? "—").slice(0, 80),
     (r.related_user_name ?? "—").slice(0, 40),
     new Date(r.created_at).toLocaleString(),
@@ -126,6 +130,7 @@ export async function exportWalletTransactionsPdf(
     startY,
     head: [
       [
+        "S.No.",
         "Equipment",
         "Booked by",
         "Date & time",
@@ -142,14 +147,15 @@ export async function exportWalletTransactionsPdf(
     margin: { left: 20, right: 20 },
     tableWidth: doc.internal.pageSize.getWidth() - 40,
     columnStyles: {
-      0: { cellWidth: 85 },
-      1: { cellWidth: 65 },
-      2: { cellWidth: 85 },
-      3: { cellWidth: 35 },
-      4: { cellWidth: "auto" },
-      5: { cellWidth: 65 },
-      6: { cellWidth: 55, halign: "right" },
+      0: { cellWidth: 28, halign: "center" },
+      1: { cellWidth: 85 },
+      2: { cellWidth: 65 },
+      3: { cellWidth: 85 },
+      4: { cellWidth: 35 },
+      5: { cellWidth: "auto" },
+      6: { cellWidth: 65 },
       7: { cellWidth: 55, halign: "right" },
+      8: { cellWidth: 55, halign: "right" },
     },
   });
 

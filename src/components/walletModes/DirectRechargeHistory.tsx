@@ -149,7 +149,7 @@ export default function DirectRechargeHistory({
         </div>
 
         <div className="overflow-x-auto rounded-lg border">
-          <Table className="min-w-[900px]">
+          <Table className="min-w-[900px]" serialStart={page * PAGE_SIZE + 1}>
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>

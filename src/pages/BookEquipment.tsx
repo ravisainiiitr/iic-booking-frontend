@@ -12088,6 +12088,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                           <table className="ui-table w-full text-sm">
                             <thead className="sticky top-0 z-10 text-xs uppercase tracking-[0.06em]">
                               <tr>
+                                <th className="w-[3.25rem] px-1 py-3 font-medium whitespace-nowrap">S.No.</th>
                                 <th className="text-left p-3 font-medium">Date</th>
                                 <th className="text-left p-3 font-medium">Time</th>
                                 <th className="text-left p-3 font-medium">Samples</th>
@@ -12096,10 +12097,11 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {myUnsuccessfulAttempts.map((e) => {
+                              {myUnsuccessfulAttempts.map((e, index) => {
                                 const d = e.requested_at ? new Date(e.requested_at) : null;
                                 return (
                                   <tr key={e.id}>
+                                    <td className="w-[3.25rem] px-1 py-3 tabular-nums">{index + 1}</td>
                                     <td className="p-3">{d ? format(d, "dd MMM yyyy") : "—"}</td>
                                     <td className="p-3">{d ? format(d, "HH:mm:ss") : "—"}</td>
                                     <td className="p-3">{e.number_of_samples}</td>

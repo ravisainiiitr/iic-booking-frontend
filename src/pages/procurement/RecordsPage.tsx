@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { errorMessage, pmGet, type Page, type PmRecord } from "@/lib/procurementApi";
-import { EmptyRow, fmtDate, humanize, LoadingRow, money, NativeSelect, Pager, SectionCard, StatusBadge, usePm } from "./shared";
+import { EmptyRow, fmtDate, humanize, LoadingRow, money, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, usePm } from "./shared";
 
 const STATUSES = ["OPEN", "IN_PROGRESS", "PO_ISSUED", "DELIVERED", "INVOICED", "COMPLETED", "CANCELLED"];
 
@@ -69,7 +69,7 @@ export default function RecordsPage({ small = false }: { small?: boolean }) {
       </form>
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
       <div className="overflow-x-auto">
-        <Table>
+        <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>

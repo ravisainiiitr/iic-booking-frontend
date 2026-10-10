@@ -119,7 +119,7 @@ export default function RegistrationLogTab({ onOpenUser }: { onOpenUser: (userId
         </div>
 
         <div className="overflow-x-auto rounded-lg border">
-          <Table>
+          <Table serialStart={((filters.page ?? 1) - 1) * (filters.page_size ?? 50) + 1}>
             <TableHeader>
               <TableRow>
                 <TableHead className="whitespace-nowrap">Time</TableHead>

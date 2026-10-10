@@ -349,10 +349,10 @@ export default function TransactionsPanel({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className={cn("min-w-[1250px] text-sm", loading && "opacity-60")} aria-busy={loading}>
+              <Table serial={false} className={cn("min-w-[1250px] text-sm", loading && "opacity-60")} aria-busy={loading}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">S.No</TableHead>
+                    <TableHead className="w-14">S.No.</TableHead>
                     <SortHeader label="Date & time" sortKey="created_at" ordering={ordering} onSort={onSort} />
                     <TableHead>Txn ID</TableHead>
                     {global ? <SortHeader label="Wallet owner" sortKey="owner" ordering={ordering} onSort={onSort} /> : null}

@@ -227,7 +227,7 @@ export default function AdminIcpmsStandards() {
               <p className="text-muted-foreground text-center py-8">No standards found.</p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
-                <Table>
+                <Table serial={false}>
                   <TableHeader>
                     <TableRow>
                       <TableHead>S.No.</TableHead>

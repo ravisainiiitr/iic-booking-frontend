@@ -241,7 +241,7 @@ export default function EquipmentFlashMessages() {
             ) : null}
 
             <div className="overflow-x-auto rounded-md border">
-              <Table>
+              <Table serialStart={(page - 1) * pageSize + 1}>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="min-w-[12rem]">Equipment</TableHead>

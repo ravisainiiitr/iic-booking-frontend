@@ -224,7 +224,12 @@ export default function AdminSection() {
   const [fetchProgress, setFetchProgress] = useState(0);
   const fetchProgressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [listPage, setListPage] = useState(1);
-  const [listPagination, setListPagination] = useState<{ count: number; next: string | null; previous: string | null } | null>(null);
+  const [listPagination, setListPagination] = useState<{
+    count: number;
+    next: string | null;
+    previous: string | null;
+    offset: number;
+  } | null>(null);
   const [dailySlotStatusFilter, setDailySlotStatusFilter] = useState("");
   const [dailySlotDateFilter, setDailySlotDateFilter] = useState("");
   const [dailySlotEquipmentFilter, setDailySlotEquipmentFilter] = useState("");
@@ -583,6 +588,10 @@ export default function AdminSection() {
           count: paginated.count,
           next: paginated.next ?? null,
           previous: paginated.previous ?? null,
+          // Page size is server-side: a page with a successor is full; the last page ends at count.
+          offset: paginated.next
+            ? ((requestedPage ?? listPage) - 1) * paginated.results.length
+            : Math.max(0, paginated.count - paginated.results.length),
         });
         if ((sectionKey === "dailySlots" || sectionKey === "bookings" || sectionKey === "repeatSampleRequests") && requestedPage != null) setListPage(requestedPage);
       } else {
@@ -1783,7 +1792,7 @@ export default function AdminSection() {
             ) : (
               <>
                 <div className="overflow-x-auto rounded-md border">
-                  <Table stickyFirstColumn>
+                  <Table stickyFirstColumn serialStart={(listPagination?.offset ?? 0) + 1}>
                     <TableHeader>
                       {sectionKey === "repeatSampleRequests" ? (
                         <TableRow>
@@ -2403,7 +2412,7 @@ export default function AdminSection() {
                     <Label className="text-sm font-medium">Quota configurations</Label>
                     <p className="text-xs text-muted-foreground">Weekly and monthly quotas (minutes). Internal vs external, individual vs faculty.</p>
                     <div className="overflow-x-auto rounded-md border">
-                      <Table>
+                      <Table serial={false}>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Type</TableHead>

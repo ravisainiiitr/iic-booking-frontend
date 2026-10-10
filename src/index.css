@@ -684,7 +684,9 @@
 
 /* <Table stickyFirstColumn> / <Table stackOnMobile> (components/ui/table.tsx) — phones only */
 @media (max-width: 767px) {
-  .table-sticky-first :is(th, td):first-child {
+  /* With a serial column, the identifying column after it is the one kept in view. */
+  .table-sticky-first :is(th, td):first-child:not([data-serial], [data-serial-head]),
+  .table-sticky-first :is([data-serial], [data-serial-head]):first-child + :is(th, td) {
     position: sticky;
     left: 0;
     z-index: 1;
@@ -692,7 +694,8 @@
     box-shadow: 1px 0 0 hsl(var(--border));
   }
 
-  .table-sticky-first thead th:first-child {
+  .table-sticky-first thead th:first-child:not([data-serial-head]),
+  .table-sticky-first thead th[data-serial-head]:first-child + th {
     z-index: 11;
     background: linear-gradient(var(--table-head-bg), var(--table-head-bg)), hsl(var(--card));
     box-shadow: 1px 0 0 hsl(var(--border)), inset 0 -1px 0 var(--table-head-rule);
@@ -782,6 +785,10 @@
 
   .table-stack-mobile > table > tbody > tr > td:is([data-label=""], :not([data-label]))::before {
     content: none;
+  }
+
+  .table-stack-mobile > table > :is(tbody, tfoot) > tr > td[data-serial]:empty {
+    display: none;
   }
 }
 

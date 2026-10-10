@@ -118,7 +118,7 @@ describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
     renderPage();
     await screen.findAllByText("XRD202600001");
     const table = screen.getByRole("table");
-    expect(within(table).getAllByRole("columnheader")[0].textContent).toBe("S.No");
+    expect(within(table).getAllByRole("columnheader")[0].textContent).toBe("S.No.");
     const firstCell = () => within(within(table).getAllByRole("row")[1]).getAllByRole("cell")[0].textContent;
     expect(firstCell()).toBe("1");
 
@@ -127,7 +127,7 @@ describe("View Booking (My Bookings) live filters", { timeout: 20_000 }, () => {
     expect(lastCall().offset).toBe(50);
     expect(firstCell()).toBe("51");
     const firstCard = within(screen.getByRole("list", { name: "Bookings" })).getAllByRole("listitem")[0];
-    expect(firstCard.textContent).toContain("S.No51");
+    expect(firstCard.textContent).toContain("S.No.51");
   });
 
   it("starts at 50 rows, switches to 100 from page 1 and remembers the choice", async () => {

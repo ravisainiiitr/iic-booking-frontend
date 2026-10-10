@@ -201,7 +201,7 @@ export default function MyBookingAttempts() {
                   ))}
                 </ul>
                 <div className="hidden overflow-x-auto md:block">
-                  <Table>
+                  <Table serialStart={offset + 1}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Attempted (IST)</TableHead>

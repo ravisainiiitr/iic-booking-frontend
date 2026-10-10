@@ -89,6 +89,10 @@ function formatDateTimeDisplay(iso: string | null | undefined): string {
   }
 }
 
+function withSerial(head: string[], rows: Array<Array<string | number>>): Array<Array<string | number>> {
+  return [["S.No.", ...head], ...rows.map((row, index) => [index + 1, ...row])];
+}
+
 function exportFinanceReportExcel(data: FinanceReportDashboardData): void {
   const meta = data.meta;
   const wb = XLSX.utils.book_new();
@@ -121,28 +125,28 @@ function exportFinanceReportExcel(data: FinanceReportDashboardData): void {
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(trendRows), "Revenue Trend");
 
-  const deptRows: Array<Array<string | number>> = [
+  const deptRows = withSerial(
     ["Department", "Revenue (INR)", "Bookings"],
-    ...data.tables.internal_by_department.map((r) => [r.name, r.revenue, r.bookings]),
-  ];
+    data.tables.internal_by_department.map((r) => [r.name, r.revenue, r.bookings]),
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(deptRows), "Internal by Department");
 
-  const intEquipRows: Array<Array<string | number>> = [
+  const intEquipRows = withSerial(
     ["Equipment", "Code", "Revenue (INR)", "Bookings"],
-    ...data.tables.internal_by_equipment.map((r) => [r.name, r.code, r.revenue, r.bookings]),
-  ];
+    data.tables.internal_by_equipment.map((r) => [r.name, r.code, r.revenue, r.bookings]),
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(intEquipRows), "Internal by Equipment");
 
-  const extRows: Array<Array<string | number>> = [
+  const extRows = withSerial(
     ["External category", "Revenue (INR)", "Bookings"],
-    ...data.tables.external_by_category.map((r) => [r.name, r.revenue, r.bookings]),
-  ];
+    data.tables.external_by_category.map((r) => [r.name, r.revenue, r.bookings]),
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(extRows), "External by Category");
 
-  const eqAnalysisRows: Array<Array<string | number>> = [
+  const eqAnalysisRows = withSerial(
     ["Equipment", "Code", "Revenue (INR)", "Bookings", "Booking hours"],
-    ...data.tables.equipment_analysis.map((r) => [r.name, r.code, r.revenue, r.bookings, r.booking_hours]),
-  ];
+    data.tables.equipment_analysis.map((r) => [r.name, r.code, r.revenue, r.bookings, r.booking_hours]),
+  );
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(eqAnalysisRows), "Equipment Analysis");
 
   const pa = data.tables.payment_analytics;
@@ -221,22 +225,27 @@ async function exportFinanceReportPdf(data: FinanceReportDashboardData): Promise
     y = (doc as unknown as DocWithAutoTable).lastAutoTable.finalY + 24;
   };
 
-  addSection(
+  const addListSection = (title: string, head: string[], body: Array<Array<string | number>>) => {
+    const [serialHead, ...serialBody] = withSerial(head, body);
+    addSection(title, serialHead.map(String), serialBody);
+  };
+
+  addListSection(
     "Internal revenue by department",
     ["Department", "Revenue (INR)", "Bookings"],
     data.tables.internal_by_department.map((r) => [r.name, fmtMoney(r.revenue), r.bookings]),
   );
-  addSection(
+  addListSection(
     "Internal revenue by equipment",
     ["Equipment", "Code", "Revenue (INR)", "Bookings"],
     data.tables.internal_by_equipment.map((r) => [r.name, r.code, fmtMoney(r.revenue), r.bookings]),
   );
-  addSection(
+  addListSection(
     "External revenue by category",
     ["Category", "Revenue (INR)", "Bookings"],
     data.tables.external_by_category.map((r) => [r.name, fmtMoney(r.revenue), r.bookings]),
   );
-  addSection(
+  addListSection(
     "Equipment analysis",
     ["Equipment", "Code", "Revenue (INR)", "Bookings", "Booking hours"],
     data.tables.equipment_analysis.map((r) => [r.name, r.code, fmtMoney(r.revenue), r.bookings, r.booking_hours]),

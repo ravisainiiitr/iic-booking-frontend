@@ -1711,7 +1711,7 @@ const Reports = () => {
                           <div>
                             <p className="mb-2 text-sm font-semibold">Slot disposition (hours)</p>
                             <div className="overflow-x-auto rounded-lg border">
-                              <Table>
+                              <Table serial={false}>
                                 <TableHeader>
                                   <TableRow className="bg-slate-100 dark:bg-slate-800">
                                     <TableHead>Metric</TableHead>
@@ -1795,7 +1795,7 @@ const Reports = () => {
                                     </span>
                                   )}
                                 </p>
-                                <Table>
+                                <Table serial={false}>
                                   <TableHeader>
                                     <TableRow>
                                       <TableHead>Criterion</TableHead>

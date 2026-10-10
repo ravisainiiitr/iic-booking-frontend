@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, pmGet, pmPost, type Page, type PmItem, type PmStockBalance, type PmStockTx } from "@/lib/procurementApi";
-import { EmptyRow, Field, fmtDate, humanize, LoadingRow, NativeSelect, Pager, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
+import { EmptyRow, Field, fmtDate, humanize, LoadingRow, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
 
 const TX_TYPES = ["OPENING", "RECEIPT", "ISSUE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT", "RETURN"];
 const REASON_REQUIRED = new Set(["ISSUE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT", "RETURN"]);
@@ -62,7 +62,7 @@ export default function StockPage() {
           </form>
           {balances.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(balances.error)}</p> : null}
           <div className="overflow-x-auto">
-            <Table>
+            <Table serialStart={pageSerialStart(balances.data)}>
               <TableHeader>
                 <TableRow>
                   <TableHead>Item</TableHead>
@@ -96,7 +96,7 @@ export default function StockPage() {
         <TabsContent value="ledger">
           <SectionCard title="Stock ledger" description="Append-only. Corrections are made with adjustment entries.">
             <div className="overflow-x-auto">
-              <Table>
+              <Table serialStart={pageSerialStart(ledger.data)}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>

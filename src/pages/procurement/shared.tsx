@@ -230,6 +230,10 @@ export function LoadingRow({ colSpan }: { colSpan: number }) {
   );
 }
 
+export function pageSerialStart(data?: { page: number; page_size: number }) {
+  return data ? (data.page - 1) * data.page_size + 1 : 1;
+}
+
 export function Pager({ page, count, pageSize, onPage }: { page: number; count: number; pageSize: number; onPage: (p: number) => void }) {
   const pages = Math.max(1, Math.ceil(count / Math.max(1, pageSize)));
   if (pages <= 1) return null;

@@ -44,7 +44,8 @@ describe("Table stackOnMobile", () => {
     expect(screen.getByText("₹500").getAttribute("data-label")).toBe("Amount");
     expect(screen.getByText("End of list").getAttribute("data-label")).toBe("");
     expect(screen.getByRole("table")).toBeTruthy();
-    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Reference", "Amount"]);
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["S.No.", "Reference", "Amount"]);
+    expect(screen.getByText("1").getAttribute("data-label")).toBe("S.No.");
   });
 
   it("labels rows added after the first render", async () => {
@@ -63,5 +64,48 @@ describe("Table stackOnMobile", () => {
   it("has no axe violations", async () => {
     const { container } = render(<Transactions />);
     expect(await axeViolations(container)).toEqual([]);
+  });
+});
+
+function serialColumn(container: HTMLElement) {
+  return Array.from(container.querySelectorAll("tbody tr"), (tr) => tr.querySelector("[data-serial]")?.textContent ?? null);
+}
+
+describe("Table serial column", () => {
+  afterEach(cleanup);
+
+  it("numbers data rows in display order and leaves spanning rows blank", async () => {
+    const { container } = render(<Transactions stackOnMobile={false} />);
+    expect(serialColumn(container)).toEqual(["1", ""]);
+    await act(async () => screen.getByRole("button", { name: "Add row" }).click());
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(serialColumn(container)).toEqual(["1", "2", ""]);
+  });
+
+  it("continues from serialStart, can follow a checkbox column, and can be turned off", () => {
+    const rows = (props: Record<string, unknown>) => (
+      <Table {...props}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Select</TableHead>
+            <TableHead>Reference</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {["A", "B"].map((id) => (
+            <TableRow key={id}>
+              <TableCell>[ ]</TableCell>
+              <TableCell>{id}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
+    const { container, rerender } = render(rows({ serialStart: 26, serialAfterFirstColumn: true }));
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Select", "S.No.", "Reference"]);
+    expect(serialColumn(container)).toEqual(["26", "27"]);
+    rerender(rows({ serial: false }));
+    expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual(["Select", "Reference"]);
+    expect(container.querySelector("[data-serial]")).toBeNull();
   });
 });

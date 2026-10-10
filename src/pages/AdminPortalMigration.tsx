@@ -297,6 +297,7 @@ export default function AdminPortalMigration() {
                 <table className="ui-table w-full text-left text-xs">
                   <thead className="uppercase tracking-[0.06em]">
                     <tr>
+                      <th className="w-[3.25rem] px-1 py-2 whitespace-nowrap">S.No.</th>
                       <th className="p-2">Gate</th>
                       <th className="p-2">Status</th>
                       <th className="p-2">Blocking</th>
@@ -305,8 +306,9 @@ export default function AdminPortalMigration() {
                   </thead>
                   <tbody>
                     {Object.entries(goNoGo.gate_matrix as Record<string, Record<string, unknown>>).map(
-                      ([name, gate]) => (
+                      ([name, gate], index) => (
                         <tr key={name} className="align-top">
+                          <td className="w-[3.25rem] px-1 py-2 tabular-nums">{index + 1}</td>
                           <td className="p-2 font-medium">{name}</td>
                           <td className="p-2">{String(gate.result)}</td>
                           <td className="p-2">{String(gate.blocking)}</td>

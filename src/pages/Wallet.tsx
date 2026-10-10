@@ -2252,7 +2252,7 @@ const Wallet = () => {
                   </p>
                 ) : (
                   <div className="rounded-lg border overflow-x-auto">
-                    <Table>
+                    <Table serial={false}>
                       <TableHeader>
                         <TableRow className="bg-muted/50 hover:bg-muted/50">
                           <TableHead className="whitespace-nowrap font-semibold">S.No.</TableHead>

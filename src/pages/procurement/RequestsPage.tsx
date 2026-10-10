@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { errorMessage, pmGet, type Page, type PmRequest } from "@/lib/procurementApi";
-import { EmptyRow, fmtDate, LoadingRow, money, NativeSelect, Pager, SectionCard, StatusBadge, usePm } from "./shared";
+import { EmptyRow, fmtDate, LoadingRow, money, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, usePm } from "./shared";
 
 const STATUS_FILTERS = [
   { value: "", label: "All statuses" },
@@ -92,7 +92,7 @@ export default function RequestsPage({ inbox = false }: { inbox?: boolean }) {
       ) : null}
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
       <div className="overflow-x-auto">
-        <Table>
+        <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>

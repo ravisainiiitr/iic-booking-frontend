@@ -83,6 +83,7 @@ export default function WalletFundReceiptFollowUpAlert({ onReview }: { onReview:
             <table className="ui-table w-full text-sm">
               <thead className="sticky top-0 z-10 text-xs uppercase tracking-[0.06em]">
                 <tr>
+                  <th className="w-[3.25rem] px-1 py-2 font-medium whitespace-nowrap">S.No.</th>
                   <th className="px-3 py-2 font-medium">Transaction</th>
                   <th className="px-3 py-2 font-medium">Faculty / Department</th>
                   <th className="px-3 py-2 font-medium text-right">Amount</th>
@@ -91,8 +92,9 @@ export default function WalletFundReceiptFollowUpAlert({ onReview }: { onReview:
                 </tr>
               </thead>
               <tbody>
-                {rows.slice(0, MAX_ROWS_IN_DIALOG).map((row) => (
+                {rows.slice(0, MAX_ROWS_IN_DIALOG).map((row, index) => (
                   <tr key={row.id}>
+                    <td className="w-[3.25rem] px-1 py-2 tabular-nums">{index + 1}</td>
                     <td className="px-3 py-2 font-medium whitespace-nowrap">{row.transaction_number}</td>
                     <td className="px-3 py-2">
                       <div>{row.user_name}</div>

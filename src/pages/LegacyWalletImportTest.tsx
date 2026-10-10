@@ -196,10 +196,10 @@ const LegacyWalletImportTest = () => {
               {allRows.rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No rows returned.</p>
               ) : (
-                <Table>
+                <Table serial={false}>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12">#</TableHead>
+                      <TableHead className="w-14">S.No.</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Employee no.</TableHead>
                       <TableHead>Email</TableHead>

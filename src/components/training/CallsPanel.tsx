@@ -281,7 +281,7 @@ function RankedTable({
   if (!entries.length) return <p className="text-sm text-muted-foreground">No nominations in this run.</p>;
   return (
     <div className="overflow-x-auto rounded-lg border border-border/70">
-      <Table className="min-w-[760px]">
+      <Table serial={false} className="min-w-[760px]">
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">Rank</TableHead>
@@ -692,7 +692,7 @@ function CallDetail({ callId, onBack }: { callId: number; onBack: () => void }) 
                 {results.seed_public_input ? ` · public number ${results.seed_public_input}` : ""}
               </p>
               <div className="overflow-x-auto rounded-lg border border-border/70">
-                <Table className="min-w-[600px]">
+                <Table serial={false} className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">Rank</TableHead>

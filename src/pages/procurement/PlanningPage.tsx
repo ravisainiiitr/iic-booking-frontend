@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, pmDownload, pmForm, pmGet, pmPost, type Page, type PmProposal, type PmRecord, type PmRequirement } from "@/lib/procurementApi";
-import { EmptyRow, Field, FilePicker, fmtDate, humanize, LoadingRow, money, NativeSelect, qty, ReasonDialog, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
+import { EmptyRow, Field, FilePicker, fmtDate, humanize, LoadingRow, money, NativeSelect, pageSerialStart, qty, ReasonDialog, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
 
 const FUNDING = [
   { value: "PLAN", label: "Plan" },
@@ -96,7 +96,7 @@ export default function PlanningPage() {
           </div>
           {reqs.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(reqs.error)}</p> : null}
           <div className="overflow-x-auto">
-            <Table>
+            <Table serialStart={pageSerialStart(reqs.data)} serialAfterFirstColumn={office}>
               <TableHeader>
                 <TableRow>
                   {office ? <TableHead className="w-8" /> : null}

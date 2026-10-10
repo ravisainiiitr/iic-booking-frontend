@@ -1698,10 +1698,10 @@ const MyBookings = () => {
               <>
               <CardContent className="p-0">
                 <div className="hidden md:block">
-                <Table>
+                <Table serial={false}>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-14">S.No</TableHead>
+                      <TableHead className="w-14">S.No.</TableHead>
                       {[
                         { key: "booking_ref", label: "Booking ID" },
                         { key: "equipment_name", label: "Equipment" },
@@ -1802,7 +1802,7 @@ const MyBookings = () => {
                           <p className="break-words font-medium">{booking.equipment_name}</p>
                           {renderSampleSummary(booking)}
                           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                            <dt className="text-muted-foreground">S.No</dt>
+                            <dt className="text-muted-foreground">S.No.</dt>
                             <dd className="tabular-nums">{bookingsOffset + index + 1}</dd>
                             <dt className="text-muted-foreground">{isWaitlistedEntry(booking) ? "Requested" : "Start"}</dt>
                             <dd>{formatListStart(booking)}</dd>

@@ -317,7 +317,7 @@ export default function AdminSricRecharges() {
             <p className="py-6 text-center text-sm text-muted-foreground">No SRIC recharges match the filters.</p>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <Table serialStart={(page - 1) * PAGE_SIZE + 1} serialAfterFirstColumn>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8">

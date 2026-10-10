@@ -446,7 +446,7 @@ export default function DisruptionHistory() {
                 </Button>
               </div>
             ) : (
-              <Table
+              <Table serial={false}
                 scrollPane
                 containerProps={{ role: "region", "aria-label": "Disruption entries", tabIndex: 0 }}
                 className={cn("min-w-[1750px] text-sm", loading && "opacity-60")}
@@ -454,7 +454,7 @@ export default function DisruptionHistory() {
               >
                 <TableHeader className="z-20 bg-card">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className={cn(STICKY_SNO, "z-30")}>S.No</TableHead>
+                    <TableHead className={cn(STICKY_SNO, "z-30")}>S.No.</TableHead>
                     <SortHeader
                       label="Equipment"
                       sortKey="equipment"

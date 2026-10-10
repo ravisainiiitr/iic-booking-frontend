@@ -223,7 +223,7 @@ function PolicyFieldsForm({
       <fieldset className="space-y-2">
         <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Scoring weights</legend>
         <div className="overflow-x-auto rounded-lg border border-border/70">
-          <Table className="min-w-[420px]">
+          <Table serial={false} className="min-w-[420px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Factor</TableHead>

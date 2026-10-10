@@ -458,7 +458,7 @@ const AdminSettingsFeedback = () => {
             ) : (
               <>
                 <div className={cn("overflow-x-auto rounded-xl border", loading && "opacity-60")}>
-                  <Table>
+                  <Table serialStart={page * pageSize + 1}>
                     <TableHeader>
                       <TableRow className="bg-muted/40">
                         {sortHead("user__name", "User")}

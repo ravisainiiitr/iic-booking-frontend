@@ -190,7 +190,7 @@ export default function AdminBookingChargeSettings() {
               <p className="text-muted-foreground text-center py-8">No settings found.</p>
             ) : (
               <div className="overflow-x-auto rounded-md border">
-                <Table>
+                <Table serial={false}>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Key</TableHead>

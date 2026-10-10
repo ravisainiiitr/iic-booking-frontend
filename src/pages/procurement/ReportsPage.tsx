@@ -141,7 +141,7 @@ function Budget() {
       >
         {summary.error ? <p className="text-sm text-destructive">{errorMessage(summary.error)}</p> : null}
         <div className="overflow-x-auto">
-          <Table>
+          <Table serial={false}>
             <TableHeader>
               <TableRow>
                 <TableHead>Funding</TableHead>

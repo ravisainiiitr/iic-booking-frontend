@@ -93,7 +93,7 @@ export default function ProcurementDashboard() {
       {d.budget ? (
         <SectionCard title={`Budget vs actual · FY ${d.budget.financial_year}`} description="Committed = approved and not yet billed. Purchased = billed.">
           <div className="overflow-x-auto">
-            <Table>
+            <Table serial={false}>
               <TableHeader>
                 <TableRow>
                   <TableHead>Funding</TableHead>

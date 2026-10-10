@@ -11,6 +11,50 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
   scrollPane?: boolean;
   /** Extra props for the scrolling wrapper, e.g. an aria-label or data-testid. */
   containerProps?: React.HTMLAttributes<HTMLDivElement>;
+  /**
+   * Leading S.No. column numbering body rows in display order. Turn off for tables that already
+   * number their rows or where numbering means nothing (key/value layouts, grids, tiny breakdowns).
+   */
+  serial?: boolean;
+  /** Number of the first row, e.g. (page - 1) * pageSize + 1 on paginated lists. */
+  serialStart?: number;
+  /** Put S.No. after the first column instead of before it, for leading selection checkboxes. */
+  serialAfterFirstColumn?: boolean;
+}
+
+type TableSection = "head" | "body" | "foot";
+
+const SerialContext = React.createContext<{ enabled: boolean; afterFirst: boolean }>({ enabled: false, afterFirst: false });
+const SectionContext = React.createContext<TableSection>("body");
+
+const SERIAL_CELL = "data-serial";
+const SERIAL_HEAD = "data-serial-head";
+
+/**
+ * Serial cells are rendered empty and numbered here, so numbering follows whatever order and
+ * filtering the page renders. Rows with a spanning cell (empty states, skeletons, expanded
+ * details) are not data rows and stay blank.
+ */
+function numberSerialCells(table: HTMLTableElement, start: number) {
+  let next = start;
+  for (const body of Array.from(table.tBodies)) {
+    for (const row of Array.from(body.rows)) {
+      const cell = Array.from(row.cells).find((c) => c.hasAttribute(SERIAL_CELL));
+      if (!cell) continue;
+      const isDataRow = !Array.from(row.cells).some((c) => c.colSpan > 1);
+      const text = isDataRow ? String(next++) : "";
+      if (cell.textContent !== text) cell.textContent = text;
+    }
+  }
+  const heads = table.tHead
+    ? Array.from(table.tHead.rows)
+        .map((row) => Array.from(row.cells).find((c) => c.hasAttribute(SERIAL_HEAD)))
+        .filter((c): c is HTMLTableCellElement => Boolean(c))
+    : [];
+  if (heads.length > 1) {
+    if (heads[0].rowSpan !== heads.length) heads[0].rowSpan = heads.length;
+    for (const extra of heads.slice(1)) extra.style.display = "none";
+  }
 }
 
 const AUTO_LABEL = "data-auto-label";
@@ -43,7 +87,20 @@ function labelCellsByColumn(table: HTMLTableElement) {
 }
 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
-  ({ className, stickyFirstColumn, stackOnMobile, scrollPane, containerProps, ...props }, ref) => {
+  (
+    {
+      className,
+      stickyFirstColumn,
+      stackOnMobile,
+      scrollPane,
+      containerProps,
+      serial = true,
+      serialStart = 1,
+      serialAfterFirstColumn = false,
+      ...props
+    },
+    ref,
+  ) => {
     const tableRef = React.useRef<HTMLTableElement | null>(null);
     const setRefs = React.useCallback(
       (node: HTMLTableElement | null) => {
@@ -63,6 +120,20 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
       return () => observer.disconnect();
     }, [stackOnMobile]);
 
+    React.useLayoutEffect(() => {
+      const table = tableRef.current;
+      if (!serial || !table) return;
+      numberSerialCells(table, serialStart);
+      const observer = new MutationObserver(() => numberSerialCells(table, serialStart));
+      observer.observe(table, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }, [serial, serialStart]);
+
+    const serialContext = React.useMemo(
+      () => ({ enabled: serial, afterFirst: serialAfterFirstColumn }),
+      [serial, serialAfterFirstColumn],
+    );
+
     return (
       <div
         {...containerProps}
@@ -74,7 +145,9 @@ const Table = React.forwardRef<HTMLTableElement, TableProps>(
           containerProps?.className,
         )}
       >
-        <table ref={setRefs} className={cn("ui-table w-full caption-bottom text-sm", className)} {...props} />
+        <SerialContext.Provider value={serialContext}>
+          <table ref={setRefs} className={cn("ui-table w-full caption-bottom text-sm", className)} {...props} />
+        </SerialContext.Provider>
       </div>
     );
   },
@@ -83,33 +156,67 @@ Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <thead ref={ref} className={cn("sticky top-0 z-10", className)} {...props} />
+    <SectionContext.Provider value="head">
+      <thead ref={ref} className={cn("sticky top-0 z-10", className)} {...props} />
+    </SectionContext.Provider>
   ),
 );
 TableHeader.displayName = "TableHeader";
 
 const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <tbody ref={ref} className={className} {...props} />
+    <SectionContext.Provider value="body">
+      <tbody ref={ref} className={className} {...props} />
+    </SectionContext.Provider>
   ),
 );
 TableBody.displayName = "TableBody";
 
 const TableFooter = React.forwardRef<HTMLTableSectionElement, React.HTMLAttributes<HTMLTableSectionElement>>(
   ({ className, ...props }, ref) => (
-    <tfoot ref={ref} className={cn("bg-muted/50 font-medium", className)} {...props} />
+    <SectionContext.Provider value="foot">
+      <tfoot ref={ref} className={cn("bg-muted/50 font-medium", className)} {...props} />
+    </SectionContext.Provider>
   ),
 );
 TableFooter.displayName = "TableFooter";
 
+const SERIAL_WIDTH = "w-[3.25rem] min-w-[3.25rem] px-1";
+
 const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
-  ({ className, ...props }, ref) => (
-    <tr
-      ref={ref}
-      className={cn("transition-colors duration-150 data-[state=selected]:bg-primary/5", className)}
-      {...props}
-    />
-  ),
+  ({ className, children, ...props }, ref) => {
+    const { enabled, afterFirst } = React.useContext(SerialContext);
+    const section = React.useContext(SectionContext);
+    let cells: React.ReactNode = children;
+    if (enabled) {
+      const serialCell =
+        section === "head" ? (
+          <TableHead key="__serial" {...{ [SERIAL_HEAD]: "" }} className={cn(SERIAL_WIDTH, "whitespace-nowrap")}>
+            S.No.
+          </TableHead>
+        ) : (
+          <TableCell
+            key="__serial"
+            {...{ [SERIAL_CELL]: "" }}
+            className={cn(SERIAL_WIDTH, "whitespace-nowrap tabular-nums")}
+          />
+        );
+      const list = React.Children.toArray(children);
+      const first = list[0];
+      const firstSpans =
+        React.isValidElement<{ colSpan?: number }>(first) && Number(first.props.colSpan ?? 1) > 1;
+      cells = afterFirst && !firstSpans ? [...list.slice(0, 1), serialCell, ...list.slice(1)] : [serialCell, ...list];
+    }
+    return (
+      <tr
+        ref={ref}
+        className={cn("transition-colors duration-150 data-[state=selected]:bg-primary/5", className)}
+        {...props}
+      >
+        {cells}
+      </tr>
+    );
+  },
 );
 TableRow.displayName = "TableRow";
 

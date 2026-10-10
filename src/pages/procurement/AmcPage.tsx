@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, payloadForm, pmForm, pmGet, pmPost, type Page, type PmAmc } from "@/lib/procurementApi";
 import { useVendors } from "./InvoiceForm";
-import { EmptyRow, Field, FilePicker, fmtDate, humanize, LoadingRow, money, NativeSelect, Pager, ReasonDialog, SectionCard, StatusBadge, usePm, useRunner } from "./shared";
+import { EmptyRow, Field, FilePicker, fmtDate, humanize, LoadingRow, money, NativeSelect, pageSerialStart, Pager, ReasonDialog, SectionCard, StatusBadge, usePm, useRunner } from "./shared";
 
 const CONTRACT_TYPES = ["AMC", "CMC", "WARRANTY", "SERVICE", "CALIBRATION", "REPAIR"];
 
@@ -59,7 +59,7 @@ export default function AmcPage() {
       </div>
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
       <div className="overflow-x-auto">
-        <Table>
+        <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>

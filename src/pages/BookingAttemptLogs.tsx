@@ -652,7 +652,7 @@ const BookingAttemptLogs = () => {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <Table>
+              <Table serialStart={offset + 1}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Time</TableHead>

@@ -303,7 +303,7 @@ export default function AdminRegistrationRequests() {
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border">
-                  <Table>
+                  <Table serialStart={((filters.page ?? 1) - 1) * PAGE_SIZE + 1}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
