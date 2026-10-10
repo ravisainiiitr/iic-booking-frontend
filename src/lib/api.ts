@@ -305,8 +305,39 @@ export interface LaserCutAnalysis {
   own_sheet_height_mm?: string | null;
   /** Own sheet size from the drawing: bounding box + margin, rounded up, turned to suit the machine bed. */
   own_sheet_suggested?: { width_mm: string; height_mm: string; rotated: boolean } | null;
+  /** Machine time for one copy, from the DXF cut path; null until measured and a sheet is chosen. */
+  time_estimate?: LaserPartTimeEstimate | null;
   cancelled_at?: string | null;
   superseded_at?: string | null;
+}
+
+/** Laser machine time of one part, measured from its DXF cut path. */
+export interface LaserPartTimeEstimate {
+  cut_length_mm: number;
+  pierces: number;
+  cut_speed_mm_s: number;
+  pierce_s: number;
+  seconds_each: number;
+  cutting_seconds_each: number;
+  pierce_seconds_each: number;
+  travel_seconds_each: number;
+  /** All copies of the part (booking: × Quantity Required). */
+  minutes_total: number;
+  warning?: string | null;
+}
+
+/** Laser machine time of a whole job: setup + sheet loading + cutting, plus the allowance. */
+export interface LaserJobTimeEstimate {
+  preset: string;
+  preset_label: string;
+  cutting_min: number;
+  setup_min: number;
+  sheets: number;
+  sheet_min: number;
+  allowance_pct: number;
+  allowance_min: number;
+  total_min: number;
+  warnings: string[];
 }
 
 export interface LaserCutBatch {
@@ -346,6 +377,8 @@ export interface FabricationPart {
   /** Laser: sheet size the user brings on an own-material booking (entered, or from the drawing). */
   own_sheet_width_mm?: string | null;
   own_sheet_height_mm?: string | null;
+  /** Laser: machine time from the DXF cut path (absent for parts uploaded before it was measured). */
+  time_estimate?: LaserPartTimeEstimate | null;
   /** 3D print: staff-entered actual weight / time (totals for all copies). */
   actual_weight?: boolean;
   actual_time?: boolean;
@@ -421,6 +454,47 @@ export interface FabricationEquipmentRow {
   supported_material_ids?: number[];
   /** 3D printers: weight / time estimate profile. */
   print_estimate?: PrintEstimateProfile;
+  /** 2D laser / profile cutters: machine-time estimate profile. */
+  laser_estimate?: LaserEstimateProfile;
+}
+
+export interface LaserEstimateParameter {
+  key: string;
+  label: string;
+  unit: string;
+  min: number | null;
+  max: number | null;
+  /** Effective value (machine type and override applied). */
+  value: number | null;
+  /** The machine type's value. */
+  default: number | null;
+}
+
+export interface LaserEstimateMaterial {
+  material_id: number;
+  code: string;
+  name: string;
+  material_family: string;
+  thickness_mm: string;
+  /** Typical values for this machine type at the sheet's thickness. */
+  chart_cut_speed_mm_s: number;
+  chart_pierce_s: number;
+  /** OIC overrides (null = chart value). */
+  cut_speed_mm_s: number | null;
+  pierce_s: number | null;
+  warning: string | null;
+}
+
+export interface LaserEstimateProfile {
+  /** Chosen machine type ("" = detected from make / model / name). */
+  preset: string;
+  detected_preset: string;
+  effective_preset: string;
+  effective_preset_label: string;
+  presets: Array<{ key: string; label: string }>;
+  parameters: LaserEstimateParameter[];
+  overrides: Record<string, number>;
+  materials: LaserEstimateMaterial[];
 }
 
 export interface PrintEstimateParameter {
@@ -11448,6 +11522,12 @@ class ApiClient {
     print_estimate_calibration?: "fit" | "apply" | "off";
     /** 3D printers: master-list materials offered as a separate support material. */
     print_estimate_support_material_ids?: number[];
+    /** 2D laser: machine type of the time estimate ("" = detected from make / model / name). */
+    laser_estimate_preset?: string;
+    /** 2D laser: parameter overrides (missing = machine type default). */
+    laser_estimate_overrides?: Record<string, number>;
+    /** 2D laser: cutting speed / pierce time per sheet material id (missing = chart value). */
+    laser_estimate_material_overrides?: Record<string, { cut_speed_mm_s?: number; pierce_s?: number }>;
   }) {
     return this.request<{ equipment: FabricationEquipmentRow }>("/oic/fabrication-materials/equipment/", {
       method: "PATCH",

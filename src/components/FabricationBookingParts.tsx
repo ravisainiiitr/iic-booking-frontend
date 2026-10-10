@@ -7,8 +7,11 @@ import {
   type FabricationFileChange,
   type FabricationFilesState,
   type FabricationPart,
+  type LaserJobTimeEstimate as LaserJobTimeEstimateData,
   type LaserSheetMaterial,
 } from "@/lib/api";
+import { LaserJobTimeEstimate } from "@/components/LaserJobTimeEstimate";
+import { laserPartTimeText } from "@/lib/laserTimeEstimate";
 import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry } from "@/lib/dxfGeometry";
 import { DxfPreviewNavigator, laserPartMetrics, type DxfPreviewItem } from "@/components/DxfPreviewNavigator";
 import { getRealBookingId } from "@/lib/bookingRef";
@@ -43,6 +46,8 @@ export interface FabricationBookingFields {
   /** Quantity Required (input A); 1 for bookings made before it. */
   fabrication_quantity?: number | null;
   fabrication_parts?: FabricationPart[];
+  /** Laser: machine-time estimate of the whole job; null when a part has no measured cut path. */
+  laser_time_estimate?: LaserJobTimeEstimateData | null;
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
   fabrication_workflow?: { rejected?: boolean } | null;
@@ -264,6 +269,11 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
                   {fabricationPartDetail(part)}
                   {part.filename ? ` · ${part.filename}` : ""}
                 </p>
+                {isLaser && laserPartTimeText(part.time_estimate) && (
+                  <p className="text-xs text-muted-foreground" data-testid={`fabrication-part-time-${part.analysis_id}`}>
+                    Machine time: {laserPartTimeText(part.time_estimate)}
+                  </p>
+                )}
                 {isLaser && booking.own_material && part.own_sheet_width_mm && part.own_sheet_height_mm && (
                   <p className="text-xs text-muted-foreground" data-testid={`fabrication-own-sheet-${part.analysis_id}`}>
                     Own sheet: {formatMm(part.own_sheet_width_mm)} × {formatMm(part.own_sheet_height_mm)} mm
@@ -293,6 +303,9 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             </li>
           ))}
         </ul>
+      )}
+      {isLaser && booking.laser_time_estimate && parts.length > 0 && (
+        <LaserJobTimeEstimate estimate={booking.laser_time_estimate} />
       )}
       {!printable && parts.length > 0 && (
         <div className="space-y-2">

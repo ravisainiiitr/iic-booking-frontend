@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { apiClient, type LaserCutAnalysis, type LaserCutBatch, type LaserSheetMaterial } from "@/lib/api";
 import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry, type DxfUnitKey } from "@/lib/dxfGeometry";
 import { extractDxfFilesFromZip } from "@/lib/extractZipDxfFiles";
+import { laserPartTimeText } from "@/lib/laserTimeEstimate";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import {
   LIVE_INPUT_DEBOUNCE_MS,
@@ -590,7 +591,8 @@ export function LaserCutBookingPanel({
         <CardDescription>
           Upload one or more DXF drawings, or a ZIP of DXFs. For each part, set its name, how many you need and the
           sheet material. The material cost is the part&apos;s bounding rectangle × number of parts ÷ sheet area ×
-          sheet price.
+          sheet price. The machine time is worked out from the cut path in each drawing and sets how long a slot you
+          need.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -754,6 +756,9 @@ export function LaserCutBookingPanel({
                         Material: {formatRupees(p.estimated_material_cost)}
                       </span>
                     )}
+                    {!failed && laserPartTimeText(p.time_estimate) && (
+                      <span data-testid="laser-part-time">Machine time: {laserPartTimeText(p.time_estimate)}</span>
+                    )}
                     {(saving || pendingQtyIds.has(p.id)) && <span data-testid="laser-part-updating">Updating…</span>}
                   </div>
 
@@ -787,7 +792,7 @@ export function LaserCutBookingPanel({
                       {fitError}
                     </p>
                   )}
-                  {(p.warnings ?? [])
+                  {[...(p.warnings ?? []), ...(p.time_estimate?.warning ? [p.time_estimate.warning] : [])]
                     .filter((w) => !(p.units_assumed && w.toLowerCase().includes("no units")))
                     .map((w) => (
                       <p key={w} className="text-xs text-amber-800">

@@ -128,6 +128,9 @@ import {
 import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 import { LaserCutBookingPanel, type LaserCutBookingValues } from "@/components/LaserCutBookingPanel";
+import { LaserJobTimeEstimate } from "@/components/LaserJobTimeEstimate";
+import type { LaserJobTimeEstimate as LaserJobTimeEstimateData } from "@/lib/api";
+import { laserJobEstimateFromInputs } from "@/lib/laserTimeEstimate";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1139,6 +1142,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       final_payable: string;
       message: string | null;
     };
+    /** 2D laser: machine time measured from the uploaded DXFs. */
+    laser_time_estimate?: LaserJobTimeEstimateData | null;
   } | null>(null);
   const [loadingCharge, setLoadingCharge] = useState(false);
   useEffect(() => {
@@ -4314,6 +4319,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
           normal_charge: response.data.normal_charge ?? null,
           applied_charge: response.data.applied_charge,
           reward: response.data.reward,
+          laser_time_estimate: laserJobEstimateFromInputs(response.data.input_values),
         });
         setChargeCalculated(true);
         setShowSlots(!isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow);
@@ -10609,6 +10615,9 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                           {Math.floor(calculatedCharge.total_time_minutes / 60)}h {calculatedCharge.total_time_minutes % 60}m
                         </span>
                       </div>
+                      {calculatedCharge.laser_time_estimate && (
+                        <LaserJobTimeEstimate estimate={calculatedCharge.laser_time_estimate} className="mt-2" />
+                      )}
                       {calculatedCharge.show_charge_breakdown !== false &&
                         calculatedCharge.charge_breakdown &&
                         calculatedCharge.charge_breakdown.length > 0 && (

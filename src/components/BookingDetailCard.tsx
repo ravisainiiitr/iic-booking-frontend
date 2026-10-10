@@ -9,6 +9,7 @@ import {
   type FabricationPart,
   type FabricationWorkflow,
   type LabOutreachKind,
+  type LaserJobTimeEstimate,
   type PrintAnalysisResult,
 } from "@/lib/api";
 import { FabricationBookingParts } from "@/components/FabricationBookingParts";
@@ -314,6 +315,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   own_material?: boolean;
   own_material_fixed_charge?: string | null;
   fabrication_parts?: FabricationPart[];
+  laser_time_estimate?: LaserJobTimeEstimate | null;
   fabrication_quantity?: number | null;
   fabrication_file_changes?: FabricationFileChange[];
   fabrication_files_replaceable?: { allowed: boolean; reason: string | null } | null;
