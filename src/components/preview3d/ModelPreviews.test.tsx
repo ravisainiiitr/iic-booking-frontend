@@ -413,6 +413,42 @@ describe("BookedStlPreview", () => {
     expect(call[4]).toBe(0.12);
     expect(call[5]).toMatchObject({ supportColor: "#f59e0b" });
   });
+
+  it("previews a booking like IICTEST-3DP-01202600002: two STLs, the first turned on the plate, with model info", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockImplementation(async (id: string) => ({
+      buffer: id === "gear-uuid" ? boxStl(40, 20, 5) : boxStl(30, 30, 10),
+    }));
+    // fabrication_parts as GET /api/bookings/?booking_id=… returns them for the owner, OIC, operator and admin.
+    const parts: FabricationPart[] = [
+      {
+        ...part(1),
+        analysis_id: "gear-uuid",
+        name: "gear",
+        filename: "gear.stl",
+        weight_g_each: 11,
+        time_min_each: 30,
+        orientation: [1, 0, 0, 0, -1, 0, 0, 0, -1],
+        file_available: true,
+        volume_cm3: 8.23,
+        layer_height_mm: 0.2,
+      },
+      { ...part(2), analysis_id: "hub-uuid", name: "hub", filename: "hub.stl", file_available: true, volume_cm3: null },
+    ];
+    render(<BookedStlPreview parts={parts} maxPrintSize={{ x: 256, y: 256, z: 256 }} />);
+
+    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("gear-uuid"));
+    expect((await screen.findByTestId("stl-preview-size")).textContent).toContain("40 × 20 × 5 mm");
+    expect(screen.getByTestId("stl-preview-orientation-note").textContent).toBe("User-selected orientation");
+    expect(screen.getByTestId("stl-preview-stats").textContent).toContain("11 g");
+    expect(screen.getByTestId("booked-stl-volume").textContent).toBe("Volume (one copy): 8.23 cm³");
+    expect(screen.getByTestId("stl-preview-position").textContent).toBe("Model 1 of 2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next model" }));
+    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("hub-uuid"));
+    await waitFor(() => expect(screen.getByTestId("stl-preview-size").textContent).toContain("30 × 30 × 10 mm"));
+    expect(screen.queryByTestId("booked-stl-volume")).toBeNull();
+  });
 });
 
 describe("bookedPrintTimeline", () => {

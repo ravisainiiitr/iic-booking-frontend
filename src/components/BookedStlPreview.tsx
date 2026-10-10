@@ -88,6 +88,7 @@ export function BookedStlPreview({
       }
     : null;
   const layerHeight = num(part.layer_height_mm);
+  const volume = num(part.volume_cm3);
   const error = errors[part.analysis_id];
 
   return (
@@ -152,6 +153,11 @@ export function BookedStlPreview({
             timeline={bookedPrintTimeline(part)}
           />
         </Suspense>
+      )}
+      {volume !== null && (
+        <p className="text-xs text-muted-foreground" data-testid="booked-stl-volume">
+          Volume (one copy): <span className="font-medium text-foreground">{volume.toFixed(2)} cm³</span>
+        </p>
       )}
       {part.filename && part.filename !== part.name && <p className="truncate text-xs text-muted-foreground">File: {part.filename}</p>}
     </div>

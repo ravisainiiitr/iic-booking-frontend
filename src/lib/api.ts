@@ -420,6 +420,7 @@ export interface FabricationPart {
   model_g_each?: number | null;
   /** Per copy make-up of the model-material weight, e.g. "model 8.0 g + supports 3.2 g + raft 0.5 g". */
   weight_composition?: string;
+  volume_cm3?: number | string | null;
 }
 
 export interface FabricationFileChange {
