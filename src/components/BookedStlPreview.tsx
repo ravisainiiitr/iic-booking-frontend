@@ -10,17 +10,30 @@ import {
   type MaxPrintSizePayload,
 } from "@/lib/printSizeLimit";
 import { normalizeOrientation } from "@/lib/preview3d/orientation";
-import type { StlPreviewSupports } from "@/components/StlModelPreview";
+import type { StlPreviewSupports, StlPreviewTimeline } from "@/components/StlModelPreview";
 
 // three.js viewer: loaded only when a model is previewed.
 const StlModelPreview = lazy(() => import("@/components/StlModelPreview").then((m) => ({ default: m.StlModelPreview })));
 
 const FRAME_HEIGHT = "h-[420px] sm:h-[460px]";
+/** Same look as the booking page for supports printed in a separate material. */
+const SEPARATE_SUPPORT_COLOR = "#f59e0b";
 
 function num(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+/** The booking page's print timeline (layer slider times) for one copy of a booked model. */
+export function bookedPrintTimeline(part: FabricationPart): StlPreviewTimeline | null {
+  const printMinutes = num(part.print_minutes) ?? num(part.time_min_each);
+  if (printMinutes === null) return null;
+  return {
+    progress: Array.isArray(part.print_progress) ? part.print_progress : null,
+    printMinutes,
+    warmupMinutes: num(part.warmup_minutes),
+  };
 }
 
 /** 3D preview of the STL files attached to a 3D print booking; each model is downloaded when first shown.
@@ -70,9 +83,11 @@ export function BookedStlPreview({
     ? {
         mode: part.support_mode === "auto" ? (supportG > 0 ? "buildplate" : "none") : part.support_mode,
         angleDeg: num(part.support_angle_deg),
+        color: part.support_material_code ? SEPARATE_SUPPORT_COLOR : null,
         summary: supportG > 0.05 ? `Supports ~${supportG} g${part.support_material_code ? ` (${part.support_material_code})` : ""}` : null,
       }
     : null;
+  const layerHeight = num(part.layer_height_mm);
   const error = errors[part.analysis_id];
 
   return (
@@ -124,6 +139,7 @@ export function BookedStlPreview({
             sizeCheck={sizeCheck}
             materialName={part.material_name || null}
             materialCode={part.material_code || null}
+            layerHeightMm={layerHeight !== null && layerHeight > 0 ? layerHeight : null}
             stats={{
               weightGrams: num(part.weight_g_each),
               timeMinutes: num(part.time_min_each),
@@ -133,6 +149,7 @@ export function BookedStlPreview({
             orientationNote={orientation ? "User-selected orientation" : null}
             sizeLimit={sizeLimit}
             supports={supports}
+            timeline={bookedPrintTimeline(part)}
           />
         </Suspense>
       )}

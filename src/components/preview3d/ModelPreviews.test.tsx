@@ -58,7 +58,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 
 import { StlModelPreview } from "@/components/StlModelPreview";
 import { DxfModelPreview } from "@/components/DxfModelPreview";
-import { BookedStlPreview } from "@/components/BookedStlPreview";
+import { BookedStlPreview, bookedPrintTimeline } from "@/components/BookedStlPreview";
 
 type Tri = number[];
 
@@ -392,5 +392,42 @@ describe("BookedStlPreview", () => {
     expect(screen.getByTestId("stl-preview-supports").textContent).toContain("Supports ~2.4 g");
     await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
     expect(three.buildPrintScene.mock.calls.at(-1)[5]).toMatchObject({ overLimit: false, supports: expect.any(Object) });
+  });
+
+  it("draws a booked part like the booking page: layer height and separate support material colour", async () => {
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValue({ buffer: boxStl(40, 20, 5) });
+    const booked: FabricationPart = {
+      ...part(1),
+      support_mode: "everywhere",
+      support_g_each: 3,
+      support_material_code: "PVA",
+      layer_height_mm: "0.12",
+      print_progress: [0.5, 1],
+      print_minutes: 42.5,
+      warmup_minutes: 6,
+    };
+    render(<BookedStlPreview parts={[booked]} maxPrintSize={{ x: 256, y: 256, z: 256 }} />);
+    await waitFor(() => expect(three.buildPrintScene).toHaveBeenCalled());
+    const call = three.buildPrintScene.mock.calls.at(-1);
+    expect(call[4]).toBe(0.12);
+    expect(call[5]).toMatchObject({ supportColor: "#f59e0b" });
+  });
+});
+
+describe("bookedPrintTimeline", () => {
+  const base: FabricationPart = { kind: "print", analysis_id: "p1", name: "Gear", quantity: 2, time_min_each: 40 };
+
+  it("uses the saved estimate's progress, print and warm-up minutes for one copy", () => {
+    expect(bookedPrintTimeline({ ...base, print_progress: [0.25, 1], print_minutes: "42.5", warmup_minutes: 6 })).toEqual({
+      progress: [0.25, 1],
+      printMinutes: 42.5,
+      warmupMinutes: 6,
+    });
+  });
+
+  it("falls back to the per-copy time of bookings made before the breakdown was saved", () => {
+    expect(bookedPrintTimeline(base)).toEqual({ progress: null, printMinutes: 40, warmupMinutes: null });
+    expect(bookedPrintTimeline({ ...base, time_min_each: null })).toBeNull();
   });
 });

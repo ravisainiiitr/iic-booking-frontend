@@ -185,6 +185,7 @@ export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: Fabric
         heightMm: num(p.height_mm),
         materialName: p.material_name || null,
         materialCode: p.material_code || null,
+        materialFamily: p.material_family || null,
         ...bookedSheetSize(p, ownMaterial),
         metrics: laserPartMetrics({
           widthMm: p.width_mm,
@@ -211,10 +212,17 @@ interface FabricationBookingPartsProps {
 export function FabricationBookingParts({ booking, printable, onUpdated }: FabricationBookingPartsProps) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  // Shown straight away, as on the booking page.
+  const [previewOpen, setPreviewOpen] = useState(true);
   const parts = booking.fabrication_parts ?? [];
   const changes = booking.fabrication_file_changes ?? [];
   const isLaser = booking.equipment_profile_type === "LASER_CUT_2D";
+  const fileLabel = isLaser ? "DXF" : "STL";
+  const storedParts = useMemo(
+    () => (booking.fabrication_parts ?? []).filter((p) => p.file_available !== false),
+    [booking.fabrication_parts],
+  );
+  const filesRemoved = storedParts.length < parts.length;
   const replaceable = booking.fabrication_files_replaceable;
 
   const jobQuantity = Math.max(1, Number(booking.fabrication_quantity) || 1);
@@ -270,7 +278,11 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
                   </p>
                 )}
               </div>
-              {!printable && (
+              {!printable && part.file_available === false ? (
+                <span className="text-xs text-muted-foreground" data-testid={`fabrication-file-removed-${part.analysis_id}`}>
+                  {fileLabel} removed
+                </span>
+              ) : !printable && (
                 <Button
                   type="button"
                   size="sm"
@@ -287,14 +299,20 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
                   aria-label={`Download ${part.filename || part.name}`}
                 >
                   {downloading === part.analysis_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  <span className="ml-1">{isLaser ? "DXF" : "STL"}</span>
+                  <span className="ml-1">{fileLabel}</span>
                 </Button>
               )}
             </li>
           ))}
         </ul>
       )}
-      {!printable && parts.length > 0 && (
+      {!printable && filesRemoved && (
+        <p className="text-xs text-muted-foreground" data-testid="fabrication-files-removed">
+          {storedParts.length === 0 ? `The ${fileLabel} files were` : `Some ${fileLabel} files were`} deleted from storage
+          when the booking was completed, so they can no longer be previewed or downloaded.
+        </p>
+      )}
+      {!printable && storedParts.length > 0 && (
         <div className="space-y-2">
           <Button
             type="button"
@@ -307,16 +325,16 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             <Box className="mr-1 h-4 w-4" />
             {previewOpen
               ? "Hide preview"
-              : parts.length > 1
-                ? `Preview ${parts.length} ${isLaser ? "DXF" : "STL"} files`
-                : `Preview ${isLaser ? "DXF" : "STL"}`}
+              : storedParts.length > 1
+                ? `Preview ${storedParts.length} ${fileLabel} files`
+                : `Preview ${fileLabel}`}
           </Button>
           {previewOpen &&
             (isLaser ? (
-              <BookedDxfPreview parts={parts} ownMaterial={Boolean(booking.own_material)} />
+              <BookedDxfPreview parts={storedParts} ownMaterial={Boolean(booking.own_material)} />
             ) : (
               <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading preview" />}>
-                <BookedStlPreview parts={parts} maxPrintSize={booking.equipment_max_print_size ?? null} />
+                <BookedStlPreview parts={storedParts} maxPrintSize={booking.equipment_max_print_size ?? null} />
               </Suspense>
             ))}
         </div>

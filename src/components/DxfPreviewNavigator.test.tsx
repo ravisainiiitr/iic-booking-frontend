@@ -12,7 +12,11 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   apiClient: api,
 }));
 vi.mock("@/components/DxfModelPreview", () => {
-  const Stub = ({ widthMm }: { widthMm?: number | null }) => <div data-testid="dxf-preview-stub">{widthMm}</div>;
+  const Stub = ({ widthMm, materialFamily }: { widthMm?: number | null; materialFamily?: string | null }) => (
+    <div data-testid="dxf-preview-stub" data-family={materialFamily ?? ""}>
+      {widthMm}
+    </div>
+  );
   return { default: Stub, DxfModelPreview: Stub };
 });
 
@@ -143,5 +147,11 @@ describe("BookedDxfPreview", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Previous file" }));
     expect(api.getLaserCutDxfText).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives the 3D view the sheet's material family, as on the booking page", async () => {
+    api.getLaserCutDxfText.mockResolvedValue({ text: dxf });
+    render(<BookedDxfPreview parts={[{ ...part(1), material_family: "ACRYLIC" }]} />);
+    expect((await screen.findByTestId("dxf-preview-stub")).getAttribute("data-family")).toBe("ACRYLIC");
   });
 });

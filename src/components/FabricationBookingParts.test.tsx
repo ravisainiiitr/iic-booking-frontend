@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   replaceBookingFabricationFiles: vi.fn(),
   getEquipmentLaserSheetMaterials: vi.fn(async () => ({ data: { materials: [], own_material_fixed_charge: "250.00" } })),
   getToken: vi.fn(() => "tok"),
+  getLaserCutDxfText: vi.fn(async () => ({ text: "" })),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -213,23 +214,54 @@ describe("FabricationBookingParts", () => {
     await waitFor(() => expect(api.replaceBookingFabricationFiles).toHaveBeenCalledWith(673, expect.any(Object)));
   });
 
-  it("offers a 3D preview of the STL files on a 3D print booking, but not on the printed job sheet", async () => {
+  it("shows the 3D preview of the STL files straight away on a 3D print booking, but not on the printed job sheet", async () => {
     const printParts: FabricationPart[] = [
-      { kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1 },
+      { kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1, file_available: true },
       { kind: "print", analysis_id: "p2", name: "Hub", filename: "hub.stl", quantity: 2 },
     ];
     const printBooking = booking({ equipment_profile_type: "PRINT_3D", fabrication_parts: printParts });
     const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
 
-    const toggle = screen.getByTestId("print-preview-toggle");
-    expect(toggle.textContent).toContain("Preview 2 STL files");
-    fireEvent.click(toggle);
     expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("gear.stl,hub.stl");
+    const toggle = screen.getByTestId("print-preview-toggle");
     expect(toggle.textContent).toContain("Hide preview");
+    fireEvent.click(toggle);
+    expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+    expect(toggle.textContent).toContain("Preview 2 STL files");
     unmount();
 
     render(<FabricationBookingParts booking={printBooking} printable />);
     expect(screen.queryByTestId("print-preview-toggle")).toBeNull();
+    expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+  });
+
+  it("previews only the STL files still stored and explains the ones deleted after completion", async () => {
+    const printBooking = booking({
+      equipment_profile_type: "PRINT_3D",
+      fabrication_parts: [
+        { kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1, file_available: false },
+        { kind: "print", analysis_id: "p2", name: "Hub", filename: "hub.stl", quantity: 1, file_available: true },
+      ],
+    });
+    const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
+    expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("hub.stl");
+    expect(screen.getByTestId("fabrication-file-removed-p1").textContent).toBe("STL removed");
+    expect(screen.queryByRole("button", { name: "Download gear.stl" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Download hub.stl" })).toBeTruthy();
+    expect(screen.getByTestId("fabrication-files-removed").textContent).toContain("Some STL files were deleted");
+    unmount();
+
+    render(
+      <FabricationBookingParts
+        booking={booking({
+          equipment_profile_type: "PRINT_3D",
+          fabrication_parts: [{ kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1, file_available: false }],
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("print-preview-toggle")).toBeNull();
+    expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+    expect(screen.getByTestId("fabrication-files-removed").textContent).toContain("The STL files were deleted");
   });
 
   it("blocks a quantity below one", async () => {
