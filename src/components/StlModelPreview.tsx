@@ -8,6 +8,16 @@ import { drawMeshToCanvas } from "@/lib/preview3d/softwareRender";
 import type { StlMeshData, StlMeshPhase } from "@/lib/preview3d/stlMesh";
 import { isIdentity, orientMesh, viewerToPrinter, type Orientation, type Vec3 } from "@/lib/preview3d/orientation";
 import { computeSupports, type SupportColumns, type SupportViewMode } from "@/lib/preview3d/supportGeometry";
+import {
+  buildAdhesion,
+  buildSupportStructure,
+  resinLevelFor,
+  supportStyleFor,
+  type AdhesionKind,
+  type AdhesionStructure,
+  type SupportStructure,
+  type SupportStyle,
+} from "@/lib/preview3d/supportStructures";
 import { fitsOnlyWhenRotated, fitsPrintSize, formatPrintSizeLimit, type PrintSizeLimit } from "@/lib/printSizeLimit";
 import { cn } from "@/lib/utils";
 import { PreviewStage, type ViewPreset } from "@/components/preview3d/stage";
@@ -39,7 +49,36 @@ export interface StlPreviewSupports {
   color?: string | null;
   /** e.g. "Supports ~3.2 g": shown with the support toggle. */
   summary?: string | null;
+  /** Support type (normal, lines, tree, organic, resin_medium…): drawn the way it prints. Without a type or
+   * technology the supports are plain columns. */
+  type?: string | null;
+  /** FDM / RESIN / MJP: picks the default look when there is no type. */
+  technology?: string | null;
+  /** Support density (%) and the type's material factor: the drawn supports match the estimated volume. */
+  densityPct?: number | null;
+  volumeFactor?: number | null;
+  /** Interface (roof) thickness under the overhangs, mm; 0 / empty = none. */
+  interfaceMm?: number | null;
+  /** Bed adhesion drawn on the plate. */
+  adhesion?: string | null;
+  brimWidthMm?: number | null;
+  raftMm?: number | null;
 }
+
+const SUPPORT_REBUILD_DELAY_MS = 60;
+
+const SUPPORT_STYLE_LABEL: Record<SupportStyle, string> = {
+  columns: "Column",
+  grid: "Grid",
+  lines: "Line",
+  zigzag: "Zigzag",
+  snug: "Snug",
+  concentric: "Concentric",
+  gyroid: "Gyroid",
+  tree: "Tree",
+  organic: "Organic tree",
+  resin: "Resin",
+};
 
 export interface StlPreviewTimeline {
   /** Share of the print time done at each of equal heights (from the estimate). */
@@ -180,7 +219,13 @@ export function StlModelPreview({
   const [cutFraction, setCutFraction] = useState(1);
   const [exceedsBed, setExceedsBed] = useState(false);
   const [sceneVersion, setSceneVersion] = useState(0);
-  const [supportState, setSupportState] = useState<{ mesh: StlMeshData; key: string; data: SupportColumns } | null>(null);
+  const [supportState, setSupportState] = useState<{
+    mesh: StlMeshData;
+    key: string;
+    data: SupportColumns;
+    structure: SupportStructure;
+    adhesion: AdhesionStructure | null;
+  } | null>(null);
 
   const appearance = useMemo(
     () => printAppearance({ materialName, materialCode, colorHint }),
@@ -237,23 +282,61 @@ export function StlModelPreview({
     };
   }, [buffer, use3d, coarse]);
 
-  // Support columns (and the faces that need them) follow the orientation; computed after the frame paints.
-  const supportKey = `${supportMode}:${supportAngle}`;
+  // Supports (and the faces that need them) follow the orientation and the chosen type; computed after the
+  // frame paints, a moment after the last change.
+  const supportStyle = supportStyleFor(supportView?.type, supportView?.technology);
+  const adhesionKind: AdhesionKind =
+    supportView?.adhesion === "brim" || supportView?.adhesion === "raft" ? supportView.adhesion : "none";
+  const supportKey = [
+    supportMode,
+    supportAngle,
+    supportStyle,
+    supportView?.type ?? "",
+    supportView?.densityPct ?? "",
+    supportView?.volumeFactor ?? "",
+    supportView?.interfaceMm ?? "",
+    adhesionKind,
+    supportView?.brimWidthMm ?? "",
+    supportView?.raftMm ?? "",
+  ].join(":");
+  const supportOptionsRef = useRef(supportView);
+  supportOptionsRef.current = supportView;
   useEffect(() => {
     if (!mesh || !use3d || !showSupportControls) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       if (cancelled) return;
+      const view = supportOptionsRef.current;
       const data = computeSupports(mesh.positions, { mode: supportMode, angleDeg: supportAngle, gridCells: coarse ? 45 : 70 });
-      setSupportState({ mesh, key: supportKey, data });
-    }, 0);
+      const structure = buildSupportStructure(data, {
+        style: supportStyle,
+        densityPct: view?.densityPct,
+        volumeFactor: view?.volumeFactor,
+        interfaceMm: view?.interfaceMm,
+        resinLevel: resinLevelFor(view?.type),
+        floorY: mesh.min[1],
+        maxElements: coarse ? 4000 : 9000,
+      });
+      const adhesion =
+        adhesionKind === "none"
+          ? null
+          : buildAdhesion(mesh.positions, {
+              kind: adhesionKind,
+              brimWidthMm: view?.brimWidthMm,
+              raftMm: view?.raftMm,
+              supports: data,
+            });
+      setSupportState({ mesh, key: supportKey, data, structure, adhesion });
+    }, SUPPORT_REBUILD_DELAY_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [mesh, use3d, showSupportControls, supportMode, supportAngle, supportKey, coarse]);
-  const supportData =
-    showSupportControls && supportState && supportState.mesh === mesh && supportState.key === supportKey ? supportState.data : null;
+  }, [mesh, use3d, showSupportControls, supportMode, supportAngle, supportStyle, adhesionKind, supportKey, coarse]);
+  const supportReady = showSupportControls && supportState && supportState.mesh === mesh && supportState.key === supportKey;
+  const supportData = supportReady ? supportState.data : null;
+  const supportStructure = supportReady ? supportState.structure : null;
+  const adhesionStructure = supportReady ? supportState.adhesion : null;
   // With supports shown, the scene waits for them (a moment) instead of drawing twice.
   const supportsPending = showSupportControls && use3d && !supportData;
 
@@ -290,7 +373,8 @@ export function StlModelPreview({
       if (sceneRef.current) stage.clearContent?.();
       const options = {
         overLimit,
-        ...(supportData ? { supports: supportData, supportColor } : {}),
+        ...(supportData ? { supports: supportData, structure: supportStructure, supportColor } : {}),
+        ...(adhesionStructure ? { adhesion: adhesionStructure } : {}),
         ...(keepView ? { keepView: true } : {}),
       };
       const result = buildPrintScene(stage, mesh, appearance, bedSize, layerHeightMm, options);
@@ -305,7 +389,22 @@ export function StlModelPreview({
     }
     // bedSize is compared by value: callers often pass a new object literal each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, mesh, rawMesh, appearance, bedSize?.x, bedSize?.y, bedSize?.z, layerHeightMm, overLimit, supportData, supportColor, supportsPending]);
+  }, [
+    stage,
+    mesh,
+    rawMesh,
+    appearance,
+    bedSize?.x,
+    bedSize?.y,
+    bedSize?.z,
+    layerHeightMm,
+    overLimit,
+    supportData,
+    supportStructure,
+    adhesionStructure,
+    supportColor,
+    supportsPending,
+  ]);
 
   useEffect(() => {
     const scene = sceneRef.current;
@@ -505,9 +604,13 @@ export function StlModelPreview({
                 style={{ backgroundColor: supportColor }}
                 aria-hidden
               />
-              {supportMode === "none"
-                ? "No supports"
-                : supportView?.summary || `Supports: ${supportData?.count ?? 0} columns`}
+              <span data-support-style={supportStyle}>
+                {supportMode === "none"
+                  ? "No supports"
+                  : supportView?.summary ||
+                    (supportStyle === "columns" ? `Supports: ${supportData?.count ?? 0} columns` : `${SUPPORT_STYLE_LABEL[supportStyle]} supports`)}
+              </span>
+              {adhesionKind !== "none" && <span className="text-muted-foreground">· {adhesionKind}</span>}
             </PreviewChip>
           )}
         </div>

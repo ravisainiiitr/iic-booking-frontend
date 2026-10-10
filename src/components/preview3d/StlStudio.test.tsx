@@ -110,6 +110,34 @@ describe("StlModelPreview: supports, orientation and layers", () => {
     expect(three.stages).toBe(1);
   });
 
+  it("draws the chosen support type and the brim, and re-draws when the type changes", async () => {
+    type Opts = {
+      structure?: { style: string; boxCount: number; rodCount: number };
+      adhesion?: { kind: string; boxCount: number };
+    };
+    const buffer = bracket();
+    const supports = { mode: "buildplate" as const, angleDeg: 45, technology: "FDM", densityPct: 15 };
+    const { rerender } = render(
+      <StlModelPreview buffer={buffer} bedSize={{ x: 220, y: 220, z: 250 }} supports={{ ...supports, type: "tree", adhesion: "brim" }} />,
+    );
+    await waitFor(() => expect((three.calls.at(-1)?.[5] as Opts | undefined)?.structure?.style).toBe("tree"));
+    let opts = three.calls.at(-1)![5] as Opts;
+    expect(opts.structure!.rodCount).toBeGreaterThan(0);
+    expect(opts.structure!.boxCount).toBe(0);
+    expect(opts.adhesion).toMatchObject({ kind: "brim" });
+    expect(opts.adhesion!.boxCount).toBeGreaterThan(0);
+    expect(screen.getByTestId("stl-preview-supports").textContent).toContain("Tree supports");
+    expect(screen.getByTestId("stl-preview-supports").textContent).toContain("brim");
+
+    rerender(<StlModelPreview buffer={buffer} bedSize={{ x: 220, y: 220, z: 250 }} supports={{ ...supports, type: "lines" }} />);
+    await waitFor(() => expect((three.calls.at(-1)![5] as Opts).structure?.style).toBe("lines"));
+    opts = three.calls.at(-1)![5] as Opts;
+    expect(opts.structure!.boxCount).toBeGreaterThan(0);
+    expect(opts.structure!.rodCount).toBe(0);
+    expect(opts.adhesion).toBeUndefined();
+    expect(three.stages).toBe(1);
+  });
+
   it("shows no supports for 'none' and re-draws the turned model on the same stage", async () => {
     const buffer = bracket();
     const { rerender } = render(
@@ -133,8 +161,8 @@ describe("StlModelPreview: supports, orientation and layers", () => {
     );
     await waitFor(() => expect(screen.getByTestId("stl-preview-size").textContent).toContain("40 × 40 × 20 mm"));
     expect(screen.getByTestId("stl-preview-orientation-note").textContent).toBe("User-selected orientation");
+    await waitFor(() => expect((three.calls.at(-1)![5] as { keepView?: boolean }).keepView).toBe(true));
     expect(three.stages).toBe(1);
-    expect((three.calls.at(-1)![5] as { keepView?: boolean }).keepView).toBe(true);
   });
 
   it("re-checks the size limit for the turned model", async () => {

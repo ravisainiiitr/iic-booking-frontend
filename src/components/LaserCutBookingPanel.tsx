@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { apiClient, type LaserCutAnalysis, type LaserCutBatch, type LaserSheetMaterial } from "@/lib/api";
 import { DXF_UNIT_LABELS, parseDxfGeometry, unitToMm, type DxfGeometry, type DxfUnitKey } from "@/lib/dxfGeometry";
 import { extractDxfFilesFromZip } from "@/lib/extractZipDxfFiles";
-import { laserPartTimeText } from "@/lib/laserTimeEstimate";
+import { formatSeconds, laserPartTimeText } from "@/lib/laserTimeEstimate";
+import { PREVIEW_WIDE_HEIGHT_CLASS } from "@/components/preview3d/PreviewChrome";
 import { NO_FABRICATION_MATERIALS_MESSAGE } from "@/lib/fabricationProfiles";
 import {
   LIVE_INPUT_DEBOUNCE_MS,
@@ -211,6 +212,14 @@ export function LaserCutBookingPanel({
 
   const materialEstimate = useMemo(
     () => Math.round(parts.reduce((s, p) => s + (Number(p.estimated_material_cost) || 0), 0) * 100) / 100,
+    [parts],
+  );
+  const cutSecondsPerSet = useMemo(
+    () =>
+      parts.reduce(
+        (s, p) => (p.status === "FAILED" ? s : s + (Number(p.time_estimate?.seconds_each) || 0) * Math.max(1, Number(p.quantity) || 1)),
+        0,
+      ),
     [parts],
   );
   const ownSheet = ownMaterial || Boolean(ownMaterialSelected);
@@ -652,9 +661,21 @@ export function LaserCutBookingPanel({
           </div>
         )}
 
+        {previewItems.length > 0 && (
+          <div data-testid="laser-preview-area">
+            <DxfPreviewNavigator
+              items={previewItems}
+              activeId={previewActiveId}
+              onActiveChange={setPreviewId}
+              previewHeightClass={PREVIEW_WIDE_HEIGHT_CLASS}
+            />
+          </div>
+        )}
+
         {parts.length > 0 && (
           <div className="space-y-3" data-testid="laser-parts">
             <p className="text-sm font-medium">Parts ({parts.length})</p>
+            <div className="grid items-start gap-3 2xl:grid-cols-2">
             {parts.map((p) => {
               const draft = draftFor(p);
               const saving = savingIds.has(p.id);
@@ -802,19 +823,31 @@ export function LaserCutBookingPanel({
                 </div>
               );
             })}
+            </div>
+          </div>
+        )}
 
-            <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-md bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">
+        {(parts.length > 0 || ownMaterialAvailable) && (
+        <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="laser-summary-grid">
+        {parts.length > 0 && (
+            <div className="space-y-1 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+              <p className="text-muted-foreground">
                 {sets > 1 ? `Estimated sheet material (all parts × ${sets} sets)` : "Estimated sheet material (all parts)"}
-              </span>
-              <span
-                className={cn("font-semibold tabular-nums", ownMaterial && "text-muted-foreground line-through")}
+              </p>
+              <p
+                className={cn("text-base font-semibold tabular-nums", ownMaterial && "text-muted-foreground line-through")}
                 data-testid="laser-material-estimate"
               >
                 {formatRupees(Math.round(materialEstimate * sets * 100) / 100)}
-              </span>
+              </p>
             </div>
-          </div>
+        )}
+        {cutSecondsPerSet > 0 && (
+            <div className="space-y-1 rounded-md border bg-muted/30 px-3 py-2 text-sm" data-testid="laser-cut-time">
+              <p className="text-muted-foreground">{sets > 1 ? `Cutting time (all parts × ${sets} sets)` : "Cutting time (all parts)"}</p>
+              <p className="text-base font-semibold tabular-nums">{formatSeconds(cutSecondsPerSet * sets)}</p>
+              <p className="text-xs text-muted-foreground">Setup and sheet loading are added in the charge estimate.</p>
+            </div>
         )}
 
         {ownMaterialAvailable && (
@@ -833,6 +866,8 @@ export function LaserCutBookingPanel({
             </span>
           </label>
         )}
+        </div>
+        )}
 
         {ownSheet && (
           <p className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300" data-testid="laser-own-sheet-note">
@@ -850,10 +885,6 @@ export function LaserCutBookingPanel({
           <p className="text-sm text-destructive" data-testid="laser-block-reason">
             {blockReason}
           </p>
-        )}
-
-        {previewItems.length > 0 && (
-          <DxfPreviewNavigator items={previewItems} activeId={previewActiveId} onActiveChange={setPreviewId} />
         )}
       </CardContent>
     </Card>

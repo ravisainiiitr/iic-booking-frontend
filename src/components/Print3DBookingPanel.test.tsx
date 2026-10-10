@@ -350,6 +350,24 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
     expect(summary.textContent).toContain("Model 18.2 g + supports 1.7 g + raft 1.4 g + waste 0.5 g");
     expect(screen.getByTestId("print-overhangs").textContent).toContain("Tree · auto → touching build plate only · raft");
     expect(screen.getByTestId("print-bar-weight").textContent).toContain("raft 1.4 g");
+
+    await waitFor(() =>
+      expect(preview.props[preview.props.length - 1].supports).toMatchObject({
+        type: "tree",
+        technology: "FDM",
+        densityPct: 12,
+        volumeFactor: 0.55,
+        interfaceMm: 0,
+        adhesion: "raft",
+        summary: "Tree supports ~1.7 g",
+      }),
+    );
+    expect(screen.getByTestId("print-preview-area")).toBeTruthy();
+    expect(screen.getByTestId("print-options-grid").contains(screen.getByTestId("print-adhesion-card"))).toBe(true);
+    const bar = screen.getByTestId("print-weight-bar");
+    expect(bar.textContent).toContain("Model");
+    expect(bar.textContent).toContain("Supports");
+    expect(bar.textContent).toContain("Raft");
   });
 
   it("keeps the support choice on printers set to print without supports in Auto", async () => {
@@ -498,7 +516,19 @@ describe("Print3DBookingPanel orientation and live estimate", { timeout: 20000 }
     const { onReady } = setup(LIMIT, { charge: { amount: "1234.5" } });
     expect(await screen.findByTestId("print-orientation")).toBeTruthy();
     await waitFor(() =>
-      expect(lastPreview().supports).toEqual({ mode: "buildplate", angleDeg: 45, color: null, summary: "Supports ~6.2 g" }),
+      expect(lastPreview().supports).toEqual({
+        mode: "buildplate",
+        angleDeg: 45,
+        color: null,
+        summary: "Supports ~6.2 g",
+        type: null,
+        technology: "FDM",
+        densityPct: 12,
+        volumeFactor: null,
+        interfaceMm: 0,
+        adhesion: "none",
+        brimWidthMm: null,
+      }),
     );
     expect(lastPreview().timeline).toEqual({ progress: [0.5, 1], printMinutes: 155, warmupMinutes: 10 });
     expect(lastPreview().orientation).toBeNull();

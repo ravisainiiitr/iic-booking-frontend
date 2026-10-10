@@ -4,6 +4,7 @@ import type { StlMeshData } from "@/lib/preview3d/stlMesh";
 import { formatMm } from "@/lib/preview3d/env";
 import { createDimensionGroup } from "./dimensions";
 import type { SupportColumns } from "@/lib/preview3d/supportGeometry";
+import { BOX_STRIDE, ROD_STRIDE, type AdhesionStructure, type SupportStructure } from "@/lib/preview3d/supportStructures";
 import { buildPlateTexture, labelTexture } from "./textures";
 import type { PreviewStage } from "./stage";
 
@@ -74,7 +75,11 @@ export interface PrintSceneOptions {
   overLimit?: boolean;
   /** Support columns and overhang faces for this mesh (same coordinates as the mesh). */
   supports?: SupportColumns | null;
+  /** Supports drawn as the chosen type prints (walls, interface, trunks…); else plain columns. */
+  structure?: SupportStructure | null;
   supportColor?: string;
+  /** Brim or raft on the plate (a raft lifts the model and supports). */
+  adhesion?: AdhesionStructure | null;
   /** Rebuilding the same model (turned, new supports): keep the camera where the user left it. */
   keepView?: boolean;
 }
@@ -113,6 +118,94 @@ function buildSupportMesh(s: SupportColumns, color: string, clip: THREE.Plane[])
   mesh.receiveShadow = true;
   mesh.name = "supports";
   return mesh;
+}
+
+function supportMaterial(color: string, clip: THREE.Plane[], opacity: number) {
+  return new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color),
+    roughness: 0.9,
+    metalness: 0,
+    transparent: opacity < 1,
+    opacity,
+    clippingPlanes: clip,
+  });
+}
+
+/** Flat-shaded boxes from the structure layout (centre x, bottom y, centre z, length, height, width, yaw). */
+function buildBoxes(data: Float32Array, count: number, material: THREE.Material, name: string): THREE.InstancedMesh | null {
+  if (!count) return null;
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), material, count);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const p = new THREE.Vector3();
+  const s = new THREE.Vector3();
+  for (let i = 0; i < count; i += 1) {
+    const o = i * BOX_STRIDE;
+    const h = Math.max(0.02, data[o + 4]);
+    p.set(data[o], data[o + 1] + h / 2, data[o + 2]);
+    q.setFromAxisAngle(up, data[o + 6]);
+    s.set(Math.max(0.02, data[o + 3]), h, Math.max(0.02, data[o + 5]));
+    mesh.setMatrixAt(i, m.compose(p, q, s));
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = name;
+  return mesh;
+}
+
+/** Tapered struts: a unit cylinder per strut, narrowed towards its top end in the vertex shader. */
+function buildRods(data: Float32Array, count: number, material: THREE.MeshStandardMaterial, segments: number): THREE.InstancedMesh | null {
+  if (!count) return null;
+  const geometry = new THREE.CylinderGeometry(1, 1, 1, segments, 1);
+  const taper = new Float32Array(count);
+  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+  const s = new THREE.Vector3();
+  for (let i = 0; i < count; i += 1) {
+    const o = i * ROD_STRIDE;
+    a.set(data[o], data[o + 1], data[o + 2]);
+    b.set(data[o + 3], data[o + 4], data[o + 5]);
+    dir.subVectors(b, a);
+    const len = Math.max(0.02, dir.length());
+    q.setFromUnitVectors(up, dir.normalize());
+    const r0 = Math.max(0.05, data[o + 6]);
+    taper[i] = Math.max(0.05, data[o + 7]) / r0;
+    s.set(r0, len, r0);
+    mesh.setMatrixAt(i, m.compose(a.add(b).multiplyScalar(0.5), q, s));
+  }
+  geometry.setAttribute("aTaper", new THREE.InstancedBufferAttribute(taper, 1));
+  material.onBeforeCompile = (shader: { vertexShader: string }) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute float aTaper;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\ntransformed.xz *= mix(1.0, aTaper, position.y + 0.5);");
+  };
+  material.customProgramCacheKey = () => "support-taper";
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = "support-struts";
+  return mesh;
+}
+
+function buildStructureGroup(st: SupportStructure, color: string, clip: THREE.Plane[]): THREE.Group | null {
+  if (!st.boxCount && !st.rodCount && !st.roofCount) return null;
+  const group = new THREE.Group();
+  group.name = "supports";
+  const walls = buildBoxes(st.boxes, st.boxCount, supportMaterial(color, clip, st.style === "columns" ? 0.55 : 0.85), "support-walls");
+  if (walls) group.add(walls);
+  const roofColor = new THREE.Color(color).multiplyScalar(0.88);
+  const roofs = buildBoxes(st.roofs, st.roofCount, supportMaterial(`#${roofColor.getHexString()}`, clip, 0.95), "support-interface");
+  if (roofs) group.add(roofs);
+  const rods = buildRods(st.rods, st.rodCount, supportMaterial(color, clip, 0.92), st.style === "organic" ? 10 : 7);
+  if (rods) group.add(rods);
+  return group;
 }
 
 function buildOverhangMesh(positions: Float32Array, tris: Uint32Array, clip: THREE.Plane[]): THREE.Mesh | null {
@@ -194,11 +287,28 @@ export function buildPrintScene(
   model.castShadow = true;
   model.receiveShadow = true;
   // Dropped onto the plate and centred on it; supports and overhang tint share the model's coordinates.
+  const lift = Math.max(0, options.adhesion?.liftMm ?? 0);
   const placed = new THREE.Group();
-  placed.position.set(-(mesh.min[0] + mesh.max[0]) / 2, -mesh.min[1], -(mesh.min[2] + mesh.max[2]) / 2);
+  placed.position.set(-(mesh.min[0] + mesh.max[0]) / 2, lift - mesh.min[1], -(mesh.min[2] + mesh.max[2]) / 2);
   placed.add(model);
-  const supportMesh = options.supports ? buildSupportMesh(options.supports, options.supportColor || "#e7e5e4", clip) : null;
+  const supportColor = options.supportColor || "#e7e5e4";
+  const supportMesh: THREE.Object3D | null = options.structure
+    ? buildStructureGroup(options.structure, supportColor, clip)
+    : options.supports
+      ? buildSupportMesh(options.supports, supportColor, clip)
+      : null;
   if (supportMesh) placed.add(supportMesh);
+  const adhesion = options.adhesion;
+  if (adhesion?.boxCount) {
+    const plateLook = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(appearance.color).lerp(new THREE.Color(0xffffff), 0.12),
+      roughness: 0.85,
+      metalness: 0,
+      clippingPlanes: clip,
+    });
+    const slabs = buildBoxes(adhesion.boxes, adhesion.boxCount, plateLook, adhesion.kind === "raft" ? "raft" : "brim");
+    if (slabs) placed.add(slabs);
+  }
   const overhangMesh = options.supports ? buildOverhangMesh(mesh.positions, options.supports.overhangTriangles, clip) : null;
   if (overhangMesh) {
     overhangMesh.visible = false;
@@ -206,7 +316,7 @@ export function buildPrintScene(
   }
   stage.content.add(placed);
 
-  const modelBox = new THREE.Box3(new THREE.Vector3(-size.x / 2, 0, -size.z / 2), new THREE.Vector3(size.x / 2, size.y, size.z / 2));
+  const modelBox = new THREE.Box3(new THREE.Vector3(-size.x / 2, lift, -size.z / 2), new THREE.Vector3(size.x / 2, lift + size.y, size.z / 2));
   const plateW = bed?.x && bed.x > 0 ? bed.x : Math.max(100, Math.ceil((size.x * 1.6) / 10) * 10);
   const plateD = bed?.y && bed.y > 0 ? bed.y : Math.max(100, Math.ceil((size.z * 1.6) / 10) * 10);
   const exceedsBed =
@@ -280,11 +390,11 @@ export function buildPrintScene(
   stage.setFocus(homeBox, { sheet: plateBox, shadowBox, keepView: options.keepView });
   const setCut = (heightMm: number | null) => {
     const cut = heightMm !== null && heightMm < size.y - 1e-6;
-    cutPlane.constant = cut ? (heightMm as number) : 1e6;
+    cutPlane.constant = cut ? (heightMm as number) + lift : 1e6;
     material.side = cut ? THREE.DoubleSide : THREE.FrontSide;
     material.needsUpdate = true;
     cutIndicator.visible = cut;
-    if (cut) cutIndicator.position.y = heightMm as number;
+    if (cut) cutIndicator.position.y = (heightMm as number) + lift;
     stage.invalidate();
   };
   return { materials: [material], size, exceedsBed, supports: supportMesh, overhangs: overhangMesh, setCut };

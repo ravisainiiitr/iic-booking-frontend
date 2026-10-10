@@ -84,10 +84,20 @@ interface DxfPreviewNavigatorProps {
   activeId: string | null;
   onActiveChange: (id: string) => void;
   className?: string;
+  /** Height classes of the preview (default 400 / 440 px). */
+  previewHeightClass?: string;
 }
 
+const DEFAULT_PREVIEW_HEIGHT = "h-[400px] sm:h-[440px]";
+
 /** 3D / 2D preview of one DXF at a time, with previous / next, a file list and swipe to move between files. */
-export function DxfPreviewNavigator({ items, activeId, onActiveChange, className }: DxfPreviewNavigatorProps) {
+export function DxfPreviewNavigator({
+  items,
+  activeId,
+  onActiveChange,
+  className,
+  previewHeightClass = DEFAULT_PREVIEW_HEIGHT,
+}: DxfPreviewNavigatorProps) {
   const baseId = useId();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -247,7 +257,7 @@ export function DxfPreviewNavigator({ items, activeId, onActiveChange, className
             {item.error}
           </p>
         ) : item.geometry === undefined ? (
-          <div className="h-[400px] w-full animate-pulse rounded-lg border bg-muted sm:h-[440px]" aria-label="Loading preview" role="status" />
+          <div className={cn("w-full animate-pulse rounded-lg border bg-muted", previewHeightClass)} aria-label="Loading preview" role="status" />
         ) : item.geometry === null ? (
           <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
             The preview cannot draw this file (for example a binary DXF), but the server measured it
@@ -255,10 +265,11 @@ export function DxfPreviewNavigator({ items, activeId, onActiveChange, className
           </p>
         ) : (
           <Suspense
-            fallback={<div className="h-[400px] w-full animate-pulse rounded-lg border bg-muted sm:h-[440px]" aria-label="Loading preview" />}
+            fallback={<div className={cn("w-full animate-pulse rounded-lg border bg-muted", previewHeightClass)} aria-label="Loading preview" />}
           >
             <DxfModelPreview
               key={item.id}
+              heightClass={previewHeightClass}
               geometry={item.geometry}
               unitScale={item.unitScale}
               thicknessMm={item.thicknessMm ?? null}

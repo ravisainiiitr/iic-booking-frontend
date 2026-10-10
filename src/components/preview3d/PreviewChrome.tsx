@@ -6,6 +6,9 @@ import type { ViewPreset } from "./stage";
 /** Outer frame: the scene on top, the control bar underneath. */
 export const PREVIEW_FRAME_CLASS = "flex w-full flex-col overflow-hidden rounded-lg border border-border bg-card";
 
+/** Height of a preview that spans the page width (booking page), with the options laid out below it. */
+export const PREVIEW_WIDE_HEIGHT_CLASS = "h-[56vh] min-h-[360px] max-h-[760px] sm:h-[62vh]";
+
 /** Studio backdrop that follows the OS theme; the WebGL canvas is transparent on top of it. */
 export const PREVIEW_SCENE_CLASS =
   "relative min-h-0 flex-1 bg-gradient-to-b from-slate-100 to-slate-300 dark:from-slate-800 dark:to-slate-950";

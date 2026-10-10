@@ -74,6 +74,7 @@ import type { StlMeshData } from "@/lib/preview3d/stlMesh";
 import type { SupportViewMode } from "@/lib/preview3d/supportGeometry";
 import { PrintOrientationControls, orientationHint } from "@/components/PrintOrientationControls";
 import { StlThumbnail } from "@/components/preview3d/StlThumbnail";
+import { PREVIEW_FRAME_CLASS, PREVIEW_WIDE_HEIGHT_CLASS } from "@/components/preview3d/PreviewChrome";
 import {
   AlertTriangle,
   Check,
@@ -1249,19 +1250,30 @@ export function Print3DBookingPanel({
     else mode = previewBreakdown && !currentDraftPending ? (previewBreakdown.support_mode as SupportViewMode) : "buildplate";
     const angle = supportAngle ?? previewBreakdown?.support_angle_deg ?? defaultSupportAngle;
     const supportG = previewBreakdown?.support_g ?? 0;
+    const typeOption = supportTypes.find((t) => t.key === effectiveSupportType) ?? null;
+    const typeLabel = typeOption ? `${typeOption.label.replace(/\s*\(.*\)$/, "")} supports` : "Supports";
     const summary =
       currentDraftPending || orientingIds.has(currentItemId ?? "")
-        ? "Supports: updating…"
+        ? `${typeLabel}: updating…`
         : previewBreakdown && supportG > 0.05
-          ? `Supports ~${supportG < 10 ? supportG.toFixed(1) : Math.round(supportG)} g${
+          ? `${typeLabel} ~${supportG < 10 ? supportG.toFixed(1) : Math.round(supportG)} g${
               previewBreakdown.support_material_code ? ` (${previewBreakdown.support_material_code})` : ""
             }`
           : null;
+    const layerMm = previewLayerHeight > 0 ? previewLayerHeight : supportDefaults?.layer_height_mm ?? 0.2;
+    const interfaceLayers = supportDefaults?.interface_layers ?? 0;
     return {
       mode,
       angleDeg: angle,
       color: supportMaterialId !== "same" ? "#f59e0b" : null,
       summary,
+      type: typeOption?.key ?? null,
+      technology: supportDefaults?.technology ?? null,
+      densityPct: supportDensity ?? previewBreakdown?.support_density_pct ?? supportDefaults?.density_pct ?? null,
+      volumeFactor: typeOption?.volume_factor ?? null,
+      interfaceMm: interfaceLayers > 0 && supportInterface !== false ? interfaceLayers * layerMm : 0,
+      adhesion,
+      brimWidthMm: supportDefaults?.brim_width_mm ?? null,
     };
   }, [
     supportsAvailable,
@@ -1274,6 +1286,13 @@ export function Print3DBookingPanel({
     orientingIds,
     currentItemId,
     supportMaterialId,
+    supportTypes,
+    effectiveSupportType,
+    previewLayerHeight,
+    supportDefaults,
+    supportDensity,
+    supportInterface,
+    adhesion,
   ]);
   const previewTimeline = previewBreakdown
     ? {
@@ -1300,8 +1319,8 @@ export function Print3DBookingPanel({
 
   const hasParts = completedItems.length > 0;
   const materialSection = (
-    <>
-      <div className="space-y-2">
+    <div className="grid items-start gap-4 md:grid-cols-2" data-testid="print-material-grid">
+      <div className="space-y-2 rounded-md border p-3">
         <Label htmlFor="print-material">Material</Label>
         <Select value={materialId} onValueChange={setMaterialId} disabled={disabled || analyzingStl}>
           <SelectTrigger id="print-material">
@@ -1322,7 +1341,7 @@ export function Print3DBookingPanel({
         )}
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 rounded-md border p-3">
         <div className="flex justify-between">
           <Label>Density</Label>
           <span className="text-sm text-muted-foreground">{density}%</span>
@@ -1337,7 +1356,7 @@ export function Print3DBookingPanel({
           aria-label="Density"
         />
       </div>
-    </>
+    </div>
   );
 
   const supportsSection = supportsAvailable ? (
@@ -1690,9 +1709,9 @@ export function Print3DBookingPanel({
             </span>
           </div>
         )}
-        <div className={cn("grid gap-4", previewEntries.length > 0 && "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
+        <div className="space-y-4">
         {previewEntries.length > 0 && (
-          <div className="min-w-0 space-y-2">
+          <div className="min-w-0 space-y-2" data-testid="print-preview-area">
             {previewEntries.length > 1 && (
               <div className="flex items-center gap-2">
                 <Button
@@ -1726,9 +1745,10 @@ export function Print3DBookingPanel({
               </div>
             )}
             <Suspense
-              fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading 3D preview" />}
+              fallback={<div className={cn("w-full animate-pulse rounded-lg border bg-muted", PREVIEW_WIDE_HEIGHT_CLASS)} aria-label="Loading 3D preview" />}
             >
               <StlModelPreview
+                className={cn(PREVIEW_FRAME_CLASS, PREVIEW_WIDE_HEIGHT_CLASS)}
                 buffer={currentPreviewBuffer}
                 bedSize={bedSize}
                 materialName={selectedMaterial?.name ?? null}
@@ -1764,8 +1784,9 @@ export function Print3DBookingPanel({
             </Suspense>
           </div>
         )}
-        <div className="space-y-4">
+        <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3" data-testid="print-options-grid">
           {currentPreviewItem ? (
+            <div className={cn("min-w-0", showComparison && "md:col-span-2 xl:col-span-3")}>
             <PrintOrientationControls
               orientation={currentOrientation}
               onChange={(next) => changeOrientation(currentPreviewItem.id, next)}
@@ -1781,18 +1802,19 @@ export function Print3DBookingPanel({
               saving={currentDraftPending || orientingIds.has(currentPreviewItem.id)}
               disabled={!orientationEnabled}
             />
+            </div>
           ) : (
             previewEntries.length > 0 &&
             !tooLarge &&
             !serverSizeError && (
-              <p className="text-sm text-muted-foreground" data-testid="print-orientation-waiting">
+              <p className="rounded-md border border-dashed p-3 text-sm text-muted-foreground" data-testid="print-orientation-waiting">
                 You can turn the part to need fewer supports once it is analysed.
               </p>
             )
           )}
           {supportsSection}
           {adhesionTypes.length > 1 && (
-            <div className="rounded-md border p-3">
+            <div className="rounded-md border p-3" data-testid="print-adhesion-card">
               <PrintAdhesionSelect
                 options={adhesionTypes}
                 value={adhesion}
@@ -1820,7 +1842,15 @@ export function Print3DBookingPanel({
         />
         {completedItems.length > 0 && !analyzingStl && (
           <>
-            <div className={cn("space-y-2 transition-opacity", recalculating && "opacity-60")} data-testid="print-parts" aria-busy={recalculating}>
+            <div
+              className={cn(
+                "grid items-start gap-4 transition-opacity xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]",
+                recalculating && "opacity-60",
+              )}
+              data-testid="print-parts"
+              aria-busy={recalculating}
+            >
+              <div className="min-w-0 space-y-2">
               <p className="text-sm font-medium">
                 {completedItems.length > 1 ? `Parts (${completedItems.length})` : "Part"}
               </p>
@@ -1916,6 +1946,9 @@ export function Print3DBookingPanel({
                   all {sets} sets.
                 </p>
               )}
+              </div>
+              <div className="min-w-0 space-y-2 rounded-md border p-3" data-testid="print-estimate-summary">
+              <p className="text-sm font-medium">Estimate</p>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Total weight</dt>
@@ -1955,7 +1988,8 @@ export function Print3DBookingPanel({
                 ) : null}
               </dl>
               {estimateTotals && (
-                <div className="rounded-md bg-muted/40 p-2 text-xs" data-testid="print-estimate-breakdown">
+                <div className="space-y-1.5 rounded-md bg-muted/40 p-2 text-xs" data-testid="print-estimate-breakdown">
+                  <PrintWeightBar totals={estimateTotals} />
                   <p className="font-medium text-foreground">{printEstimateSummary(estimateTotals)}</p>
                   <p className="text-muted-foreground">
                     {PRINT_ESTIMATE_NOTE}
@@ -1963,6 +1997,7 @@ export function Print3DBookingPanel({
                   </p>
                 </div>
               )}
+              </div>
             </div>
           </>
         )}
@@ -2044,6 +2079,35 @@ export function Print3DBookingPanel({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** Share of the estimated weight going to the model, supports, brim / raft and purge. */
+function PrintWeightBar({ totals }: { totals: PrintEstimateTotals }) {
+  const parts = [
+    { key: "model", label: "Model", grams: totals.modelG, className: "bg-primary" },
+    { key: "supports", label: "Supports", grams: totals.supportG, className: "bg-amber-500" },
+    { key: "adhesion", label: totals.adhesionLabel || "Brim / raft", grams: totals.adhesionG, className: "bg-sky-500" },
+    { key: "waste", label: "Purge / waste", grams: totals.wasteG, className: "bg-muted-foreground/50" },
+  ].filter((p) => p.grams > 0.05);
+  const sum = parts.reduce((s, p) => s + p.grams, 0);
+  if (sum <= 0 || parts.length < 2) return null;
+  return (
+    <div className="space-y-1" data-testid="print-weight-bar">
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+        {parts.map((p) => (
+          <div key={p.key} className={p.className} style={{ width: `${(p.grams / sum) * 100}%` }} />
+        ))}
+      </div>
+      <ul className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground">
+        {parts.map((p) => (
+          <li key={p.key} className="flex items-center gap-1">
+            <span className={cn("inline-block h-2 w-2 rounded-full", p.className)} aria-hidden />
+            {p.label} {Math.round((p.grams / sum) * 100)}%
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
