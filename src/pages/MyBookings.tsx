@@ -1756,7 +1756,7 @@ const MyBookings = () => {
                         <TableCell className="whitespace-nowrap text-center">
                           {formatDuration(booking.total_time_minutes)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-right font-medium text-primary tabular-nums">
+                        <TableCell className="whitespace-nowrap text-center font-medium text-primary tabular-nums">
                           ₹{Number(booking.total_charge).toFixed(2)}
                         </TableCell>
                         <TableCell>

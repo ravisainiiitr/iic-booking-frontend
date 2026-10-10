@@ -421,17 +421,17 @@ export default function TransactionsPanel({
                           )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{t.department_name}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="tabular-nums">
                           <SignedAmount type={t.transaction_type} amount={t.amount} />
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-right tabular-nums">
+                        <TableCell className="whitespace-nowrap tabular-nums">
                           {t.balance_after != null ? formatLedgerAmount(t.balance_after) : "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div>{t.performed_by || "—"}</div>
                           <div className="text-xs capitalize text-muted-foreground">{t.performer}</div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="cell-text-left">
                           {t.reference ? <div className="font-mono text-xs text-muted-foreground">{t.reference}</div> : null}
                           <div className="line-clamp-2 break-words" title={t.description}>
                             {t.description || "—"}

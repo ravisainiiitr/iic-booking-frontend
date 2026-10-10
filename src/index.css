@@ -533,8 +533,8 @@
 /*
  * Data tables: <Table> (components/ui/table.tsx) and raw <table className="ui-table">.
  * Centered tinted headings, column and row rules, faint zebra rows and a hover tint. Most rules sit in :where()
- * so a page's own utilities (bg-*, border-*, shadow-*) still win; heading look and the hover tint are enforced so
- * every list matches. The hover tint is an overlay, so rows with their own highlight colour keep it.
+ * so a page's own utilities (bg-*, border-*, shadow-*) still win; heading look, centred cells and the hover tint
+ * are enforced so every list matches. The hover tint is an overlay, so rows with their own highlight colour keep it.
  * Rows expose --row-bg / --row-hover so sticky cells (.table-sticky-cell) can repeat them over an opaque card.
  */
 .ui-table {
@@ -602,8 +602,24 @@
 :where(.ui-table > tfoot) {
   border-top: 1px solid var(--table-head-rule);
 }
-:where(.ui-table > tbody > tr > td:has(> [role="checkbox"]:only-child, > [data-slot="badge"]:only-child)) {
+/*
+ * Body cells sit centred under their headings (amounts too, with tabular figures). Cells spanning several
+ * columns (expanded details, empty states) keep their own layout; .cell-text-left keeps long free text readable.
+ */
+.ui-table > :is(tbody, tfoot) > tr > td:not([colspan]) {
   text-align: center;
+}
+.ui-table > :is(tbody, tfoot) > tr > td:not([colspan], .cell-text-left) > :is(div, span).flex:not(.flex-col) {
+  justify-content: center;
+}
+.ui-table > :is(tbody, tfoot) > tr > td:not([colspan], .cell-text-left) > :is(div, span).flex.flex-col {
+  align-items: center;
+}
+.ui-table > :is(tbody, tfoot) > tr > td.cell-text-left {
+  text-align: left;
+}
+:where(.ui-table td) :is(input, textarea) {
+  text-align: start;
 }
 .ui-table > tbody > tr > .table-sticky-cell {
   background:
@@ -734,6 +750,14 @@
     text-align: left !important;
     white-space: normal !important;
     overflow-wrap: anywhere;
+  }
+
+  .table-stack-mobile > table > tbody > tr > td > :is(div, span).flex:not(.flex-col) {
+    justify-content: flex-start !important;
+  }
+
+  .table-stack-mobile > table > tbody > tr > td > :is(div, span).flex.flex-col {
+    align-items: flex-start !important;
   }
 
   .table-stack-mobile > table > tbody > tr > td::before,
