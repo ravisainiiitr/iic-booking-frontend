@@ -910,6 +910,7 @@ export interface LedgerOwner {
 export interface LedgerOwnerDetail extends LedgerOwner {
   designation: string;
   phone: string;
+  profile_picture_url?: string | null;
   wallet_created_at: string | null;
   total_credits: string;
   total_debits: string;
