@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Box, Download, FileCog, History, Loader2 } from "lucide-react";
+import { Download, Eye, EyeOff, FileCog, History, Loader2 } from "lucide-react";
 import {
   apiClient,
   getApiOrigin,
@@ -214,6 +214,41 @@ export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: Fabric
   return <DxfPreviewNavigator items={items} activeId={current} onActiveChange={setActiveId} />;
 }
 
+/** Parts whose preview the user opened ("<booking>:<analysis>"); kept while the page is open, not stored. */
+const shownPreviews = new Set<string>();
+
+function previewKey(booking: FabricationBookingFields, analysisId: string): string {
+  return `${getRealBookingId(booking) ?? booking.booking_id}:${analysisId}`;
+}
+
+/** Test hook: forget the previews opened during this page session. */
+export function resetShownFabricationPreviews(): void {
+  shownPreviews.clear();
+}
+
+function BookedPartPreview({ booking, part }: { booking: FabricationBookingFields; part: FabricationPart }) {
+  if (part.kind === "laser") return <BookedDxfPreview parts={[part]} ownMaterial={Boolean(booking.own_material)} />;
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="flex h-[460px] w-full items-center justify-center gap-2 rounded-lg border bg-muted/40 text-sm text-muted-foreground sm:h-[520px]"
+          role="status"
+        >
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          Opening the 3D viewer…
+        </div>
+      }
+    >
+      <BookedStlPreview
+        parts={[part]}
+        maxPrintSize={booking.equipment_max_print_size ?? null}
+        onDownload={(p) => void downloadFabricationFile(p)}
+      />
+    </Suspense>
+  );
+}
+
 interface FabricationBookingPartsProps {
   booking: FabricationBookingFields;
   /** Job sheet: plain list, no actions. */
@@ -224,9 +259,15 @@ interface FabricationBookingPartsProps {
 export function FabricationBookingParts({ booking, printable, onUpdated }: FabricationBookingPartsProps) {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  // Shown straight away, as on the booking page.
-  const [previewOpen, setPreviewOpen] = useState(true);
+  // Hidden until asked for: nothing is downloaded and no 3D view is created for a collapsed part.
+  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set(shownPreviews));
   const parts = booking.fabrication_parts ?? [];
+  const togglePreview = (analysisId: string) => {
+    const key = previewKey(booking, analysisId);
+    if (shownPreviews.has(key)) shownPreviews.delete(key);
+    else shownPreviews.add(key);
+    setShown(new Set(shownPreviews));
+  };
   const changes = booking.fabrication_file_changes ?? [];
   const isLaser = booking.equipment_profile_type === "LASER_CUT_2D";
   const fileLabel = isLaser ? "DXF" : "STL";
@@ -270,57 +311,82 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
         <p className="text-sm text-muted-foreground">No files are attached to this booking.</p>
       ) : (
         <ul className="divide-y rounded-md border text-sm">
-          {parts.map((part) => (
-            <li key={part.analysis_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" data-testid={`fabrication-part-${part.analysis_id}`}>
-              <div className="min-w-0">
-                <p className="font-medium truncate">
-                  {part.name}{" "}
-                  <span className="text-muted-foreground font-normal">
-                    × {part.quantity}
-                    {jobQuantity > 1 ? ` × ${jobQuantity} sets` : ""}
+          {parts.map((part) => {
+            const canPreview = !printable && part.file_available !== false;
+            const previewShown = canPreview && shown.has(previewKey(booking, part.analysis_id));
+            const previewId = `fabrication-preview-${part.analysis_id}`;
+            return (
+              <li key={part.analysis_id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2" data-testid={`fabrication-part-${part.analysis_id}`}>
+                <div className="min-w-0">
+                  <p className="font-medium truncate">
+                    {part.name}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      × {part.quantity}
+                      {jobQuantity > 1 ? ` × ${jobQuantity} sets` : ""}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {fabricationPartDetail(part)}
+                    {part.filename ? ` · ${part.filename}` : ""}
+                  </p>
+                  {isLaser && laserPartTimeText(part.time_estimate) && (
+                    <p className="text-xs text-muted-foreground" data-testid={`fabrication-part-time-${part.analysis_id}`}>
+                      Machine time: {laserPartTimeText(part.time_estimate)}
+                    </p>
+                  )}
+                  {isLaser && booking.own_material && part.own_sheet_width_mm && part.own_sheet_height_mm && (
+                    <p className="text-xs text-muted-foreground" data-testid={`fabrication-own-sheet-${part.analysis_id}`}>
+                      Own sheet: {formatMm(part.own_sheet_width_mm)} × {formatMm(part.own_sheet_height_mm)} mm
+                    </p>
+                  )}
+                </div>
+                {!printable && part.file_available === false ? (
+                  <span className="text-xs text-muted-foreground" data-testid={`fabrication-file-removed-${part.analysis_id}`}>
+                    {fileLabel} removed
                   </span>
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {fabricationPartDetail(part)}
-                  {part.filename ? ` · ${part.filename}` : ""}
-                </p>
-                {isLaser && laserPartTimeText(part.time_estimate) && (
-                  <p className="text-xs text-muted-foreground" data-testid={`fabrication-part-time-${part.analysis_id}`}>
-                    Machine time: {laserPartTimeText(part.time_estimate)}
-                  </p>
+                ) : !printable && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      aria-expanded={previewShown}
+                      aria-controls={previewShown ? previewId : undefined}
+                      aria-label={`${previewShown ? "Hide" : "Show"} preview of ${part.name || part.filename}`}
+                      onClick={() => togglePreview(part.analysis_id)}
+                      data-testid={`fabrication-preview-toggle-${part.analysis_id}`}
+                    >
+                      {previewShown ? <EyeOff className="mr-1 h-4 w-4" aria-hidden /> : <Eye className="mr-1 h-4 w-4" aria-hidden />}
+                      {previewShown ? "Hide preview" : "Show preview"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={downloading === part.analysis_id}
+                      onClick={async () => {
+                        setDownloading(part.analysis_id);
+                        try {
+                          await downloadFabricationFile(part);
+                        } finally {
+                          setDownloading(null);
+                        }
+                      }}
+                      aria-label={`Download ${part.filename || part.name}`}
+                    >
+                      {downloading === part.analysis_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      <span className="ml-1">{fileLabel}</span>
+                    </Button>
+                  </div>
                 )}
-                {isLaser && booking.own_material && part.own_sheet_width_mm && part.own_sheet_height_mm && (
-                  <p className="text-xs text-muted-foreground" data-testid={`fabrication-own-sheet-${part.analysis_id}`}>
-                    Own sheet: {formatMm(part.own_sheet_width_mm)} × {formatMm(part.own_sheet_height_mm)} mm
-                  </p>
+                {previewShown && (
+                  <div className="w-full basis-full pt-1" id={previewId} data-testid={previewId}>
+                    <BookedPartPreview booking={booking} part={part} />
+                  </div>
                 )}
-              </div>
-              {!printable && part.file_available === false ? (
-                <span className="text-xs text-muted-foreground" data-testid={`fabrication-file-removed-${part.analysis_id}`}>
-                  {fileLabel} removed
-                </span>
-              ) : !printable && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={downloading === part.analysis_id}
-                  onClick={async () => {
-                    setDownloading(part.analysis_id);
-                    try {
-                      await downloadFabricationFile(part);
-                    } finally {
-                      setDownloading(null);
-                    }
-                  }}
-                  aria-label={`Download ${part.filename || part.name}`}
-                >
-                  {downloading === part.analysis_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  <span className="ml-1">{fileLabel}</span>
-                </Button>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
       {isLaser && booking.laser_time_estimate && parts.length > 0 && (
@@ -331,47 +397,6 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
           {storedParts.length === 0 ? `The ${fileLabel} files were` : `Some ${fileLabel} files were`} deleted from storage
           when the booking was completed, so they can no longer be previewed or downloaded.
         </p>
-      )}
-      {!printable && storedParts.length > 0 && (
-        <div className="space-y-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            aria-expanded={previewOpen}
-            onClick={() => setPreviewOpen((v) => !v)}
-            data-testid={isLaser ? "laser-preview-toggle" : "print-preview-toggle"}
-          >
-            <Box className="mr-1 h-4 w-4" />
-            {previewOpen
-              ? "Hide preview"
-              : storedParts.length > 1
-                ? `Preview ${storedParts.length} ${fileLabel} files`
-                : `Preview ${fileLabel}`}
-          </Button>
-          {previewOpen &&
-            (isLaser ? (
-              <BookedDxfPreview parts={storedParts} ownMaterial={Boolean(booking.own_material)} />
-            ) : (
-              <Suspense
-                fallback={
-                  <div
-                    className="flex h-[460px] w-full items-center justify-center gap-2 rounded-lg border bg-muted/40 text-sm text-muted-foreground sm:h-[520px]"
-                    role="status"
-                  >
-                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                    Opening the 3D viewer…
-                  </div>
-                }
-              >
-                <BookedStlPreview
-                  parts={storedParts}
-                  maxPrintSize={booking.equipment_max_print_size ?? null}
-                  onDownload={(p) => void downloadFabricationFile(p)}
-                />
-              </Suspense>
-            ))}
-        </div>
       )}
       {!printable && replaceable && !replaceable.allowed && replaceable.reason && (
         <p className="text-xs text-muted-foreground">{replaceable.reason}</p>

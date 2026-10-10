@@ -23,11 +23,17 @@ vi.mock("@/components/BookedStlPreview", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { FabricationBookingParts, fabricationPartDetail, type FabricationBookingFields } from "@/components/FabricationBookingParts";
+import {
+  FabricationBookingParts,
+  fabricationPartDetail,
+  resetShownFabricationPreviews,
+  type FabricationBookingFields,
+} from "@/components/FabricationBookingParts";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  resetShownFabricationPreviews();
 });
 
 const laserPart: FabricationPart = {
@@ -236,25 +242,73 @@ describe("FabricationBookingParts", () => {
     await waitFor(() => expect(api.replaceBookingFabricationFiles).toHaveBeenCalledWith(673, expect.any(Object)));
   });
 
-  it("shows the 3D preview of the STL files straight away on a 3D print booking, but not on the printed job sheet", async () => {
+  it("keeps each STL preview hidden until Show preview is clicked, and Hide preview collapses it again", async () => {
     const printParts: FabricationPart[] = [
       { kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1, file_available: true },
       { kind: "print", analysis_id: "p2", name: "Hub", filename: "hub.stl", quantity: 2 },
     ];
     const printBooking = booking({ equipment_profile_type: "PRINT_3D", fabrication_parts: printParts });
-    const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
+    render(<FabricationBookingParts booking={printBooking} />);
 
-    expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("gear.stl,hub.stl");
-    const toggle = screen.getByTestId("print-preview-toggle");
-    expect(toggle.textContent).toContain("Hide preview");
-    fireEvent.click(toggle);
     expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
-    expect(toggle.textContent).toContain("Preview 2 STL files");
+    const gearToggle = screen.getByTestId("fabrication-preview-toggle-p1");
+    const hubToggle = screen.getByTestId("fabrication-preview-toggle-p2");
+    expect(gearToggle.textContent).toContain("Show preview");
+    expect(gearToggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: "Show preview of Hub" })).toBe(hubToggle);
+
+    fireEvent.click(hubToggle);
+    expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("hub.stl");
+    expect(screen.getByTestId("fabrication-part-p2").contains(screen.getByTestId("booked-stl-stub"))).toBe(true);
+    expect(hubToggle.textContent).toContain("Hide preview");
+    expect(hubToggle.getAttribute("aria-expanded")).toBe("true");
+    expect(gearToggle.textContent).toContain("Show preview");
+
+    fireEvent.click(hubToggle);
+    expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+    expect(hubToggle.textContent).toContain("Show preview");
+  });
+
+  it("remembers an opened preview for the rest of the page session", async () => {
+    const printBooking = booking({
+      equipment_profile_type: "PRINT_3D",
+      fabrication_parts: [{ kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1 }],
+    });
+    const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
+    fireEvent.click(screen.getByTestId("fabrication-preview-toggle-p1"));
+    await screen.findByTestId("booked-stl-stub");
     unmount();
 
-    render(<FabricationBookingParts booking={printBooking} printable />);
-    expect(screen.queryByTestId("print-preview-toggle")).toBeNull();
+    const again = render(<FabricationBookingParts booking={printBooking} />);
+    expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("gear.stl");
+    again.unmount();
+
+    render(<FabricationBookingParts booking={{ ...printBooking, booking_id: 42 }} />);
     expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+  });
+
+  it("does not offer a preview on the printed job sheet", () => {
+    const printBooking = booking({
+      equipment_profile_type: "PRINT_3D",
+      fabrication_parts: [{ kind: "print", analysis_id: "p1", name: "Gear", filename: "gear.stl", quantity: 1 }],
+    });
+    render(<FabricationBookingParts booking={printBooking} printable />);
+    expect(screen.queryByTestId("fabrication-preview-toggle-p1")).toBeNull();
+    expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
+  });
+
+  it("does not fetch the DXF until its preview is shown", async () => {
+    render(<FabricationBookingParts booking={booking()} />);
+    expect(screen.queryByTestId("fabrication-preview-a1")).toBeNull();
+    expect(api.getLaserCutDxfText).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("fabrication-preview-toggle-a1"));
+    expect(screen.getByTestId("fabrication-preview-a1")).toBeTruthy();
+    await waitFor(() => expect(api.getLaserCutDxfText).toHaveBeenCalledTimes(1));
+    expect(api.getLaserCutDxfText).toHaveBeenCalledWith("a1");
+
+    fireEvent.click(screen.getByTestId("fabrication-preview-toggle-a1"));
+    expect(screen.queryByTestId("fabrication-preview-a1")).toBeNull();
   });
 
   it("previews only the STL files still stored and explains the ones deleted after completion", async () => {
@@ -266,6 +320,8 @@ describe("FabricationBookingParts", () => {
       ],
     });
     const { unmount } = render(<FabricationBookingParts booking={printBooking} />);
+    expect(screen.queryByTestId("fabrication-preview-toggle-p1")).toBeNull();
+    fireEvent.click(screen.getByTestId("fabrication-preview-toggle-p2"));
     expect((await screen.findByTestId("booked-stl-stub")).textContent).toBe("hub.stl");
     expect(screen.getByTestId("fabrication-file-removed-p1").textContent).toBe("STL removed");
     expect(screen.queryByRole("button", { name: "Download gear.stl" })).toBeNull();
@@ -281,7 +337,7 @@ describe("FabricationBookingParts", () => {
         })}
       />,
     );
-    expect(screen.queryByTestId("print-preview-toggle")).toBeNull();
+    expect(screen.queryByTestId("fabrication-preview-toggle-p1")).toBeNull();
     expect(screen.queryByTestId("booked-stl-stub")).toBeNull();
     expect(screen.getByTestId("fabrication-files-removed").textContent).toContain("The STL files were deleted");
   });
