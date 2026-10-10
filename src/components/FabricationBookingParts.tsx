@@ -353,8 +353,22 @@ export function FabricationBookingParts({ booking, printable, onUpdated }: Fabri
             (isLaser ? (
               <BookedDxfPreview parts={storedParts} ownMaterial={Boolean(booking.own_material)} />
             ) : (
-              <Suspense fallback={<div className="h-[420px] w-full animate-pulse rounded-lg border bg-muted sm:h-[460px]" aria-label="Loading preview" />}>
-                <BookedStlPreview parts={storedParts} maxPrintSize={booking.equipment_max_print_size ?? null} />
+              <Suspense
+                fallback={
+                  <div
+                    className="flex h-[460px] w-full items-center justify-center gap-2 rounded-lg border bg-muted/40 text-sm text-muted-foreground sm:h-[520px]"
+                    role="status"
+                  >
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                    Opening the 3D viewer…
+                  </div>
+                }
+              >
+                <BookedStlPreview
+                  parts={storedParts}
+                  maxPrintSize={booking.equipment_max_print_size ?? null}
+                  onDownload={(p) => void downloadFabricationFile(p)}
+                />
               </Suspense>
             ))}
         </div>

@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Download, Loader2, RotateCw } from "lucide-react";
 import { apiClient, type FabricationPart } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,8 @@ import type { StlPreviewSupports, StlPreviewTimeline } from "@/components/StlMod
 // three.js viewer: loaded only when a model is previewed.
 const StlModelPreview = lazy(() => import("@/components/StlModelPreview").then((m) => ({ default: m.StlModelPreview })));
 
-const FRAME_HEIGHT = "h-[420px] sm:h-[460px]";
+/** Same size as the viewer frame, so the page does not jump when the model appears. */
+const FRAME_HEIGHT = "h-[460px] sm:h-[520px]";
 /** Same look as the booking page for supports printed in a separate material. */
 const SEPARATE_SUPPORT_COLOR = "#f59e0b";
 
@@ -23,6 +24,17 @@ function num(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function mb(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
+function minutesLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return m ? `${h} h ${m} min` : `${h} h`;
 }
 
 /** The booking page's print timeline (layer slider times) for one copy of a booked model. */
@@ -36,18 +48,37 @@ export function bookedPrintTimeline(part: FabricationPart): StlPreviewTimeline |
   };
 }
 
+function PreviewStatus({ children, testId }: { children: ReactNode; testId: string }) {
+  return (
+    <div
+      className={`${FRAME_HEIGHT} flex w-full flex-col items-center justify-center gap-3 rounded-lg border bg-muted/40 p-4 text-center text-sm text-muted-foreground`}
+      role="status"
+      aria-live="polite"
+      data-testid={testId}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** 3D preview of the STL files attached to a 3D print booking; each model is downloaded when first shown.
  * The build plate is the printer's maximum print size set by the OIC (220 × 220 mm when not set). */
 export function BookedStlPreview({
   parts,
   maxPrintSize,
+  onDownload,
 }: {
   parts: FabricationPart[];
   maxPrintSize?: MaxPrintSizePayload | null;
+  /** Saves the original file (offered when the preview cannot load it). */
+  onDownload?: (part: FabricationPart) => void;
 }) {
   const [index, setIndex] = useState(0);
-  const [buffers, setBuffers] = useState<Record<string, ArrayBuffer | null>>({});
+  const [buffers, setBuffers] = useState<Record<string, ArrayBuffer>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [progress, setProgress] = useState<Record<string, { loaded: number; total: number | null }>>({});
+  const [attempt, setAttempt] = useState(0);
+  const loadedIds = useRef(new Set<string>());
   const safeIndex = Math.min(index, Math.max(0, parts.length - 1));
   const part = parts[safeIndex];
   const id = part?.analysis_id;
@@ -55,17 +86,33 @@ export function BookedStlPreview({
   const bedSize = useMemo(() => previewBedSize(sizeLimit), [sizeLimit]);
 
   useEffect(() => {
-    if (!id || id in buffers) return;
-    let cancelled = false;
-    void apiClient.getPrintAnalysisStlBuffer(id).then((res) => {
-      if (cancelled) return;
-      setBuffers((b) => ({ ...b, [id]: res.buffer ?? null }));
-      if (!res.buffer) setErrors((e) => ({ ...e, [id]: res.error || "Download failed" }));
+    if (!id || loadedIds.current.has(id)) return;
+    const controller = new AbortController();
+    setErrors((e) => {
+      if (!(id in e)) return e;
+      const next = { ...e };
+      delete next[id];
+      return next;
     });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, buffers]);
+    setProgress((p) => ({ ...p, [id]: { loaded: 0, total: null } }));
+    void apiClient
+      .getPrintAnalysisStlBuffer(id, {
+        signal: controller.signal,
+        onProgress: (loaded, total) => {
+          if (!controller.signal.aborted) setProgress((p) => ({ ...p, [id]: { loaded, total } }));
+        },
+      })
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        if (res.buffer) {
+          loadedIds.current.add(id);
+          setBuffers((b) => ({ ...b, [id]: res.buffer! }));
+        } else {
+          setErrors((e) => ({ ...e, [id]: res.error || "Download failed" }));
+        }
+      });
+    return () => controller.abort();
+  }, [id, attempt]);
 
   const buffer = part ? buffers[part.analysis_id] : undefined;
   const sizeCheck = useMemo(() => {
@@ -89,7 +136,11 @@ export function BookedStlPreview({
     : null;
   const layerHeight = num(part.layer_height_mm);
   const volume = num(part.volume_cm3);
+  const weight = num(part.weight_g_each);
+  const minutes = num(part.time_min_each);
   const error = errors[part.analysis_id];
+  const loading = progress[part.analysis_id];
+  const percent = loading?.total ? Math.min(100, Math.round((loading.loaded / loading.total) * 100)) : null;
 
   return (
     <div className="space-y-2" data-testid="booked-stl-preview">
@@ -126,13 +177,51 @@ export function BookedStlPreview({
         )}
       </div>
       {error ? (
-        <p className="rounded-md border border-dashed p-4 text-xs text-muted-foreground">
-          The model could not be loaded for the preview ({error}). Use the STL button to download it instead.
-        </p>
+        <PreviewStatus testId="booked-stl-error">
+          <p className="max-w-md">
+            The model could not be loaded for the preview ({error}).
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((a) => a + 1)}>
+              <RotateCw className="mr-1 h-4 w-4" />
+              Try again
+            </Button>
+            {onDownload && (
+              <Button type="button" variant="outline" size="sm" onClick={() => onDownload(part)}>
+                <Download className="mr-1 h-4 w-4" />
+                Download STL
+              </Button>
+            )}
+          </div>
+        </PreviewStatus>
       ) : buffer === undefined ? (
-        <div className={`${FRAME_HEIGHT} w-full animate-pulse rounded-lg border bg-muted`} aria-label="Loading preview" role="status" />
+        <PreviewStatus testId="booked-stl-loading">
+          <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+          <p>
+            Downloading the model…
+            {loading && loading.loaded > 0 && (
+              <span className="tabular-nums">
+                {" "}
+                {mb(loading.loaded)}
+                {loading.total ? ` of ${mb(loading.total)}` : ""} MB
+              </span>
+            )}
+          </p>
+          {percent !== null && (
+            <div className="h-1.5 w-56 overflow-hidden rounded-full bg-muted" aria-hidden>
+              <div className="h-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+            </div>
+          )}
+        </PreviewStatus>
       ) : (
-        <Suspense fallback={<div className={`${FRAME_HEIGHT} w-full animate-pulse rounded-lg border bg-muted`} aria-label="Loading preview" />}>
+        <Suspense
+          fallback={
+            <PreviewStatus testId="booked-stl-viewer-loading">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+              <p>Opening the 3D viewer…</p>
+            </PreviewStatus>
+          }
+        >
           <StlModelPreview
             key={part.analysis_id}
             buffer={buffer}
@@ -141,11 +230,7 @@ export function BookedStlPreview({
             materialName={part.material_name || null}
             materialCode={part.material_code || null}
             layerHeightMm={layerHeight !== null && layerHeight > 0 ? layerHeight : null}
-            stats={{
-              weightGrams: num(part.weight_g_each),
-              timeMinutes: num(part.time_min_each),
-              quantity: part.quantity,
-            }}
+            stats={{ weightGrams: weight, timeMinutes: minutes, quantity: part.quantity }}
             orientation={orientation}
             orientationNote={orientation ? "User-selected orientation" : null}
             sizeLimit={sizeLimit}
@@ -154,11 +239,30 @@ export function BookedStlPreview({
           />
         </Suspense>
       )}
-      {volume !== null && (
-        <p className="text-xs text-muted-foreground" data-testid="booked-stl-volume">
-          Volume (one copy): <span className="font-medium text-foreground">{volume.toFixed(2)} cm³</span>
-        </p>
-      )}
+      <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4" data-testid="booked-stl-info">
+        {weight !== null && (
+          <div>
+            <dt className="text-muted-foreground">Weight (one copy)</dt>
+            <dd className="font-medium">{weight} g</dd>
+          </div>
+        )}
+        {minutes !== null && (
+          <div>
+            <dt className="text-muted-foreground">Print time (one copy)</dt>
+            <dd className="font-medium">{minutesLabel(minutes)}</dd>
+          </div>
+        )}
+        {volume !== null && (
+          <div>
+            <dt className="text-muted-foreground">Volume (one copy)</dt>
+            <dd className="font-medium" data-testid="booked-stl-volume">{volume.toFixed(2)} cm³</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-muted-foreground">Copies</dt>
+          <dd className="font-medium">{part.quantity}</dd>
+        </div>
+      </dl>
       {part.filename && part.filename !== part.name && <p className="truncate text-xs text-muted-foreground">File: {part.filename}</p>}
     </div>
   );

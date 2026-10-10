@@ -3513,6 +3513,64 @@ export function bookingExportFilename(format: BookingExportFormat, now: Date = n
   return `bookings_${parts.year}-${parts.month}-${parts.day}_${parts.hour}${parts.minute}.${format}`;
 }
 
+/** GET a file as bytes, reporting progress; gives up when nothing arrives for `stallMs` (default 45 s). */
+export async function downloadWithProgress(
+  url: string,
+  headers: Record<string, string>,
+  { onProgress, signal, stallMs = 45_000 }: { onProgress?: (loaded: number, total: number | null) => void; signal?: AbortSignal; stallMs?: number },
+): Promise<{ buffer?: ArrayBuffer; error?: string }> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort);
+  let stalled = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      stalled = true;
+      controller.abort();
+    }, stallMs);
+  };
+  try {
+    arm();
+    // No cookies: a leftover Django session must not decide who is asking (the token does).
+    const res = await fetch(url, { headers, credentials: "omit", signal: controller.signal });
+    if (!res.ok) return { error: `HTTP ${res.status}` };
+    const total = Number(res.headers.get("content-length")) || null;
+    onProgress?.(0, total);
+    if (!res.body) {
+      const buffer = await res.arrayBuffer();
+      onProgress?.(buffer.byteLength, total);
+      return { buffer };
+    }
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
+    for (;;) {
+      arm();
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.byteLength;
+      onProgress?.(loaded, total);
+    }
+    const bytes = new Uint8Array(loaded);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { buffer: bytes.buffer };
+  } catch (e) {
+    if (stalled) return { error: "the download stopped responding" };
+    if (signal?.aborted) return { error: "Cancelled" };
+    return { error: e instanceof Error ? e.message : "Download failed" };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -5602,18 +5660,28 @@ class ApiClient {
     return this.request<{ url: string }>(`/print-analyses/${analysisId}/stl-presign/`);
   }
 
-  /** STL bytes of an uploaded model, streamed through the API (used to draw the booking preview). */
-  async getPrintAnalysisStlBuffer(analysisId: string): Promise<{ buffer?: ArrayBuffer; error?: string }> {
-    const token = this.getToken();
-    try {
-      const res = await fetch(`${this.baseURL}/print-analyses/${analysisId}/stl/`, {
-        headers: token ? { Authorization: `Token ${token}` } : {},
-      });
-      if (!res.ok) return { error: `HTTP ${res.status}` };
-      return { buffer: await res.arrayBuffer() };
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "Download failed" };
+  /**
+   * STL bytes of an uploaded model for the booking preview: straight from storage through the presigned link
+   * (the bucket allows GET from the portal), else streamed through the API. Never hangs: a download that
+   * receives nothing for `stallMs` is abandoned with an error.
+   */
+  async getPrintAnalysisStlBuffer(
+    analysisId: string,
+    options: { onProgress?: (loaded: number, total: number | null) => void; signal?: AbortSignal; stallMs?: number } = {},
+  ): Promise<{ buffer?: ArrayBuffer; error?: string }> {
+    const presign = await this.getPrintAnalysisStlPresign(analysisId).catch(() => null);
+    if (options.signal?.aborted) return { error: "Cancelled" };
+    const signed = presign?.data?.url ? String(presign.data.url) : "";
+    if (/^https?:\/\//i.test(signed) && !signed.includes("/print-analyses/")) {
+      const direct = await downloadWithProgress(signed, {}, options);
+      if (direct.buffer || options.signal?.aborted) return direct;
     }
+    const token = this.getToken();
+    return downloadWithProgress(
+      `${this.baseURL}/print-analyses/${analysisId}/stl/`,
+      token ? { Authorization: `Token ${token}` } : {},
+      options,
+    );
   }
 
   async recalculatePrintAnalysis(

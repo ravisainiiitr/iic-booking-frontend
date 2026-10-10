@@ -324,7 +324,7 @@ describe("BookedStlPreview", () => {
     );
     render(<BookedStlPreview parts={[part(1), part(2)]} />);
 
-    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("p1"));
+    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("p1", expect.anything()));
     expect((await screen.findByTestId("stl-preview-size")).textContent).toContain("20 × 10 × 5 mm");
     expect(screen.getByTestId("stl-preview-stats").textContent).toContain("12 g");
     expect(screen.getByTestId("stl-preview-position").textContent).toBe("Model 1 of 2");
@@ -414,6 +414,33 @@ describe("BookedStlPreview", () => {
     expect(call[5]).toMatchObject({ supportColor: "#f59e0b" });
   });
 
+  it("shows the download progress, and when the model cannot be loaded offers Try again and Download STL", async () => {
+    let finish: (res: { buffer?: ArrayBuffer; error?: string }) => void = () => {};
+    api.getPrintAnalysisStlBuffer.mockImplementationOnce(
+      (_id: string, options: { onProgress?: (loaded: number, total: number | null) => void }) =>
+        new Promise((resolve) => {
+          options.onProgress?.(5 * 1024 * 1024, 35 * 1024 * 1024);
+          finish = resolve;
+        }),
+    );
+    const onDownload = vi.fn();
+    render(<BookedStlPreview parts={[part(1)]} onDownload={onDownload} />);
+
+    expect((await screen.findByTestId("booked-stl-loading")).textContent).toContain("Downloading the model… 5.0 of 35.0 MB");
+    finish({ error: "the download stopped responding" });
+    expect((await screen.findByTestId("booked-stl-error")).textContent).toContain("the download stopped responding");
+
+    fireEvent.click(screen.getByRole("button", { name: "Download STL" }));
+    expect(onDownload).toHaveBeenCalledWith(expect.objectContaining({ analysis_id: "p1" }));
+
+    resetWebGLCache(true);
+    api.getPrintAnalysisStlBuffer.mockResolvedValueOnce({ buffer: boxStl(20, 10, 5) });
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect((await screen.findByTestId("stl-preview-size")).textContent).toContain("20 × 10 × 5 mm");
+    expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("booked-stl-error")).toBeNull();
+  });
+
   it("previews a booking like IICTEST-3DP-01202600002: two STLs, the first turned on the plate, with model info", async () => {
     resetWebGLCache(true);
     api.getPrintAnalysisStlBuffer.mockImplementation(async (id: string) => ({
@@ -437,15 +464,17 @@ describe("BookedStlPreview", () => {
     ];
     render(<BookedStlPreview parts={parts} maxPrintSize={{ x: 256, y: 256, z: 256 }} />);
 
-    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("gear-uuid"));
+    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("gear-uuid", expect.anything()));
     expect((await screen.findByTestId("stl-preview-size")).textContent).toContain("40 × 20 × 5 mm");
     expect(screen.getByTestId("stl-preview-orientation-note").textContent).toBe("User-selected orientation");
     expect(screen.getByTestId("stl-preview-stats").textContent).toContain("11 g");
-    expect(screen.getByTestId("booked-stl-volume").textContent).toBe("Volume (one copy): 8.23 cm³");
+    expect(screen.getByTestId("booked-stl-volume").textContent).toBe("8.23 cm³");
+    expect(screen.getByTestId("booked-stl-info").textContent).toContain("Volume (one copy)8.23 cm³");
+    expect(screen.getByTestId("booked-stl-info").textContent).toContain("Weight (one copy)11 g");
     expect(screen.getByTestId("stl-preview-position").textContent).toBe("Model 1 of 2");
 
     fireEvent.click(screen.getByRole("button", { name: "Next model" }));
-    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("hub-uuid"));
+    await waitFor(() => expect(api.getPrintAnalysisStlBuffer).toHaveBeenCalledWith("hub-uuid", expect.anything()));
     await waitFor(() => expect(screen.getByTestId("stl-preview-size").textContent).toContain("30 × 30 × 10 mm"));
     expect(screen.queryByTestId("booked-stl-volume")).toBeNull();
   });
