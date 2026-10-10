@@ -11,6 +11,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DepartmentPicker, useDepartmentParam } from "@/components/admin-insights/DepartmentPicker";
 import RefundRequestsPanel from "@/components/admin-insights/RefundRequestsPanel";
 import {
   BreakdownBars,
@@ -99,13 +100,26 @@ export default function CancellationsDashboard() {
   const [ordering, setOrdering] = useState("-cancelled_at");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [dept, setDeptParam] = useDepartmentParam();
 
-  const filterParams = useMemo(() => insightParams(filters, { sort: ordering }), [filters, ordering]);
+  const filterParams = useMemo(
+    () => insightParams(filters, { sort: ordering, dept: dept || undefined }),
+    [filters, ordering, dept],
+  );
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
   const { data, options, loading, error, reload } = useInsights(
     (p) => apiClient.getAdminCancellationInsights(p),
     params,
     "Could not load cancellations.",
+    dept,
+  );
+  const setDept = useCallback(
+    (value: string) => {
+      setDeptParam(value);
+      setFilters((f) => ({ ...f, equipment: "", oic: "" }));
+      setPage(1);
+    },
+    [setDeptParam],
   );
 
   const update = useCallback((patch: Partial<CancellationFilters>) => {
@@ -147,6 +161,8 @@ export default function CancellationsDashboard() {
           />
         </StandaloneOnly>
 
+        <DepartmentPicker departments={data?.departments} value={dept} onChange={setDept} equipmentOwnersOnly />
+
         <Tabs value={view} onValueChange={switchView}>
           <TabsList>
             <TabsTrigger value="cancellations">Cancellations</TabsTrigger>
@@ -155,7 +171,7 @@ export default function CancellationsDashboard() {
         </Tabs>
 
         {view === "refunds" ? (
-          <RefundRequestsPanel initial={refundInitial} />
+          <RefundRequestsPanel key={dept} initial={refundInitial} dept={dept} />
         ) : (
         <>
         <Card>

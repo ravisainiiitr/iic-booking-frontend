@@ -3,9 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Wrench } from "lucide-react";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   BreakdownBars,
@@ -20,6 +19,8 @@ import {
   SortHeader,
   StatTile,
 } from "@/components/admin-insights/InsightParts";
+import { DepartmentPicker, useDepartmentParam } from "@/components/admin-insights/DepartmentPicker";
+import { StaffProficiencyPanels } from "@/components/admin-insights/StaffProficiency";
 import { useInsights } from "@/components/admin-insights/useInsights";
 import {
   EMPTY_EQUIPMENT_FILTERS,
@@ -49,14 +50,27 @@ export default function EquipmentOverview() {
   const [ordering, setOrdering] = useState("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [dept, setDeptParam] = useDepartmentParam();
   const [includeProfile, setIncludeProfile] = useState(() => Boolean(filters.profile_type));
 
-  const filterParams = useMemo(() => insightParams(filters, { sort: ordering }), [filters, ordering]);
+  const filterParams = useMemo(
+    () => insightParams(filters, { sort: ordering, dept: dept || undefined }),
+    [filters, ordering, dept],
+  );
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
   const { data, options, loading, error, reload } = useInsights(
     (p) => apiClient.getAdminEquipmentInsights(p),
     params,
     "Could not load the equipment overview.",
+    dept,
+  );
+  const setDept = useCallback(
+    (value: string) => {
+      setDeptParam(value);
+      setFilters((f) => ({ ...f, department: "", category: "", oic: "" }));
+      setPage(1);
+    },
+    [setDeptParam],
   );
 
   const update = useCallback((patch: Partial<EquipmentFilters>) => {
@@ -73,7 +87,7 @@ export default function EquipmentOverview() {
   const card = data?.card;
   const rows = data?.results ?? [];
   const total = data?.count ?? 0;
-  const institute = data?.scope === "institute";
+  const institute = data?.scope === "institute" && !dept;
   const filtersActive = JSON.stringify(filters) !== JSON.stringify(EMPTY_EQUIPMENT_FILTERS);
   const statusCount = (key: string) => summary?.by_status.find((s) => s.key === key)?.count ?? 0;
 
@@ -95,9 +109,11 @@ export default function EquipmentOverview() {
             compact
             icon={<Wrench className="h-5 w-5" />}
             title="Equipment overview"
-            description="Status, ownership, downtime, upcoming bookings and utilisation of every instrument."
+            description="Status, ownership, downtime, upcoming bookings and utilisation of every instrument, and how promptly Lab Operators and Officers in Charge clear their pending work."
           />
         </StandaloneOnly>
+
+        <DepartmentPicker departments={data?.departments} value={dept} onChange={setDept} equipmentOwnersOnly />
 
         <section aria-label="Summary" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatTile
@@ -134,11 +150,16 @@ export default function EquipmentOverview() {
           <StatTile
             label={`Utilisation (${summary?.utilisation_days ?? 30} days)`}
             value={summary ? formatPercent(summary.utilisation) : "—"}
-            hint="Booked hours ÷ slot hours"
+            hint={
+              <>
+                {summary?.utilisation_formula ?? "Booked hours ÷ available hours"}
+                {summary?.utilisation_period_note ? <span className="block">{summary.utilisation_period_note}</span> : null}
+              </>
+            }
           />
         </section>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <SectionCard title="By status">
             <DonutChart label="Equipment by status" items={summary?.by_status ?? []} />
           </SectionCard>
@@ -146,8 +167,8 @@ export default function EquipmentOverview() {
             {institute ? (
               <BreakdownBars
                 items={(summary?.by_department ?? []).map((d) => ({ ...d, key: String(d.key) }))}
-                selected={filters.department}
-                onSelect={(key) => key !== "none" && update({ department: toggle(filters.department, key) })}
+                selected={dept}
+                onSelect={(key) => key !== "none" && setDept(toggle(dept, key))}
               />
             ) : (
               <BreakdownBars
@@ -176,7 +197,7 @@ export default function EquipmentOverview() {
             </SectionCard>
           ) : null}
           {institute ? (
-            <SectionCard title="By category / lab" className="lg:col-span-2 2xl:col-span-4">
+            <SectionCard title="By category / lab" className="lg:col-span-3">
               <BreakdownBars
                 items={(summary?.by_category ?? []).map((d) => ({ ...d, key: String(d.key) }))}
                 selected={filters.category}
@@ -198,16 +219,6 @@ export default function EquipmentOverview() {
                 options={statusOptions}
                 allLabel="All except disposed"
               />
-              {institute ? (
-                <FilterSelect
-                  id="eo-department"
-                  label="Department"
-                  value={filters.department}
-                  onChange={(v) => update({ department: v })}
-                  options={(options?.departments ?? []).map((d) => ({ value: String(d.id), label: d.name }))}
-                  allLabel="All departments"
-                />
-              ) : null}
               <FilterSelect
                 id="eo-category"
                 label="Category / lab"
@@ -319,11 +330,6 @@ export default function EquipmentOverview() {
                           <div className="text-xs text-muted-foreground">
                             {[r.code, r.parent_equipment ? `Mode of ${r.parent_equipment.name}` : ""].filter(Boolean).join(" · ")}
                           </div>
-                          {r.test_only ? (
-                            <Badge variant="outline" className="mt-1 text-[0.65rem]">
-                              Test accounts only
-                            </Badge>
-                          ) : null}
                         </TableCell>
                         <TableCell>
                           <span
@@ -369,13 +375,7 @@ export default function EquipmentOverview() {
                         </TableCell>
                         <TableCell className="tabular-nums">
                           {r.utilisation == null ? (
-                            <Muted>
-                              {r.utilisation_counted_under
-                                ? "Counted on parent"
-                                : r.utilisation_test_excluded
-                                  ? "Test — not counted"
-                                  : "No slots"}
-                            </Muted>
+                            <Muted>{r.utilisation_counted_under ? "Counted on parent" : "No hours available"}</Muted>
                           ) : (
                             <div className="mx-auto w-28">
                               <div className="text-sm font-medium">{formatPercent(r.utilisation)}</div>
@@ -411,6 +411,8 @@ export default function EquipmentOverview() {
             />
           </CardContent>
         </Card>
+
+        <StaffProficiencyPanels dept={dept} />
       </div>
     </PageShell>
   );

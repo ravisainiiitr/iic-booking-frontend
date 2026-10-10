@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { apiClient, type AdminDashboardSummary } from "@/lib/api";
 import { INSIGHT_PATHS } from "@/lib/adminInsights";
+import { DepartmentPicker, useDepartmentParam, withDepartment } from "@/components/admin-insights/DepartmentPicker";
 import { formatINRAmount } from "@/lib/money";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { peakNow } from "@/lib/peakWindow";
@@ -169,11 +170,12 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
   const [error, setError] = useState<string | null>(null);
   const peak = usePeakWindow();
   const now = useMinuteClock();
+  const [dept, setDept] = useDepartmentParam();
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true);
     const [summaryRes, pendingRes] = await Promise.all([
-      apiClient.getAdminDashboardSummary({ refresh }),
+      apiClient.getAdminDashboardSummary(dept ? { refresh, dept } : { refresh }),
       apiClient.getPendingActions(),
     ]);
     if (summaryRes.data) {
@@ -185,7 +187,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
     setPending(pendingRes.data?.items ?? []);
     setLoading(false);
     setRefreshing(false);
-  }, []);
+  }, [dept]);
 
   useEffect(() => {
     void load();
@@ -198,6 +200,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
   const attention = useMemo(() => mergeAttentionItems(summary?.attention ?? [], pending), [summary, pending]);
   const attentionTotal = attention.reduce((sum, i) => sum + i.count, 0);
   const open = (path: string) => (canOpen(path) ? () => onOpen(path) : undefined);
+  const openInsight = (path: string) => (canOpen(path) ? () => onOpen(withDepartment(path, dept)) : undefined);
 
   const opening = useMemo(() => {
     if (peak.window?.opening_at) return { at: peak.window.opening_at, live: peak.active };
@@ -234,7 +237,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
 
   const { bookings, revenue, equipment, users, cancellations, waitlist, booking_attempts: attempts, ratings } = summary;
   const scopeLabel =
-    summary.scope === "institute" ? "Institute-wide" : summary.department?.name ? summary.department.name : "Your department";
+    summary.department?.name ?? (summary.scope === "institute" ? "Institute-wide" : "Your department");
   const failureRate = attempts && attempts.total > 0 ? Math.round((attempts.failed / attempts.total) * 100) : 0;
   const chartData = summary.bookings_per_day.map((d) => ({ ...d, label: dayFormat.format(new Date(`${d.date}T00:00:00+05:30`)) }));
   const chartTotal = summary.bookings_per_day.reduce((s, d) => s + d.count, 0);
@@ -252,7 +255,13 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
               <span>Updated {formatClock(summary.generated_at)} · refreshes every minute</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <DepartmentPicker
+              departments={summary.departments}
+              value={dept}
+              onChange={setDept}
+              className="sm:w-64"
+            />
             <div
               className={cn(
                 "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs",
@@ -325,7 +334,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={equipment ? `${equipment.operational}/${equipment.total}` : "—"}
           hint={equipment ? `${equipment.under_maintenance} under maintenance${equipment.other ? ` · ${equipment.other} other` : ""}` : undefined}
           tone={equipment && equipment.under_maintenance > 0 ? "rose" : "slate"}
-          onClick={open(INSIGHT_PATHS.equipment)}
+          onClick={openInsight(INSIGHT_PATHS.equipment)}
         />
         <Kpi
           compact
@@ -334,7 +343,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={users ? users.active.toLocaleString("en-IN") : "—"}
           hint={users ? `+${users.new_last_7_days} new in 7 days · +${users.new_last_30_days} in 30` : undefined}
           tone="slate"
-          onClick={open(INSIGHT_PATHS.users)}
+          onClick={openInsight(INSIGHT_PATHS.users)}
         />
         <Kpi
           compact
@@ -367,7 +376,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={cancellations ? cancellations.total : "—"}
           hint={cancellations ? cancellationHint(cancellations) : undefined}
           tone={cancellations && cancellations.total > cancellations.previous_total ? "rose" : "slate"}
-          onClick={open(INSIGHT_PATHS.cancellations)}
+          onClick={openInsight(INSIGHT_PATHS.cancellations)}
         />
         <Kpi
           compact

@@ -6,6 +6,8 @@ import type {
   CancellationInsights,
   EquipmentInsights,
   RefundRequestInsights,
+  StaffProficiency,
+  StaffProficiencyRow,
   UserCard,
   UserInsights,
   WalletBookings,
@@ -19,6 +21,7 @@ const state = vi.hoisted(() => ({
     getAdminRefundRequestInsights: vi.fn(),
     getAdminUserCard: vi.fn(),
     getAdminWalletBookings: vi.fn(),
+    getAdminStaffProficiency: vi.fn(),
   },
   exportParams: null as Record<string, unknown> | null,
 }));
@@ -67,12 +70,13 @@ const equipmentData: EquipmentInsights = {
     ],
     by_category: [{ key: "5", label: "Microscopy", count: 10 }],
     by_department: [{ key: "2", label: "Physics", count: 68 }],
-    by_profile_type: [{ key: "TIME", label: "Time based", count: 68 }],
     by_oic: [{ key: "9", label: "Dr. OIC", count: 12 }],
-    test_only: 0,
+    by_profile_type: [{ key: "TIME", label: "Time based", count: 68 }],
     upcoming_bookings: 31,
     utilisation: 0.4234,
     utilisation_days: 30,
+    utilisation_formula: "Booked hours ÷ available hours.",
+    utilisation_period_note: "Counted from 01-10-2026.",
   },
   results: [
     {
@@ -88,7 +92,6 @@ const equipmentData: EquipmentInsights = {
       category: { id: 5, name: "Microscopy" },
       department: { id: 2, name: "Physics" },
       parent_equipment: null,
-      test_only: false,
       officers_in_charge: [{ id: 9, name: "Dr. OIC", email: "oic@example.com" }],
       down_since: "2026-10-08T09:00:00+05:30",
       downtime_hours: 49,
@@ -391,8 +394,64 @@ const walletBookings: WalletBookings = {
   },
 };
 
+const staffRow = (over: Partial<StaffProficiencyRow>): StaffProficiencyRow => ({
+  id: 1,
+  name: "",
+  role: "operator",
+  equipment: [{ id: 3, name: "FE-SEM", code: "SEM1" }],
+  pending: 0,
+  overdue: 0,
+  pending_by_kind: [],
+  handled: 0,
+  avg_response_hours: null,
+  score: null,
+  rank: null,
+  ...over,
+});
+
+const proficiencyData: StaffProficiency = {
+  scope: "institute",
+  department: null,
+  generated_at: "2026-10-10T10:00:00Z",
+  date_from: "2026-09-11",
+  date_to: "2026-10-10",
+  days: 30,
+  sort: "proficiency",
+  formula: "Handled ÷ (handled + pending + overdue) × 100.",
+  decision_overdue_hours: 48,
+  operators: [
+    staffRow({ id: 21, name: "Quick Operator", handled: 9, pending: 1, avg_response_hours: 2, score: 90, rank: 1 }),
+    staffRow({ id: 22, name: "Busy Operator", handled: 2, pending: 4, overdue: 2, avg_response_hours: 30, score: 25, rank: 2 }),
+    staffRow({ id: 23, name: "Idle Operator" }),
+  ],
+  oics: [staffRow({ id: 9, name: "Dr. OIC", role: "oic", handled: 3, pending: 1, score: 75, rank: 1 })],
+};
+
+const personPending: NonNullable<StaffProficiency["person"]> = {
+  id: 22,
+  name: "Busy Operator",
+  role: "operator",
+  pending: [
+    {
+      key: "completion:501",
+      kind: "completion",
+      kind_display: "Completion",
+      equipment_id: 3,
+      equipment_name: "FE-SEM",
+      equipment_code: "SEM1",
+      booking_pk: 501,
+      booking_ref: "BK-0501",
+      link: "/booking-management?expand=501",
+      user_name: "Asha Rao",
+      since: "2026-10-07T10:00:00+05:30",
+      waiting_hours: 72,
+      overdue: true,
+    },
+  ],
+};
+
 beforeAll(() => {
-  Element.prototype.scrollIntoView ??= () => {};
+     Element.prototype.scrollIntoView ??= () => {};
   Element.prototype.hasPointerCapture ??= () => false;
   Element.prototype.releasePointerCapture ??= () => {};
 });
@@ -404,6 +463,9 @@ beforeEach(() => {
   state.api.getAdminRefundRequestInsights.mockResolvedValue({ data: refundData });
   state.api.getAdminUserCard.mockImplementation(async (id: number) => ({ data: id === 12 ? supervisorCard : studentCard }));
   state.api.getAdminWalletBookings.mockResolvedValue({ data: walletBookings });
+  state.api.getAdminStaffProficiency.mockImplementation(async (p: { person?: number }) => ({
+    data: p.person ? { ...proficiencyData, person: personPending } : proficiencyData,
+  }));
 });
 
 afterEach(() => {
@@ -501,6 +563,71 @@ describe("EquipmentOverview", () => {
     );
     const table = await screen.findByRole("region", { name: "Equipment" });
     expect(await within(table).findByText("Counted on parent")).toBeTruthy();
+  });
+
+  it("explains the utilisation figure", async () => {
+    render(
+      <MemoryRouter>
+        <EquipmentOverview />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Dashboard card: 63/68 operational");
+    expect(screen.getByText(/Booked hours ÷ available hours\./)).toBeTruthy();
+    expect(screen.getByText(/40 of 80 h/)).toBeTruthy();
+  });
+
+  it("keeps the department picked in the URL for every panel", async () => {
+    state.api.getAdminEquipmentInsights.mockResolvedValue({
+      data: {
+        ...equipmentData,
+        departments: [
+          { id: 2, name: "Physics", code: "PHY", owns_equipment: true },
+          { id: 4, name: "Humanities", code: "HSS", owns_equipment: false },
+        ],
+        selected_department_id: 2,
+        department: { id: 2, name: "Physics" },
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/admin/insights/equipment?dept=2"]}>
+        <EquipmentOverview />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Dashboard card: 63/68 operational");
+    expect(lastParams(state.api.getAdminEquipmentInsights)).toMatchObject({ dept: "2" });
+    await waitFor(() => expect(lastParams(state.api.getAdminStaffProficiency)).toMatchObject({ dept: "2" }));
+    expect(screen.getByText("Department")).toBeTruthy();
+  });
+});
+
+describe("StaffProficiencyPanels", () => {
+  it("ranks Lab Operators and Officers in Charge and lists a person's pending bookings", async () => {
+    render(
+      <MemoryRouter>
+        <EquipmentOverview />
+      </MemoryRouter>,
+    );
+    const operators = await screen.findByRole("region", { name: "Lab Operators" });
+    await within(operators).findByRole("button", { name: "Quick Operator" });
+    const names = within(operators)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
+    expect(names).toEqual(["Quick Operator", "Busy Operator", "Idle Operator"]);
+    expect(within(operators).getByText("2 overdue")).toBeTruthy();
+    expect(within(operators).getByText("No work in period")).toBeTruthy();
+    const oics = screen.getByRole("region", { name: "Officers in Charge" });
+    expect(within(oics).getByRole("button", { name: "Dr. OIC" })).toBeTruthy();
+    expect(lastParams(state.api.getAdminStaffProficiency)).toMatchObject({ sort: "proficiency", days: "30" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Fewest pending" }));
+    await waitFor(() => expect(lastParams(state.api.getAdminStaffProficiency)).toMatchObject({ sort: "pending" }));
+
+    fireEvent.click(within(operators).getByRole("button", { name: "Busy Operator" }));
+    const dialog = await screen.findByRole("dialog");
+    const link = await within(dialog).findByRole("link", { name: "BK-0501" });
+    expect(link.getAttribute("href")).toBe("/booking-management?expand=501");
+    expect(within(dialog).getByText("Overdue")).toBeTruthy();
+    expect(lastParams(state.api.getAdminStaffProficiency)).toMatchObject({ person: 22, role: "operator" });
   });
 });
 

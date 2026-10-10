@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import type { AdminDashboardSummary } from "@/lib/api";
 
@@ -23,6 +25,8 @@ vi.mock("@/hooks/use-peak-window", () => ({
 }));
 
 import AdminOverview from "./AdminOverview";
+
+const render = (ui: ReactElement, path = "/dashboard") => rtlRender(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 
 function summary(overrides: Partial<AdminDashboardSummary> = {}): AdminDashboardSummary {
   return {
@@ -140,6 +144,25 @@ describe("AdminOverview", () => {
     expect(screen.getByText("5.0% of 160 bookings · ▲ 3 vs the 30 days before")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /Cancellations \(30 days\)/ }));
     expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/cancellations");
+  });
+
+  it("loads the department picked in the URL and keeps it when opening an overview", async () => {
+    api.getAdminDashboardSummary.mockResolvedValue({
+      data: summary({
+        scope: "institute",
+        department: { id: 2, name: "Physics" },
+        selected_department_id: 2,
+        departments: [{ id: 2, name: "Physics", code: "PHY", owns_equipment: true }],
+      }),
+    });
+    const onOpen = vi.fn();
+    render(<AdminOverview onOpen={onOpen} canOpen={(p) => p === "/admin/insights/equipment"} />, "/dashboard?dept=2");
+    await screen.findByText("Administration overview");
+    expect(api.getAdminDashboardSummary).toHaveBeenLastCalledWith({ refresh: false, dept: "2" });
+    expect(screen.getByText("Department")).toBeTruthy();
+    expect(screen.getAllByText("Physics").length).toBeGreaterThan(0);
+    await userEvent.setup().click(screen.getByRole("button", { name: /Equipment\s*10\/12/ }));
+    expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/equipment?dept=2");
   });
 
   it("shows cancellations and refund requests together on the card", async () => {

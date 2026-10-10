@@ -23,6 +23,7 @@ import {
   StatTile,
   TrendChart,
 } from "@/components/admin-insights/InsightParts";
+import { DepartmentPicker, useDepartmentParam } from "@/components/admin-insights/DepartmentPicker";
 import { useInsights } from "@/components/admin-insights/useInsights";
 import UserCardDrawer from "@/components/admin-insights/UserCardDrawer";
 import {
@@ -57,12 +58,25 @@ export default function UsersOverview() {
     return raw && /^\d+$/.test(raw) ? Number(raw) : null;
   });
 
-  const filterParams = useMemo(() => userQuery(filters, { sort: ordering, trend }), [filters, ordering, trend]);
+  const [dept, setDeptParam] = useDepartmentParam();
+  const filterParams = useMemo(
+    () => userQuery(filters, { sort: ordering, trend, ...(dept ? { dept } : {}) }),
+    [filters, ordering, trend, dept],
+  );
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
   const { data, options, loading, error, reload } = useInsights(
     (p) => apiClient.getAdminUserInsights(p),
     params,
     "Could not load the users overview.",
+    dept,
+  );
+  const setDept = useCallback(
+    (value: string) => {
+      setDeptParam(value);
+      setFilters((f) => ({ ...f, department: "", organisation: "" }));
+      setPage(1);
+    },
+    [setDeptParam],
   );
 
   const update = useCallback((patch: Partial<UserFilters>) => {
@@ -101,6 +115,8 @@ export default function UsersOverview() {
             description="Who uses the facility: categories, programmes, departments, organisations and sign-up trends."
           />
         </StandaloneOnly>
+
+        <DepartmentPicker departments={data?.departments} value={dept} onChange={setDept} />
 
         <div className="flex items-start gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

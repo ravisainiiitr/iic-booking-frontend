@@ -28,8 +28,10 @@ import {
   insightQuery,
   type CancellationInsights,
   type EquipmentInsights,
+  type DepartmentChoice,
   type InsightParams,
   type RefundRequestInsights,
+  type StaffProficiency,
   type UserCard,
   type UserInsights,
   type WalletBookings,
@@ -1943,7 +1945,11 @@ export interface DashboardMenuLayout {
 /** GET /api/admin/dashboard-summary/ */
 export interface AdminDashboardSummary {
   scope: "institute" | "department";
+  /** The Department Administrator's department, or the one the Main Administrator picked. */
   department: { id: number; name: string; code?: string } | null;
+  selected_department_id?: number | null;
+  /** Departments the Main Administrator can pick (empty for a Department Administrator). */
+  departments?: DepartmentChoice[];
   generated_at: string;
   cache_seconds: number;
   bookings: {
@@ -6969,11 +6975,17 @@ class ApiClient {
   }
 
   /** Main Administrator (institute) / Department Administrator (own department) home overview; cached ~60 s server-side. */
-  async getAdminDashboardSummary(opts?: { refresh?: boolean }) {
+  async getAdminDashboardSummary(opts?: { refresh?: boolean; dept?: string | number | null }) {
+    const query = insightQuery({ dept: opts?.dept ?? undefined, refresh: opts?.refresh || undefined });
     if (opts?.refresh) {
-      return this.request<AdminDashboardSummary>('/admin/dashboard-summary/?refresh=1', { method: 'GET' });
+      return this.request<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`, { method: 'GET' });
     }
-    return this.sharedGet<AdminDashboardSummary>('/admin/dashboard-summary/');
+    return this.sharedGet<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`);
+  }
+
+  /** Main Admin / Dept Admin: Lab Operators and OICs ranked by how short they keep their pending queue. */
+  async getAdminStaffProficiency(params: InsightParams = {}) {
+    return this.request<StaffProficiency>(`/admin/insights/staff-proficiency/${insightQuery(params)}`, { method: 'GET' });
   }
 
   /** Main Admin / Dept Admin: Equipment overview (opened from the dashboard's Equipment card). */

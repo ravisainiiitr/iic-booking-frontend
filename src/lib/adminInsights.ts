@@ -2,9 +2,23 @@
 
 export type InsightParams = Record<string, string | number | boolean | null | undefined>;
 
-export interface InsightPage<T> {
+/** A department the Main Administrator can pick (``?dept=``); empty for a Department Administrator. */
+export interface DepartmentChoice {
+  id: number;
+  name: string;
+  code: string;
+  owns_equipment: boolean;
+}
+
+export interface InsightScope {
   scope: "institute" | "department";
+  /** The Department Administrator's department, or the one the Main Administrator picked. */
   department: { id: number; name: string } | null;
+  selected_department_id?: number | null;
+  departments?: DepartmentChoice[];
+}
+
+export interface InsightPage<T> extends InsightScope {
   generated_at: string;
   results: T[];
   count: number;
@@ -44,7 +58,6 @@ export interface EquipmentInsightRow {
   category: NamedOption | null;
   department: NamedOption | null;
   parent_equipment: NamedOption | null;
-  test_only: boolean;
   officers_in_charge: Array<{ id: number; name: string; email: string }>;
   down_since: string | null;
   downtime_hours: number | null;
@@ -71,9 +84,8 @@ export interface EquipmentInsights extends InsightPage<EquipmentInsightRow> {
     by_status: Breakdown[];
     by_category: Breakdown[];
     by_department: Breakdown[];
-    by_profile_type: Breakdown[];
     by_oic: Breakdown[];
-    test_only: number;
+    by_profile_type?: Breakdown[];
     upcoming_bookings: number;
     utilisation: number | null;
     utilisation_days: number;
@@ -111,6 +123,55 @@ export const EMPTY_EQUIPMENT_FILTERS: EquipmentFilters = {
   department: "",
   search: "",
 };
+
+/* ------------------------------------------------------------------ staff proficiency */
+
+export type ProficiencyRole = "operator" | "oic";
+export type ProficiencySort = "proficiency" | "pending" | "response";
+
+export interface StaffProficiencyRow {
+  id: number;
+  name: string;
+  role: ProficiencyRole;
+  equipment: Array<{ id: number; name: string; code: string }>;
+  pending: number;
+  overdue: number;
+  pending_by_kind: Array<{ kind: string; label: string; count: number }>;
+  handled: number;
+  avg_response_hours: number | null;
+  /** handled ÷ (handled + pending + overdue) × 100; null with no work in the period and nothing pending. */
+  score: number | null;
+  rank: number | null;
+}
+
+export interface PendingWorkItem {
+  key: string;
+  kind: string;
+  kind_display: string;
+  equipment_id: number;
+  equipment_name?: string;
+  equipment_code?: string;
+  booking_pk: number | null;
+  booking_ref: string;
+  link: string;
+  user_name: string;
+  since: string | null;
+  waiting_hours: number | null;
+  overdue: boolean;
+}
+
+export interface StaffProficiency extends InsightScope {
+  generated_at: string;
+  date_from: string;
+  date_to: string;
+  days: number;
+  sort: ProficiencySort;
+  formula: string;
+  decision_overdue_hours: number;
+  operators: StaffProficiencyRow[];
+  oics: StaffProficiencyRow[];
+  person?: { id: number; name: string; role: ProficiencyRole; pending: PendingWorkItem[] };
+}
 
 /* ------------------------------------------------------------------ users */
 

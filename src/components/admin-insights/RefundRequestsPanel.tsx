@@ -51,18 +51,29 @@ function money(value: number) {
 }
 
 /** Users who cancelled their own bookings for a refund before the slot (a tab of the Cancellations page). */
-export default function RefundRequestsPanel({ initial }: { initial?: Partial<RefundFilters> }) {
+export default function RefundRequestsPanel({
+  initial,
+  dept = "",
+}: {
+  initial?: Partial<RefundFilters>;
+  /** The department picked on the Cancellations page (Main Administrator). */
+  dept?: string;
+}) {
   const [filters, setFilters] = useState<RefundFilters>(() => ({ ...EMPTY_REFUND_FILTERS, ...initial }));
   const [ordering, setOrdering] = useState("-requested_at");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const filterParams = useMemo(() => insightParams(filters, { sort: ordering }), [filters, ordering]);
+  const filterParams = useMemo(
+    () => insightParams(filters, { sort: ordering, dept: dept || undefined }),
+    [filters, ordering, dept],
+  );
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
   const { data, options, loading, error, reload } = useInsights(
     (p) => apiClient.getAdminRefundRequestInsights(p),
     params,
     "Could not load refund requests.",
+    dept,
   );
 
   const update = useCallback((patch: Partial<RefundFilters>) => {
