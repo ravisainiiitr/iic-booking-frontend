@@ -24,6 +24,13 @@ import type { BookingAttemptDetail } from "@/lib/bookingAttemptDetail";
 import type { BookingInputFieldDef, BookingInputValues } from "@/lib/bookingInputDisplay";
 import type { EquipmentWalletBalance } from "@/lib/bookingWalletStatus";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
+import {
+  insightQuery,
+  type CancellationInsights,
+  type EquipmentInsights,
+  type InsightParams,
+  type UserInsights,
+} from "@/lib/adminInsights";
 import type { ModeAvailabilityResponse } from "@/lib/modeAvailability";
 import type {
   DisruptionAttention,
@@ -1948,6 +1955,16 @@ export interface AdminDashboardSummary {
   } | null;
   equipment: { total: number; operational: number; under_maintenance: number; disposed: number; other: number } | null;
   users: { active: number; new_last_7_days: number; new_last_30_days: number } | null;
+  /** Missing on servers older than the cancellations dashboard. */
+  cancellations?: {
+    days: number;
+    total: number;
+    previous_total: number;
+    late: number;
+    refunded: number;
+    bookings_created: number;
+    rate: number | null;
+  } | null;
   waitlist: { active: number } | null;
   booking_attempts: {
     days: number;
@@ -6876,6 +6893,21 @@ class ApiClient {
       return this.request<AdminDashboardSummary>('/admin/dashboard-summary/?refresh=1', { method: 'GET' });
     }
     return this.sharedGet<AdminDashboardSummary>('/admin/dashboard-summary/');
+  }
+
+  /** Main Admin / Dept Admin: Equipment overview (opened from the dashboard's Equipment card). */
+  async getAdminEquipmentInsights(params: InsightParams = {}) {
+    return this.request<EquipmentInsights>(`/admin/insights/equipment/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: Users overview (opened from the dashboard's Active users card). */
+  async getAdminUserInsights(params: InsightParams = {}) {
+    return this.request<UserInsights>(`/admin/insights/users/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: Cancellations dashboard. */
+  async getAdminCancellationInsights(params: InsightParams = {}) {
+    return this.request<CancellationInsights>(`/admin/insights/cancellations/${insightQuery(params)}`, { method: 'GET' });
   }
 
   /** OIC / Lab in-charge: bookings whose slot time is over but which are not marked Completed yet. */

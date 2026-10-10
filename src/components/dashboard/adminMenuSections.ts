@@ -28,7 +28,13 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: "sec_overview",
     name: "Overview",
     icon: BarChart3,
-    items: ["reports_statistics", "team_calendar"],
+    items: [
+      "reports_statistics",
+      "equipment_overview",
+      "users_overview",
+      "cancellations_dashboard",
+      "team_calendar",
+    ],
   },
   {
     id: "sec_bookings",

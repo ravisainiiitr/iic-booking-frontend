@@ -6,6 +6,7 @@ import {
   Ban,
   CalendarCheck2,
   CalendarClock,
+  CalendarX2,
   CheckCircle2,
   Clock,
   IndianRupee,
@@ -19,6 +20,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { apiClient, type AdminDashboardSummary } from "@/lib/api";
+import { INSIGHT_PATHS } from "@/lib/adminInsights";
 import { formatINRAmount } from "@/lib/money";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { peakNow } from "@/lib/peakWindow";
@@ -103,9 +105,15 @@ function Kpi({ icon: Icon, label, value, hint, tone = "primary", onClick, compac
         {value}
       </p>
       {hint ? <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{hint}</p> : null}
+      {onClick ? (
+        <ArrowRight
+          className="absolute bottom-3 right-3 h-3.5 w-3.5 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+          aria-hidden
+        />
+      ) : null}
     </>
   );
-  const className = "flex h-full flex-col rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-sm";
+  const className = "relative flex h-full flex-col rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-sm";
   if (!onClick) return <div className={className}>{body}</div>;
   return (
     <button
@@ -113,12 +121,19 @@ function Kpi({ icon: Icon, label, value, hint, tone = "primary", onClick, compac
       onClick={onClick}
       className={cn(
         className,
-        "transition-colors hover:border-primary/40 hover:bg-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "group cursor-pointer pr-7 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.03] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
     >
       {body}
     </button>
   );
+}
+
+function cancellationHint(c: NonNullable<AdminDashboardSummary["cancellations"]>): string {
+  const rate = c.rate != null ? `${(c.rate * 100).toFixed(1)}% of ${c.bookings_created} bookings` : "No bookings made";
+  const diff = c.total - c.previous_total;
+  const trend = diff === 0 ? "same as the 30 days before" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} vs the 30 days before`;
+  return `${rate} · ${trend}`;
 }
 
 function SectionCard({ title, description, action, children, className }: {
@@ -213,7 +228,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
     );
   }
 
-  const { bookings, revenue, equipment, users, waitlist, booking_attempts: attempts, ratings } = summary;
+  const { bookings, revenue, equipment, users, cancellations, waitlist, booking_attempts: attempts, ratings } = summary;
   const scopeLabel =
     summary.scope === "institute" ? "Institute-wide" : summary.department?.name ? summary.department.name : "Your department";
   const failureRate = attempts && attempts.total > 0 ? Math.round((attempts.failed / attempts.total) * 100) : 0;
@@ -298,7 +313,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
         <Kpi
           compact
           icon={Wrench}
@@ -306,6 +321,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={equipment ? `${equipment.operational}/${equipment.total}` : "—"}
           hint={equipment ? `${equipment.under_maintenance} under maintenance${equipment.other ? ` · ${equipment.other} other` : ""}` : undefined}
           tone={equipment && equipment.under_maintenance > 0 ? "rose" : "slate"}
+          onClick={open(INSIGHT_PATHS.equipment)}
         />
         <Kpi
           compact
@@ -314,6 +330,16 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={users ? users.active.toLocaleString("en-IN") : "—"}
           hint={users ? `+${users.new_last_7_days} new in 7 days · +${users.new_last_30_days} in 30` : undefined}
           tone="slate"
+          onClick={open(INSIGHT_PATHS.users)}
+        />
+        <Kpi
+          compact
+          icon={CalendarX2}
+          label={`Cancellations (${cancellations?.days ?? 30} days)`}
+          value={cancellations ? cancellations.total : "—"}
+          hint={cancellations ? cancellationHint(cancellations) : undefined}
+          tone={cancellations && cancellations.total > cancellations.previous_total ? "rose" : "slate"}
+          onClick={open(INSIGHT_PATHS.cancellations)}
         />
         <Kpi
           compact
