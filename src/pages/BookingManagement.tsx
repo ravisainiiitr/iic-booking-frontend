@@ -144,14 +144,14 @@ interface Booking extends BookingRef {
 
 /**
  * Sortable list columns after S.No., Booking ID and Status. The other columns are as wide as their content;
- * the name columns share the width left over and end in "…" (heading included) when it runs out.
+ * the name columns share the width left over (never narrower than their heading) and their names end in "…".
  */
-const NAME_COLUMN_CLASS = "w-[30%] min-w-[4rem] max-w-0";
+const NAME_COLUMN_CLASS = "w-[30%] min-w-[4rem]";
 const LAST_COLUMN_CLASS = "pr-3";
-const LIST_COLUMNS: Array<{ key: string; label: string; title?: string; className?: string; truncate?: boolean }> = [
+const LIST_COLUMNS: Array<{ key: string; label: string; title?: string; className?: string }> = [
   { key: "equipment_code", label: "Equipment" },
-  { key: "user_name", label: "User Name", title: "User Name", className: NAME_COLUMN_CLASS, truncate: true },
-  { key: "supervisor_name", label: "Supervisor Name", title: "Supervisor Name", className: NAME_COLUMN_CLASS, truncate: true },
+  { key: "user_name", label: "User", title: "User Name", className: NAME_COLUMN_CLASS },
+  { key: "supervisor_name", label: "Supervisor", title: "Supervisor Name", className: NAME_COLUMN_CLASS },
   { key: "user_phone", label: "User Mobile" },
   { key: "start_time", label: "Date & Time", title: "Booking Date & Time" },
   { key: "duration", label: "Duration", className: LAST_COLUMN_CLASS },
@@ -160,7 +160,8 @@ const HEAD_CLASS = "px-1.5 whitespace-nowrap";
 const CELL_CLASS = "px-1.5 py-3 whitespace-nowrap";
 /** Matches the sticky Booking ID offset in index.css. */
 const SNO_CLASS = "w-[3.25rem] min-w-[3.25rem] px-1 text-center";
-const TRUNCATE_CELL_CLASS = `${CELL_CLASS} ${NAME_COLUMN_CLASS} truncate`;
+/** max-w-0 lets a name take only the column's width, so long names end in "…" instead of widening it. */
+const TRUNCATE_CELL_CLASS = `${CELL_CLASS} ${NAME_COLUMN_CLASS} max-w-0 truncate`;
 
 const DEFAULT_PAGE_SIZE = 10;
 /** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
@@ -655,7 +656,6 @@ const BookingManagement = () => {
                           className={`${HEAD_CLASS} ${col.className ?? ""}`}
                           disabled={loadingBookings}
                           title={col.title}
-                          truncate={col.truncate}
                         >
                           {col.label}
                         </SortableTableHead>

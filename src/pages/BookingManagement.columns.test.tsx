@@ -54,8 +54,8 @@ const EXPECTED_HEADERS = [
   "Booking ID",
   "Status",
   "Equipment",
-  "User Name",
-  "Supervisor Name",
+  "User",
+  "Supervisor",
   "User Mobile",
   "Date & Time",
   "Duration",
@@ -151,14 +151,26 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     expect(within(table).queryByText("Booking Date & Time")).toBeNull();
   });
 
-  it("lets the name headings shorten with the full name on hover, and keeps the S.No. width the sticky offset expects", async () => {
+  it("labels the name columns User and Supervisor with the full names on hover, never cutting the heading", async () => {
     const table = await renderList();
-    for (const name of ["User Name", "Supervisor Name"]) {
+    for (const [label, name] of [
+      ["User", "User Name"],
+      ["Supervisor", "Supervisor Name"],
+    ]) {
       const header = within(table).getByRole("columnheader", { name });
-      expect(header.className).toMatch(/\bmax-w-0\b/);
-      expect(within(header).getByText(name).className).toMatch(/\btruncate\b/);
-      expect(within(header).getByRole("button").getAttribute("title")).toMatch(new RegExp(`^${name}\\b`));
+      expect(header.textContent?.trim()).toBe(label);
+      expect(header.className).not.toMatch(/\bmax-w-0\b/);
+      expect(within(header).getByText(label).className).not.toMatch(/\btruncate\b/);
+      const button = within(header).getByRole("button");
+      expect(button.getAttribute("title")).toMatch(new RegExp(`^${name}\\b`));
+      expect(button.getAttribute("aria-label")).toBe(name);
     }
+    expect(within(table).queryByText("User Name")).toBeNull();
+    expect(within(table).queryByText("Supervisor Name")).toBeNull();
+  });
+
+  it("keeps the S.No. width the sticky offset expects", async () => {
+    const table = await renderList();
     const sno = within(table).getByRole("columnheader", { name: "S.No." });
     expect(sno.className).toContain("w-[3.25rem]");
   });
@@ -176,7 +188,7 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
     expect([format, view]).toEqual(["csv", "staff"]);
     expect(api.exportBookings.mock.calls[0]).toHaveLength(3);
     expect(filters).toMatchObject({ ordering: "start_time" });
-    expect(JSON.stringify(filters)).not.toMatch(/Date & Time|Duration|User Name/);
+    expect(JSON.stringify(filters)).not.toMatch(/Date & Time|Duration|User|Supervisor/);
   });
 
   it("still sorts by the remaining columns", async () => {

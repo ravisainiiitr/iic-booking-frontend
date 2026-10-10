@@ -13,8 +13,6 @@ interface SortableTableHeadProps {
   disabled?: boolean;
   /** Full heading when the visible one is shortened: shown on hover and read by screen readers. */
   title?: string;
-  /** Let the heading end in "…" when the column is narrower than it. */
-  truncate?: boolean;
 }
 
 export function SortableTableHead({
@@ -25,7 +23,6 @@ export function SortableTableHead({
   className,
   disabled,
   title,
-  truncate,
 }: SortableTableHeadProps) {
   const { key: activeKey, desc } = parseOrdering(ordering);
   const active = activeKey === sortKey;
@@ -48,7 +45,7 @@ export function SortableTableHead({
           active && "text-foreground",
         )}
       >
-        <span className={cn(truncate && "min-w-0 truncate")}>{children}</span>
+        <span>{children}</span>
         <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "opacity-100 text-primary" : "opacity-40")} aria-hidden />
       </button>
     </TableHead>
