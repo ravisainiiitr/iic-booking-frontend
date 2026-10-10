@@ -346,7 +346,9 @@ const Reports = () => {
 
   const loadEquipmentList = async () => {
     try {
-      const res = await apiClient.adminList<{ equipment_id: number; name: string; code: string }>("equipment");
+      const res = await apiClient.adminList<{ equipment_id: number; name: string; code: string }>("equipment", {
+        test: "hide",
+      });
       const raw = res.data;
       const list = Array.isArray(raw)
         ? raw

@@ -4,6 +4,7 @@ import { Wrench } from "lucide-react";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -48,6 +49,7 @@ export default function EquipmentOverview() {
   const [ordering, setOrdering] = useState("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [includeProfile, setIncludeProfile] = useState(() => Boolean(filters.profile_type));
 
   const filterParams = useMemo(() => insightParams(filters, { sort: ordering }), [filters, ordering]);
   const params = useMemo(() => ({ ...filterParams, page, page_size: pageSize }), [filterParams, page, pageSize]);
@@ -163,14 +165,16 @@ export default function EquipmentOverview() {
               color="bg-violet-500/80"
             />
           </SectionCard>
-          <SectionCard title="By profile type">
-            <BreakdownBars
-              items={(summary?.by_profile_type ?? []).map((d) => ({ ...d, key: String(d.key) }))}
-              selected={filters.profile_type}
-              onSelect={(key) => update({ profile_type: toggle(filters.profile_type, key) })}
-              color="bg-emerald-500/80"
-            />
-          </SectionCard>
+          {includeProfile ? (
+            <SectionCard title="By profile type">
+              <BreakdownBars
+                items={(summary?.by_profile_type ?? []).map((d) => ({ ...d, key: String(d.key) }))}
+                selected={filters.profile_type}
+                onSelect={(key) => update({ profile_type: toggle(filters.profile_type, key) })}
+                color="bg-emerald-500/80"
+              />
+            </SectionCard>
+          ) : null}
           {institute ? (
             <SectionCard title="By category / lab" className="lg:col-span-2 2xl:col-span-4">
               <BreakdownBars
@@ -220,14 +224,16 @@ export default function EquipmentOverview() {
                 options={oicOptions}
                 allLabel="All OICs"
               />
-              <FilterSelect
-                id="eo-profile"
-                label="Profile type"
-                value={filters.profile_type}
-                onChange={(v) => update({ profile_type: v })}
-                options={[...(options?.profile_types ?? []), { value: "none", label: "Not set" }]}
-                allLabel="All profile types"
-              />
+              {includeProfile ? (
+                <FilterSelect
+                  id="eo-profile"
+                  label="Profile type"
+                  value={filters.profile_type}
+                  onChange={(v) => update({ profile_type: v })}
+                  options={[...(options?.profile_types ?? []), { value: "none", label: "Not set" }]}
+                  allLabel="All profile types"
+                />
+              ) : null}
             </div>
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -237,6 +243,17 @@ export default function EquipmentOverview() {
                   label="Search equipment"
                   placeholder="Search name or code…"
                 />
+                <label htmlFor="eo-include-profile" className="flex cursor-pointer items-center gap-2 text-sm">
+                  <Checkbox
+                    id="eo-include-profile"
+                    checked={includeProfile}
+                    onCheckedChange={(checked) => {
+                      setIncludeProfile(checked === true);
+                      if (checked !== true && filters.profile_type) update({ profile_type: "" });
+                    }}
+                  />
+                  Include profile type
+                </label>
                 {filtersActive ? (
                   <ClearFilters
                     onClick={() => {
@@ -248,7 +265,7 @@ export default function EquipmentOverview() {
               </div>
               <ExportMenu
                 report="admin-equipment-overview"
-                getParams={() => filterParams}
+                getParams={() => (includeProfile ? { ...filterParams, include_profile_type: "1" } : filterParams)}
                 description="All equipment matching the filters"
                 noun="equipment"
                 disabled={total === 0}
@@ -352,7 +369,13 @@ export default function EquipmentOverview() {
                         </TableCell>
                         <TableCell className="tabular-nums">
                           {r.utilisation == null ? (
-                            <Muted>No slots</Muted>
+                            <Muted>
+                              {r.utilisation_counted_under
+                                ? "Counted on parent"
+                                : r.utilisation_test_excluded
+                                  ? "Test — not counted"
+                                  : "No slots"}
+                            </Muted>
                           ) : (
                             <div className="mx-auto w-28">
                               <div className="text-sm font-medium">{formatPercent(r.utilisation)}</div>

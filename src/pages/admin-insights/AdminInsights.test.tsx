@@ -20,12 +20,17 @@ const state = vi.hoisted(() => ({
     getAdminUserCard: vi.fn(),
     getAdminWalletBookings: vi.fn(),
   },
+  exportParams: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: state.api }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/ExportMenu", () => ({
-  ExportMenu: ({ report }: { report: string }) => <button type="button">Export {report}</button>,
+  ExportMenu: ({ report, getParams }: { report: string; getParams?: () => Record<string, unknown> }) => (
+    <button type="button" onClick={() => (state.exportParams = getParams?.() ?? null)}>
+      Export {report}
+    </button>
+  ),
 }));
 vi.stubGlobal(
   "ResizeObserver",
@@ -463,6 +468,39 @@ describe("EquipmentOverview", () => {
     expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: "Search equipment" }), { target: { value: "sem " } });
     await waitFor(() => expect(lastParams(state.api.getAdminEquipmentInsights)).toMatchObject({ search: "sem" }));
+  });
+
+  it("leaves profile type out until it is included, in the page and the export", async () => {
+    render(
+      <MemoryRouter>
+        <EquipmentOverview />
+      </MemoryRouter>,
+    );
+    await screen.findByText("Dashboard card: 63/68 operational");
+    expect(screen.queryByText("By profile type")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Export admin-equipment-overview" }));
+    expect(state.exportParams).not.toHaveProperty("include_profile_type");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include profile type" }));
+    expect(await screen.findByText("By profile type")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Export admin-equipment-overview" }));
+    expect(state.exportParams).toMatchObject({ include_profile_type: "1" });
+  });
+
+  it("shows modes as counted on the parent instrument", async () => {
+    state.api.getAdminEquipmentInsights.mockResolvedValue({
+      data: {
+        ...equipmentData,
+        results: [{ ...equipmentData.results[0], utilisation: null, utilisation_counted_under: 1 }],
+      },
+    });
+    render(
+      <MemoryRouter>
+        <EquipmentOverview />
+      </MemoryRouter>,
+    );
+    const table = await screen.findByRole("region", { name: "Equipment" });
+    expect(await within(table).findByText("Counted on parent")).toBeTruthy();
   });
 });
 

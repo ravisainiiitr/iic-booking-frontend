@@ -51,10 +51,17 @@ export interface EquipmentInsightRow {
   last_status_change: string | null;
   upcoming_bookings: number;
   next_booking_at: string | null;
-  /** Booked ÷ slot hours over the last 30 days (0–1); null when the equipment had no slots. */
+  /**
+   * Utilization factor over the last 30 days (from portal go-live, till now): booked ÷ available slot hours inside
+   * the weekly view window on working days (0–1); null when there are no available hours, for modes (counted on the
+   * parent's row, `utilisation_counted_under`) and for test equipment.
+   */
   utilisation: number | null;
   booked_hours_30d: number;
+  /** Available slot hours (the utilisation's denominator). */
   slot_hours_30d: number;
+  utilisation_counted_under?: number | null;
+  utilisation_test_excluded?: boolean;
 }
 
 export interface EquipmentInsights extends InsightPage<EquipmentInsightRow> {
@@ -70,6 +77,13 @@ export interface EquipmentInsights extends InsightPage<EquipmentInsightRow> {
     upcoming_bookings: number;
     utilisation: number | null;
     utilisation_days: number;
+    utilisation_booked_hours?: number;
+    utilisation_available_hours?: number;
+    utilisation_formula?: string;
+    utilisation_period_from?: string | null;
+    utilisation_period_to?: string | null;
+    utilisation_period_display?: string;
+    utilisation_period_note?: string;
   };
   options?: {
     statuses: Option[];
