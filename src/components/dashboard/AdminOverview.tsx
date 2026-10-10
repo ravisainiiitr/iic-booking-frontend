@@ -313,7 +313,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi
           compact
           icon={Wrench}
@@ -331,15 +331,6 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           hint={users ? `+${users.new_last_7_days} new in 7 days · +${users.new_last_30_days} in 30` : undefined}
           tone="slate"
           onClick={open(INSIGHT_PATHS.users)}
-        />
-        <Kpi
-          compact
-          icon={CalendarX2}
-          label={`Cancellations (${cancellations?.days ?? 30} days)`}
-          value={cancellations ? cancellations.total : "—"}
-          hint={cancellations ? cancellationHint(cancellations) : undefined}
-          tone={cancellations && cancellations.total > cancellations.previous_total ? "rose" : "slate"}
-          onClick={open(INSIGHT_PATHS.cancellations)}
         />
         <Kpi
           compact
@@ -364,6 +355,15 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           }
           tone={attempts && attempts.failed > 0 ? "rose" : "slate"}
           onClick={open("/booking-attempt-logs")}
+        />
+        <Kpi
+          compact
+          icon={CalendarX2}
+          label={`Cancellations (${cancellations?.days ?? 30} days)`}
+          value={cancellations ? cancellations.total : "—"}
+          hint={cancellations ? cancellationHint(cancellations) : undefined}
+          tone={cancellations && cancellations.total > cancellations.previous_total ? "rose" : "slate"}
+          onClick={open(INSIGHT_PATHS.cancellations)}
         />
         <Kpi
           compact
