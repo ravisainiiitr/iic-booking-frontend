@@ -150,9 +150,9 @@ function PersonCell({ name, role, at }: { name: string; role?: string; at: strin
 }
 
 /* Sticky first columns: opaque backgrounds so scrolled cells don't show through. */
-const STICKY_SNO = "sticky left-0 z-[2] w-12 min-w-12 bg-card group-hover:bg-muted";
+const STICKY_SNO = "table-sticky-cell sticky left-0 z-[2] w-12 min-w-12";
 const STICKY_EQUIPMENT =
-  "sticky left-12 z-[2] min-w-[200px] max-w-[260px] bg-card shadow-[1px_0_0_hsl(var(--border))] group-hover:bg-muted";
+  "table-sticky-cell sticky left-12 z-[2] min-w-[200px] max-w-[260px] shadow-[inset_1px_0_0_var(--table-grid),1px_0_0_hsl(var(--border))]";
 
 export default function DisruptionHistory() {
   const [searchParams] = useSearchParams();

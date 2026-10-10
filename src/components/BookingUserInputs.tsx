@@ -633,11 +633,11 @@ export function BookingUserInputs({
                 <span className="block text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">{f.field_label}</span>
                 {columns.length > 0 && rows.length > 0 ? (
                   <div className="rounded-lg border border-border/70 overflow-hidden shadow-sm">
-                    <table className="w-full text-base border-collapse">
+                    <table className="ui-table w-full text-base border-collapse">
                       <thead>
-                        <tr className="bg-primary/10 dark:bg-primary/15 border-b border-border/70">
+                        <tr>
                           {columns.map((header, ci) => (
-                            <th key={ci} className="text-left font-semibold text-foreground px-4 py-3 border-r border-border/50 last:border-r-0">
+                            <th key={ci} className="px-4 py-3 text-sm uppercase tracking-[0.06em]">
                               {header}
                             </th>
                           ))}
@@ -645,9 +645,9 @@ export function BookingUserInputs({
                       </thead>
                       <tbody>
                         {rows.map((row, ri) => (
-                          <tr key={ri} className="border-b border-border/40 last:border-0 bg-background/60 dark:bg-background/40 hover:bg-muted/30 transition-colors">
+                          <tr key={ri}>
                             {columns.map((_, ci) => (
-                              <td key={ci} className="px-4 py-3 text-foreground font-medium border-r border-border/40 last:border-r-0">
+                              <td key={ci} className="px-4 py-3 text-foreground font-medium">
                                 {row[ci] ?? "—"}
                               </td>
                             ))}
@@ -658,12 +658,12 @@ export function BookingUserInputs({
                   </div>
                 ) : rows.length > 0 && columns.length === 0 ? (
                   <div className="rounded-lg border border-border/70 overflow-hidden shadow-sm">
-                    <table className="w-full text-base border-collapse">
+                    <table className="ui-table w-full text-base border-collapse">
                       <tbody>
                         {rows.map((row, ri) => (
-                          <tr key={ri} className="border-b border-border/40 last:border-0 bg-background/60 dark:bg-background/40 hover:bg-muted/30 transition-colors">
+                          <tr key={ri}>
                             {row.map((cell, ci) => (
-                              <td key={ci} className="px-4 py-3 text-foreground font-medium border-r border-border/40 last:border-r-0">
+                              <td key={ci} className="px-4 py-3 text-foreground font-medium">
                                 {cell ?? "—"}
                               </td>
                             ))}
@@ -721,24 +721,21 @@ export function BookingUserInputs({
                     <div className="block text-sm font-normal text-muted-foreground mt-3 w-full min-w-0 text-left">
                       <span className="font-medium text-foreground">Standards covering selected elements</span>
                       <div className="mt-2 rounded-lg border border-border/70 overflow-hidden shadow-sm">
-                        <table className="w-full text-base border-collapse">
+                        <table className="ui-table w-full text-base border-collapse">
                           <thead>
-                            <tr className="bg-primary/10 dark:bg-primary/15 border-b border-border/70">
-                              <th className="text-left font-semibold text-foreground px-4 py-3 border-r border-border/50">S.NO.</th>
-                              <th className="text-left font-semibold text-foreground px-4 py-3 border-r border-border/50">Name of Std</th>
-                              <th className="text-left font-semibold text-foreground px-4 py-3">List of Element</th>
+                            <tr>
+                              <th className="px-4 py-3 text-sm uppercase tracking-[0.06em]">S.NO.</th>
+                              <th className="px-4 py-3 text-sm uppercase tracking-[0.06em]">Name of Std</th>
+                              <th className="px-4 py-3 text-sm uppercase tracking-[0.06em]">List of Element</th>
                             </tr>
                           </thead>
                           <tbody>
                             {icpmsStandards.map((s) => (
-                              <tr
-                                key={s.id}
-                                className="border-b border-border/40 last:border-0 bg-background/60 dark:bg-background/40"
-                              >
-                                <td className="px-4 py-3 text-foreground font-medium border-r border-border/40 align-top">
+                              <tr key={s.id}>
+                                <td className="px-4 py-3 text-center text-foreground font-medium align-top">
                                   {s.s_no}
                                 </td>
-                                <td className="px-4 py-3 text-foreground border-r border-border/40 align-top">
+                                <td className="px-4 py-3 text-foreground align-top">
                                   {s.name_of_std}
                                 </td>
                                 <td className="px-4 py-3 text-foreground align-top break-words max-w-[min(100%,28rem)]">
@@ -793,12 +790,12 @@ export function BookingUserInputs({
                           {rows.length === 0 ? (
                             "—"
                           ) : (
-                            <table className="w-full border-collapse rounded border text-sm">
+                            <table className="ui-table w-full border-collapse rounded border text-sm">
                               {columns.length > 0 && (
                                 <thead>
-                                  <tr className="border-b bg-muted/50">
+                                  <tr>
                                     {columns.map((header, ci) => (
-                                      <th key={ci} className="border-r px-2 py-1 text-left font-medium last:border-r-0">
+                                      <th key={ci} className="px-2 py-1 text-xs uppercase tracking-[0.06em]">
                                         {header}
                                       </th>
                                     ))}
@@ -807,9 +804,9 @@ export function BookingUserInputs({
                               )}
                               <tbody>
                                 {rows.map((row, ri) => (
-                                  <tr key={ri} className="border-b last:border-0">
+                                  <tr key={ri}>
                                     {(columns.length > 0 ? columns : row).map((_, ci) => (
-                                      <td key={ci} className="border-r px-2 py-1 font-medium last:border-r-0">
+                                      <td key={ci} className="px-2 py-1 font-medium">
                                         {row[ci] || "—"}
                                       </td>
                                     ))}

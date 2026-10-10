@@ -80,8 +80,8 @@ export default function WalletFundReceiptFollowUpAlert({ onReview }: { onReview:
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[50dvh] overflow-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <table className="ui-table w-full text-sm">
+              <thead className="sticky top-0 z-10 text-xs uppercase tracking-[0.06em]">
                 <tr>
                   <th className="px-3 py-2 font-medium">Transaction</th>
                   <th className="px-3 py-2 font-medium">Faculty / Department</th>
@@ -92,7 +92,7 @@ export default function WalletFundReceiptFollowUpAlert({ onReview }: { onReview:
               </thead>
               <tbody>
                 {rows.slice(0, MAX_ROWS_IN_DIALOG).map((row) => (
-                  <tr key={row.id} className="border-t">
+                  <tr key={row.id}>
                     <td className="px-3 py-2 font-medium whitespace-nowrap">{row.transaction_number}</td>
                     <td className="px-3 py-2">
                       <div>{row.user_name}</div>

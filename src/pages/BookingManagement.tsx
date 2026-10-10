@@ -156,8 +156,10 @@ const LIST_COLUMNS: Array<{ key: string; label: string; title?: string; classNam
   { key: "start_time", label: "Date & Time", title: "Booking Date & Time" },
   { key: "duration", label: "Duration", className: LAST_COLUMN_CLASS },
 ];
-const HEAD_CLASS = "px-1.5 whitespace-nowrap";
-const CELL_CLASS = "px-1.5 py-3 whitespace-nowrap";
+const HEAD_CLASS = "px-2.5 whitespace-nowrap";
+const CELL_CLASS = "px-2.5 py-2.5 whitespace-nowrap";
+/** Short values (IDs, codes, phone numbers, dates, durations) sit centred under their headings; names stay left. */
+const CENTER_CELL_CLASS = `${CELL_CLASS} text-center`;
 /** Matches the sticky Booking ID offset in index.css. */
 const SNO_CLASS = "w-[3.25rem] min-w-[3.25rem] px-1 text-center";
 /** max-w-0 lets a name take only the column's width, so long names end in "…" instead of widening it. */
@@ -635,7 +637,7 @@ const BookingManagement = () => {
               >
                 <Table className="view-booking-table text-[0.8125rem]" stackOnMobile>
                   <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
+                    <TableRow>
                       <TableHead className={`${HEAD_CLASS} ${SNO_CLASS}`}>S.No.</TableHead>
                       <SortableTableHead
                         sortKey="booking_ref"
@@ -668,7 +670,7 @@ const BookingManagement = () => {
                         <TableCell className={`${CELL_CLASS} ${SNO_CLASS} text-muted-foreground tabular-nums`}>
                           {rangeStart + index}
                         </TableCell>
-                        <TableCell className={`${CELL_CLASS} font-medium`}>
+                        <TableCell className={`${CENTER_CELL_CLASS} font-medium`}>
                           <button
                             type="button"
                             onClick={() => showBookingDetail(booking)}
@@ -692,7 +694,7 @@ const BookingManagement = () => {
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
                         </TableCell>
-                        <TableCell className={CELL_CLASS}>
+                        <TableCell className={CENTER_CELL_CLASS}>
                           <Badge
                             className={`whitespace-nowrap px-2 max-md:whitespace-normal md:max-w-[9rem] 2xl:max-w-none ${bookingStatusBadgeClass(bookingBadgeStatus(booking))}`}
                             title={
@@ -707,7 +709,7 @@ const BookingManagement = () => {
                             <span className="md:truncate">{booking.status_display}</span>
                           </Badge>
                         </TableCell>
-                        <TableCell className={CELL_CLASS} title={booking.equipment_name || undefined}>
+                        <TableCell className={CENTER_CELL_CLASS} title={booking.equipment_name || undefined}>
                           {booking.equipment_code || booking.equipment_name || "—"}
                         </TableCell>
                         <TableCell className={TRUNCATE_CELL_CLASS} title={booking.user_name || undefined}>
@@ -716,11 +718,11 @@ const BookingManagement = () => {
                         <TableCell className={TRUNCATE_CELL_CLASS} title={booking.wallet_owner_name || undefined}>
                           {booking.wallet_owner_name || "—"}
                         </TableCell>
-                        <TableCell className={`${CELL_CLASS} tabular-nums`}>{booking.user_phone || "—"}</TableCell>
-                        <TableCell className={`${CELL_CLASS} tabular-nums text-muted-foreground`}>
+                        <TableCell className={`${CENTER_CELL_CLASS} tabular-nums`}>{booking.user_phone || "—"}</TableCell>
+                        <TableCell className={`${CENTER_CELL_CLASS} tabular-nums text-muted-foreground`}>
                           {formatBookingDateTimeShort(booking.start_time)}
                         </TableCell>
-                        <TableCell className={`${CELL_CLASS} ${LAST_COLUMN_CLASS} tabular-nums`}>
+                        <TableCell className={`${CENTER_CELL_CLASS} ${LAST_COLUMN_CLASS} tabular-nums`}>
                           {formatDuration(booking.total_time_minutes)}
                         </TableCell>
                       </TableRow>

@@ -62,8 +62,8 @@ function SkippedBookedTable({ rows, total }: { rows: SkippedBookedSlot[]; total:
   if (rows.length === 0) return null;
   return (
     <div className="mt-1.5 max-h-56 overflow-auto rounded-md border border-border/60">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-muted/80 text-left">
+      <table className="ui-table w-full text-xs">
+        <thead className="sticky top-0 z-10 uppercase tracking-[0.06em]">
           <tr>
             <th className="px-2 py-1 font-semibold">Date</th>
             <th className="px-2 py-1 font-semibold">Time</th>
@@ -73,7 +73,7 @@ function SkippedBookedTable({ rows, total }: { rows: SkippedBookedSlot[]; total:
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.slot_id} className="border-t border-border/40">
+            <tr key={r.slot_id}>
               <td className="px-2 py-1 whitespace-nowrap">
                 {r.weekday} {formatRuleDate(r.date)}
               </td>
@@ -99,8 +99,8 @@ function SkippedOtherTable({ rows, total }: { rows: SkippedOtherSlot[]; total: n
   if (rows.length === 0) return null;
   return (
     <div className="mt-1.5 max-h-56 overflow-auto rounded-md border border-border/60">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-muted/80 text-left">
+      <table className="ui-table w-full text-xs">
+        <thead className="sticky top-0 z-10 uppercase tracking-[0.06em]">
           <tr>
             <th className="px-2 py-1 font-semibold">Date</th>
             <th className="px-2 py-1 font-semibold">Time</th>
@@ -109,7 +109,7 @@ function SkippedOtherTable({ rows, total }: { rows: SkippedOtherSlot[]; total: n
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.slot_id} className="border-t border-border/40">
+            <tr key={r.slot_id}>
               <td className="px-2 py-1 whitespace-nowrap">
                 {r.weekday} {formatRuleDate(r.date)}
               </td>

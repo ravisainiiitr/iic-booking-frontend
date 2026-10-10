@@ -499,11 +499,11 @@ const EquipmentCard = ({
                         Charges
                       </h4>
                       <div className="rounded-md border overflow-hidden">
-                        <table className="w-full text-base">
+                        <table className="ui-table w-full text-base">
                           <thead>
-                            <tr className="bg-muted/50 border-b">
-                              <th className="text-left font-semibold p-3">User type</th>
-                              <th className="text-right font-semibold p-3">
+                            <tr>
+                              <th className="p-3 text-sm uppercase tracking-[0.06em]">User type</th>
+                              <th className="p-3 text-sm uppercase tracking-[0.06em]">
                                 {profileType === "HOUR"
                                   ? "Per hour (₹)"
                                   : profileType === "SAMPLE" || profileType === "SAMPLE_ELEMENT" || profileType === "MULTI_PARAM"
@@ -514,7 +514,7 @@ const EquipmentCard = ({
                           </thead>
                           <tbody>
                             {chargeRows.map((row) => (
-                              <tr key={row.user_type} className="border-b last:border-0">
+                              <tr key={row.user_type}>
                                 <td className="p-3 font-medium text-foreground">{row.user_type_display}</td>
                                 <td className="p-3 text-right">₹{row.primary_unit_charge}</td>
                               </tr>

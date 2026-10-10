@@ -12085,8 +12085,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                         <p className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
                       ) : myUnsuccessfulAttempts.length > 0 ? (
                         <div className="border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50 sticky top-0">
+                          <table className="ui-table w-full text-sm">
+                            <thead className="sticky top-0 z-10 text-xs uppercase tracking-[0.06em]">
                               <tr>
                                 <th className="text-left p-3 font-medium">Date</th>
                                 <th className="text-left p-3 font-medium">Time</th>
@@ -12099,7 +12099,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                               {myUnsuccessfulAttempts.map((e) => {
                                 const d = e.requested_at ? new Date(e.requested_at) : null;
                                 return (
-                                  <tr key={e.id} className="border-t border-border/50">
+                                  <tr key={e.id}>
                                     <td className="p-3">{d ? format(d, "dd MMM yyyy") : "—"}</td>
                                     <td className="p-3">{d ? format(d, "HH:mm:ss") : "—"}</td>
                                     <td className="p-3">{e.number_of_samples}</td>

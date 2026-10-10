@@ -17,12 +17,12 @@ export function TypedTableView({ tableConfig, value, label, className }: Props) 
   if (!rows.length) return <span className="text-muted-foreground">—</span>;
   return (
     <div className={cn("overflow-x-auto rounded-lg border border-border/70", className)}>
-      <table className="w-full border-collapse text-sm" aria-label={label}>
+      <table className="ui-table w-full border-collapse text-sm" aria-label={label}>
         {columns.length > 0 && (
           <thead>
-            <tr className="border-b border-border/70 bg-primary/10 dark:bg-primary/15">
+            <tr>
               {columns.map((header, ci) => (
-                <th key={ci} scope="col" className="border-r border-border/50 px-3 py-2 text-left font-semibold last:border-r-0">
+                <th key={ci} scope="col" className="px-3 py-2 text-xs uppercase tracking-[0.06em]">
                   {header}
                 </th>
               ))}
@@ -31,9 +31,9 @@ export function TypedTableView({ tableConfig, value, label, className }: Props) 
         )}
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className="border-b border-border/40 last:border-0">
+            <tr key={ri}>
               {row.map((cell, ci) => (
-                <td key={ci} className="border-r border-border/40 px-3 py-2 font-medium last:border-r-0 break-words">
+                <td key={ci} className="px-3 py-2 font-medium break-words">
                   {cell || "—"}
                 </td>
               ))}

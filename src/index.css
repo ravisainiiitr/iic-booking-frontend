@@ -531,6 +531,115 @@
 }
 
 /*
+ * Data tables: <Table> (components/ui/table.tsx) and raw <table className="ui-table">.
+ * Centered tinted headings, column and row rules, faint zebra rows and a hover tint. Most rules sit in :where()
+ * so a page's own utilities (bg-*, border-*, shadow-*) still win; heading look and the hover tint are enforced so
+ * every list matches. The hover tint is an overlay, so rows with their own highlight colour keep it.
+ * Rows expose --row-bg / --row-hover so sticky cells (.table-sticky-cell) can repeat them over an opaque card.
+ */
+.ui-table {
+  --table-surface: hsl(var(--card));
+  --table-head-bg: hsl(var(--primary) / 0.065);
+  --table-head-fg: hsl(var(--primary));
+  --table-head-rule: hsl(var(--primary) / 0.2);
+  --table-grid: hsl(var(--border) / 0.85);
+  --table-zebra: hsl(var(--muted) / 0.6);
+  --table-hover: hsl(var(--primary) / 0.055);
+  font-variant-numeric: tabular-nums;
+}
+@media screen and (prefers-color-scheme: dark) {
+  .ui-table {
+    --table-head-bg: hsl(var(--primary) / 0.1);
+    --table-head-fg: hsl(var(--foreground) / 0.9);
+    --table-head-rule: hsl(var(--primary) / 0.32);
+    --table-grid: hsl(var(--border) / 0.9);
+    --table-zebra: hsl(var(--muted) / 0.45);
+    --table-hover: hsl(var(--primary) / 0.1);
+  }
+}
+
+:where(.ui-table > thead > tr > th) {
+  box-shadow: inset 0 -1px 0 var(--table-head-rule);
+}
+:where(.ui-table > thead > tr > th + th) {
+  box-shadow: inset 1px 0 0 var(--table-grid), inset 0 -1px 0 var(--table-head-rule);
+}
+.ui-table > thead > tr > th {
+  background: linear-gradient(var(--table-head-bg), var(--table-head-bg)), var(--table-surface);
+  color: var(--table-head-fg);
+  font-weight: 600;
+  text-align: center;
+}
+.ui-table > thead > tr > th > .flex {
+  justify-content: center;
+}
+/* Sort buttons and other header controls read like the heading itself. */
+.ui-table > thead > tr > th button:not([role="checkbox"]) {
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+:where(.ui-table > :is(tbody, tfoot) > tr > :is(th, td) + :is(th, td)) {
+  box-shadow: inset 1px 0 0 var(--table-grid);
+}
+:where(.ui-table > tbody > tr) {
+  --row-bg: transparent;
+  --row-hover: transparent;
+  background-color: var(--row-bg);
+  border-bottom: 1px solid var(--table-grid);
+}
+:where(.ui-table > tbody > tr:last-child) {
+  border-bottom-width: 0;
+}
+:where(.ui-table > tbody > tr:nth-child(even)) {
+  --row-bg: var(--table-zebra);
+}
+.ui-table > tbody > tr:hover {
+  --row-hover: var(--table-hover);
+  background-image: linear-gradient(var(--row-hover), var(--row-hover));
+}
+:where(.ui-table > tfoot) {
+  border-top: 1px solid var(--table-head-rule);
+}
+:where(.ui-table > tbody > tr > td:has(> [role="checkbox"]:only-child, > [data-slot="badge"]:only-child)) {
+  text-align: center;
+}
+.ui-table > tbody > tr > .table-sticky-cell {
+  background:
+    linear-gradient(var(--row-hover), var(--row-hover)),
+    linear-gradient(var(--row-bg), var(--row-bg)),
+    var(--table-surface);
+}
+.ui-table > thead > tr > .table-sticky-cell {
+  background: linear-gradient(var(--table-head-bg), var(--table-head-bg)), var(--table-surface);
+}
+
+/* <Table> frame; dropped when the parent (or a bare scroll wrapper inside it) already draws the edge. */
+:where(.ui-table-frame) {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  background-color: hsl(var(--card));
+}
+:is(.p-0, .px-0, .border:not([class*=" p-"], [class^="p-"], [class*=" px-"], [class^="px-"])) > .ui-table-frame,
+:is(.p-0, .px-0, .border:not([class*=" p-"], [class^="p-"], [class*=" px-"], [class^="px-"]))
+  > :is(.overflow-x-auto, .overflow-auto, .overflow-hidden, .table-scroll, .hidden, .w-full)
+  > .ui-table-frame {
+  border-width: 0;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+@media print {
+  .ui-table > thead {
+    position: static;
+  }
+  .ui-table-frame {
+    overflow: visible;
+  }
+}
+
+/*
  * <Table scrollPane>: the table scrolls inside its own viewport-high box, so the sideways scrollbar sits at the
  * bottom of the visible area instead of after the last row. Styled scrollbars stay visible (no overlay hiding).
  */
@@ -563,12 +672,20 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    background-color: hsl(var(--card));
+    background: linear-gradient(var(--row-hover, transparent), var(--row-hover, transparent)), linear-gradient(var(--row-bg, transparent), var(--row-bg, transparent)), hsl(var(--card));
     box-shadow: 1px 0 0 hsl(var(--border));
   }
 
   .table-sticky-first thead th:first-child {
     z-index: 11;
+    background: linear-gradient(var(--table-head-bg), var(--table-head-bg)), hsl(var(--card));
+    box-shadow: 1px 0 0 hsl(var(--border)), inset 0 -1px 0 var(--table-head-rule);
+  }
+
+  .table-stack-mobile.ui-table-frame {
+    border-width: 0;
+    border-radius: 0;
+    background-color: transparent;
   }
 
   .table-stack-mobile > table {
@@ -613,6 +730,7 @@
     min-height: 2rem;
     padding: 0.4rem 0.85rem 0.4rem calc(38% + 0.5rem) !important;
     border: 0;
+    box-shadow: none;
     text-align: left !important;
     white-space: normal !important;
     overflow-wrap: anywhere;
@@ -648,20 +766,31 @@
   .view-booking-table :is(th, td):nth-child(-n + 2) {
     position: sticky;
     z-index: 1;
-    background: hsl(var(--card));
+    background: linear-gradient(var(--row-hover, transparent), var(--row-hover, transparent)), linear-gradient(var(--row-bg, transparent), var(--row-bg, transparent)), hsl(var(--card));
   }
   .view-booking-table :is(th, td):first-child {
     left: 0;
   }
   .view-booking-table :is(th, td):nth-child(2) {
     left: 3.25rem;
+    box-shadow: inset 1px 0 0 var(--table-grid), inset -1px 0 0 var(--table-grid);
   }
   .view-booking-table thead th:nth-child(-n + 2) {
     z-index: 11;
-    background: linear-gradient(hsl(var(--muted) / 0.4), hsl(var(--muted) / 0.4)), hsl(var(--card));
+    background: linear-gradient(var(--table-head-bg), var(--table-head-bg)), hsl(var(--card));
   }
-  .view-booking-table tbody tr:hover > td:nth-child(-n + 2) {
-    background: linear-gradient(hsl(var(--muted) / 0.6), hsl(var(--muted) / 0.6)), hsl(var(--card));
+  .view-booking-table thead th:nth-child(2) {
+    box-shadow:
+      inset 1px 0 0 var(--table-grid),
+      inset -1px 0 0 var(--table-grid),
+      inset 0 -1px 0 var(--table-head-rule);
+  }
+  /* The sticky Booking ID column draws the divider on its right, so Status does not repeat it. */
+  .view-booking-table tbody td:nth-child(3) {
+    box-shadow: none;
+  }
+  .view-booking-table thead th:nth-child(3) {
+    box-shadow: inset 0 -1px 0 var(--table-head-rule);
   }
 }
 

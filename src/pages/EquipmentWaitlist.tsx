@@ -377,7 +377,7 @@ export default function EquipmentWaitlist() {
                             <TableHead className="w-[20%] px-2">Status</TableHead>
                             <TableHead className="px-2">Last attempt</TableHead>
                             {canConfirmManually && (
-                              <TableHead className="sticky right-0 z-[1] w-[6.75rem] bg-card px-2 text-right">
+                              <TableHead className="table-sticky-cell sticky right-0 z-[1] w-[6.75rem] px-2 text-right">
                                 <span className="sr-only">Action</span>
                               </TableHead>
                             )}
@@ -405,7 +405,7 @@ export default function EquipmentWaitlist() {
                               <TableCell className="px-2 py-3">{renderStatus(e)}</TableCell>
                               <TableCell className="px-2 py-3">{renderLastAttempt(e)}</TableCell>
                               {canConfirmManually && (
-                                <TableCell className="sticky right-0 bg-card px-2 py-3 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))] group-hover:bg-muted">
+                                <TableCell className="table-sticky-cell sticky right-0 px-2 py-3 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))]">
                                   {renderConfirm(e, { compact: true })}
                                 </TableCell>
                               )}

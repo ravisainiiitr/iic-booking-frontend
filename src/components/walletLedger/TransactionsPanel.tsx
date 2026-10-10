@@ -382,9 +382,9 @@ export default function TransactionsPanel({
                   ) : (
                     rows.map((t) => (
                       <TableRow key={t.id} className="align-top">
-                        <TableCell className="tabular-nums text-muted-foreground">{t.s_no}</TableCell>
-                        <TableCell className="whitespace-nowrap">{formatDMYTime(t.created_at) || "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap font-mono text-xs">TXN-{t.id}</TableCell>
+                        <TableCell className="text-center tabular-nums text-muted-foreground">{t.s_no}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center">{formatDMYTime(t.created_at) || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-center font-mono text-xs">TXN-{t.id}</TableCell>
                         {global ? (
                           <TableCell>
                             {onOpenOwner ? (
@@ -401,13 +401,13 @@ export default function TransactionsPanel({
                             {t.owner_department ? <div className="text-xs text-muted-foreground">{t.owner_department}</div> : null}
                           </TableCell>
                         ) : null}
-                        <TableCell>
+                        <TableCell className="text-center">
                           <TypeBadge type={t.transaction_type} />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
                           <CategoryBadge category={t.category} label={t.category_label} />
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap text-center">
                           {t.booking_code ? (
                             <Link
                               to={`/booking-management?expand=${encodeURIComponent(t.booking_code)}`}

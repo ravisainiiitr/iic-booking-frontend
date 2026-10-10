@@ -540,7 +540,7 @@ const UrgentRequests = () => {
                         {isAdminView && <TableHead className="w-[6.75rem] px-3 font-medium text-muted-foreground">Type</TableHead>}
                         <TableHead className="w-[6.75rem] px-3 font-medium text-muted-foreground">Requested</TableHead>
                         <TableHead className="w-[10rem] px-3 font-medium text-muted-foreground">Status · time left</TableHead>
-                        <TableHead className="sticky right-0 z-[1] w-24 bg-card px-3">
+                        <TableHead className="table-sticky-cell sticky right-0 z-[1] w-24 px-3">
                           <span className="sr-only">Action</span>
                         </TableHead>
                       </TableRow>
@@ -572,7 +572,7 @@ const UrgentRequests = () => {
                                 </div>
                               ) : null}
                             </TableCell>
-                            <TableCell className="sticky right-0 bg-card px-3 py-2.5 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))] group-hover:bg-muted">
+                            <TableCell className="table-sticky-cell sticky right-0 px-3 py-2.5 text-right shadow-[-8px_0_8px_-8px_hsl(var(--border))]">
                               {renderOpenButton(row, view.actionable)}
                             </TableCell>
                           </TableRow>

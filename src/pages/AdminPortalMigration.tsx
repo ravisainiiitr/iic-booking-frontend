@@ -294,9 +294,9 @@ export default function AdminPortalMigration() {
             </div>
             {goNoGo.gate_matrix && typeof goNoGo.gate_matrix === "object" ? (
               <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b bg-muted/40">
+                <table className="ui-table w-full text-left text-xs">
+                  <thead className="uppercase tracking-[0.06em]">
+                    <tr>
                       <th className="p-2">Gate</th>
                       <th className="p-2">Status</th>
                       <th className="p-2">Blocking</th>
@@ -306,7 +306,7 @@ export default function AdminPortalMigration() {
                   <tbody>
                     {Object.entries(goNoGo.gate_matrix as Record<string, Record<string, unknown>>).map(
                       ([name, gate]) => (
-                        <tr key={name} className="border-b align-top">
+                        <tr key={name} className="align-top">
                           <td className="p-2 font-medium">{name}</td>
                           <td className="p-2">{String(gate.result)}</td>
                           <td className="p-2">{String(gate.blocking)}</td>

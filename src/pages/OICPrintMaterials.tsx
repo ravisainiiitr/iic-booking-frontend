@@ -654,16 +654,16 @@ export default function OICPrintMaterials() {
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto rounded-lg border">
-                    <table className="w-full text-sm">
+                    <table className="ui-table w-full text-sm">
                       <thead>
-                        <tr className="bg-muted/40 border-b">
-                          <th className="p-3 text-left font-semibold whitespace-nowrap">User category</th>
-                          <th className="p-3 text-right font-semibold whitespace-nowrap">Machine ₹/h</th>
+                        <tr>
+                          <th className="p-3 text-xs uppercase tracking-[0.06em] whitespace-nowrap">User category</th>
+                          <th className="p-3 text-xs uppercase tracking-[0.06em] whitespace-nowrap">Machine ₹/h</th>
                           {priceColumns.map((col) => (
-                            <th key={col.code} className="p-3 text-right font-semibold whitespace-nowrap">
+                            <th key={col.code} className="p-3 text-xs uppercase tracking-[0.06em] whitespace-nowrap">
                               <div className="leading-tight">
                                 <div>{col.name}</div>
-                                <div className="text-[11px] font-normal text-muted-foreground">{col.code} · ₹/g</div>
+                                <div className="text-[11px] font-normal normal-case text-muted-foreground">{col.code} · ₹/g</div>
                               </div>
                             </th>
                           ))}
@@ -678,7 +678,7 @@ export default function OICPrintMaterials() {
                           </tr>
                         ) : (
                           selectedProfiles.map((cp) => (
-                            <tr key={cp.user_type} className={cn("border-b last:border-0", !cp.is_active && "opacity-50 bg-muted/20")}>
+                            <tr key={cp.user_type} className={cn(!cp.is_active && "opacity-50 bg-muted/20")}>
                               <td className="p-3">
                                 <span className="font-medium">{cp.user_type_display || getUserTypeDisplayName(cp.user_type)}</span>
                                 {!cp.is_active && (

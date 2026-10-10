@@ -135,8 +135,8 @@ export default function PaymentOptionsTab({
   const columnEditable = (option: WalletModeOptionKey) => (option === "credit" || schemaReady) && masterOn(option);
 
   const renderRow = (dept: WalletModeDepartmentRow) => (
-    <tr key={dept.id} className="hover:bg-muted/30">
-      <th scope="row" className="sticky left-0 z-10 bg-card px-3 py-2 text-left font-medium">
+    <tr key={dept.id}>
+      <th scope="row" className="table-sticky-cell sticky left-0 z-10 px-3 py-2 text-left font-medium shadow-[1px_0_0_hsl(var(--border))]">
         <span className="line-clamp-2 max-w-[240px] break-words leading-snug" title={dept.name}>
           {dept.name}
         </span>
@@ -324,16 +324,16 @@ export default function PaymentOptionsTab({
           </div>
 
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-muted/50 text-xs text-muted-foreground">
+            <table className="ui-table w-full min-w-[760px] text-sm">
+              <thead className="text-xs">
                 <tr>
-                  <th scope="col" className="sticky left-0 z-10 bg-muted/90 px-3 py-2 text-left font-medium backdrop-blur">
+                  <th scope="col" className="table-sticky-cell sticky left-0 z-10 px-3 py-2 uppercase tracking-[0.06em] shadow-[1px_0_0_hsl(var(--border)),inset_0_-1px_0_var(--table-head-rule)]">
                     Department
                   </th>
                   {OPTION_ORDER.map((option) => (
                     <th key={option} scope="col" className="px-2 py-2 text-center font-medium">
                       <div className="flex flex-col items-center gap-1">
-                        <span className="flex items-center gap-1 text-foreground">
+                        <span className="flex items-center gap-1 uppercase tracking-[0.06em]">
                           {OPTION_ICON[option]}
                           {OPTION_SHORT_LABEL[option]}
                         </span>

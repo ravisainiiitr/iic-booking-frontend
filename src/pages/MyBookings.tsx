@@ -1700,8 +1700,8 @@ const MyBookings = () => {
                 <div className="hidden md:block">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/40 hover:bg-muted/40">
-                      <TableHead className="w-14 font-semibold">S.No</TableHead>
+                    <TableRow>
+                      <TableHead className="w-14">S.No</TableHead>
                       {[
                         { key: "booking_ref", label: "Booking ID" },
                         { key: "equipment_name", label: "Equipment" },
@@ -1721,7 +1721,7 @@ const MyBookings = () => {
                           {col.label}
                         </SortableTableHead>
                       ))}
-                      <TableHead className="font-semibold text-right">Actions</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1742,21 +1742,21 @@ const MyBookings = () => {
                     ) : (
                       bookings.map((booking, index) => (
                       <TableRow key={booking.booking_id} className="group">
-                        <TableCell className="text-muted-foreground tabular-nums">{bookingsOffset + index + 1}</TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="text-center text-muted-foreground tabular-nums">{bookingsOffset + index + 1}</TableCell>
+                        <TableCell className="text-center font-medium">
                           {renderBookingIdButton(booking)}
                           {renderSampleSummary(booking)}
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate" title={booking.equipment_name}>
                           {booking.equipment_name}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                        <TableCell className="whitespace-nowrap text-center text-muted-foreground">
                           {formatListStart(booking)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap text-center">
                           {formatDuration(booking.total_time_minutes)}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap font-medium text-primary">
+                        <TableCell className="whitespace-nowrap text-right font-medium text-primary tabular-nums">
                           ₹{Number(booking.total_charge).toFixed(2)}
                         </TableCell>
                         <TableCell>
@@ -1764,11 +1764,11 @@ const MyBookings = () => {
                             {booking.status_display}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap justify-end gap-1">
+                        <TableCell className="text-center">
+                          <div className="flex flex-wrap justify-center gap-1">
                             {renderBookingActions(booking)}
                           </div>
-                          {renderBookingDeadline(booking, listNow, "mt-1 flex flex-col items-end text-right")}
+                          {renderBookingDeadline(booking, listNow, "mt-1 flex flex-col items-center text-center")}
                         </TableCell>
                       </TableRow>
                     ))
