@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, extractAdminListItems, type SricReminderPreview } from "@/lib/api";
 import { cashbookUploadSummary, formatCutoffDate, sricDeclineOutcome } from "@/lib/walletRecharge";
 import DashboardHeader from "@/components/DashboardHeader";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,6 +177,7 @@ interface WalletRechargeRequestRow {
   sric_reminder_last_sent_at?: string | null;
   sric_reminder_last_sent_by_name?: string;
   sric_reminder_blocked_reason?: string;
+  is_test_account?: boolean;
 }
 
 interface CatalogDepartment {
@@ -281,6 +283,7 @@ export default function AdminWalletRechargeRequests() {
   const cashbookFileRef = useRef<HTMLInputElement>(null);
   const canLoadCashbook = isAdmin || isFinance;
   const [showDeleted, setShowDeleted] = useState(false);
+  const [showTestAccounts, setShowTestAccounts] = useState(true);
   const [cashbookCutoff, setCashbookCutoff] = useState<string>("2026-09-30");
   const [deleteRow, setDeleteRow] = useState<WalletRechargeRequestRow | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
@@ -336,6 +339,7 @@ export default function AdminWalletRechargeRequests() {
     if (projectGrant.trim()) params.project_grant = projectGrant.trim();
     if (cashbookFilter !== "__all__") params.cashbook = cashbookFilter;
     if (overdueOnly) params.overdue = "1";
+    if (!showTestAccounts) params.test = "hide";
     return params;
   };
 
@@ -357,7 +361,7 @@ export default function AdminWalletRechargeRequests() {
     if (!canAccess) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly, showDeleted]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly, showDeleted, showTestAccounts]);
 
   const clearOverdue = () => {
     const next = new URLSearchParams(searchParams);
@@ -766,14 +770,22 @@ export default function AdminWalletRechargeRequests() {
               <span className="text-sm text-muted-foreground self-center ml-1">
                 {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
               </span>
-              {isAdmin ? (
-                <div className="flex items-center gap-2 self-center ml-auto">
-                  <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
-                  <Label htmlFor="show-deleted" className="text-sm font-normal">
-                    Show deleted
+              <div className="flex flex-wrap items-center gap-4 self-center ml-auto">
+                <div className="flex items-center gap-2" title="Test-account requests are not counted in revenue and need no SRIC cash-book entry">
+                  <Switch id="show-test-accounts" checked={showTestAccounts} onCheckedChange={setShowTestAccounts} />
+                  <Label htmlFor="show-test-accounts" className="text-sm font-normal">
+                    Show test accounts
                   </Label>
                 </div>
-              ) : null}
+                {isAdmin ? (
+                  <div className="flex items-center gap-2">
+                    <Switch id="show-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
+                    <Label htmlFor="show-deleted" className="text-sm font-normal">
+                      Show deleted
+                    </Label>
+                  </div>
+                ) : null}
+              </div>
             </div>
             {overdueOnly ? (
               <div
@@ -891,6 +903,7 @@ export default function AdminWalletRechargeRequests() {
                               Emp: {row.employee_number || row.user_emp_id || "—"}
                             </div>
                           </button>
+                          {row.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                         </TableCell>
                         <TableCell>
                           <div>{row.department_name || "—"}</div>
@@ -959,12 +972,16 @@ export default function AdminWalletRechargeRequests() {
                                 </div>
                               ) : null}
                             </div>
+                          ) : row.is_test_account ? (
+                            <span className="text-xs text-muted-foreground">Not needed (test)</span>
                           ) : (
                             <Badge variant="outline">Not verified</Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {row.cashbook_receipt_no ? (
+                          {row.is_test_account && !row.cashbook_receipt_no ? (
+                            <span className="text-xs text-muted-foreground">Not expected (test)</span>
+                          ) : row.cashbook_receipt_no ? (
                             <div>
                               <Badge className="bg-primary/10 text-primary border-primary/20">Matched</Badge>
                               <div className="text-xs text-muted-foreground mt-1">
@@ -996,7 +1013,10 @@ export default function AdminWalletRechargeRequests() {
                             <Button aria-label="View details" variant="ghost" size="icon" onClick={() => openDetails(row)} title="Details">
                               <Eye className="h-4 w-4" aria-hidden />
                             </Button>
-                            {canVerifyFundReceipt && !row.fund_receipt_verified && !row.is_deleted ? (
+                            {canVerifyFundReceipt &&
+                            !row.fund_receipt_verified &&
+                            !row.is_deleted &&
+                            (!row.is_test_account || row.wallet_credit_pending) ? (
                               <Button
                                 aria-label="Verify fund receipt"
                                 variant="ghost"
@@ -1169,9 +1189,21 @@ export default function AdminWalletRechargeRequests() {
 
               <section className="rounded-lg border p-3 space-y-2">
                 <h3 className="text-sm font-semibold">Fund receipt verification</h3>
+                {detailRow.is_test_account ? (
+                  <p className="text-sm text-muted-foreground" data-testid="detail-test-account-note">
+                    <TestAccountBadge className="mr-2" />
+                    Testing only: not counted in revenue. No SRIC cash-book entry or fund receipt is expected.
+                  </p>
+                ) : null}
                 <DetailField
                   label="Status"
-                  value={detailRow.fund_receipt_verified ? "Verified" : "Not verified"}
+                  value={
+                    detailRow.fund_receipt_verified
+                      ? "Verified"
+                      : detailRow.is_test_account
+                        ? "Not needed (test account)"
+                        : "Not verified"
+                  }
                 />
                 {detailRow.fund_receipt_verified ? (
                   <>
@@ -1186,7 +1218,9 @@ export default function AdminWalletRechargeRequests() {
                     />
                     <DetailField label="Remarks" value={detailRow.fund_receipt_verification_remarks} />
                   </>
-                ) : canVerifyFundReceipt && !detailRow.is_deleted ? (
+                ) : canVerifyFundReceipt &&
+                  !detailRow.is_deleted &&
+                  (!detailRow.is_test_account || detailRow.wallet_credit_pending) ? (
                   <Button size="sm" onClick={() => openVerify(detailRow)}>
                     <BadgeCheck className="h-4 w-4 mr-2" />
                     Verify against physical receipt
@@ -1217,6 +1251,10 @@ export default function AdminWalletRechargeRequests() {
                     Review {detailRow.cashbook_candidates?.length} matching cash-book entr
                     {detailRow.cashbook_candidates?.length === 1 ? "y" : "ies"}
                   </Button>
+                ) : detailRow.is_test_account ? (
+                  <p className="text-sm text-muted-foreground">
+                    Test account: cash-book entries are never matched to this request.
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">No matching cash-book entry received yet.</p>
                 )}

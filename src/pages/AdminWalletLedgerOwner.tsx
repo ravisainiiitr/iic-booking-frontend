@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import AdjustWalletDialog from "@/components/walletLedger/AdjustWalletDialog";
 import { LinkedStudentsPanel, type StudentRef } from "@/components/walletLedger/LinkedStudents";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
@@ -195,6 +196,7 @@ export default function AdminWalletLedgerOwner() {
                           {owner.status === "active" ? "Active account" : "Inactive account"}
                         </Badge>
                         {owner.employee_id ? <Badge variant="outline">ID: {owner.employee_id}</Badge> : null}
+                        {owner.is_test_account ? <TestAccountBadge /> : null}
                       </div>
                     </div>
                   </div>

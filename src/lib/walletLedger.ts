@@ -28,7 +28,13 @@ export interface OwnerFilters {
   activity_from: string;
   activity_to: string;
   has_students: string;
+  test: string;
 }
+
+export const TEST_ACCOUNT_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "hide", label: "Hide test accounts" },
+  { value: "only", label: "Only test accounts" },
+];
 
 export const EMPTY_OWNER_FILTERS: OwnerFilters = {
   search: "",
@@ -42,6 +48,7 @@ export const EMPTY_OWNER_FILTERS: OwnerFilters = {
   activity_from: "",
   activity_to: "",
   has_students: "",
+  test: "",
 };
 
 export interface TransactionFilters {
@@ -59,6 +66,7 @@ export interface TransactionFilters {
   date_to: string;
   amount_min: string;
   amount_max: string;
+  test: string;
 }
 
 export const EMPTY_TRANSACTION_FILTERS: TransactionFilters = {
@@ -76,6 +84,7 @@ export const EMPTY_TRANSACTION_FILTERS: TransactionFilters = {
   date_to: "",
   amount_min: "",
   amount_max: "",
+  test: "",
 };
 
 export type DatePreset = "all" | "today" | "7d" | "30d" | "month" | "fy" | "custom";
@@ -148,6 +157,7 @@ export function transactionFilterParams(
     owner_type: f.owner_type,
     amount_min: f.amount_min,
     amount_max: f.amount_max,
+    test: f.test,
     date_from: range.from,
     date_to: range.to,
     owner: ownerId ? String(ownerId) : "",

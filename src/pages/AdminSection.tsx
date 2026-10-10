@@ -41,6 +41,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { EquipmentForm, type EquipmentFormData } from "@/components/admin/EquipmentForm";
 import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
 import { StandaloneOnly } from "@/components/PageShell";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { formatDMY } from "@/lib/dateFormat";
 
 /** Staff roles Department Administrators may create or map. */
@@ -256,6 +257,7 @@ export default function AdminSection() {
   const [editUserNewPassword, setEditUserNewPassword] = useState("");
   const [editUserNewPasswordConfirm, setEditUserNewPasswordConfirm] = useState("");
   const [editUserPasswordLoading, setEditUserPasswordLoading] = useState(false);
+  const [testAccountSaving, setTestAccountSaving] = useState(false);
   const [walletsListForSubWallets, setWalletsListForSubWallets] = useState<Array<{ id: number; user_email?: string; user_name?: string }>>([]);
   const [internalDepartmentsList, setInternalDepartmentsList] = useState<Array<{ id: number; name: string; code?: string | null }>>([]);
   const [userDocumentsList, setUserDocumentsList] = useState<Array<{ id: number; document_type: string; file_url: string | null; description?: string; uploaded_at?: string }>>([]);
@@ -689,6 +691,7 @@ export default function AdminSection() {
         force_inactive: u.force_inactive === true || u.force_inactive === "true",
         is_active: u.is_active === true || u.is_active === "true",
           use_discounted_charge_profile: u.use_discounted_charge_profile === true || u.use_discounted_charge_profile === "true",
+        is_test_account: u.is_test_account === true || u.is_test_account === "true",
       });
 
         // Load per-equipment scope for Discounted Charge Profile.
@@ -2090,6 +2093,7 @@ export default function AdminSection() {
                                 ) : (
                                   <span>{row.name != null && row.name !== "" ? String(row.name) : "—"}</span>
                                 )}
+                                {row.is_test_account === true ? <TestAccountBadge className="mt-1 block w-fit" /> : null}
                               </TableCell>
                               <TableCell>{row.user_type_display != null ? String(row.user_type_display) : (row.user_type != null ? String(row.user_type) : "—")}</TableCell>
                               <TableCell>
@@ -3819,6 +3823,39 @@ export default function AdminSection() {
                       <Label htmlFor="user-edit-is_active">Active</Label>
                     </div>
                   </div>
+
+                  {isStrictAdmin ? (
+                    <div className="space-y-1 rounded-lg border border-violet-300/70 bg-violet-50/50 p-3 dark:border-violet-700/60 dark:bg-violet-950/20">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="user-edit-is_test_account"
+                          checked={formData.is_test_account === true}
+                          disabled={testAccountSaving || editingId == null}
+                          onCheckedChange={async (c) => {
+                            if (editingId == null || sectionKey !== "users") return;
+                            const next = !!c;
+                            setTestAccountSaving(true);
+                            const res = await apiClient.adminUserSetTestAccount(editingId, next);
+                            setTestAccountSaving(false);
+                            if (res.error || !res.data) {
+                              toast({ title: "Error", description: res.error || "Could not update test account flag.", variant: "destructive" });
+                              return;
+                            }
+                            const saved = res.data.user?.is_test_account ?? next;
+                            setFormData((prev) => ({ ...prev, is_test_account: saved }));
+                            setList((prev) => prev.map((r) => (r.id === editingId ? { ...r, is_test_account: saved } : r)));
+                            toast({ title: "Saved", description: res.data.message });
+                          }}
+                        />
+                        <Label htmlFor="user-edit-is_test_account">Test account</Label>
+                        {testAccountSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Saved immediately. Wallet recharges, wallet transactions and bookings of a test account (and of
+                        students using its wallet) are not counted in revenue and never need a SRIC cash-book entry.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-4 items-center gap-4">
                     <div className="col-span-4 flex items-center gap-2">
