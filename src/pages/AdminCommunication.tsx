@@ -49,6 +49,9 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { StandaloneOnly } from "@/components/PageShell";
+import { DateRangeHint, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { dateRangeError, useLatestRequest } from "@/hooks/use-live-filters";
 
 type TemplateRow = {
   id: number;
@@ -196,6 +199,13 @@ const AdminCommunication = () => {
   });
   const [deleteConfirmNoticeId, setDeleteConfirmNoticeId] = useState<number | null>(null);
   const [deletingNoticeId, setDeletingNoticeId] = useState<number | null>(null);
+  const [templateSearchTerm, setTemplateSearchTerm] = useLiveSearchTerm(templateFilters.search);
+  const [logSearchTerm, setLogSearchTerm] = useLiveSearchTerm(logFilters.search);
+  const [noticeSearchTerm, setNoticeSearchTerm] = useLiveSearchTerm(noticeFilters.search);
+  const logDateError = dateRangeError(logFilters.date_from, logFilters.date_to);
+  const beginTemplatesRequest = useLatestRequest();
+  const beginLogsRequest = useLatestRequest();
+  const beginNoticesRequest = useLatestRequest();
 
   // Equipment user groups (booking requesters)
   const [equipments, setEquipments] = useState<AdminEquipmentRow[]>([]);
@@ -227,68 +237,80 @@ const AdminCommunication = () => {
   }, [navigate, isAuthenticated, user, canAccess, authLoading]);
 
   const fetchTemplates = async () => {
+    const request = beginTemplatesRequest();
     setLoadingTemplates(true);
     try {
       const res = await apiClient.adminCommunicationTemplatesList({
-        search: templateFilters.search || undefined,
+        search: templateSearchTerm || undefined,
         communication_type: templateFilters.communication_type || undefined,
         is_active: templateFilters.is_active || undefined,
       });
+      if (!request.isLatest()) return;
       const data = (res as { data?: TemplateRow[] }).data ?? res;
       setTemplates(Array.isArray(data) ? data : []);
     } catch {
+      if (!request.isLatest()) return;
       toast.error("Failed to load templates");
       setTemplates([]);
     } finally {
-      setLoadingTemplates(false);
+      if (request.isLatest()) setLoadingTemplates(false);
     }
   };
 
   const fetchLogs = async () => {
+    const request = beginLogsRequest();
     setLoadingLogs(true);
     try {
       const res = await apiClient.adminCommunicationLogsList({
-        search: logFilters.search || undefined,
+        search: logSearchTerm || undefined,
         communication_type: logFilters.communication_type || undefined,
         status: logFilters.status || undefined,
         date_from: logFilters.date_from || undefined,
         date_to: logFilters.date_to || undefined,
       });
+      if (!request.isLatest()) return;
       const data = (res as { data?: LogRow[] }).data ?? res;
       setLogs(Array.isArray(data) ? data : []);
     } catch {
+      if (!request.isLatest()) return;
       toast.error("Failed to load communication logs");
       setLogs([]);
     } finally {
-      setLoadingLogs(false);
+      if (request.isLatest()) setLoadingLogs(false);
     }
   };
 
+  // Filters apply as they change (search after a short pause); an out-of-order log date range waits until fixed.
   useEffect(() => {
     if (!canAccess) return;
     fetchTemplates();
-  }, [canAccess, templateFilters.search, templateFilters.communication_type, templateFilters.is_active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, templateSearchTerm, templateFilters.communication_type, templateFilters.is_active]);
 
   useEffect(() => {
-    if (!canAccess) return;
+    if (!canAccess || logDateError) return;
     fetchLogs();
-  }, [canAccess, logFilters.search, logFilters.communication_type, logFilters.status, logFilters.date_from, logFilters.date_to]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, logSearchTerm, logFilters.communication_type, logFilters.status, logFilters.date_from, logFilters.date_to, logDateError]);
 
   const fetchNotices = async () => {
+    const request = beginNoticesRequest();
     setLoadingNotices(true);
     try {
       const res = await apiClient.adminNoticesList({
-        search: noticeFilters.search || undefined,
+        search: noticeSearchTerm || undefined,
         notice_type: noticeFilters.notice_type || undefined,
         is_active: noticeFilters.is_active || undefined,
       });
+      if (!request.isLatest()) return;
       const data = (res as { data?: NoticeRow[] }).data ?? res;
       setNotices(Array.isArray(data) ? data : []);
     } catch {
+      if (!request.isLatest()) return;
       toast.error("Failed to load notices");
       setNotices([]);
     } finally {
-      setLoadingNotices(false);
+      if (request.isLatest()) setLoadingNotices(false);
     }
   };
 
@@ -312,7 +334,8 @@ const AdminCommunication = () => {
   useEffect(() => {
     if (!canAccess) return;
     fetchNotices();
-  }, [canAccess, noticeFilters.search, noticeFilters.notice_type, noticeFilters.is_active]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess, noticeSearchTerm, noticeFilters.notice_type, noticeFilters.is_active]);
 
   useEffect(() => {
     if (!canAccess || !isAdmin) return;
@@ -686,6 +709,9 @@ const AdminCommunication = () => {
                         placeholder="Name, code, subject..."
                         value={templateFilters.search}
                         onChange={(e) => setTemplateFilters((f) => ({ ...f, search: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setTemplateSearchTerm(templateFilters.search.trim());
+                        }}
                         className="pl-9"
                       />
                     </div>
@@ -733,7 +759,7 @@ const AdminCommunication = () => {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className={refetchingClass(loadingTemplates)} aria-busy={loadingTemplates}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
@@ -746,7 +772,7 @@ const AdminCommunication = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {loadingTemplates ? (
+                      {loadingTemplates && templates.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={7} className="h-24 text-center">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
@@ -801,6 +827,9 @@ const AdminCommunication = () => {
                         placeholder="Recipient, subject..."
                         value={logFilters.search}
                         onChange={(e) => setLogFilters((f) => ({ ...f, search: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setLogSearchTerm(logFilters.search.trim());
+                        }}
                         className="pl-9"
                       />
                     </div>
@@ -856,12 +885,13 @@ const AdminCommunication = () => {
                       onChange={(e) => setLogFilters((f) => ({ ...f, date_to: e.target.value }))}
                       className="mt-1"
                     />
+                    <DateRangeHint message={logDateError} className="mt-1" />
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className={refetchingClass(loadingLogs)} aria-busy={loadingLogs}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Type</TableHead>
@@ -873,7 +903,7 @@ const AdminCommunication = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {loadingLogs ? (
+                      {loadingLogs && logs.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="h-24 text-center">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
@@ -1014,6 +1044,9 @@ const AdminCommunication = () => {
                         placeholder="Title, description, content..."
                         value={noticeFilters.search}
                         onChange={(e) => setNoticeFilters((f) => ({ ...f, search: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setNoticeSearchTerm(noticeFilters.search.trim());
+                        }}
                         className="pl-9"
                       />
                     </div>
@@ -1061,7 +1094,7 @@ const AdminCommunication = () => {
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className={refetchingClass(loadingNotices)} aria-busy={loadingNotices}>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Title</TableHead>
@@ -1077,7 +1110,7 @@ const AdminCommunication = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {loadingNotices ? (
+                      {loadingNotices && notices.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={10} className="h-24 text-center">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />

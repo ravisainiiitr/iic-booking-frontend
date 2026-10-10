@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { FilePlus2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { cn } from "@/lib/utils";
 import { errorMessage, pmGet, type Page, type PmRequest } from "@/lib/procurementApi";
 import { EmptyRow, fmtDate, LoadingRow, money, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, usePm } from "./shared";
 
@@ -27,7 +30,12 @@ export default function RequestsPage({ inbox = false }: { inbox?: boolean }) {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [term, setTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(1);
+  }
   const [mine, setMine] = useState(!wide);
 
   const q = useQuery({
@@ -37,6 +45,7 @@ export default function RequestsPage({ inbox = false }: { inbox?: boolean }) {
         ? pmGet<Page<PmRequest>>("approvals/", { page })
         : pmGet<Page<PmRequest>>("requests/", { department_id: deptId, page, status, q: search, mine: mine ? 1 : undefined }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   const rows = q.data?.results ?? [];
 
@@ -84,14 +93,14 @@ export default function RequestsPage({ inbox = false }: { inbox?: boolean }) {
           />
           {wide ? (
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
+              <input type="checkbox" checked={mine} onChange={(e) => { setPage(1); setMine(e.target.checked); }} />
               Only mine
             </label>
           ) : null}
         </form>
       ) : null}
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
-      <div className="overflow-x-auto">
+      <div className={cn("overflow-x-auto", refetchingClass(q.isPlaceholderData))} aria-busy={q.isFetching}>
         <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>

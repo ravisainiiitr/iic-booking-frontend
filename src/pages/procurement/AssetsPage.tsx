@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,6 +9,9 @@ import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { cn } from "@/lib/utils";
 import { errorMessage, pmForm, pmGet, pmPost, type Page, type PmAsset, type PmDocument, type PmTransfer } from "@/lib/procurementApi";
 import { AssetRegisterDialog } from "./RecordDetail";
 import { AttachDialog } from "./RequestDetail";
@@ -51,12 +54,18 @@ function AssetsList() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
   const [term, setTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(1);
+  }
   const [registering, setRegistering] = useState(false);
   const q = useQuery({
     queryKey: ["procurement", "assets", deptId, page, status, search],
     queryFn: () => pmGet<Page<PmAsset>>("assets/", { department_id: deptId, page, status, q: search }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   const transfers = useQuery({
     queryKey: ["procurement", "transfers", deptId],
@@ -74,7 +83,7 @@ function AssetsList() {
           title="Asset register"
           actions={
             <>
-              {hasPerm("reports") || hasPerm("assets") ? <ExportButtons path="assets/" query={{ department_id: deptId ?? undefined, status }} name="asset-register" /> : null}
+              {hasPerm("reports") || hasPerm("assets") ? <ExportButtons path="assets/" query={{ department_id: deptId ?? undefined, status, q: search || undefined }} name="asset-register" /> : null}
               {hasPerm("assets") ? (
                 <Button size="sm" onClick={() => setRegistering(true)}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -92,7 +101,7 @@ function AssetsList() {
             <NativeSelect aria-label="Status" className="w-56" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }} placeholder="All statuses" options={ASSET_STATUSES.map((s) => ({ value: s, label: humanize(s) }))} />
           </form>
           {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
-          <div className="overflow-x-auto">
+          <div className={cn("overflow-x-auto", refetchingClass(q.isPlaceholderData))} aria-busy={q.isFetching}>
             <Table serialStart={pageSerialStart(q.data)}>
               <TableHeader>
                 <TableRow>

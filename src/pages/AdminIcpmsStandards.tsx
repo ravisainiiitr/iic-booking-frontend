@@ -35,6 +35,9 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Plus, Pencil, Trash2, FlaskConical, Search } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import { UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 interface IcpmsStandardRow {
   id: number;
@@ -75,6 +78,8 @@ export default function AdminIcpmsStandards() {
   const [rows, setRows] = useState<IcpmsStandardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
+  const beginRequest = useLatestRequest();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<IcpmsStandardFormState>(EMPTY_FORM);
@@ -92,10 +97,12 @@ export default function AdminIcpmsStandards() {
     }
   }, [navigate, isAuthenticated, user, isAdmin, authLoading]);
 
-  const fetchRows = async (searchTerm?: string) => {
+  const fetchRows = async (term: string) => {
+    const request = beginRequest();
     setLoading(true);
-    const params = searchTerm?.trim() ? { search: searchTerm.trim() } : undefined;
+    const params = term ? { search: term } : undefined;
     const res = await apiClient.adminList<IcpmsStandardRow>("icpmsStandards", params);
+    if (!request.isLatest()) return;
     if (res.error) {
       toast.error(res.error);
       setRows([]);
@@ -107,8 +114,9 @@ export default function AdminIcpmsStandards() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetchRows();
-  }, [isAdmin]);
+    fetchRows(searchTerm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, searchTerm]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -154,7 +162,7 @@ export default function AdminIcpmsStandards() {
     }
     toast.success(editingId === null ? "Standard created." : "Standard updated.");
     setModalOpen(false);
-    fetchRows(search);
+    fetchRows(searchTerm);
   };
 
   const handleDelete = async (row: IcpmsStandardRow) => {
@@ -196,22 +204,21 @@ export default function AdminIcpmsStandards() {
               <CardTitle>All standards</CardTitle>
               <CardDescription>Create, edit, or remove ICPMS standard samples.</CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <UpdatingIndicator active={loading && rows.length > 0} />
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
+                  aria-label="Search standards"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") fetchRows(search);
+                    if (e.key === "Enter") setSearchTerm(search.trim());
                   }}
                   placeholder="Search s.no, name, elements…"
                   className="pl-8 w-56"
                 />
               </div>
-              <Button variant="outline" onClick={() => fetchRows(search)}>
-                Search
-              </Button>
               <Button onClick={openAdd} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Add standard
@@ -219,14 +226,14 @@ export default function AdminIcpmsStandards() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading && rows.length === 0 ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : rows.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No standards found.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
+              <div className={`overflow-x-auto rounded-md border ${refetchingClass(loading)}`} aria-busy={loading || undefined}>
                 <Table serial={false}>
                   <TableHeader>
                     <TableRow>

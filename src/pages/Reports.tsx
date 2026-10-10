@@ -26,6 +26,8 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { StandaloneOnly } from "@/components/PageShell";
 import FinanceReports from "@/pages/FinanceReports";
 import { useToast } from "@/hooks/use-toast";
+import { dateRangeError, useLatestRequest } from "@/hooks/use-live-filters";
+import { DateRangeHint } from "@/components/filters/LiveFilterStatus";
 import {
   PieChart,
   Pie,
@@ -236,6 +238,8 @@ const Reports = () => {
   const [dateFrom, setDateFrom] = useState(() => getDefaultReportDateRange().from);
   const [dateTo, setDateTo] = useState(() => getDefaultReportDateRange().to);
   const [equipmentId, setEquipmentId] = useState<string>("all");
+  const reportDateError = dateRangeError(dateFrom, dateTo);
+  const beginReportRequest = useLatestRequest();
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   /** After equipment list fetch completes (so auto-report waits for default equipment id). */
   const [equipmentListLoaded, setEquipmentListLoaded] = useState(false);
@@ -338,12 +342,14 @@ const Reports = () => {
   };
 
   const loadEquipmentReport = useCallback(async () => {
+    const request = beginReportRequest();
     setEquipmentLoading(true);
     const params: { date_from?: string; date_to?: string; equipment_id?: number[] } = {};
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     if (equipmentId && equipmentId !== "all") params.equipment_id = [Number(equipmentId)];
     const res = await apiClient.getEquipmentReportData(params);
+    if (!request.isLatest()) return;
     if (res.error) {
       toast({ title: "Error", description: res.error, variant: "destructive" });
       setEquipmentReportData(null);
@@ -351,12 +357,13 @@ const Reports = () => {
       setEquipmentReportData(res.data);
     }
     setEquipmentLoading(false);
-  }, [dateFrom, dateTo, equipmentId, toast]);
+  }, [dateFrom, dateTo, equipmentId, toast, beginReportRequest]);
 
+  // The report reloads as soon as the period or equipment changes; an out-of-order period waits until fixed.
   useEffect(() => {
-    if (!isAdmin || !dateFrom || !dateTo || !equipmentListLoaded) return;
+    if (!isAdmin || !dateFrom || !dateTo || reportDateError || !equipmentListLoaded) return;
     loadEquipmentReport();
-  }, [isAdmin, dateFrom, dateTo, equipmentListLoaded, equipmentId, loadEquipmentReport]);
+  }, [isAdmin, dateFrom, dateTo, reportDateError, equipmentListLoaded, equipmentId, loadEquipmentReport]);
 
   const facultyEquipmentFetched = useRef(false);
 
@@ -1142,16 +1149,16 @@ const Reports = () => {
                   <Calendar className="h-5 w-5" />
                   Filters
                 </CardTitle>
-                <CardDescription>Set date range and optional equipment to generate or download the report.</CardDescription>
+                <CardDescription>Set date range and optional equipment; the report updates as you change them.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-end gap-4">
                 <div className="space-y-2">
                   <Label>Date from</Label>
-                  <DateInput value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+                  <DateInput aria-label="Date from" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-2">
                   <Label>Date to</Label>
-                  <DateInput value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+                  <DateInput aria-label="Date to" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
                 </div>
                 <div className="space-y-2">
                   <Label>Equipment</Label>
@@ -1176,10 +1183,6 @@ const Reports = () => {
                     </p>
                   )}
                 </div>
-                <Button onClick={loadEquipmentReport} disabled={equipmentLoading}>
-                  {equipmentLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Generate report
-                </Button>
                 <ExportMenu
                   report="equipment-performance"
                   label="Export report"
@@ -1206,6 +1209,7 @@ const Reports = () => {
                     },
                   ]}
                 />
+                <DateRangeHint message={reportDateError} className="basis-full" />
               </CardContent>
             </Card>
 

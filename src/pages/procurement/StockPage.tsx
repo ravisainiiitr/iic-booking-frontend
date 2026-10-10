@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +8,9 @@ import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { cn } from "@/lib/utils";
 import { errorMessage, pmGet, pmPost, type Page, type PmItem, type PmStockBalance, type PmStockTx } from "@/lib/procurementApi";
 import { EmptyRow, Field, fmtDate, humanize, LoadingRow, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
 
@@ -20,7 +23,12 @@ export default function StockPage() {
   const [page, setPage] = useState(1);
   const [low, setLow] = useState(false);
   const [term, setTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(1);
+  }
   const [entry, setEntry] = useState(false);
   const [levelsFor, setLevelsFor] = useState<PmStockBalance | null>(null);
   const [ledgerPage, setLedgerPage] = useState(1);
@@ -30,6 +38,7 @@ export default function StockPage() {
     queryKey: ["procurement", "stock-balances", deptId, page, low, search],
     queryFn: () => pmGet<Page<PmStockBalance>>("stock/balances/", { department_id: deptId, page, low: low ? 1 : undefined, q: search }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   const ledger = useQuery({
     queryKey: ["procurement", "stock-ledger", deptId, ledgerPage],
@@ -61,7 +70,7 @@ export default function StockPage() {
             </label>
           </form>
           {balances.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(balances.error)}</p> : null}
-          <div className="overflow-x-auto">
+          <div className={cn("overflow-x-auto", refetchingClass(balances.isPlaceholderData))} aria-busy={balances.isFetching}>
             <Table serialStart={pageSerialStart(balances.data)}>
               <TableHeader>
                 <TableRow>
