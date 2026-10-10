@@ -142,6 +142,15 @@ const userData: UserInsights = {
       bookings_count: 7,
       last_booking_at: "2026-10-01T10:00:00+05:30",
       wallet_owner_id: 12,
+      supervisor: {
+        id: 12,
+        name: "Prof. Mehta",
+        email: "mehta@example.com",
+        department: "Physics",
+        source: "wallet",
+        source_display: "Linked to the supervisor's wallet",
+        pending: false,
+      },
     },
   ],
   options: {
@@ -339,7 +348,15 @@ const studentCard = cardFor(41, "Asha Rao", {
     { id: 1, equipment: "FE-SEM", level: "Independent user", status: "ACTIVE", status_display: "Active", awarded_at: null, valid_until: null, certificate_no: "" },
   ],
 });
-studentCard.profile.supervisor = { id: 12, name: "Prof. Mehta", email: "mehta@example.com" };
+studentCard.profile.supervisor = {
+  id: 12,
+  name: "Prof. Mehta",
+  email: "mehta@example.com",
+  department: "Physics",
+  source: "wallet",
+  source_display: "Linked to the supervisor's wallet",
+  pending: false,
+};
 const supervisorCard = cardFor(12, "Prof. Mehta", { linked_wallet: { owner_id: 12, linked_users: 2 } });
 
 const walletBookings: WalletBookings = {
@@ -462,6 +479,7 @@ describe("UsersOverview", () => {
     const table = screen.getByRole("region", { name: "Users" });
     expect(within(table).getByRole("link", { name: /Supervisor's/ }).getAttribute("href")).toBe("/admin/wallet-ledger/12");
     expect(within(table).getByText("PhD / research")).toBeTruthy();
+    expect(within(table).getByRole("button", { name: "Prof. Mehta" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^Active/ }));
     await waitFor(() => expect(lastParams(state.api.getAdminUserInsights)).toMatchObject({ status: "all" }));
@@ -503,6 +521,60 @@ describe("UsersOverview", () => {
 
     fireEvent.click(within(drawer).getByRole("button", { name: "Back" }));
     expect(await within(drawer).findByText("ID: 21PH001")).toBeTruthy();
+  });
+
+  it("shows the supervisor's department and email, a pending supervisor, and Not linked", async () => {
+    const pendingCard = cardFor(43, "Ravi Kumar");
+    pendingCard.profile.supervisor = {
+      id: null,
+      name: "Dr. Guide",
+      email: "guide@iitr.ac.in",
+      department: "Chemistry Department",
+      source: "pending_invite",
+      source_display: "Supervisor invited by email — not on the portal yet",
+      pending: true,
+    };
+    const cards: Record<number, UserCard> = { 41: studentCard, 43: pendingCard, 44: cardFor(44, "Astitva Dubey") };
+    state.api.getAdminUserCard.mockImplementation(async (id: number) => ({ data: cards[id] }));
+    const rows = [41, 43, 44].map((id) => ({ ...userData.results[0], id, name: cards[id].profile.name, supervisor: null }));
+    state.api.getAdminUserInsights.mockResolvedValue({ data: { ...userData, results: rows } });
+    render(
+      <MemoryRouter>
+        <UsersOverview />
+      </MemoryRouter>,
+    );
+    const table = await screen.findByRole("region", { name: "Users" });
+    expect(within(table).getAllByText("Not linked")).toHaveLength(3);
+
+    fireEvent.click(within(table).getByRole("button", { name: "Asha Rao" }));
+    let drawer = await screen.findByRole("dialog");
+    let sup = await within(drawer).findByTestId("card-supervisor");
+    expect(within(sup).getByRole("button", { name: "Prof. Mehta" })).toBeTruthy();
+    expect(within(sup).getByText("Physics")).toBeTruthy();
+    expect(within(sup).getByRole("link", { name: "mehta@example.com" })).toBeTruthy();
+    expect(within(sup).queryByText("Pending confirmation")).toBeNull();
+    cleanup();
+
+    render(
+      <MemoryRouter initialEntries={["/admin/insights/users?user=43"]}>
+        <UsersOverview />
+      </MemoryRouter>,
+    );
+    drawer = await screen.findByRole("dialog");
+    sup = await within(drawer).findByTestId("card-supervisor");
+    expect(within(sup).getByText("Dr. Guide")).toBeTruthy();
+    expect(within(sup).queryByRole("button")).toBeNull();
+    expect(within(sup).getByText("Pending confirmation")).toBeTruthy();
+    expect(within(sup).getByText("Chemistry Department")).toBeTruthy();
+    cleanup();
+
+    render(
+      <MemoryRouter initialEntries={["/admin/insights/users?user=44"]}>
+        <UsersOverview />
+      </MemoryRouter>,
+    );
+    drawer = await screen.findByRole("dialog");
+    expect(await within(drawer).findByText("Not linked")).toBeTruthy();
   });
 });
 

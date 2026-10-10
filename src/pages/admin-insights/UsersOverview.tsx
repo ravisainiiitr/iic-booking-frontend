@@ -423,7 +423,7 @@ export default function UsersOverview() {
                 serialStart={(page - 1) * pageSize + 1}
                 scrollPane
                 containerProps={{ role: "region", "aria-label": "Users", tabIndex: 0 }}
-                className={cn("min-w-[1400px] text-sm", loading && "opacity-60")}
+                className={cn("min-w-[1560px] text-sm", loading && "opacity-60")}
                 aria-busy={loading}
               >
                 <TableHeader className="z-20 bg-card">
@@ -431,6 +431,7 @@ export default function UsersOverview() {
                     <SortHeader label="Name" sortKey="name" ordering={ordering} onSort={onSort} className="min-w-[180px]" />
                     <TableHead>Category</TableHead>
                     <TableHead className="min-w-[180px]">Department / organisation</TableHead>
+                    <TableHead className="min-w-[160px]">Supervisor</TableHead>
                     <SortHeader label="Email" sortKey="email" ordering={ordering} onSort={onSort} />
                     <TableHead>Mobile</TableHead>
                     <SortHeader label="Joined" sortKey="joined" ordering={ordering} onSort={onSort} />
@@ -442,7 +443,7 @@ export default function UsersOverview() {
                 <TableBody>
                   {rows.length === 0 && !loading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                      <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
                         {filtersActive ? "No users match these filters." : "No users yet."}
                       </TableCell>
                     </TableRow>
@@ -467,6 +468,28 @@ export default function UsersOverview() {
                           </div>
                         </TableCell>
                         <TableCell>{r.department?.name ?? <Muted />}</TableCell>
+                        <TableCell>
+                          {r.supervisor ? (
+                            <div title={r.supervisor.source_display}>
+                              {r.supervisor.id ? (
+                                <button
+                                  type="button"
+                                  className="text-left text-primary underline-offset-2 hover:underline"
+                                  onClick={() => setCardUser(r.supervisor!.id!)}
+                                >
+                                  {r.supervisor.name}
+                                </button>
+                              ) : (
+                                <span>{r.supervisor.name}</span>
+                              )}
+                              {r.supervisor.pending ? (
+                                <div className="text-xs text-amber-700 dark:text-amber-400">Pending confirmation</div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <Muted>Not linked</Muted>
+                          )}
+                        </TableCell>
                         <TableCell className="break-all text-xs">
                           {r.email ? (
                             <a href={`mailto:${r.email}`} className="text-primary underline-offset-2 hover:underline">

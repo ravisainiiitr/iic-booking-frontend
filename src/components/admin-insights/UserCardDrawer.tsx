@@ -24,13 +24,53 @@ import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components
 import { LoadError } from "@/components/admin-insights/InsightParts";
 import UserBookingRows from "@/components/admin-insights/UserBookingRows";
 import WalletLinkedBookings from "@/components/admin-insights/WalletLinkedBookings";
-import { userBookingsPath, type UserCard } from "@/lib/adminInsights";
+import { userBookingsPath, type ResolvedSupervisor, type UserCard } from "@/lib/adminInsights";
 import { apiClient } from "@/lib/api";
 import { formatDMY, formatDMYTime } from "@/lib/dateFormat";
 import { formatINRAmount } from "@/lib/money";
 
 function money(value: number) {
   return formatINRAmount(Math.round(value));
+}
+
+function SupervisorValue({
+  supervisor,
+  onOpenUser,
+}: {
+  supervisor: ResolvedSupervisor | null;
+  onOpenUser: (id: number) => void;
+}) {
+  if (!supervisor) return <span className="text-muted-foreground">Not linked</span>;
+  const { id, name, email, department, pending, source_display } = supervisor;
+  return (
+    <span className="flex flex-col gap-0.5" data-testid="card-supervisor" title={source_display}>
+      <span className="flex flex-wrap items-center gap-1.5">
+        {id ? (
+          <button
+            type="button"
+            className="text-left text-primary underline-offset-2 hover:underline"
+            onClick={() => onOpenUser(id)}
+          >
+            {name}
+          </button>
+        ) : (
+          <span>{name}</span>
+        )}
+        {pending ? (
+          <Badge variant="outline" className="border-amber-400 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+            Pending confirmation
+          </Badge>
+        ) : null}
+      </span>
+      {department ? <span className="text-xs font-normal text-muted-foreground">{department}</span> : null}
+      {email ? (
+        <a href={`mailto:${email}`} className="break-all text-xs font-normal text-primary underline-offset-2 hover:underline">
+          {email}
+        </a>
+      ) : null}
+      <span className="text-[11px] font-normal text-muted-foreground">{source_display}</span>
+    </span>
+  );
 }
 
 function IdCardHeader({ card, onOpenUser }: { card: UserCard; onOpenUser: (id: number) => void }) {
@@ -69,17 +109,7 @@ function IdCardHeader({ card, onOpenUser }: { card: UserCard; onOpenUser: (id: n
                 {p.department?.name || "—"}
               </IdField>
               <IdField icon={<UserRound className="h-4 w-4" />} label="Supervisor">
-                {p.supervisor ? (
-                  <button
-                    type="button"
-                    className="text-left text-primary underline-offset-2 hover:underline"
-                    onClick={() => onOpenUser(p.supervisor!.id)}
-                  >
-                    {p.supervisor.name}
-                  </button>
-                ) : (
-                  "—"
-                )}
+                <SupervisorValue supervisor={p.supervisor} onOpenUser={onOpenUser} />
               </IdField>
               <IdField icon={<Mail className="h-4 w-4" />} label="Email">
                 {p.email ? (

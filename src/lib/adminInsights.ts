@@ -100,6 +100,21 @@ export const EMPTY_EQUIPMENT_FILTERS: EquipmentFilters = {
 
 /* ------------------------------------------------------------------ users */
 
+/**
+ * A user's supervisor: the profile supervisor, else the owner of the wallet they joined, else the faculty member who
+ * approved their registration; then unconfirmed links (`pending`); then the wallet charged for their latest booking.
+ * `id` is null for an invited supervisor who is not on the portal yet.
+ */
+export interface ResolvedSupervisor {
+  id: number | null;
+  name: string;
+  email: string;
+  department: string;
+  source: string;
+  source_display: string;
+  pending: boolean;
+}
+
 export interface UserInsightRow {
   id: number;
   name: string;
@@ -117,6 +132,7 @@ export interface UserInsightRow {
   last_booking_at: string | null;
   /** Wallet ledger owner (own wallet, or the supervisor's for IITR Students); Main Administrator only. */
   wallet_owner_id: number | null;
+  supervisor?: ResolvedSupervisor | null;
 }
 
 export interface UserInsights extends InsightPage<UserInsightRow> {
@@ -435,7 +451,7 @@ export interface UserCard {
     designation: string;
     degree_name: string;
     department: { id: number; name: string; type: string } | null;
-    supervisor: { id: number; name: string; email: string } | null;
+    supervisor: ResolvedSupervisor | null;
     is_active: boolean;
     is_test_account: boolean;
     date_joined: string | null;
