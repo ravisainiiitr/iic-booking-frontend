@@ -360,6 +360,13 @@ export interface FabricationPart {
   support_material_code?: string;
   support_weight_g_each?: number | null;
   support_weight_g_total?: number | null;
+  /** Booking detail only: what the 3D / 2D preview draws, as on the booking page. */
+  material_family?: LaserMaterialFamily | string | null;
+  layer_height_mm?: number | string | null;
+  /** 3D print estimate, one copy: share of the print time done at equal heights, print and warm-up minutes. */
+  print_progress?: number[] | null;
+  print_minutes?: number | string | null;
+  warmup_minutes?: number | string | null;
 }
 
 export interface FabricationFileChange {

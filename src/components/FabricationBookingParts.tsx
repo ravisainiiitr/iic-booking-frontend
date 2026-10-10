@@ -185,6 +185,7 @@ export function BookedDxfPreview({ parts, ownMaterial = false }: { parts: Fabric
         heightMm: num(p.height_mm),
         materialName: p.material_name || null,
         materialCode: p.material_code || null,
+        materialFamily: p.material_family || null,
         ...bookedSheetSize(p, ownMaterial),
         metrics: laserPartMetrics({
           widthMm: p.width_mm,
