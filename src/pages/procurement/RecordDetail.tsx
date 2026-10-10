@@ -18,8 +18,10 @@ import {
   pmPost,
   type PmAsset,
   type PmInvoice,
+  type PmPurchaseModeSuggestion,
   type PmRecord,
 } from "@/lib/procurementApi";
+import { EMPTY_ENTRY, EMPTY_EXTRA, entryPayload, ExtraFields, extraPayload, RegisterEntryFields, useRegisters, type EntryState, type ExtraState } from "./inventory";
 import { blankInvoice, InvoiceFields, invoicePayload, invoiceValid, useVendors } from "./InvoiceForm";
 import { AttachDialog } from "./RequestDetail";
 import {
@@ -74,7 +76,7 @@ export default function RecordDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { hasPerm, wide } = usePm();
+  const { hasPerm, hasRole, wide } = usePm();
   const key = ["procurement", "record", id];
   const q = useQuery({ queryKey: key, queryFn: () => pmGet<PmRecord>(`records/${id}/`) });
   const { busy, run } = useRunner();
@@ -82,6 +84,7 @@ export default function RecordDetail() {
   const [stepOpen, setStepOpen] = useState("");
   const [review, setReview] = useState<PmInvoice | null>(null);
   const [payFor, setPayFor] = useState<PmInvoice | null>(null);
+  const [recall, setRecall] = useState<PmInvoice | null>(null);
 
   if (q.isLoading) return <Loader2 className="mx-auto mt-10 h-6 w-6 animate-spin text-muted-foreground" />;
   if (q.error || !q.data) return <p className="text-sm text-destructive">{errorMessage(q.error)}</p>;
@@ -129,6 +132,7 @@ export default function RecordDetail() {
           <div><dt className="text-muted-foreground">Vendor</dt><dd>{rec.selected_vendor?.name ?? "—"}</dd></div>
           <div><dt className="text-muted-foreground">Paid</dt><dd>{money(rec.paid_amount)} <StatusBadge status={rec.payment_status} /></dd></div>
           <div><dt className="text-muted-foreground">Category</dt><dd>{rec.category?.name ?? "—"}</dd></div>
+          <div><dt className="text-muted-foreground">Mode of purchase</dt><dd>{rec.purchase_mode ? humanize(rec.purchase_mode) : "—"}{rec.gem_reference ? ` · GeM ${rec.gem_reference}` : ""}</dd></div>
         </dl>
         {rec.blockers?.length && !closed ? (
           <ul className="mt-3 space-y-1 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
@@ -136,6 +140,8 @@ export default function RecordDetail() {
           </ul>
         ) : null}
       </SectionCard>
+
+      {!rec.is_small_purchase ? <PurchaseModeCard rec={rec} canEdit={canRun} onSaved={refresh} /> : null}
 
       <Tabs defaultValue="steps">
         <TabsList className="flex h-auto flex-wrap justify-start">
@@ -262,8 +268,22 @@ export default function RecordDetail() {
                       {hasPerm("payments") && inv.payment_status !== "PAID" && !["OFFICE_REVIEW", "REAPPROVAL_REQUIRED"].includes(inv.variance_status) ? (
                         <Button size="sm" variant="outline" onClick={() => setPayFor(inv)}>Record payment</Button>
                       ) : null}
+                      {!inv.forwarded_to_accounts_at && (hasRole("OC_STORES") || hasPerm("invoices") || hasPerm("procurement")) && inv.payment_status !== "PAID" ? (
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => run(async () => { await pmPost(`invoices/${inv.id}/forward/`, {}); refresh(); }, "Bill forwarded to Accounts.")}>
+                          Forward to Accounts
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
+                  {inv.forwarded_to_accounts_at ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      With Accounts since {fmtDate(inv.forwarded_to_accounts_at, true)} · forwarded by {inv.forwarded_by?.name}
+                      {inv.forward_note ? ` · ${inv.forward_note}` : ""}
+                      {inv.payment_status === "UNPAID" && (hasRole("OC_STORES") || hasPerm("invoices") || hasPerm("procurement")) ? (
+                        <Button size="sm" variant="link" className="h-auto px-1 py-0 text-xs" onClick={() => setRecall(inv)}>Recall</Button>
+                      ) : null}
+                    </p>
+                  ) : null}
                   <div className="mt-2">
                     <DocumentList docs={inv.documents} empty="No bill image attached." />
                   </div>
@@ -301,6 +321,14 @@ export default function RecordDetail() {
         </TabsContent>
       </Tabs>
 
+      <ReasonDialog
+        open={!!recall}
+        onOpenChange={(o) => !o && setRecall(null)}
+        title="Recall bill from Accounts"
+        label="Reason"
+        confirmLabel="Recall"
+        onConfirm={(note) => run(async () => { await pmPost(`invoices/${recall!.id}/forward/`, { undo: true, note }); refresh(); }, "Bill recalled.")}
+      />
       <ReasonDialog
         open={dlg === "cancel"}
         onOpenChange={(o) => setDlg(o ? "cancel" : "")}
@@ -594,6 +622,9 @@ export function AssetRegisterDialog({
   const { boot, deptId } = usePm();
   const equipment = boot.equipment.filter((e) => e.department_id === deptId);
   const [f, setF] = useState({ description: "", count: "1", serials: "", make: "", model_number: "", location: "", status: "IN_STORE", equipment_id: "", cost: "", purchase_date: "", warranty_until: "", category_id: "" });
+  const [entry, setEntry] = useState<EntryState>(EMPTY_ENTRY);
+  const [extra, setExtra] = useState<ExtraState>(EMPTY_EXTRA);
+  const registers = useRegisters(deptId, open).data?.results ?? [];
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const { busy, run } = useRunner();
   const categories = useQuery({
@@ -612,6 +643,13 @@ export function AssetRegisterDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
+          <RegisterEntryFields
+            value={entry}
+            onChange={setEntry}
+            registers={registers}
+            count={Number(f.count) || 1}
+            hint={recordId ? "Leave empty to place on the next free line of the department's only open register of this type." : undefined}
+          />
           <Field label={recordId ? "Description (optional)" : "Description"} className="sm:col-span-2"><Input value={f.description} onChange={set("description")} /></Field>
           {!recordId ? (
             <>
@@ -636,6 +674,7 @@ export function AssetRegisterDialog({
           <Field label="Serial numbers (one per line, optional)" className="sm:col-span-2" hint={serials.length ? `${serials.length} serial(s) — must match the number of units.` : undefined}>
             <Textarea rows={3} value={f.serials} onChange={set("serials")} />
           </Field>
+          <ExtraFields value={extra} onChange={setExtra} fromBill={!!recordId} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -658,6 +697,10 @@ export function AssetRegisterDialog({
                   cost: recordId ? undefined : f.cost,
                   purchase_date: f.purchase_date || null,
                   warranty_until: f.warranty_until || null,
+                  ...(recordId
+                    ? { project_code: extra.project_code, installation_date: extra.installation_date || null, amc_until: extra.amc_until || null, condition: extra.condition, quantity: Number(extra.quantity) || 1, legacy_ref: extra.legacy_ref }
+                    : extraPayload(extra)),
+                  ...(entry.register_id ? entryPayload(entry) : {}),
                 });
                 onSaved(res.results);
               }, "Asset(s) registered.");
@@ -669,5 +712,66 @@ export function AssetRegisterDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PurchaseModeCard({ rec, canEdit, onSaved }: { rec: PmRecord; canEdit: boolean; onSaved: (r?: PmRecord) => void }) {
+  const [editing, setEditing] = useState(false);
+  const q = useQuery({
+    queryKey: ["procurement", "purchase-mode", rec.id],
+    queryFn: () => pmGet<PmPurchaseModeSuggestion>(`records/${rec.id}/purchase-mode/`),
+  });
+  const [f, setF] = useState({ purchase_mode: rec.purchase_mode ?? "", gem_reference: rec.gem_reference ?? "", purchase_mode_reason: rec.purchase_mode_reason ?? "" });
+  const { busy, run } = useRunner();
+  const s = q.data;
+  if (!s) return null;
+  const mode = f.purchase_mode || s.suggested;
+  const deviates = !["GEM", "RATE_CONTRACT", s.suggested].includes(mode) || ["SINGLE_TENDER", "PROPRIETARY"].includes(mode);
+  return (
+    <SectionCard
+      title="Mode of purchase (GFR 2017)"
+      description={<>{s.reason} {s.gem_note}</>}
+      actions={canEdit && !editing ? <Button size="sm" variant="outline" onClick={() => setEditing(true)}>{rec.purchase_mode ? "Change" : "Record mode"}</Button> : undefined}
+    >
+      {!editing ? (
+        <p className="text-sm">
+          {rec.purchase_mode ? (
+            <>
+              <span className="font-medium">{s.options.find((o) => o.value === rec.purchase_mode)?.label ?? humanize(rec.purchase_mode)}</span>
+              {rec.gem_reference ? ` · GeM ${rec.gem_reference}` : ""}
+              {rec.purchase_mode_reason ? <span className="block text-muted-foreground">Reason: {rec.purchase_mode_reason}</span> : null}
+            </>
+          ) : (
+            <span className="text-muted-foreground">Not recorded yet. Suggested: <b>{s.options.find((o) => o.value === s.suggested)?.label}</b>.</span>
+          )}
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Mode">
+            <NativeSelect value={mode} onChange={(e) => setF({ ...f, purchase_mode: e.target.value })} options={s.options.map((o) => ({ value: o.value, label: o.value === s.suggested ? `${o.label} (suggested)` : o.label }))} />
+          </Field>
+          <Field label={mode === "GEM" ? "GeM order / bid no. (required)" : "GeM order / bid no."}>
+            <Input value={f.gem_reference} onChange={(e) => setF({ ...f, gem_reference: e.target.value })} />
+          </Field>
+          {deviates ? (
+            <Field label="Reason for this mode (required)" className="sm:col-span-2" hint="E.g. GeM non-availability report, proprietary article certificate, urgency.">
+              <Textarea rows={2} value={f.purchase_mode_reason} onChange={(e) => setF({ ...f, purchase_mode_reason: e.target.value })} />
+            </Field>
+          ) : null}
+          <div className="flex gap-2 sm:col-span-2">
+            <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button
+              disabled={busy || (mode === "GEM" && !f.gem_reference.trim()) || (deviates && !f.purchase_mode_reason.trim())}
+              onClick={async () => {
+                const ok = await run(async () => onSaved(await pmPost<PmRecord>(`records/${rec.id}/purchase-mode/`, { ...f, purchase_mode: mode })), "Mode of purchase recorded.");
+                if (ok) setEditing(false);
+              }}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </SectionCard>
   );
 }

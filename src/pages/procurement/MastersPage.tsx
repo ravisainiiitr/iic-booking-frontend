@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { pmGet, pmPatch, pmPost, type Page, type PmCategory, type PmGstRate, type PmItem, type PmVendor } from "@/lib/procurementApi";
+import { Switch } from "@/components/ui/switch";
+import ItemLinksPanel from "./ItemLinksPanel";
 import { EmptyRow, Field, humanize, LoadingRow, NativeSelect, pageSerialStart, Pager, ReasonDialog, SectionCard, usePm, useRunner } from "./shared";
 
 const NATURES = ["CONSUMABLE", "NON_CONSUMABLE", "LIMITED_LIFE_ASSET", "MINOR_ASSET", "MAJOR_ASSET", "AMC_SERVICE", "GENERAL_OFFICE"];
@@ -19,7 +21,9 @@ export default function MastersPage() {
         <TabsTrigger value="items">Items</TabsTrigger>
         <TabsTrigger value="categories">Categories</TabsTrigger>
         <TabsTrigger value="gst">GST rates</TabsTrigger>
+        <TabsTrigger value="links">Equipment items</TabsTrigger>
       </TabsList>
+      <TabsContent value="links"><ItemLinksPanel /></TabsContent>
       <TabsContent value="vendors"><Vendors /></TabsContent>
       <TabsContent value="items"><Items /></TabsContent>
       <TabsContent value="categories"><Categories /></TabsContent>
@@ -176,10 +180,11 @@ function Items() {
               <TableHead>Unit</TableHead>
               <TableHead>HSN / SAC</TableHead>
               <TableHead>GST</TableHead>
+              <TableHead>Part no.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {q.isLoading ? <LoadingRow colSpan={6} /> : !q.data?.results.length ? <EmptyRow colSpan={6} /> : q.data.results.map((i) => (
+            {q.isLoading ? <LoadingRow colSpan={8} /> : !q.data?.results.length ? <EmptyRow colSpan={8} /> : q.data.results.map((i) => (
               <TableRow key={i.id}>
                 <TableCell className="font-mono text-xs">{i.code}</TableCell>
                 <TableCell>{i.name}</TableCell>
@@ -187,6 +192,7 @@ function Items() {
                 <TableCell>{i.uom}</TableCell>
                 <TableCell>{i.hsn_sac || "—"}</TableCell>
                 <TableCell>{i.default_gst_rate ? `${Number(i.default_gst_rate)}%` : "—"}</TableCell>
+                <TableCell>{i.part_number || "—"}{i.tracks_batch ? <span className="ml-1 text-xs text-muted-foreground">(batch)</span> : null}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -202,8 +208,9 @@ function ItemDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChan
   const { deptId } = usePm();
   const cats = useQuery({ queryKey: ["procurement", "categories", deptId], queryFn: () => pmGet<{ results: PmCategory[] }>("categories/", { department_id: deptId }), enabled: open && !!deptId }).data?.results ?? [];
   const gst = useQuery({ queryKey: ["procurement", "gst", deptId], queryFn: () => pmGet<{ results: PmGstRate[] }>("gst-rates/", { department_id: deptId }), enabled: open && !!deptId }).data?.results ?? [];
-  const blank = { name: "", category_id: "", uom: "Nos", hsn_sac: "", default_gst_rate_id: "", specification: "", min_level: "", reorder_level: "" };
+  const blank = { name: "", category_id: "", uom: "Nos", hsn_sac: "", default_gst_rate_id: "", specification: "", min_level: "", reorder_level: "", part_number: "" };
   const [f, setF] = useState(blank);
+  const [tracksBatch, setTracksBatch] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const { busy, run } = useRunner();
   return (
@@ -222,6 +229,11 @@ function ItemDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChan
           <Field label="Minimum stock level (optional)"><Input inputMode="decimal" value={f.min_level} onChange={set("min_level")} /></Field>
           <Field label="Reorder level (optional)"><Input inputMode="decimal" value={f.reorder_level} onChange={set("reorder_level")} /></Field>
           <Field label="Specification (optional)" className="sm:col-span-2"><Input value={f.specification} onChange={set("specification")} /></Field>
+          <Field label="Manufacturer part no. (optional)"><Input value={f.part_number} onChange={set("part_number")} /></Field>
+          <label className="flex items-center gap-2 self-end pb-2 text-sm">
+            <Switch checked={tracksBatch} onCheckedChange={setTracksBatch} />
+            Track batch / lot and expiry
+          </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -229,11 +241,12 @@ function ItemDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChan
             disabled={busy || !f.name.trim() || !f.category_id}
             onClick={async () => {
               const ok = await run(async () => {
-                await pmPost("items/", { ...f, department_id: deptId, category_id: Number(f.category_id), default_gst_rate_id: f.default_gst_rate_id || null });
+                await pmPost("items/", { ...f, tracks_batch: tracksBatch, department_id: deptId, category_id: Number(f.category_id), default_gst_rate_id: f.default_gst_rate_id || null });
                 onSaved();
               }, "Item added.");
               if (ok) {
                 setF(blank);
+                setTracksBatch(false);
                 onOpenChange(false);
               }
             }}

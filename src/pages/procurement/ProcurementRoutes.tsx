@@ -23,6 +23,12 @@ const AmcPage = lazyPage(() => import("./AmcPage"));
 const MastersPage = lazyPage(() => import("./MastersPage"));
 const ReportsPage = lazyPage(() => import("./ReportsPage"));
 const SettingsPage = lazyPage(() => import("./SettingsPage"));
+const RegistersPage = lazyPage(() => import("./RegistersPage"));
+const RegisterImport = lazyPage(() => import("./RegisterImport"));
+const VerificationPage = lazyPage(() => import("./VerificationPage"));
+const ScanPage = lazyPage(() => import("./ScanPage"));
+const MaintenancePage = lazyPage(() => import("./MaintenancePage"));
+const AccountsPage = lazyPage(() => import("./AccountsPage"));
 
 interface Tab {
   to: string;
@@ -40,8 +46,12 @@ const TABS: Tab[] = [
   { to: "records", label: "Procurement", show: (d) => !!d?.menus.procurement },
   { to: "small-purchases", label: "Small purchases", show: (d) => !!d?.menus.small_purchases },
   { to: "assets", label: "Assets", show: (d) => !!d?.menus.assets },
+  { to: "registers", label: "Registers", show: (d) => !!d?.menus.registers },
+  { to: "verification", label: "Verification", show: (d) => !!d?.menus.verification },
   { to: "stock", label: "Consumables", show: (d) => !!d?.menus.consumables },
+  { to: "maintenance", label: "Maintenance", show: (d) => !!d?.menus.maintenance },
   { to: "amc", label: "AMC / Service", show: (d) => !!d?.menus.amc },
+  { to: "accounts", label: "Accounts", show: (d) => !!d?.menus.accounts },
   { to: "masters", label: "Masters", show: (d) => has(d, "masters") },
   { to: "reports", label: "Reports & budget", show: (d) => !!d?.menus.reports || has(d, "budget") },
   { to: "settings", label: "Settings", show: (_d, boot) => boot.can_configure },
@@ -66,7 +76,7 @@ function Layout() {
             compact
             icon={<Boxes className="h-5 w-5" />}
             title="Procurement & Assets"
-            description="Purchase requests, approvals, procurement, bills, asset register, consumable stock and AMC."
+            description="Purchase requests, approvals, procurement, bills, Major / Minor asset registers, physical verification, consumable stock, maintenance and AMC."
             actions={
               boot.departments.length > 1 ? (
                 <NativeSelect
@@ -167,6 +177,14 @@ function ProcurementModule() {
           <Route path="assets" element={<DeptRequired><AssetsPage /></DeptRequired>} />
           <Route path="assets/:id" element={<DeptRequired><AssetsPage /></DeptRequired>} />
           <Route path="stock" element={<DeptRequired><StockPage /></DeptRequired>} />
+          <Route path="registers" element={<DeptRequired><RegistersPage /></DeptRequired>} />
+          <Route path="registers/import" element={<DeptRequired><RegisterImport /></DeptRequired>} />
+          <Route path="registers/:id" element={<DeptRequired><RegistersPage /></DeptRequired>} />
+          <Route path="verification" element={<DeptRequired><VerificationPage /></DeptRequired>} />
+          <Route path="verification/:id" element={<DeptRequired><VerificationPage /></DeptRequired>} />
+          <Route path="scan/*" element={<DeptRequired><ScanPage /></DeptRequired>} />
+          <Route path="maintenance" element={<DeptRequired><MaintenancePage /></DeptRequired>} />
+          <Route path="accounts" element={<DeptRequired><AccountsPage /></DeptRequired>} />
           <Route path="amc" element={<DeptRequired><AmcPage /></DeptRequired>} />
           <Route path="masters" element={<DeptRequired><MastersPage /></DeptRequired>} />
           <Route path="reports" element={<DeptRequired><ReportsPage /></DeptRequired>} />

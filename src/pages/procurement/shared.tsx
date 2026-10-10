@@ -24,6 +24,7 @@ import {
   type PmBootstrap,
   type PmDepartment,
   type PmDocument,
+  PM_DEPT_STORAGE_KEY,
 } from "@/lib/procurementApi";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ export function useProcurementBootstrap(enabled = true) {
   });
 }
 
-const DEPT_KEY = "iic:procurement:department";
+const DEPT_KEY = PM_DEPT_STORAGE_KEY;
 
 interface PmContextValue {
   boot: PmBootstrap;

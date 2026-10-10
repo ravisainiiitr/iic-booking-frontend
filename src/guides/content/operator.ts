@@ -1,7 +1,7 @@
 import { SHOW_ANDROID_APP_BANNER } from "@/lib/androidAppBanner";
 import { compact, type RoleGuide } from "../gate";
 import { helpSection } from "./help";
-import { staffViewBookingSection, ticketsSection } from "./staff";
+import { procurementAssetsSection, staffViewBookingSection, ticketsSection } from "./staff";
 import { trainingSection } from "./training";
 
 export const operatorGuide: RoleGuide = {
@@ -57,6 +57,7 @@ export const operatorGuide: RoleGuide = {
     },
     trainingSection(g),
     ticketsSection(g),
+    procurementAssetsSection(g),
     helpSection(g, {
       faqs: [
         {

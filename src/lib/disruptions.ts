@@ -91,6 +91,8 @@ export interface DisruptionDialogValues {
   expectedRecovery?: string;
   /** Resume mode: items the service person recommended, raised as a Procurement & Assets request. */
   procurement?: ProcurementRequestDraft | null;
+  /** Resume mode: record the repair / service in the equipment's maintenance history. */
+  maintenance?: MaintenanceDraft | null;
 }
 
 export interface DisruptionRequestFields {
@@ -213,9 +215,18 @@ export interface ProcurementOptions {
   available: boolean;
   categories: ReasonCategoryOption[];
   reason?: string;
+  department_id?: number;
+  /** Equipment-linked consumables can be suggested from inventory. */
+  inventory_suggestions?: boolean;
+  can_record_maintenance?: boolean;
+  maintenance_kinds?: ReasonCategoryOption[];
+  /** Set by the client: the equipment the options were loaded for. */
+  equipment_id?: number;
 }
 
 export interface ProcurementItemDraft {
+  /** Inventory item master entry when picked from the equipment's linked items. */
+  item_id?: number | null;
   name: string;
   quantity: string;
   estimated_cost: string;
@@ -242,7 +253,7 @@ export interface ProcurementRequestDraft {
 export function procurementRequestBody(draft: ProcurementRequestDraft | null | undefined): {
   category: string;
   notes: string;
-  items: { name: string; quantity: number; estimated_cost: number; recommended_by_service_person: boolean; notes: string }[];
+  items: ProcurementRequestItemBody[];
 } | null {
   if (!draft || !draft.category) return null;
   const items = draft.items
@@ -253,9 +264,61 @@ export function procurementRequestBody(draft: ProcurementRequestDraft | null | u
       estimated_cost: Number(i.estimated_cost) >= 0 ? Number(i.estimated_cost) || 0 : 0,
       recommended_by_service_person: i.recommended_by_service_person,
       notes: i.notes.trim(),
+      ...(i.item_id ? { item_id: i.item_id } : {}),
     }));
   if (items.length === 0) return null;
   return { category: draft.category, notes: draft.notes.trim(), items };
+}
+
+export interface ProcurementRequestItemBody {
+  name: string;
+  quantity: number;
+  estimated_cost: number;
+  recommended_by_service_person: boolean;
+  notes: string;
+  item_id?: number;
+}
+
+/** Maintenance history entry recorded while marking equipment back to functional. */
+export interface MaintenanceDraft {
+  kind: string;
+  service_provider: string;
+  service_cost: string;
+  other_cost: string;
+  under_warranty_or_amc: boolean;
+  remarks: string;
+}
+
+export const EMPTY_MAINTENANCE_DRAFT: MaintenanceDraft = {
+  kind: "BREAKDOWN",
+  service_provider: "",
+  service_cost: "",
+  other_cost: "",
+  under_warranty_or_amc: false,
+  remarks: "",
+};
+
+export interface MaintenanceBody {
+  kind: string;
+  service_provider: string;
+  service_cost: string;
+  other_cost: string;
+  under_warranty_or_amc: boolean;
+  remarks: string;
+}
+
+/** Downtime, cause and action are copied from the disruption by the server. */
+export function maintenanceBody(draft: MaintenanceDraft | null | undefined): MaintenanceBody | null {
+  if (!draft || !draft.kind) return null;
+  const money = (v: string) => (Number(v) > 0 ? String(Number(v)) : "0");
+  return {
+    kind: draft.kind,
+    service_provider: draft.service_provider.trim(),
+    service_cost: money(draft.service_cost),
+    other_cost: money(draft.other_cost),
+    under_warranty_or_amc: draft.under_warranty_or_amc,
+    remarks: draft.remarks.trim(),
+  };
 }
 
 /** What everyone (including students and signed-out visitors) sees when hovering a disrupted slot. */

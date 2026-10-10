@@ -58,6 +58,7 @@ import Footer from "@/components/Footer";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { EquipmentAccessoriesSection } from "@/components/EquipmentAccessoriesSection";
+import { EquipmentProcurementPanel } from "@/components/equipment/EquipmentProcurementPanel";
 import TicketForm from "@/components/TicketForm";
 import { cn } from "@/lib/utils";
 import { formatINR } from "@/lib/money";
@@ -190,7 +191,8 @@ type ContentPanel =
   | "availability"
   | "publications"
   | "brochure"
-  | "contact";
+  | "contact"
+  | "procurement";
 
 type SpecItem = {
   equipment_specification_id: number;
@@ -353,6 +355,10 @@ const EquipmentProfile = () => {
     !catalogOnlyView && (userTypeNorm === "admin" || userTypeNorm === "manager");
 
   const isOicUser = (): boolean => userTypeNorm === "manager";
+
+  /** Staff who may see the equipment's assets, maintenance history and requirements. */
+  const canSeeProcurement = (): boolean =>
+    !catalogOnlyView && (canManageEquipment() || isLabInchargeUser());
 
   // Check if user type is allowed to book equipment
   const canBookEquipment = (): boolean => {
@@ -688,6 +694,7 @@ const EquipmentProfile = () => {
               title: "Equipment brochure",
               icon: <ScrollText className="h-5 w-5" />,
             },
+            procurement: { title: "Procurement & maintenance", icon: <Wrench className="h-5 w-5" /> },
             contact: {
               title: "Contact us",
               icon: <UserCog className="h-5 w-5" />,
@@ -1224,6 +1231,8 @@ const EquipmentProfile = () => {
                 </div>
               </div>
             );
+          } else if (activePanel === "procurement") {
+            panelBody = <EquipmentProcurementPanel equipmentId={equipment.equipment_id} />;
           } else if (activePanel === "publications") {
             panelBody =
               publicationList.length > 0 ? (
@@ -1476,6 +1485,12 @@ const EquipmentProfile = () => {
                         active: activePanel === "brochure",
                         onClick: () => setActivePanel("brochure"),
                       })}
+                      {canSeeProcurement() &&
+                        navBtn("procurement", "Procurement & maintenance", {
+                          icon: <Wrench className="h-3 w-3" />,
+                          active: activePanel === "procurement",
+                          onClick: () => setActivePanel("procurement"),
+                        })}
                       {navBtn("support", "Raise support request", {
                         icon: <LifeBuoy className="h-3 w-3" />,
                         variant: "action",

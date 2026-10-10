@@ -5,6 +5,7 @@ import { helpSection } from "./help";
 import { trainingSection } from "./training";
 import {
   disruptionHistorySection,
+  procurementAssetsSection,
   flashMessagesSection,
   oicChargesSection,
   oicConfigSection,
@@ -52,6 +53,7 @@ export const oicGuide: RoleGuide = {
       waitlistConfirmSection(g),
       slotStatusSection(g),
       disruptionHistorySection(g),
+      procurementAssetsSection(g),
       flashMessagesSection(g),
       oicConfigSection(g),
       oicChargesSection(),
