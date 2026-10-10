@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { OperatorPolicyForm } from "@/components/training/duty/OperatorPolicyForm";
 import { EquipmentPicker } from "@/components/training/EquipmentPicker";
 import { TrainingModuleControls } from "@/components/training/TrainingModuleControls";
 import { formatDateTime, humanizeCode, parseIdList, scoreFactorLabel } from "@/components/training/trainingHelpers";
@@ -570,6 +571,8 @@ export default function AdminSettingsTraining() {
               </div>
             )}
           </SectionCard>
+
+          <OperatorPolicyForm />
 
           <SectionCard title="Certification levels" icon={<ShieldCheck className="h-4 w-4" />} bodyClassName="p-0">
             <ul className="divide-y divide-border/60">

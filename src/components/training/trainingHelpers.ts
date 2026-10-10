@@ -17,7 +17,20 @@ export function toneClass(tone: StatusTone): string {
   return TONE_CLASSES[tone];
 }
 
-export type StatusKind = "demo" | "nomination" | "call" | "session" | "event" | "outcome" | "appeal" | "run" | "award";
+export type StatusKind =
+  | "demo"
+  | "nomination"
+  | "call"
+  | "session"
+  | "event"
+  | "outcome"
+  | "appeal"
+  | "run"
+  | "award"
+  | "assessment"
+  | "roster"
+  | "duty"
+  | "shift";
 
 const STATUS_META: Record<StatusKind, Record<string, { label: string; tone: StatusTone }>> = {
   demo: {
@@ -88,6 +101,34 @@ const STATUS_META: Record<StatusKind, Record<string, { label: string; tone: Stat
     DORMANT: { label: "Dormant", tone: "warning" },
     SUSPENDED: { label: "Suspended", tone: "danger" },
     REVOKED: { label: "Revoked", tone: "danger" },
+    SUPERSEDED: { label: "Superseded", tone: "muted" },
+    PROVISIONAL: { label: "Provisional", tone: "info" },
+  },
+  assessment: {
+    PASS: { label: "Pass", tone: "success" },
+    RETAKE: { label: "Retake needed", tone: "warning" },
+    FAIL: { label: "Not yet competent", tone: "danger" },
+  },
+  roster: {
+    ACTIVE: { label: "Active", tone: "success" },
+    PAUSED: { label: "Paused", tone: "warning" },
+    REMOVED: { label: "Removed", tone: "muted" },
+  },
+  duty: {
+    PENDING: { label: "Awaiting confirmation", tone: "warning" },
+    CONFIRMED: { label: "Confirmed", tone: "success" },
+    DECLINED: { label: "Declined", tone: "danger" },
+    EXPIRED: { label: "Not confirmed (released)", tone: "muted" },
+    CANCELLED: { label: "Cancelled", tone: "muted" },
+    COMPLETED: { label: "Completed", tone: "accent" },
+  },
+  shift: {
+    SCHEDULED: { label: "Scheduled", tone: "info" },
+    CHECKED_IN: { label: "On duty", tone: "accent" },
+    COMPLETED: { label: "Completed", tone: "success" },
+    MISSED: { label: "Missed", tone: "danger" },
+    RELEASED: { label: "Released", tone: "muted" },
+    CANCELLED: { label: "Cancelled", tone: "muted" },
   },
 };
 
@@ -151,6 +192,8 @@ export const SCORE_FACTOR_LABELS: Record<string, string> = {
   group_no_certified: "No certified user in group",
   cooldown: "Recent training cooldown",
   prior_no_show: "Prior no-show",
+  recent_selection: "Seat in the cooling period",
+  group_repeat: "Group already had recent seats",
 };
 
 export const SCORE_FACTOR_ORDER = Object.keys(SCORE_FACTOR_LABELS);

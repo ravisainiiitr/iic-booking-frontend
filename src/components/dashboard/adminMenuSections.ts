@@ -93,10 +93,12 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "ta_duty_assignments",
       "reward_config",
       "training_workspace",
+      "operator_duty",
       "training_attendance",
       "training_events",
       "training_admin",
       "my_trainings",
+      "my_duty",
     ],
   },
   {

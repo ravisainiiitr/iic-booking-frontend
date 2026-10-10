@@ -162,6 +162,10 @@ const TrainingNominations = lazyPage(() => import("@/pages/TrainingNominations")
 const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
 const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
 const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
+const OperatorDuty = lazyPage(() => import("@/pages/OperatorDuty"));
+const MyDuty = lazyPage(() => import("@/pages/MyDuty"));
+const DutyRespond = lazyPage(() => import("@/pages/DutyRespond"));
+const VerifyCertificate = lazyPage(() => import("@/pages/VerifyCertificate"));
 const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
 const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
 const AdminUserGroups = lazyPage(() => import("@/pages/AdminUserGroups"));
@@ -248,7 +252,11 @@ export default function AppRoutes() {
           <Route path="/training/nominations" element={<TrainingNominations />} />
           <Route path="/training/oic" element={<TrainingWorkspace />} />
           <Route path="/training/attendance" element={<TrainingAttendance />} />
+          <Route path="/training/duty" element={<OperatorDuty />} />
           <Route path="/my-trainings" element={<MyTrainings />} />
+          <Route path="/my-duty" element={<MyDuty />} />
+          <Route path="/duty/respond" element={<DutyRespond />} />
+          <Route path="/verify/certificate/:token" element={<VerifyCertificate />} />
           <Route path="/availability" element={<EquipmentAvailability />} />
           <Route path="/booking-calendar" element={<BookingCalendar />} />
           <Route path="/booking-management" element={<BookingManagement />} />

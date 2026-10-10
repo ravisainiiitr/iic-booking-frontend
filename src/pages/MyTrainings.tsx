@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ClipboardList, GraduationCap, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CertificateDialog } from "@/components/training/CertificateDialog";
 import { AwardsTable } from "@/components/training/CertificationsTable";
 import { NominationCard } from "@/components/training/NominationCard";
 import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
@@ -18,6 +19,8 @@ type Tab = (typeof TABS)[number];
 export default function MyTrainings() {
   const { loading: bootLoading, menu } = useTrainingAvailability();
   const allowed = menu("my_trainings");
+  const dutyAllowed = menu("my_duty");
+  const [openAward, setOpenAward] = useState<number | null>(null);
   const [params, setParams] = useSearchParams();
   const rawTab = params.get("tab") as Tab | null;
   const tab: Tab = rawTab && TABS.includes(rawTab) ? rawTab : "applications";
@@ -150,8 +153,21 @@ export default function MyTrainings() {
             {!data?.certifications.length ? (
               <EmptyState icon={<Award className="h-8 w-8" />} title="No certifications yet" description="Complete every session of a training to earn the Trained certification." />
             ) : (
-              <AwardsTable awards={data.certifications} showUser={false} />
+              <>
+                <p className="text-xs text-muted-foreground">Open a certification to download the certificate (PDF with a verification QR code) or share its verification link.</p>
+                <AwardsTable awards={data.certifications} showUser={false} onOpen={(a) => setOpenAward(a.id)} />
+              </>
             )}
+            {dutyAllowed ? (
+              <p className="text-sm">
+                Operator duty, check-in and hours are on{" "}
+                <Link to="/my-duty" className="font-medium text-primary hover:underline">
+                  My operator duty
+                </Link>
+                .
+              </p>
+            ) : null}
+            <CertificateDialog awardId={openAward} open={openAward !== null} onOpenChange={(v) => !v && setOpenAward(null)} onChanged={() => void load()} />
           </TabsContent>
         </Tabs>
       )}
