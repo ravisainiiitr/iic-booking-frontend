@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
   GraduationCap,
   ToggleRight,
+  UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -217,6 +218,14 @@ const AdminSettings = () => {
               title="Department Modules"
               description="Switch DSA, Remote Analysis, Training and Procurement on, off or test-users-only per department"
               onClick={() => navigate("/admin/department-modules")}
+            />
+          )}
+          {isAdmin && (
+            <SettingsTile
+              icon={<UsersRound className="h-5 w-5" />}
+              title="User Groups & Email"
+              description="Booking users by equipment, facility group, lab and department; export lists and email groups with CC / BCC"
+              onClick={() => navigate("/admin-settings/user-groups")}
             />
           )}
           {(can("admin_settings.training") || trainingMenu("training_policy_settings")) && (
