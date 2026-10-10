@@ -251,6 +251,51 @@ export function slotStatusSection(g: Gate): GuideSection {
   };
 }
 
+/** Procurement & Assets: stock registers, consumables, requirements and maintenance (department module). */
+export function procurementAssetsSection(g: Gate): GuideSection {
+  return {
+    id: "procurement-assets",
+    title: "Procurement & Assets: registers, stock and maintenance",
+    icon: "layers",
+    group: LAB,
+    intro: compact([
+      "When your department has Procurement & Assets switched on, open it from the dashboard menu. Your role in the module (OC Stores, Lab In Charge, Accounts In Charge and so on) decides which tabs you see; the Main Administrator assigns roles under Settings.",
+      "Every asset is kept in a Major (non-consumable) or Minor (low-value) stock register, as in GFR 2017, with the register, page and serial number of the physical book, an asset tag and a QR label.",
+    ]),
+    steps: compact([
+      g.only(["admin", "dept_admin", "oic", "operator"], {
+        title: "Enter the existing registers",
+        body: "In Registers, add each physical register book (Major or Minor, code, volume, pages). Download the Excel or CSV template from Import registers, fill in one row per entry (register, page, serial, description, cost, supplier, bill, location and so on), upload it and check the preview: errors and duplicates of the same register, page and serial are flagged before anything is saved. Single entries can be placed from an asset's Edit / register entry.",
+      }),
+      {
+        title: "Find an asset",
+        body: "Search by asset tag or by register, page and serial (for example MAJ-1/12/3). A register's page chips open that page; Export prints the register in a GFR-style layout, and QR labels prints labels for a page or selected assets.",
+      },
+      g.only(["admin", "dept_admin", "oic", "operator"], {
+        title: "Physical verification",
+        body: "Start a verification drive in Verification, then scan each asset's QR label with a phone (Scan / verify) and mark it Found, Shortage, Damaged or Not found with the condition and location. Progress and discrepancies are shown per drive; close the drive with remarks when done.",
+      }),
+      g.only(["admin", "dept_admin", "oic", "operator"], {
+        title: "Consumables and spares",
+        body: "Items can be linked to equipment under Consumables → Equipment items, with a typical quantity. A requirement for that equipment then suggests these items with their stock on hand; OC Stores can change quantities, substitute items or mark lines to be issued from stock before approval.",
+      }),
+      g.only(["oic", "operator", "admin", "dept_admin"], {
+        title: "Back to functional",
+        body: "When you mark equipment or slots Operational / Available again, the dialog can record the repair in the maintenance history (type, service charges, warranty / AMC) and raise a requirement for items the service person recommended, picking linked consumables from inventory. The equipment page has Procurement & maintenance with its assets, maintenance history and open requirements, and Raise requirement at any time.",
+      }),
+      g.only(["finance", "admin"], {
+        title: "Bills for Accounts",
+        body: "OC Stores forwards each received bill to Accounts. The Accounts tab lists bills waiting for payment with the days waiting (over 15 days in red), and exports them as Excel, CSV or PDF.",
+      }),
+    ]),
+    rules: [
+      "Register, page and serial must be unique in a department; an asset cannot be written off or disposed of before it is condemned, damaged or lost, and needs the sanction or board reference.",
+      "Every change (register entries, verification, stock movements, line edits by Stores, maintenance) is recorded with who did it and when.",
+    ],
+    tips: ["Mode of purchase (GeM, direct, committee, tender) is suggested from the amount using the thresholds set in Settings; a different mode needs a reason."],
+  };
+}
+
 export function disruptionHistorySection(g: Gate): GuideSection {
   return {
     id: "disruption-history",
@@ -292,7 +337,7 @@ export function disruptionHistorySection(g: Gate): GuideSection {
       },
       {
         title: "Procurement request after service",
-        body: "When the equipment's department has Procurement & Assets enabled, the dialog for making slots or equipment available again has Service person recommended items?. Tick it, choose Consumables, Minor assets or Major assets, and list the items (quantity, estimated cost, notes). The request goes through the usual approval with the service report attached, and its number appears in the history. For a closed disruption, use Raise procurement request in the opened entry.",
+        body: "When the equipment's department has Procurement & Assets enabled, the dialog for making slots or equipment available again has Service person recommended items?. Tick it, choose the request type (consumables, assets, repair, service or AMC) and list the items (quantity, estimated cost, notes); items linked to the equipment can be added from inventory with one click. The request goes through the usual approval with the service report attached, and its number appears in the history. Tick Record in maintenance history to add the repair to the equipment's maintenance record as well. For a closed disruption, use Raise procurement request in the opened entry.",
       },
       {
         title: "Delete an entry",

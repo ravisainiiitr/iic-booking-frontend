@@ -1,5 +1,5 @@
-import { useId } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { Boxes, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   type ProcurementRequestDraft,
   type ReasonCategoryOption,
 } from "@/lib/disruptions";
+import { pmGet, type PmSuggestedLine } from "@/lib/procurementApi";
 
 const MAX_ITEMS = 50;
 
@@ -21,6 +22,79 @@ export const EMPTY_PROCUREMENT_DRAFT: ProcurementRequestDraft = {
   notes: "",
 };
 
+/** Draft row for an equipment-linked inventory item (quantity defaults to the suggested refill). */
+export function suggestionToDraftItem(s: PmSuggestedLine): ProcurementItemDraft {
+  const stock = Number(s.central_stock) + Number(s.lab_stock);
+  const notes = [s.part_number ? `Part no. ${s.part_number}` : "", `${s.code}; in stock: ${stock} ${s.uom}`.trim()]
+    .filter(Boolean)
+    .join("; ");
+  return {
+    item_id: s.item_id,
+    name: s.name,
+    quantity: String(Number(s.suggested_quantity) || Number(s.typical_quantity) || 1),
+    estimated_cost: s.last_unit_price ? String(Number(s.last_unit_price)) : "",
+    recommended_by_service_person: true,
+    notes,
+  };
+}
+
+function LinkedItems({
+  equipmentId,
+  picked,
+  onPick,
+}: {
+  equipmentId: number;
+  picked: number[];
+  onPick: (s: PmSuggestedLine) => void;
+}) {
+  const [rows, setRows] = useState<PmSuggestedLine[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    pmGet<{ results: PmSuggestedLine[] }>(`equipment/${equipmentId}/suggested-lines/`)
+      .then((r) => alive && setRows(r.results ?? []))
+      .catch(() => alive && setRows([]));
+    return () => {
+      alive = false;
+    };
+  }, [equipmentId]);
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div className="space-y-1.5 rounded-md bg-muted/40 p-2.5" data-testid="linked-items">
+      <p className="flex items-center gap-1.5 text-xs font-medium">
+        <Boxes className="h-3.5 w-3.5" aria-hidden />
+        Items linked to this equipment (from inventory)
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {rows.map((s) => {
+          const stock = Number(s.central_stock) + Number(s.lab_stock);
+          const added = picked.includes(s.item_id);
+          return (
+            <Button
+              key={s.item_id}
+              type="button"
+              size="sm"
+              variant={added ? "secondary" : "outline"}
+              className="h-7 text-xs"
+              disabled={added}
+              title={`${s.code} · in stock ${stock} ${s.uom}${s.reorder_due ? " · below reorder level" : ""}`}
+              onClick={() => onPick(s)}
+            >
+              {added ? "✓ " : "+ "}
+              {s.name}
+              <span className={s.reorder_due ? "ml-1 text-amber-700 dark:text-amber-400" : "ml-1 text-muted-foreground"}>
+                ({stock} {s.uom})
+              </span>
+            </Button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Stores will issue from stock where enough is on hand and buy only the rest.
+      </p>
+    </div>
+  );
+}
+
 /**
  * Items the service person recommended (consumables, minor or major assets). Raised as a Procurement &
  * Assets request that follows the department's normal approval workflow.
@@ -29,14 +103,22 @@ export function ProcurementItemsFields({
   categories,
   value,
   onChange,
+  equipmentId,
 }: {
   categories: ReasonCategoryOption[];
   value: ProcurementRequestDraft;
   onChange: (next: ProcurementRequestDraft) => void;
+  /** When set, offers the equipment's linked consumables / spares from inventory. */
+  equipmentId?: number | null;
 }) {
   const baseId = useId();
   const setItem = (index: number, patch: Partial<ProcurementItemDraft>) =>
     onChange({ ...value, items: value.items.map((it, i) => (i === index ? { ...it, ...patch } : it)) });
+  const pickLinked = (s: PmSuggestedLine) => {
+    const blank = value.items.filter((it) => it.name.trim() || it.item_id);
+    if (blank.length >= MAX_ITEMS) return;
+    onChange({ ...value, items: [...blank, suggestionToDraftItem(s)] });
+  };
   const removeItem = (index: number) => {
     const items = value.items.filter((_, i) => i !== index);
     onChange({ ...value, items: items.length > 0 ? items : [{ ...EMPTY_PROCUREMENT_ITEM }] });
@@ -51,6 +133,13 @@ export function ProcurementItemsFields({
         value={value.category}
         onChange={(category) => onChange({ ...value, category })}
       />
+      {equipmentId ? (
+        <LinkedItems
+          equipmentId={equipmentId}
+          picked={value.items.map((it) => it.item_id ?? 0).filter(Boolean)}
+          onPick={pickLinked}
+        />
+      ) : null}
       <ul className="space-y-2">
         {value.items.map((item, index) => (
           <li key={index} className="space-y-2 rounded-md border border-border p-2.5">

@@ -1,10 +1,43 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FilePlus2, Loader2, Receipt } from "lucide-react";
+import { FilePlus2, Loader2, Receipt, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { errorMessage, pmGet, type PmDashboard } from "@/lib/procurementApi";
+import { errorMessage, pmGet, type PmAgeing, type PmDashboard } from "@/lib/procurementApi";
+import { cn } from "@/lib/utils";
 import { humanize, money, SectionCard, Stat, StatusBadge, usePm } from "./shared";
+
+const BUCKET_TONE: Record<string, string> = {
+  "0-3": "bg-emerald-100 text-emerald-900",
+  "4-7": "bg-sky-100 text-sky-900",
+  "8-15": "bg-amber-100 text-amber-900",
+  ">15": "bg-red-100 text-red-900",
+};
+
+function Ageing({ title, data, link }: { title: string; data?: PmAgeing; link?: string }) {
+  if (!data) return null;
+  const total = Object.values(data.buckets).reduce((a, b) => a + b, 0);
+  return (
+    <SectionCard
+      title={title}
+      description={total ? `Days waiting at the current stage${data.oldest_days !== null ? ` · oldest ${data.oldest_days} d` : ""}` : undefined}
+      actions={link ? <Button asChild variant="ghost" size="sm"><Link to={link}>Open</Link></Button> : undefined}
+    >
+      {total ? (
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {Object.entries(data.buckets).map(([label, n]) => (
+            <div key={label} className={cn("rounded-md p-2", n ? BUCKET_TONE[label] : "bg-muted text-muted-foreground")}>
+              <div className="text-lg font-semibold tabular-nums">{n}</div>
+              <div className="text-xs">{label} days</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Nothing pending.</p>
+      )}
+    </SectionCard>
+  );
+}
 
 function StatusCounts({ title, data, link }: { title: string; data?: Record<string, number>; link?: string }) {
   const entries = Object.entries(data ?? {}).filter(([, n]) => n > 0);
@@ -55,6 +88,14 @@ export default function ProcurementDashboard() {
               </Link>
             </Button>
           ) : null}
+          {dept?.menus.verification ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to="scan">
+                <ScanLine className="mr-2 h-4 w-4" />
+                Scan / verify asset
+              </Link>
+            </Button>
+          ) : null}
           {hasPerm("record_small_purchase") ? (
             <Button asChild size="sm" variant="outline">
               <Link to="small-purchases/new">
@@ -79,7 +120,60 @@ export default function ProcurementDashboard() {
         ) : null}
         {d.low_stock !== undefined ? <Stat label="Items below minimum" value={d.low_stock} tone={d.low_stock ? "warn" : undefined} /> : null}
         {d.open_transfers !== undefined ? <Stat label="Open asset transfers" value={d.open_transfers} /> : null}
+        {d.stores ? (
+          <>
+            <Stat label="Awaiting Stores review" value={d.stores.pending_review} tone={d.stores.pending_review ? "warn" : undefined} hint="Check stock, modify lines" />
+            <Stat label="To issue from stores" value={d.stores.to_issue} tone={d.stores.to_issue ? "warn" : undefined} />
+            <Stat label="Bills to forward to Accounts" value={d.stores.bills_to_forward} tone={d.stores.bills_to_forward ? "warn" : undefined} />
+          </>
+        ) : null}
+        {d.accounts ? (
+          <>
+            <Stat label="Bills awaiting payment" value={d.accounts.bills_pending} hint={money(d.accounts.amount_pending)} tone={d.accounts.bills_pending ? "warn" : undefined} />
+            <Stat label="Budget checks pending" value={d.accounts.budget_checks_pending} tone={d.accounts.budget_checks_pending ? "warn" : undefined} />
+          </>
+        ) : null}
+        {d.registers ? <Stat label="Register entries" value={d.registers.entries} hint={`${d.registers.count} register book(s) · ${d.registers.unregistered} asset(s) not yet entered`} tone={d.registers.unregistered ? "warn" : undefined} /> : null}
+        {d.verification ? (
+          <Stat
+            label={`Verified this FY`}
+            value={`${d.verification.verified} / ${d.verification.total}`}
+            hint={`${d.verification.discrepancies} discrepancies · ${d.verification.open_campaigns} open drive(s)`}
+            tone={d.verification.discrepancies ? "bad" : d.verification.pending ? "warn" : undefined}
+          />
+        ) : null}
+        {d.my_assets ? <Stat label="My equipment's assets" value={d.my_assets.count} hint={`${d.my_assets.not_verified_this_year} not verified this FY`} tone={d.my_assets.not_verified_this_year ? "warn" : undefined} /> : null}
+        {d.maintenance ? (
+          <Stat
+            label="Maintenance this FY"
+            value={d.maintenance.this_year}
+            hint={`${d.maintenance.downtime_hours} h downtime · ${money(d.maintenance.cost)}${d.maintenance.open_downtime ? ` · ${d.maintenance.open_downtime} still down` : ""}`}
+            tone={d.maintenance.open_downtime ? "warn" : undefined}
+          />
+        ) : null}
+        {d.linked_low_stock ? <Stat label="My consumables running low" value={d.linked_low_stock} tone="warn" hint="Linked to my equipment" /> : null}
       </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Ageing title="My queue — ageing" data={d.my_queue_ageing} link="approvals" />
+        {d.pending_ageing ? <Ageing title="All pending approvals — ageing" data={d.pending_ageing} link="requests" /> : null}
+      </div>
+
+      {d.pending_for_me?.length ? (
+        <SectionCard title="Waiting for my action" description="Oldest first.">
+          <ul className="divide-y rounded-md border text-sm">
+            {d.pending_for_me.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                <Link className="font-mono text-xs text-primary underline" to={`requests/${r.id}`}>{r.number}</Link>
+                <span className="min-w-0 flex-1 truncate">{r.title}</span>
+                <StatusBadge status={r.status} label={r.status_label} />
+                <span className="tabular-nums">{money(r.estimated_total)}</span>
+                {r.stage_age_days !== null ? <span className={cn("text-xs", r.stage_age_days > 7 ? "font-medium text-destructive" : "text-muted-foreground")}>{r.stage_age_days} d</span> : null}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
+      ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <StatusCounts title="My requests by status" data={d.my_requests} link="requests" />

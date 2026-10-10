@@ -395,6 +395,7 @@ export function DisruptionDetailSheet({ eventId, onClose, onChanged, onDelete }:
                         categories={detail.procurement.categories}
                         value={procurementDraft}
                         onChange={setProcurementDraft}
+                        equipmentId={detail.procurement.inventory_suggestions ? detail.equipment_id : null}
                       />
                       <div className="flex gap-2">
                         <Button

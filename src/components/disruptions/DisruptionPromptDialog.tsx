@@ -15,9 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DisruptionCategoryChips } from "./DisruptionCategoryChips";
 import { EMPTY_PROCUREMENT_DRAFT, ProcurementItemsFields } from "./ProcurementItemsFields";
+import { MaintenanceFields } from "./MaintenanceFields";
 import {
   DISRUPTION_REASON_CATEGORIES,
   DISRUPTION_TYPE_LABELS,
+  EMPTY_MAINTENANCE_DRAFT,
   RECOVERY_UNKNOWN_TEXT,
   SERVICE_REPORT_ACCEPT,
   SERVICE_REPORT_MAX_MB,
@@ -26,6 +28,7 @@ import {
   toDateTimeLocal,
   type DisruptionDialogValues,
   type DisruptionType,
+  type MaintenanceDraft,
   type ProcurementOptions,
   type ProcurementRequestDraft,
 } from "@/lib/disruptions";
@@ -90,6 +93,8 @@ export function DisruptionPromptDialog({
   const [fileError, setFileError] = useState<string | null>(null);
   const [wantsProcurement, setWantsProcurement] = useState(false);
   const [procurementDraft, setProcurementDraft] = useState<ProcurementRequestDraft>(EMPTY_PROCUREMENT_DRAFT);
+  const [wantsMaintenance, setWantsMaintenance] = useState(false);
+  const [maintenanceDraft, setMaintenanceDraft] = useState<MaintenanceDraft>(EMPTY_MAINTENANCE_DRAFT);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const baseId = useId();
@@ -100,6 +105,8 @@ export function DisruptionPromptDialog({
       setFileError(null);
       setWantsProcurement(false);
       setProcurementDraft(EMPTY_PROCUREMENT_DRAFT);
+      setWantsMaintenance(false);
+      setMaintenanceDraft(EMPTY_MAINTENANCE_DRAFT);
     }
   }, [open]);
 
@@ -107,9 +114,15 @@ export function DisruptionPromptDialog({
   const isResume = mode === "resume";
   const showRecovery = !isResume && askRecovery;
   const showProcurement = isResume && Boolean(procurement?.available) && (procurement?.categories.length ?? 0) > 0;
+  const showMaintenance = isResume && Boolean(procurement?.can_record_maintenance);
   const procurementIncomplete = showProcurement && wantsProcurement && procurementRequestBody(procurementDraft) === null;
   const hasInput = isResume
-    ? Boolean(values.actionTaken.trim() || values.serviceReport || (showProcurement && wantsProcurement))
+    ? Boolean(
+        values.actionTaken.trim() ||
+          values.serviceReport ||
+          (showProcurement && wantsProcurement) ||
+          (showMaintenance && wantsMaintenance)
+      )
     : Boolean(values.reason.trim() || values.reasonCategory || (showRecovery && values.expectedRecovery));
   const textLabel = isResume ? "Action taken / resolution" : "Reason";
   const textPlaceholder = isResume
@@ -131,6 +144,7 @@ export function DisruptionPromptDialog({
     if (showRecovery) out.expectedRecovery = values.expectedRecovery ?? "";
     else delete out.expectedRecovery;
     if (showProcurement) out.procurement = wantsProcurement ? procurementDraft : null;
+    if (showMaintenance) out.maintenance = wantsMaintenance ? maintenanceDraft : null;
     onSubmit(out, false);
   };
 
@@ -284,6 +298,32 @@ export function DisruptionPromptDialog({
           </div>
         )}
 
+        {showMaintenance && procurement && (
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                className="mt-0.5"
+                checked={wantsMaintenance}
+                onCheckedChange={(c) => setWantsMaintenance(c === true)}
+              />
+              <span>
+                <span className="font-medium">Record in maintenance history</span>
+                <span className="block text-xs text-muted-foreground">
+                  Downtime, cause and action taken are copied from this disruption. Parts used from stock can be added
+                  later under Procurement &amp; Assets → Maintenance.
+                </span>
+              </span>
+            </label>
+            {wantsMaintenance && (
+              <MaintenanceFields
+                kinds={procurement.maintenance_kinds ?? []}
+                value={maintenanceDraft}
+                onChange={setMaintenanceDraft}
+              />
+            )}
+          </div>
+        )}
+
         {showProcurement && procurement && (
           <div className="space-y-2 rounded-md border border-border p-3">
             <label className="flex items-start gap-2 text-sm">
@@ -295,8 +335,8 @@ export function DisruptionPromptDialog({
               <span>
                 <span className="font-medium">Service person recommended items?</span>
                 <span className="block text-xs text-muted-foreground">
-                  Raise a Procurement &amp; Assets request for consumables or assets. It goes through the usual approval,
-                  with the service report attached.
+                  Raise a Procurement &amp; Assets requirement for consumables, spares, assets, repair or AMC. It is
+                  linked to this equipment and goes through the usual approval, with the service report attached.
                 </span>
               </span>
             </label>
@@ -306,6 +346,7 @@ export function DisruptionPromptDialog({
                   categories={procurement.categories}
                   value={procurementDraft}
                   onChange={setProcurementDraft}
+                  equipmentId={procurement.inventory_suggestions ? procurement.equipment_id : null}
                 />
                 {procurementIncomplete && (
                   <p className="text-xs text-amber-700 dark:text-amber-400">Choose a request type and name at least one item.</p>

@@ -1,5 +1,6 @@
 import type { RoleGuide } from "../gate";
 import { helpSection } from "./help";
+import { procurementAssetsSection } from "./staff";
 
 export const financeGuide: RoleGuide = {
   title: "Accounts In Charge guide",
@@ -55,6 +56,7 @@ export const financeGuide: RoleGuide = {
         "Recharge only after the funds are confirmed received. Every recharge is recorded with your name.",
       ],
     },
+    procurementAssetsSection(g),
     helpSection(g, {
       faqs: [
         {

@@ -14820,7 +14820,8 @@ class ApiClient {
     data: {
       category: string;
       notes?: string;
-      items: { name: string; quantity: number; estimated_cost: number; recommended_by_service_person: boolean; notes: string }[];
+      items: { name: string; quantity: number; estimated_cost: number; recommended_by_service_person: boolean; notes: string; item_id?: number }[];
+      maintenance?: Record<string, unknown>;
     },
   ) {
     return this.request<{
@@ -14833,6 +14834,7 @@ class ApiClient {
         submit_error: string;
         reports_attached: number;
         reports_skipped: number;
+        maintenance_record?: string;
       };
       disruption: DisruptionDetail;
     }>(`/equipments/disruptions/${id}/procurement-request/`, {

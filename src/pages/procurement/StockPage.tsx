@@ -9,13 +9,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, pmGet, pmPost, type Page, type PmItem, type PmStockBalance, type PmStockTx } from "@/lib/procurementApi";
+import { labelOf, STOCK_REASONS } from "./inventory";
+import ItemLinksPanel from "./ItemLinksPanel";
 import { EmptyRow, Field, fmtDate, humanize, LoadingRow, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, todayIso, usePm, useRunner } from "./shared";
 
 const TX_TYPES = ["OPENING", "RECEIPT", "ISSUE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT", "RETURN"];
 const REASON_REQUIRED = new Set(["ISSUE", "ADJUSTMENT_IN", "ADJUSTMENT_OUT", "RETURN"]);
+const ADJUSTMENTS = new Set(["ADJUSTMENT_IN", "ADJUSTMENT_OUT"]);
+const BATCH_TYPES = new Set(["OPENING", "RECEIPT", "RETURN"]);
 
 export default function StockPage() {
-  const { deptId, hasPerm, wide } = usePm();
+  const { deptId, hasPerm, wide, dept } = usePm();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [low, setLow] = useState(false);
@@ -43,7 +47,9 @@ export default function StockPage() {
       <TabsList>
         <TabsTrigger value="balances">Stock balances</TabsTrigger>
         {wide ? <TabsTrigger value="ledger">Ledger</TabsTrigger> : null}
+        {dept?.menus.item_links ? <TabsTrigger value="links">Equipment items</TabsTrigger> : null}
       </TabsList>
+      {dept?.menus.item_links ? <TabsContent value="links"><ItemLinksPanel /></TabsContent> : null}
       <TabsContent value="balances">
         <SectionCard
           title="Consumable stock"
@@ -105,12 +111,13 @@ export default function StockPage() {
                     <TableHead>Type</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Balance</TableHead>
+                    <TableHead>Batch / expiry</TableHead>
                     <TableHead>Reference</TableHead>
                     <TableHead>By</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {ledger.isLoading ? <LoadingRow colSpan={8} /> : !ledger.data?.results.length ? <EmptyRow colSpan={8} /> : ledger.data.results.map((t) => (
+                  {ledger.isLoading ? <LoadingRow colSpan={10} /> : !ledger.data?.results.length ? <EmptyRow colSpan={10} /> : ledger.data.results.map((t) => (
                     <TableRow key={t.id}>
                       <TableCell className="whitespace-nowrap text-xs">{fmtDate(t.transaction_date)}</TableCell>
                       <TableCell className="font-mono text-xs">{t.number}</TableCell>
@@ -118,7 +125,8 @@ export default function StockPage() {
                       <TableCell>{humanize(t.tx_type)}</TableCell>
                       <TableCell className={`text-right tabular-nums ${Number(t.signed_quantity) < 0 ? "text-destructive" : "text-emerald-700"}`}>{Number(t.signed_quantity) > 0 ? "+" : ""}{Number(t.signed_quantity)}</TableCell>
                       <TableCell className="text-right tabular-nums">{Number(t.balance_after)}</TableCell>
-                      <TableCell className="max-w-xs truncate text-xs">{[t.reference_type, t.reference_number, t.remarks].filter(Boolean).join(" · ")}</TableCell>
+                      <TableCell className="text-xs">{[t.batch_number, t.expiry_date ? `exp. ${fmtDate(t.expiry_date)}` : ""].filter(Boolean).join(" · ") || "—"}</TableCell>
+                      <TableCell className="max-w-xs truncate text-xs">{[t.reason_code ? labelOf(STOCK_REASONS, t.reason_code) : "", t.reference_type, t.reference_number, t.remarks].filter(Boolean).join(" · ")}</TableCell>
                       <TableCell className="text-xs">{t.performed_by?.name}</TableCell>
                     </TableRow>
                   ))}
@@ -136,16 +144,19 @@ export default function StockPage() {
 }
 
 function StockEntryDialog({ open, onOpenChange, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; onSaved: () => void }) {
-  const { deptId } = usePm();
+  const { deptId, boot } = usePm();
+  const equipment = boot.equipment.filter((e) => e.department_id === deptId);
   const items = useQuery({
     queryKey: ["procurement", "items-all", deptId],
     queryFn: () => pmGet<Page<PmItem>>("items/", { department_id: deptId, page_size: 200 }),
     enabled: open && !!deptId,
   }).data?.results ?? [];
-  const [f, setF] = useState({ item_id: "", tx_type: "OPENING", quantity: "", unit_cost: "", transaction_date: todayIso(), reference_number: "", remarks: "" });
+  const [f, setF] = useState({ item_id: "", tx_type: "OPENING", quantity: "", unit_cost: "", transaction_date: todayIso(), reference_number: "", remarks: "", reason_code: "", batch_number: "", expiry_date: "", equipment_id: "" });
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   const { busy, run } = useRunner();
   const needsReason = REASON_REQUIRED.has(f.tx_type);
+  const item = items.find((i) => String(i.id) === f.item_id);
+  const needsBatch = !!item?.tracks_batch && (f.tx_type === "OPENING" || f.tx_type === "RECEIPT");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
@@ -163,20 +174,45 @@ function StockEntryDialog({ open, onOpenChange, onSaved }: { open: boolean; onOp
           <Field label="Quantity"><Input inputMode="decimal" value={f.quantity} onChange={set("quantity")} /></Field>
           <Field label="Unit cost (₹, optional)"><Input inputMode="decimal" value={f.unit_cost} onChange={set("unit_cost")} /></Field>
           <Field label="Date"><DateInput max={todayIso()} value={f.transaction_date} onChange={set("transaction_date")} /></Field>
+          {ADJUSTMENTS.has(f.tx_type) ? (
+            <Field label="Adjustment reason">
+              <NativeSelect value={f.reason_code} onChange={set("reason_code")} placeholder="Other" options={STOCK_REASONS.filter((r) => r.value !== "CONSUMED_IN_REPAIR")} />
+            </Field>
+          ) : null}
+          {f.tx_type === "ISSUE" ? (
+            <Field label="Used on equipment (optional)">
+              <NativeSelect value={f.equipment_id} onChange={set("equipment_id")} placeholder="—" options={equipment.map((e) => ({ value: String(e.id), label: e.name }))} />
+            </Field>
+          ) : null}
+          {BATCH_TYPES.has(f.tx_type) ? (
+            <>
+              <Field label={needsBatch ? "Batch / lot no. (required)" : "Batch / lot no. (optional)"}><Input value={f.batch_number} onChange={set("batch_number")} /></Field>
+              <Field label="Expiry date (optional)"><DateInput value={f.expiry_date} onChange={set("expiry_date")} /></Field>
+            </>
+          ) : null}
           <Field label="Reference (optional)" className="sm:col-span-2"><Input value={f.reference_number} onChange={set("reference_number")} /></Field>
         </div>
         <Field label={needsReason ? "Remarks (required)" : "Remarks (optional)"}><Textarea rows={2} value={f.remarks} onChange={set("remarks")} /></Field>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            disabled={busy || !f.item_id || !(Number(f.quantity) > 0) || (needsReason && !f.remarks.trim())}
+            disabled={busy || !f.item_id || !(Number(f.quantity) > 0) || (needsReason && !f.remarks.trim()) || (needsBatch && !f.batch_number.trim())}
             onClick={async () => {
               const ok = await run(async () => {
-                await pmPost("stock/transactions/", { ...f, department_id: deptId, item_id: Number(f.item_id), unit_cost: f.unit_cost || null });
+                await pmPost("stock/transactions/", {
+                  ...f,
+                  department_id: deptId,
+                  item_id: Number(f.item_id),
+                  unit_cost: f.unit_cost || null,
+                  reason_code: ADJUSTMENTS.has(f.tx_type) ? f.reason_code || "OTHER" : undefined,
+                  batch_number: BATCH_TYPES.has(f.tx_type) ? f.batch_number : undefined,
+                  expiry_date: BATCH_TYPES.has(f.tx_type) && f.expiry_date ? f.expiry_date : undefined,
+                  equipment_id: f.tx_type === "ISSUE" && f.equipment_id ? Number(f.equipment_id) : undefined,
+                });
                 onSaved();
               }, "Stock entry recorded.");
               if (ok) {
-                setF({ ...f, quantity: "", unit_cost: "", reference_number: "", remarks: "" });
+                setF({ ...f, quantity: "", unit_cost: "", reference_number: "", remarks: "", batch_number: "", expiry_date: "" });
                 onOpenChange(false);
               }
             }}

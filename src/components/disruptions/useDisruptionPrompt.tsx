@@ -2,10 +2,12 @@ import { useCallback, useRef, useState, type ReactNode } from "react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
+import { ProcurementApiError, pmPost } from "@/lib/procurementApi";
 import {
   DISRUPTION_TYPE_LABELS,
   disruptionRequestFields,
   disruptionTypeForSlotStatus,
+  maintenanceBody,
   notifyDisruptionsChanged,
   procurementRequestBody,
   resumedEventIds,
@@ -13,6 +15,7 @@ import {
   type DisruptionEventIds,
   type DisruptionRequestFields,
   type DisruptionType,
+  type MaintenanceDraft,
   type ProcurementOptions,
   type ProcurementRequestDraft,
   type SlotStatusPreview,
@@ -112,38 +115,78 @@ async function uploadReport(file: File | null, events: DisruptionEventIds | null
   else toast.success("Service report attached.");
 }
 
-/** Raise the recommended-items request on the first resumed event and report the result. */
-export async function raiseProcurementRequest(eventId: number, draft: ProcurementRequestDraft): Promise<boolean> {
+/**
+ * Raise the recommended-items request on the first resumed event and report the result. When a
+ * maintenance draft is given, the server records it in the maintenance history and links the request.
+ */
+export async function raiseProcurementRequest(
+  eventId: number,
+  draft: ProcurementRequestDraft,
+  maintenance?: MaintenanceDraft | null
+): Promise<boolean> {
   const body = procurementRequestBody(draft);
   if (!body) return false;
-  const res = await apiClient.raiseDisruptionProcurementRequest(eventId, body);
+  const maint = maintenanceBody(maintenance);
+  const res = await apiClient.raiseDisruptionProcurementRequest(eventId, maint ? { ...body, maintenance: { ...maint } } : body);
   const created = res.data?.request;
   if (res.error || !created) {
     toast.error(res.error || "The procurement request could not be raised. Try again from Disruption history.");
     return false;
   }
-  if (created.submitted) toast.success(`Procurement request ${created.number} submitted for approval.`);
+  const recorded = created.maintenance_record ? ` Maintenance ${created.maintenance_record} recorded.` : "";
+  if (created.submitted) toast.success(`Procurement request ${created.number} submitted for approval.${recorded}`);
   else
     toast.warning(
-      `Procurement request ${created.number} was saved as a draft${created.submit_error ? `: ${created.submit_error}` : ""}. Submit it from Procurement & Assets.`
+      `Procurement request ${created.number} was saved as a draft${created.submit_error ? `: ${created.submit_error}` : ""}. Submit it from Procurement & Assets.${recorded}`
     );
   return true;
 }
 
-async function raiseForEvents(draft: ProcurementRequestDraft | null | undefined, events: DisruptionEventIds | null | undefined) {
-  if (!draft || !procurementRequestBody(draft)) return;
+/** Record the repair / service in the equipment's maintenance history (no requirement raised). */
+export async function recordMaintenance(eventId: number, equipmentId: number, draft: MaintenanceDraft): Promise<boolean> {
+  const body = maintenanceBody(draft);
+  if (!body) return false;
+  try {
+    const rec = await pmPost<{ number: string }>("maintenance/", {
+      ...body,
+      equipment_id: equipmentId,
+      disruption_event_id: eventId,
+    });
+    toast.success(`Maintenance ${rec.number} recorded in the equipment's history.`);
+    return true;
+  } catch (e) {
+    const msg = e instanceof ProcurementApiError ? e.message : "";
+    toast.error(`The maintenance record could not be saved${msg ? `: ${msg}` : ""}. Add it from Procurement & Assets → Maintenance.`);
+    return false;
+  }
+}
+
+async function raiseForEvents(
+  draft: ProcurementRequestDraft | null | undefined,
+  maintenance: MaintenanceDraft | null | undefined,
+  equipmentId: number | null | undefined,
+  events: DisruptionEventIds | null | undefined
+) {
+  const wantsRequest = Boolean(draft && procurementRequestBody(draft));
+  const wantsMaintenance = Boolean(maintenanceBody(maintenance) && equipmentId);
+  if (!wantsRequest && !wantsMaintenance) return;
   const [first] = resumedEventIds(events);
   if (first == null) {
-    toast.message("No disruption record was closed by this change, so the procurement request was not raised.");
+    toast.message(
+      wantsRequest
+        ? "No disruption record was closed by this change, so the procurement request was not raised."
+        : "No disruption record was closed by this change, so maintenance was not recorded."
+    );
     return;
   }
-  await raiseProcurementRequest(first, draft);
+  if (draft && wantsRequest) await raiseProcurementRequest(first, draft, maintenance);
+  else if (maintenance && equipmentId) await recordMaintenance(first, equipmentId, maintenance);
 }
 
 async function loadProcurementOptions(equipmentId: number | null | undefined): Promise<ProcurementOptions | null> {
   if (!equipmentId) return null;
   const res = await apiClient.getDisruptionProcurementOptions(equipmentId);
-  return res.data?.available ? res.data : null;
+  return res.data?.available ? { ...res.data, equipment_id: equipmentId } : null;
 }
 
 /**
@@ -168,17 +211,21 @@ export function useDisruptionPrompt() {
     resolve?.(result);
   };
 
-  const toOutcome = (result: { values: DisruptionDialogValues; skipped: boolean } | null): DisruptionPromptOutcome | null => {
+  const toOutcome = (
+    result: { values: DisruptionDialogValues; skipped: boolean } | null,
+    equipmentId?: number | null
+  ): DisruptionPromptOutcome | null => {
     if (!result) return null;
     if (result.skipped) return NOOP_OUTCOME;
     const file = result.values.serviceReport;
     const procurement = result.values.procurement;
+    const maintenance = result.values.maintenance;
     return {
       fields: disruptionRequestFields(result.values),
       values: result.values,
       afterApply: async (events) => {
         await uploadReport(file, events);
-        await raiseForEvents(procurement, events);
+        await raiseForEvents(procurement, maintenance, equipmentId, events);
         notifyDisruptionsChanged();
       },
     };
@@ -267,7 +314,8 @@ export function useDisruptionPrompt() {
           summary,
           canAttachReport: args.canAttachReport,
           procurement,
-        })
+        }),
+        procurement?.equipment_id
       );
     },
     [openDialog]
@@ -300,7 +348,8 @@ export function useDisruptionPrompt() {
           canAttachReport: args.canAttachReport,
           askRecovery: !resume,
           procurement,
-        })
+        }),
+        procurement?.equipment_id
       );
     },
     [openDialog]

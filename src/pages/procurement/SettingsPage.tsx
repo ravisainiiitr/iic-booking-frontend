@@ -44,6 +44,7 @@ const FEATURE_GROUPS: { title: string; fields: [string, string][] }[] = [
       ["require_asset_allocation", "Asset entry required for asset categories"],
       ["allow_office_direct_purchase_entry", "Office may record small purchases without a request"],
       ["allow_resubmission", "Returned requests may be resubmitted"],
+      ["accounts_budget_check", "Accounts In Charge checks budget before HOD approval"],
     ],
   },
 ];
@@ -53,7 +54,20 @@ const MONEY_LABELS: [string, string, string][] = [
   ["hod_approval_threshold", "HOD approval above (₹)", "Applies to request types that need HOD / Competent Authority approval."],
   ["comparative_quotation_threshold", "Comparative statement above (₹)", "Only when the comparative-statement control is on."],
   ["asset_capitalization_threshold", "Capitalise as asset from (₹ unit cost)", ""],
+  ["direct_purchase_limit", "Direct purchase up to (₹)", "GFR Rule 154 — without quotation, on a certificate of reasonable price."],
+  ["purchase_committee_limit", "Local Purchase Committee up to (₹)", "GFR Rule 155."],
+  ["limited_tender_limit", "Limited tender up to (₹)", "GFR Rule 162; above this an open tender is suggested."],
 ];
+
+const ROLE_LABEL: Record<string, string> = {
+  OC_STORES: "OC Stores",
+  OFFICE: "Office",
+  HOD: "HOD",
+  AUDITOR: "Auditor",
+  ACCOUNTS: "Accounts In Charge",
+  LAB_INCHARGE: "Lab In Charge",
+};
+const ACCOUNTS_DEFAULT = ["invoices", "payments", "budget", "reports"];
 
 const VARIANCE_OPTIONS = [
   { value: "FLAG_ONLY", label: "Flag only" },
@@ -317,17 +331,21 @@ function Roles({ departmentId, departmentName }: { departmentId: number; departm
   const [user, setUser] = useState<UserBrief | null>(null);
   const [role, setRole] = useState("OFFICE");
   const [perms, setPerms] = useState<string[] | null>(null);
+  const [equipmentIds, setEquipmentIds] = useState<number[]>([]);
   const [revoking, setRevoking] = useState<PmRoleAssignment | null>(null);
   const { busy, run } = useRunner();
+  const { boot } = usePm();
+  const deptEquipment = boot.equipment.filter((e) => e.department_id === departmentId);
+  const equipmentName = (id: number) => deptEquipment.find((e) => e.id === id)?.name ?? `#${id}`;
   const allPerms = q.data?.permissions ?? [];
-  const usesPerms = role === "OFFICE" || role === "OC_STORES";
-  const chosen = perms ?? (role === "OFFICE" ? allPerms.map((p) => p.value) : []);
+  const usesPerms = role === "OFFICE" || role === "OC_STORES" || role === "ACCOUNTS";
+  const chosen = perms ?? (role === "OFFICE" ? allPerms.map((p) => p.value) : role === "ACCOUNTS" ? allPerms.map((p) => p.value).filter((v) => ACCOUNTS_DEFAULT.includes(v)) : []);
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
   return (
     <SectionCard
       title={`Roles · ${departmentName}`}
-      description="Lab Operators and OICs come from the equipment records. Assign OC Stores, Office, HOD and Auditor here."
+      description="Lab Operators and OICs come from the equipment records. Assign OC Stores, Office, HOD, Auditor, Accounts In Charge and Lab In Charge here. A Lab In Charge covers the chosen equipment (or all equipment of the department when none is chosen)."
     >
       <div className="mb-4 grid gap-3 rounded-md border p-3 lg:grid-cols-[2fr_1fr_auto]">
         <Field label="User">
@@ -337,7 +355,7 @@ function Roles({ departmentId, departmentName }: { departmentId: number; departm
           <NativeSelect
             value={role}
             onChange={(e) => { setRole(e.target.value); setPerms(null); }}
-            options={(q.data?.roles ?? ["OC_STORES", "OFFICE", "HOD", "AUDITOR"]).map((r) => ({ value: r, label: humanize(r) }))}
+            options={(q.data?.roles ?? ["OC_STORES", "OFFICE", "HOD", "AUDITOR", "ACCOUNTS", "LAB_INCHARGE"]).map((r) => ({ value: r, label: ROLE_LABEL[r] ?? humanize(r) }))}
           />
         </Field>
         <div className="flex items-end">
@@ -345,10 +363,15 @@ function Roles({ departmentId, departmentName }: { departmentId: number; departm
             disabled={!user || busy}
             onClick={async () => {
               const ok = await run(async () => {
-                await pmPost(`config/${departmentId}/roles/`, { user_id: user!.id, role, permissions: usesPerms ? chosen : undefined });
+                await pmPost(`config/${departmentId}/roles/`, {
+                  user_id: user!.id,
+                  role,
+                  permissions: usesPerms ? chosen : undefined,
+                  equipment_ids: role === "LAB_INCHARGE" ? equipmentIds : undefined,
+                });
                 await refresh();
               }, "Role assigned.");
-              if (ok) { setUser(null); setPerms(null); }
+              if (ok) { setUser(null); setPerms(null); setEquipmentIds([]); }
             }}
           >
             <UserPlus className="mr-2 h-4 w-4" />
@@ -368,6 +391,20 @@ function Roles({ departmentId, departmentName }: { departmentId: number; departm
             ))}
           </div>
         ) : null}
+        {role === "LAB_INCHARGE" ? (
+          <div className="lg:col-span-3">
+            <p className="mb-2 text-sm font-medium">Equipment in charge of {equipmentIds.length ? `(${equipmentIds.length})` : "(none chosen = all equipment of the department)"}</p>
+            <div className="grid max-h-48 gap-2 overflow-auto sm:grid-cols-2 lg:grid-cols-3">
+              {deptEquipment.map((e) => (
+                <label key={e.id} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={equipmentIds.includes(e.id)} onCheckedChange={(v) => setEquipmentIds(v ? [...equipmentIds, e.id] : equipmentIds.filter((x) => x !== e.id))} />
+                  {e.name}
+                </label>
+              ))}
+              {!deptEquipment.length ? <p className="text-xs text-muted-foreground">No equipment visible for this department.</p> : null}
+            </div>
+          </div>
+        ) : null}
       </div>
       <Table>
         <TableHeader>
@@ -383,8 +420,10 @@ function Roles({ departmentId, departmentName }: { departmentId: number; departm
           {q.isLoading ? <LoadingRow colSpan={5} /> : !q.data?.results.length ? <EmptyRow colSpan={5} text="No roles assigned yet." /> : q.data.results.map((r) => (
             <TableRow key={r.id} className={r.active ? undefined : "opacity-60"}>
               <TableCell>{r.user.name}<div className="text-xs text-muted-foreground">{r.user.email}</div></TableCell>
-              <TableCell>{humanize(r.role)}</TableCell>
-              <TableCell className="max-w-md text-xs">{r.permissions.length ? r.permissions.map(humanize).join(", ") : "—"}</TableCell>
+              <TableCell>{ROLE_LABEL[r.role] ?? humanize(r.role)}</TableCell>
+              <TableCell className="max-w-md text-xs">
+                {r.permissions.length ? r.permissions.map(humanize).join(", ") : r.role === "LAB_INCHARGE" ? (r.equipment_ids?.length ? r.equipment_ids.map(equipmentName).join(", ") : "All equipment") : "—"}
+              </TableCell>
               <TableCell><StatusBadge status={r.active ? "ACTIVE" : "REVOKED"} label={r.active ? "Active" : "Revoked"} /></TableCell>
               <TableCell>{r.active ? <Button size="sm" variant="ghost" onClick={() => setRevoking(r)}>Revoke</Button> : null}</TableCell>
             </TableRow>

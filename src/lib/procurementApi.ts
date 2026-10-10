@@ -3,6 +3,13 @@ import { API_BASE_URL, apiClient } from "@/lib/api";
 /** Procurement & Assets API (`/api/v1/procurement/`). Errors arrive as `{detail, code, ...extra}`. */
 export const PM_BASE = `${API_BASE_URL}/v1/procurement`;
 
+/** Department selected in the Procurement & Assets module (remembered per browser). */
+export const PM_DEPT_STORAGE_KEY = "iic:procurement:department";
+
+export function rememberProcurementDepartment(id: number | null | undefined) {
+  if (id) window.localStorage.setItem(PM_DEPT_STORAGE_KEY, String(id));
+}
+
 export class ProcurementApiError extends Error {
   status: number;
   code: string;
@@ -135,7 +142,13 @@ export type PmMenus = Partial<
     | "approvals"
     | "consolidation"
     | "reports"
-    | "configuration",
+    | "configuration"
+    | "registers"
+    | "register_import"
+    | "verification"
+    | "maintenance"
+    | "accounts"
+    | "item_links",
     boolean
   >
 >;
@@ -162,6 +175,7 @@ export interface PmBootstrap {
   menus: PmMenus;
   oic_equipment_ids: number[];
   operator_equipment_ids: number[];
+  incharge_equipment_ids?: number[];
   equipment: PmEquipment[];
 }
 
@@ -204,6 +218,8 @@ export interface PmItem {
   hsn_sac: string;
   category: { id: number; name: string } | null;
   specification?: string;
+  part_number?: string;
+  tracks_batch?: boolean;
 }
 
 export interface PmGstRate {
@@ -258,6 +274,10 @@ export interface PmRequestLine {
   gst_rate: string;
   line_total: string;
   issued_quantity: string;
+  fulfilment?: "" | "STOCK" | "PROCURE";
+  store_note?: string;
+  store_original?: Partial<Record<"item_id" | "description" | "quantity" | "uom" | "estimated_unit_price" | "gst_rate", string | number | null>>;
+  added_by_stores?: boolean;
 }
 
 export interface PmRequest {
@@ -293,6 +313,10 @@ export interface PmRequest {
   history?: PmApprovalAction[];
   procurement_record_ids?: number[];
   available_actions?: string[];
+  stage_entered_at?: string | null;
+  stage_age_days?: number | null;
+  maintenance_record_id?: number | null;
+  disruption_event_id?: number | null;
 }
 
 export interface PmInvoice {
@@ -314,6 +338,10 @@ export interface PmInvoice {
   paid_amount: string;
   payment_status: string;
   documents?: PmDocument[];
+  forwarded_to_accounts_at?: string | null;
+  forwarded_by?: UserBrief | null;
+  forward_note?: string;
+  procurement_record?: { id: number; number: string; title: string };
 }
 
 export interface PmQuotation {
@@ -348,6 +376,9 @@ export interface PmRecord {
   payment_status: string;
   paid_amount: string;
   created_at: string;
+  purchase_mode?: string;
+  purchase_mode_reason?: string;
+  gem_reference?: string;
   invoices?: PmInvoice[];
   quotations?: PmQuotation[];
   documents?: PmDocument[];
@@ -416,6 +447,228 @@ export interface PmAsset {
   warranty_until: string | null;
   status_history?: { from_status: string; to_status: string; reason: string; changed_by: UserBrief; changed_at: string }[];
   transfers?: PmTransfer[];
+  laboratory?: LabBrief | null;
+  funding_type?: string;
+  financial_year?: string;
+  is_capitalized?: boolean;
+  remarks?: string;
+  register?: PmRegisterBrief | null;
+  register_page?: number | null;
+  register_serial?: string;
+  register_entry_date?: string | null;
+  register_ref?: string;
+  legacy_ref?: string;
+  parent?: { id: number; number: string; description: string; asset_tag: string } | null;
+  quantity?: number;
+  supplier_name?: string;
+  po_number?: string;
+  po_date?: string | null;
+  invoice_number?: string;
+  invoice_date?: string | null;
+  funding_source?: string;
+  project_code?: string;
+  installation_date?: string | null;
+  amc_until?: string | null;
+  condition?: string;
+  useful_life_years?: number | null;
+  depreciation_rate?: string | null;
+  last_verified_on?: string | null;
+  last_verification_result?: string;
+  accessories?: { id: number; number: string; description: string; asset_tag: string; register_ref: string; status: string; cost: string }[];
+  verifications?: PmVerification[];
+  disposals?: PmDisposal[];
+  maintenance_records?: { id: number; number: string; kind: string; downtime_start: string | null; downtime_end: string | null; total_cost: string }[];
+  can_verify?: boolean;
+  open_campaigns?: { id: number; number: string; title: string }[];
+}
+
+export interface PmRegisterBrief {
+  id: number;
+  code: string;
+  name: string;
+  register_type: string;
+  volume: string;
+}
+
+export interface PmRegister extends PmRegisterBrief {
+  department: Brief;
+  register_type_label: string;
+  laboratory: LabBrief | null;
+  custodian: UserBrief | null;
+  opened_on: string | null;
+  closed_on: string | null;
+  total_pages: number | null;
+  remarks: string;
+  active: boolean;
+  entry_count: number | null;
+  pages_used?: number[];
+  next_free?: { page: number; serial: string };
+}
+
+export interface PmVerification {
+  id: number;
+  asset_id: number;
+  campaign: { id: number; number: string; title: string } | null;
+  verified_on: string;
+  verified_by: UserBrief;
+  result: string;
+  result_label: string;
+  condition: string;
+  quantity_found: number | null;
+  location_seen: string;
+  remarks: string;
+  method: string;
+  asset?: { id: number; number: string; description: string; asset_tag: string; register_ref: string };
+}
+
+export interface PmCampaign {
+  id: number;
+  number: string;
+  title: string;
+  financial_year: string;
+  register: PmRegisterBrief | null;
+  laboratory: LabBrief | null;
+  committee: string;
+  status: string;
+  started_on: string;
+  closed_on: string | null;
+  remarks: string;
+  created_by: UserBrief;
+  stats: { total?: number; verified?: number; pending?: number; by_result?: Record<string, number> };
+}
+
+export interface PmDisposal {
+  id: number;
+  number: string;
+  action: string;
+  action_label: string;
+  mode: string;
+  board_reference: string;
+  sanction_reference: string;
+  sanction_date: string | null;
+  book_value: string | null;
+  realised_value: string | null;
+  from_status: string;
+  to_status: string;
+  remarks: string;
+  recorded_by: UserBrief;
+  recorded_at: string;
+}
+
+export interface PmImportRow {
+  row: number;
+  status: "OK" | "WARNING" | "ERROR" | "DUPLICATE";
+  errors: string[];
+  warnings: string[];
+  duplicate_of: { row?: number; asset_id?: number; asset_number?: string; description?: string } | null;
+  register_ref: string;
+  description: string;
+  asset_tag: string;
+  equipment_code: string;
+  cost: string;
+}
+
+export interface PmImportPreview {
+  department_id: number;
+  total: number;
+  counts: Record<PmImportRow["status"], number>;
+  importable: number;
+  new_registers: string[];
+  rows: PmImportRow[];
+}
+
+export interface PmImportResult {
+  created: number;
+  skipped: number;
+  skipped_rows: PmImportRow[];
+  registers_created: string[];
+}
+
+export interface PmItemLink {
+  id: number;
+  item: { id: number; code: string; name: string; uom: string; part_number: string };
+  equipment: Brief;
+  usage: string;
+  typical_quantity: string;
+  notes: string;
+  active: boolean;
+}
+
+export interface PmSuggestedLine {
+  item_id: number;
+  code: string;
+  name: string;
+  uom: string;
+  part_number: string;
+  category: { id: number; name: string; nature: string };
+  usage: string;
+  source: "link" | "legacy";
+  typical_quantity: string;
+  notes: string;
+  central_stock: string;
+  lab_stock: string;
+  reorder_level: string;
+  reorder_due: boolean;
+  below_min: boolean;
+  available_for_typical: boolean;
+  last_unit_price: string | null;
+  gst_rate: string | null;
+  suggested_quantity: string;
+}
+
+export interface PmMaintenance {
+  id: number;
+  number: string;
+  department: Brief;
+  equipment: Brief;
+  asset: { id: number; number: string; description: string } | null;
+  disruption_event_id: number | null;
+  kind: string;
+  kind_label: string;
+  downtime_start: string | null;
+  downtime_end: string | null;
+  downtime_hours: number | null;
+  cause: string;
+  action_taken: string;
+  vendor: { id: number; name: string } | null;
+  service_provider: string;
+  service_report_reference: string;
+  service_cost: string;
+  other_cost: string;
+  parts_cost: string;
+  total_cost: string;
+  under_warranty_or_amc: boolean;
+  remarks: string;
+  recorded_by: UserBrief;
+  created_at: string;
+  parts_used?: PmStockTx[];
+  requests?: { id: number; number: string; title: string; status: string; estimated_total: string }[];
+  can_edit?: boolean;
+}
+
+export interface PmEquipmentOverview {
+  equipment: Brief;
+  department_id: number;
+  can_record_maintenance: boolean;
+  can_raise_request: boolean;
+  assets: PmAsset[];
+  maintenance: PmMaintenance[];
+  maintenance_totals: { count: number; downtime_hours: number; cost: string };
+  open_requests: { id: number; number: string; title: string; status: string; status_label: string; estimated_total: string }[];
+}
+
+export interface PmPurchaseModeSuggestion {
+  amount: string;
+  suggested: string;
+  reason: string;
+  gem_note: string;
+  thresholds: Record<string, string>;
+  options: { value: string; label: string }[];
+}
+
+export interface PmAgeing {
+  buckets: Record<"0-3" | "4-7" | "8-15" | ">15", number>;
+  oldest_days: number | null;
 }
 
 export interface PmTransfer {
@@ -456,6 +709,11 @@ export interface PmStockTx {
   reference_number: string;
   remarks: string;
   performed_by: UserBrief;
+  batch_number?: string;
+  expiry_date?: string | null;
+  reason_code?: string;
+  equipment_id?: number | null;
+  maintenance_record_id?: number | null;
 }
 
 export interface PmAmc {
@@ -508,6 +766,16 @@ export interface PmDashboard {
   assets_by_status?: Record<string, number>;
   open_transfers?: number;
   budget?: PmBudgetSummary;
+  my_queue_ageing?: PmAgeing;
+  pending_ageing?: PmAgeing;
+  pending_for_me?: { id: number; number: string; title: string; status: string; status_label: string; stage_age_days: number | null; estimated_total: string }[];
+  maintenance?: { this_year: number; open_downtime: number; downtime_hours: number; cost: string };
+  registers?: { count: number; by_type: Record<string, number>; entries: number; unregistered: number };
+  verification?: { total: number; verified: number; pending: number; discrepancies: number; open_campaigns: number };
+  my_assets?: { count: number; not_verified_this_year: number };
+  linked_low_stock?: number;
+  stores?: { pending_review: number; to_issue: number; bills_to_forward: number };
+  accounts?: { bills_pending: number; amount_pending: string; budget_checks_pending: number };
 }
 
 export interface PmReport {
@@ -545,5 +813,6 @@ export interface PmRoleAssignment {
   user: UserBrief;
   role: string;
   permissions: string[];
+  equipment_ids?: number[];
   active: boolean;
 }

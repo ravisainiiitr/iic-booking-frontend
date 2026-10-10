@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, Loader2, PackageSearch, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,10 @@ import {
   type PmRequest,
   type PmRequestType,
   type PmSmallPurchaseCheck,
+  type PmSuggestedLine,
 } from "@/lib/procurementApi";
-import { Field, FilePicker, money, NativeSelect, SectionCard, usePm } from "./shared";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FilePicker, humanize, money, NativeSelect, qty, SectionCard, usePm } from "./shared";
 
 interface Line {
   item_id: string;
@@ -38,6 +40,89 @@ interface Line {
 const blankLine = (): Line => ({ item_id: "", description: "", specification: "", quantity: "1", uom: "Nos", estimated_unit_price: "", gst_rate: "18" });
 
 const STEPS = ["Basics", "Items", "Justification", "Review"];
+
+/** A request line pre-filled from an equipment-linked inventory item (last receipt price, item GST). */
+export function suggestionToLine(s: PmSuggestedLine): Line {
+  return {
+    item_id: String(s.item_id),
+    description: s.name,
+    specification: s.part_number ? `Part no. ${s.part_number}` : "",
+    quantity: String(Number(s.suggested_quantity) || 1),
+    uom: s.uom || "Nos",
+    estimated_unit_price: s.last_unit_price ? String(Number(s.last_unit_price)) : "",
+    gst_rate: s.gst_rate ? String(Number(s.gst_rate)) : "18",
+  };
+}
+
+function InventorySuggestions({ equipmentId, existing, onAdd }: { equipmentId: string; existing: string[]; onAdd: (lines: Line[]) => void }) {
+  const q = useQuery({
+    queryKey: ["procurement", "suggested-lines", equipmentId],
+    queryFn: () => pmGet<{ results: PmSuggestedLine[] }>(`equipment/${equipmentId}/suggested-lines/`),
+    enabled: !!equipmentId,
+  });
+  const [picked, setPicked] = useState<number[]>([]);
+  const rows = (q.data?.results ?? []).filter((s) => !existing.includes(String(s.item_id)));
+  if (!equipmentId) return null;
+  if (q.isLoading) return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+  if (!rows.length) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {q.data?.results.length ? "All linked items are already in the list." : "No consumables or spares are linked to this equipment yet (Masters → Equipment items)."}
+      </p>
+    );
+  }
+  return (
+    <div className="rounded-md border bg-muted/30 p-3">
+      <p className="mb-2 flex items-center gap-2 text-sm font-medium"><PackageSearch className="h-4 w-4" />Fill from this equipment&apos;s inventory</p>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8" />
+              <TableHead>Item</TableHead>
+              <TableHead>Use</TableHead>
+              <TableHead className="text-right">Central store</TableHead>
+              <TableHead className="text-right">Lab store</TableHead>
+              <TableHead className="text-right">Usual qty</TableHead>
+              <TableHead className="text-right">Last price</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((s) => (
+              <TableRow key={s.item_id}>
+                <TableCell>
+                  <Checkbox
+                    aria-label={`Add ${s.name}`}
+                    checked={picked.includes(s.item_id)}
+                    onCheckedChange={(v) => setPicked((p) => (v ? [...p, s.item_id] : p.filter((x) => x !== s.item_id)))}
+                  />
+                </TableCell>
+                <TableCell className="text-left">
+                  {s.code} · {s.name}
+                  {s.reorder_due ? <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs text-amber-900">reorder due</span> : null}
+                </TableCell>
+                <TableCell>{humanize(s.usage)}</TableCell>
+                <TableCell className={cn("text-right tabular-nums", s.below_min && "text-destructive")}>{qty(s.central_stock)} {s.uom}</TableCell>
+                <TableCell className="text-right tabular-nums">{qty(s.lab_stock)}</TableCell>
+                <TableCell className="text-right tabular-nums">{qty(s.typical_quantity)}</TableCell>
+                <TableCell className="text-right tabular-nums">{s.last_unit_price ? money(s.last_unit_price) : "—"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button size="sm" variant="outline" disabled={!picked.length} onClick={() => { onAdd(rows.filter((s) => picked.includes(s.item_id)).map(suggestionToLine)); setPicked([]); }}>
+          Add {picked.length || ""} selected
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setPicked(rows.filter((s) => s.reorder_due || !s.available_for_typical).map((s) => s.item_id))}>
+          Select items running low
+        </Button>
+        <span className="text-xs text-muted-foreground">Stores will confirm whether each line is issued from stock or bought.</span>
+      </div>
+    </div>
+  );
+}
 
 export function smallPurchaseHint(check: PmSmallPurchaseCheck): string {
   const limit = money(check.threshold);
@@ -99,18 +184,23 @@ export default function RequestWizard() {
   const { boot, deptId, dept } = usePm();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const [params] = useSearchParams();
+  const maintenanceId = params.get("maintenance") ?? "";
   const { types, categories, gstRates, items } = useDeptMasters(deptId);
   const equipment = boot.equipment.filter((e) => e.department_id === deptId);
-  const labStaffOnly = !!dept && dept.roles.every((r) => r === "OIC" || r === "LAB_OPERATOR");
+  const labStaffOnly = !!dept && dept.roles.every((r) => r === "OIC" || r === "LAB_OPERATOR" || r === "LAB_INCHARGE");
+  const presetEquipment = equipment.find((e) => String(e.id) === params.get("equipment"));
 
   const [step, setStep] = useState(0);
-  const [equipmentId, setEquipmentId] = useState(equipment.length === 1 ? String(equipment[0].id) : "");
+  const [equipmentId, setEquipmentId] = useState(presetEquipment ? String(presetEquipment.id) : equipment.length === 1 ? String(equipment[0].id) : "");
   const [typeCode, setTypeCode] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(params.get("title") ?? "");
   const [priority, setPriority] = useState("NORMAL");
   const [requiredBy, setRequiredBy] = useState("");
   const [lines, setLines] = useState<Line[]>([blankLine()]);
+  const addLines = (extra: Line[]) =>
+    setLines((ls) => [...ls.filter((l) => l.description.trim() || l.item_id || l.estimated_unit_price), ...extra].slice(0, 200));
   const [justification, setJustification] = useState("");
   const [specification, setSpecification] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -176,7 +266,9 @@ export default function RequestWizard() {
         })),
         submit: false,
       };
-      const created = await pmPost<PmRequest>("requests/", body);
+      const created = maintenanceId
+        ? (await pmPost<{ request: PmRequest }>(`maintenance/${maintenanceId}/raise-request/`, body)).request
+        : await pmPost<PmRequest>("requests/", body);
       for (const f of files) {
         const form = new FormData();
         form.append("file", f);
@@ -195,7 +287,10 @@ export default function RequestWizard() {
   };
 
   return (
-    <SectionCard title="New purchase request" description="Approval route is decided on the server from your role, the request type and the amount.">
+    <SectionCard
+      title="New purchase request"
+      description={maintenanceId ? "Raised from a maintenance record — the request stays linked to it and to the equipment's downtime." : "Approval route is decided on the server from your role, the request type and the amount."}
+    >
       <ol className="mb-5 flex flex-wrap gap-2" aria-label="Steps">
         {STEPS.map((s, i) => (
           <li key={s}>
@@ -250,6 +345,7 @@ export default function RequestWizard() {
 
       {step === 1 ? (
         <div className="space-y-3">
+          <InventorySuggestions equipmentId={equipmentId} existing={lines.map((l) => l.item_id).filter(Boolean)} onAdd={addLines} />
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
