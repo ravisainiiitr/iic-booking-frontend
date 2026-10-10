@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 import { apiClient, type BookingAwaitingCompletion } from "@/lib/api";
@@ -92,7 +92,11 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                 const rowStatus = awaitingStatus(row);
                 return (
                 <TableRow key={row.booking_id}>
-                  <TableCell className="font-medium">{row.booking_ref}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={row.link} className="text-primary underline-offset-2 hover:underline">
+                      {row.booking_ref}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <Badge className={`whitespace-nowrap ${bookingStatusBadgeClass(rowStatus.key)}`}>{rowStatus.label}</Badge>
                   </TableCell>

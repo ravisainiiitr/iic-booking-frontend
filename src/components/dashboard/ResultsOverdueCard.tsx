@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AlarmClock, ArrowRight } from "lucide-react";
 
 import { apiClient, type ResultsOverdueBooking } from "@/lib/api";
@@ -61,7 +61,11 @@ export default function ResultsOverdueCard({ className = "" }: { className?: str
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.booking_id}>
-                  <TableCell className="font-medium">{row.booking_ref}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={row.link} className="text-primary underline-offset-2 hover:underline">
+                      {row.booking_ref}
+                    </Link>
+                  </TableCell>
                   <TableCell>{row.equipment_name}</TableCell>
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.due_display}</TableCell>

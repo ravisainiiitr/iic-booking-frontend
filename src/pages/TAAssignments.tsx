@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { BookingLink } from "@/components/BookingLink";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
@@ -944,9 +945,11 @@ export default function TAAssignments() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-mono text-sm font-medium">
-                          {a.booking_display_id || String(a.booking)}
-                        </div>
+                        <BookingLink
+                          className="text-sm font-medium"
+                          pk={a.booking}
+                          displayId={a.booking_display_id || String(a.booking)}
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">

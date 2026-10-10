@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { BookingLink } from "@/components/BookingLink";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -1267,7 +1268,7 @@ export default function RemoteAnalysis() {
                             {new Date(r.requested_end).toLocaleString()}
                           </TableCell>
                           <TableCell>{r.priority}</TableCell>
-                          <TableCell>{r.booking_id ?? "—"}</TableCell>
+                          <TableCell>{r.booking_id != null ? <BookingLink pk={r.booking_id} /> : "—"}</TableCell>
                           <TableCell>
                             <div className="flex gap-2">
                               {["RESERVED", "READY", "ACTIVE", "PREPARING"].includes(r.status) && (

@@ -342,3 +342,6 @@ export const useAuth = () => {
   }
   return context;
 };
+
+/** For shared widgets that also render outside the provider (they fall back to anonymous behaviour). */
+export const useOptionalAuth = () => useContext(AuthContext);

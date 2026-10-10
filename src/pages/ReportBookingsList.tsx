@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { BookingLink } from "@/components/BookingLink";
 import DashboardHeader from "@/components/DashboardHeader";
 import { ExportMenu } from "@/components/ExportMenu";
 import { ArrowLeft, Loader2, Star } from "lucide-react";
@@ -219,7 +220,9 @@ const ReportBookingsList = () => {
                       <TableBody>
                         {bookings.map((b) => (
                           <TableRow key={b.booking_id}>
-                            <TableCell className="font-medium">{b.booking_id}</TableCell>
+                            <TableCell className="font-medium">
+                              <BookingLink pk={b.real_booking_id} displayId={b.booking_id} />
+                            </TableCell>
                             <TableCell>
                               <span className="font-medium">{b.equipment_name || b.equipment_code}</span>
                             </TableCell>

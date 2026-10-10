@@ -286,11 +286,7 @@ export async function exportAnalysisChargesExcel(
     setStyle(headerRow, c, {
       font: { bold: true, color: { rgb: "FFFFFF" } },
       fill: { patternType: "solid", fgColor: { rgb: "0F4C81" } },
-      alignment: {
-        horizontal: c === 0 || c >= firstCategoryCol ? "center" : "left",
-        vertical: "center",
-        wrapText: true,
-      },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border,
     });
   }
@@ -298,23 +294,15 @@ export async function exportAnalysisChargesExcel(
     const row = firstDataRow + i;
     const fill = r.serialNumber % 2 === 0 ? { patternType: "solid", fgColor: { rgb: "F5F8FC" } } : undefined;
     for (let c = 0; c <= lastCol; c++) {
-      const isSerial = c === 0;
       const isEquipment = c === 1;
       const isParameter = pivot.hasParameters && c === 2;
-      const catIdx = c - firstCategoryCol;
-      const isSpanningCategory =
-        catIdx >= 0 && (r.cells[pivot.categories[catIdx]]?.rowSpan ?? 1) > 1;
       setStyle(row, c, {
         font: isEquipment
           ? { bold: true, color: { rgb: "0F4C81" } }
           : isParameter
             ? { bold: true }
             : {},
-        alignment: {
-          horizontal: isSerial || catIdx >= 0 ? "center" : "left",
-          vertical: isSerial || isEquipment || isSpanningCategory ? "center" : "top",
-          wrapText: true,
-        },
+        alignment: { horizontal: "center", vertical: "center", wrapText: true },
         border,
         ...(fill ? { fill } : {}),
       });
@@ -385,7 +373,6 @@ export async function exportAnalysisChargesPdf(
     return [String(r.serialNumber), pdfSafeMoney(r.equipmentName), ...amounts];
   });
   const rowShaded = pivot.rows.map((r) => r.serialNumber % 2 === 0);
-  const firstCategoryCol = pivot.hasParameters ? 3 : 2;
 
   autoTable(doc, {
     startY: tableStartY,
@@ -395,7 +382,8 @@ export async function exportAnalysisChargesPdf(
     styles: {
       fontSize: pivot.categories.length > 4 ? 7 : 8,
       cellPadding: 4,
-      valign: "top",
+      halign: "center",
+      valign: "middle",
       overflow: "linebreak",
       lineColor: [180, 190, 200],
       lineWidth: 0.4,
@@ -405,11 +393,12 @@ export async function exportAnalysisChargesPdf(
       textColor: 255,
       fontStyle: "bold",
       fontSize: 8,
+      halign: "center",
       lineColor: [15, 76, 129],
       lineWidth: 0.4,
     },
+    showHead: "everyPage",
     didParseCell: (data) => {
-      if (data.column.index >= firstCategoryCol) data.cell.styles.halign = "center";
       if (data.section !== "body") return;
       data.cell.styles.fillColor = rowShaded[data.row.index] ? [245, 248, 252] : [255, 255, 255];
     },

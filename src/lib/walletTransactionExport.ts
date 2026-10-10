@@ -3,6 +3,7 @@
  */
 import { format } from "date-fns";
 import { DEFAULT_DEPARTMENT_NAME, drawPdfLetterhead } from "@/lib/pdfLetterhead";
+import { downloadStyledWorkbook, pdfTableStyle } from "@/lib/styledExport";
 
 export interface WalletTransactionExportRow {
   equipment_name?: string | null;
@@ -51,8 +52,6 @@ export async function exportWalletTransactionsExcel(
   options?: { filename?: string; sheetTitle?: string }
 ): Promise<void> {
   if (!rows.length) return;
-  // Export libraries load on demand so the Wallet / booking pages don't ship them up front.
-  const XLSX = await import("xlsx");
   const header = [
     "S.No.",
     "Equipment Name",
@@ -75,23 +74,20 @@ export async function exportWalletTransactionsExcel(
     amountCell(r),
     balanceCell(r),
   ]);
-  const ws = XLSX.utils.aoa_to_sheet([header, ...data]);
-  ws["!cols"] = [
-    { wch: 6 },
-    { wch: 28 },
-    { wch: 22 },
-    { wch: 22 },
-    { wch: 10 },
-    { wch: 48 },
-    { wch: 22 },
-    { wch: 14 },
-    { wch: 18 },
-  ];
-  const wb = XLSX.utils.book_new();
-  const sheetName = (options?.sheetTitle || "Transactions").slice(0, 31);
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  const name = options?.filename || defaultFilename("wallet-transactions", "xlsx");
-  XLSX.writeFile(wb, name.endsWith(".xlsx") ? name : `${name}.xlsx`);
+  const title = options?.sheetTitle || "Transactions";
+  await downloadStyledWorkbook(
+    [
+      {
+        name: title,
+        intro: [`Wallet transactions — ${title}`, `Generated: ${format(new Date(), "dd MMM yyyy, HH:mm")}`],
+        header,
+        rows: data,
+        widths: [7, 28, 22, 22, 10, 48, 22, 14, 18],
+        leftColumns: [5],
+      },
+    ],
+    options?.filename || defaultFilename("wallet-transactions", "xlsx"),
+  );
 }
 
 /**
@@ -113,6 +109,10 @@ export async function exportWalletTransactionsPdf(
     documentTitle: title,
     mastheadMaxWidth: 300,
   });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated: ${format(new Date(), "dd MMM yyyy, HH:mm")}`, 20, startY);
 
   const body = rows.map((r, index) => [
     String(index + 1),
@@ -127,7 +127,8 @@ export async function exportWalletTransactionsPdf(
   ]);
 
   autoTable(doc, {
-    startY,
+    ...pdfTableStyle({ fontSize: 6.5, cellPadding: 2.5 }),
+    startY: startY + 10,
     head: [
       [
         "S.No.",
@@ -142,20 +143,18 @@ export async function exportWalletTransactionsPdf(
       ],
     ],
     body,
-    styles: { fontSize: 6.5, cellPadding: 2.5, overflow: "linebreak" },
-    headStyles: { fillColor: [55, 65, 81], textColor: 255 },
     margin: { left: 20, right: 20 },
     tableWidth: doc.internal.pageSize.getWidth() - 40,
     columnStyles: {
-      0: { cellWidth: 28, halign: "center" },
+      0: { cellWidth: 28 },
       1: { cellWidth: 85 },
       2: { cellWidth: 65 },
       3: { cellWidth: 85 },
       4: { cellWidth: 35 },
-      5: { cellWidth: "auto" },
+      5: { cellWidth: "auto", halign: "left" },
       6: { cellWidth: 65 },
-      7: { cellWidth: 55, halign: "right" },
-      8: { cellWidth: 55, halign: "right" },
+      7: { cellWidth: 55 },
+      8: { cellWidth: 55 },
     },
   });
 

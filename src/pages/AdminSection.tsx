@@ -5,6 +5,7 @@ import { isExternalBookingUserType } from "@/lib/userTypes";
 import { richTextToPlain } from "@/lib/richText";
 import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { unlimitedQuotaConfigHint } from "@/lib/bookingQuota";
+import { BookingLink } from "@/components/BookingLink";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1876,13 +1877,29 @@ export default function AdminSection() {
                             return (
                               <TableRow key={String(id)}>
                                 <TableCell>{row.id != null ? String(row.id) : "—"}</TableCell>
-                                <TableCell>{row.virtual_booking_id != null ? String(row.virtual_booking_id) : "—"}</TableCell>
+                                <TableCell>
+                                  {row.virtual_booking_id != null || row.real_booking_id != null ? (
+                                    <BookingLink
+                                      staff
+                                      pk={row.real_booking_id as number | null | undefined}
+                                      displayId={row.virtual_booking_id != null ? String(row.virtual_booking_id) : null}
+                                    />
+                                  ) : "—"}
+                                </TableCell>
                                 <TableCell>{row.user_email != null ? String(row.user_email) : "—"}</TableCell>
                                 <TableCell>{row.equipment_code != null ? String(row.equipment_code) : "—"}</TableCell>
                                 <TableCell>{row.status_display != null ? String(row.status_display) : String(row.status ?? "—")}</TableCell>
                                 <TableCell>{row.requested_at != null ? String(row.requested_at).slice(0, 19).replace("T", " ") : "—"}</TableCell>
                                 <TableCell>{row.responded_at != null ? String(row.responded_at).slice(0, 19).replace("T", " ") : "—"}</TableCell>
-                                <TableCell>{row.new_virtual_booking_id != null ? String(row.new_virtual_booking_id) : "—"}</TableCell>
+                                <TableCell>
+                                  {row.new_virtual_booking_id != null || row.new_real_booking_id != null ? (
+                                    <BookingLink
+                                      staff
+                                      pk={row.new_real_booking_id as number | null | undefined}
+                                      displayId={row.new_virtual_booking_id != null ? String(row.new_virtual_booking_id) : null}
+                                    />
+                                  ) : "—"}
+                                </TableCell>
                                 <TableCell>
                                   {isPending ? (
                                     <div className="flex gap-2">
