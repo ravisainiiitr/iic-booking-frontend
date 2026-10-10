@@ -13788,6 +13788,11 @@ class ApiClient {
         available_hours_weekend_or_holiday?: number;
         completed_slot_hours_working_window?: number;
         utilization_vs_working_capacity?: number;
+        /** Booked ÷ slot hours inside the weekly view window on working days; null when there are no such hours. */
+        utilization_factor?: number | null;
+        utilization_booked_hours?: number;
+        utilization_available_hours?: number;
+        booked_hours_outside_window?: number;
         blocked_hours?: number;
         other_disruption_hours?: number;
         total_bookings_in_period: number;
@@ -13827,7 +13832,10 @@ class ApiClient {
         utilized_hours?: number;
         downtime_hours?: number;
         disruption_hours?: number;
-        utilization_factor?: number;
+        utilization_factor?: number | null;
+        utilization_booked_hours?: number;
+        utilization_available_hours?: number;
+        booked_hours_outside_window?: number;
         revenue_total?: number;
         revenue_internal?: number;
         revenue_external?: number;

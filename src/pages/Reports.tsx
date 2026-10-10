@@ -57,7 +57,14 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip as UiTooltip,
+  TooltipContent as UiTooltipContent,
+  TooltipProvider as UiTooltipProvider,
+  TooltipTrigger as UiTooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface BookingStats {
   totalBookings: number;
@@ -102,6 +109,16 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const UTILIZATION_PIE_COLORS = ["#22c55e", "#a855f7", "#f97316", "#eab308", "#64748b"];
+
+const UTILIZATION_FORMULA =
+  "Booked hours ÷ available hours within weekly view window, excluding weekends and holidays";
+const UTILIZATION_FORMULA_DETAIL =
+  `${UTILIZATION_FORMULA}. Only slot time between each equipment's Weekly view from and to (24h) on working days ` +
+  "counts; slots crossing the window or midnight are clipped. Available hours include free, booked, not utilized, " +
+  "maintenance and operator-absent slots; blocked slots are left out. N/A when there are no such hours.";
+
+const formatUtilization = (value: number | null | undefined, digits = 1) =>
+  value == null ? "N/A" : `${(Number(value) * 100).toFixed(digits)}%`;
 
 const getStatusColor = (status: string) => STATUS_COLORS[status] ?? "#94a3b8";
 const getStatusLabel = (status: string) => STATUS_LABELS[status] ?? status.replace(/_/g, " ");
@@ -1273,19 +1290,33 @@ const Reports = () => {
                       <CardTitle className="text-base flex items-center gap-2">
                         <TrendingUp className="h-4 w-4" />
                         Utilization factor
+                        <UiTooltipProvider>
+                          <UiTooltip>
+                            <UiTooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="How the utilization factor is calculated"
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </UiTooltipTrigger>
+                            <UiTooltipContent className="max-w-xs text-xs font-normal">
+                              {UTILIZATION_FORMULA_DETAIL}
+                            </UiTooltipContent>
+                          </UiTooltip>
+                        </UiTooltipProvider>
                       </CardTitle>
-                      <CardDescription>
-                        BOOKED slot hours / all slot hours
-                      </CardDescription>
+                      <CardDescription>{UTILIZATION_FORMULA}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-1">
                       <div className="text-2xl font-semibold">
-                        {((Number(equipmentReportData.summary.utilization_factor || 0) || 0) * 100).toFixed(2)}%
+                        {formatUtilization(equipmentReportData.summary.utilization_factor, 2)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Utilized: {Number(equipmentReportData.summary.utilized_hours || 0).toFixed(2)}h · Total:{" "}
-                        {Number(equipmentReportData.summary.total_hours || 0).toFixed(2)}h · Downtime:{" "}
-                        {Number(equipmentReportData.summary.downtime_hours || 0).toFixed(2)}h
+                        Booked: {Number(equipmentReportData.summary.utilization_booked_hours || 0).toFixed(2)}h ·
+                        Available: {Number(equipmentReportData.summary.utilization_available_hours || 0).toFixed(2)}h ·
+                        Downtime: {Number(equipmentReportData.summary.downtime_hours || 0).toFixed(2)}h
                       </div>
                       <div
                         className="text-xs text-muted-foreground"
@@ -1596,11 +1627,9 @@ const Reports = () => {
                             <span>
                               Hours <strong className="text-foreground">{Number(eq.total_booking_hours ?? 0).toFixed(1)}</strong>
                             </span>
-                            <span>
+                            <span title={UTILIZATION_FORMULA}>
                               Utilization{" "}
-                              <strong className="text-foreground">
-                                {((Number(eq.utilization_vs_working_capacity ?? 0) || 0) * 100).toFixed(1)}%
-                              </strong>
+                              <strong className="text-foreground">{formatUtilization(eq.utilization_factor)}</strong>
                             </span>
                           </div>
                           <span
@@ -1661,14 +1690,23 @@ const Reports = () => {
                               </p>
                             </div>
                             <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 dark:border-violet-900 dark:bg-violet-950/30">
-                              <p className="text-xs font-medium uppercase tracking-wide text-violet-800 dark:text-violet-200">
-                                Utilization vs working capacity
+                              <p
+                                className="text-xs font-medium uppercase tracking-wide text-violet-800 dark:text-violet-200"
+                                title={UTILIZATION_FORMULA}
+                              >
+                                Utilization factor
                               </p>
                               <p className="mt-1 text-2xl font-bold text-violet-900 dark:text-violet-100">
-                                {((Number(eq.utilization_vs_working_capacity ?? 0) || 0) * 100).toFixed(1)}%
+                                {formatUtilization(eq.utilization_factor)}
                               </p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                Weekend / holiday slot hours: {Number(eq.available_hours_weekend_or_holiday ?? 0).toFixed(1)}h
+                                Booked {Number(eq.utilization_booked_hours ?? 0).toFixed(1)}h of{" "}
+                                {Number(eq.utilization_available_hours ?? 0).toFixed(1)}h in the weekly view window
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Utilization vs working capacity:{" "}
+                                {((Number(eq.utilization_vs_working_capacity ?? 0) || 0) * 100).toFixed(1)}% · Weekend /
+                                holiday slot hours: {Number(eq.available_hours_weekend_or_holiday ?? 0).toFixed(1)}h
                               </p>
                             </div>
                           </div>
