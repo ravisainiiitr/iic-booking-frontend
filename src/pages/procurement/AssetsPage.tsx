@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Loader2, Pencil, Plus, ScanLine, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,6 +9,9 @@ import { DateInput } from "@/components/ui/date-input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { cn } from "@/lib/utils";
 import { errorMessage, pmForm, pmGet, pmPatch, pmPost, type Page, type PmAsset, type PmDocument, type PmTransfer } from "@/lib/procurementApi";
 import {
   CONDITIONS,
@@ -71,7 +74,12 @@ function AssetsList() {
   const [condition, setCondition] = useState("");
   const [placement, setPlacement] = useState("");
   const [term, setTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(1);
+  }
   const [registering, setRegistering] = useState(false);
   const registers = useRegisters(deptId).data?.results ?? [];
   const filters = {
@@ -88,6 +96,7 @@ function AssetsList() {
     queryKey: ["procurement", "assets", filters, page, search],
     queryFn: () => pmGet<Page<PmAsset>>("assets/", { ...filters, page, q: search }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   const reset = () => setPage(1);
   const transfers = useQuery({
@@ -106,7 +115,7 @@ function AssetsList() {
           title="Asset register"
           actions={
             <>
-              {hasPerm("reports") || hasPerm("assets") ? <ExportButtons path="assets/" query={{ ...filters, q: search }} name="asset-register" /> : null}
+              {hasPerm("reports") || hasPerm("assets") ? <ExportButtons path="assets/" query={{ ...filters, q: search || undefined }} name="asset-register" /> : null}
               {dept?.menus.registers ? (
                 <Button size="sm" variant="outline" asChild>
                   <Link to="/procurement/registers"><BookOpen className="mr-2 h-4 w-4" />Register books</Link>
@@ -134,10 +143,9 @@ function AssetsList() {
             <NativeSelect aria-label="Register type" className="w-44" value={registerType} onChange={(e) => { reset(); setRegisterType(e.target.value); }} placeholder="Major & Minor" options={REGISTER_TYPES} />
             <NativeSelect aria-label="Condition" className="w-40" value={condition} onChange={(e) => { reset(); setCondition(e.target.value); }} placeholder="Any condition" options={CONDITIONS} />
             <NativeSelect aria-label="Entry" className="w-48" value={placement} onChange={(e) => { reset(); setPlacement(e.target.value); }} placeholder="All entries" options={[{ value: "unregistered", label: "Not yet in a register" }, { value: "main", label: "Main assets only" }]} />
-            <Button type="submit" size="sm" variant="secondary" className="h-10">Search</Button>
           </form>
           {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
-          <div className="overflow-x-auto">
+          <div className={cn("overflow-x-auto", refetchingClass(q.isPlaceholderData))} aria-busy={q.isFetching}>
             <Table serialStart={pageSerialStart(q.data)}>
               <TableHeader>
                 <TableRow>

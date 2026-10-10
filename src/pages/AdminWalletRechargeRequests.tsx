@@ -62,6 +62,9 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminSricRecharges from "@/components/wallet/AdminSricRecharges";
 import { formatDMY } from "@/lib/dateFormat";
+import { DateRangeHint, UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { dateRangeError, useLatestRequest } from "@/hooks/use-live-filters";
 
 interface AuditLog {
   id: number;
@@ -263,6 +266,10 @@ export default function AdminWalletRechargeRequests() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [projectGrant, setProjectGrant] = useState("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
+  const [projectGrantTerm, setProjectGrantTerm] = useLiveSearchTerm(projectGrant);
+  const dateError = dateRangeError(dateFrom, dateTo);
+  const beginRequest = useLatestRequest();
   const [detailRow, setDetailRow] = useState<WalletRechargeRequestRow | null>(null);
   const [actionRow, setActionRow] = useState<WalletRechargeRequestRow | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | "cancel" | null>(null);
@@ -333,10 +340,10 @@ export default function AdminWalletRechargeRequests() {
     if (fundVerifiedFilter === "unverified") params.fund_receipt_verified = "false";
     if (modeFilter !== "__all__") params.recharge_mode = modeFilter;
     if (departmentFilter !== "__all__") params.department = departmentFilter;
-    if (search.trim()) params.search = search.trim();
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
-    if (projectGrant.trim()) params.project_grant = projectGrant.trim();
+    if (searchTerm) params.search = searchTerm;
+    if (dateFrom && !dateError) params.date_from = dateFrom;
+    if (dateTo && !dateError) params.date_to = dateTo;
+    if (projectGrantTerm) params.project_grant = projectGrantTerm;
     if (cashbookFilter !== "__all__") params.cashbook = cashbookFilter;
     if (overdueOnly) params.overdue = "1";
     if (!showTestAccounts) params.test = "hide";
@@ -344,10 +351,12 @@ export default function AdminWalletRechargeRequests() {
   };
 
   const fetchRows = async () => {
+    const request = beginRequest();
     setLoading(true);
     const params: Record<string, string> = { ordering: "-created_at", page_size: "200", ...listFilters() };
     if (isAdmin && showDeleted) params.show_deleted = "1";
     const res = await apiClient.adminList<WalletRechargeRequestRow>("walletRechargeRequests", params);
+    if (!request.isLatest()) return;
     if (res.error) {
       toast.error(res.error);
       setRows([]);
@@ -357,11 +366,12 @@ export default function AdminWalletRechargeRequests() {
     setLoading(false);
   };
 
+  // Every filter applies as it changes (text after a short pause); an out-of-order date range waits until fixed.
   useEffect(() => {
-    if (!canAccess) return;
+    if (!canAccess || dateError) return;
     fetchRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly, showDeleted, showTestAccounts]);
+  }, [canAccess, statusFilter, fundVerifiedFilter, modeFilter, departmentFilter, cashbookFilter, overdueOnly, showDeleted, showTestAccounts, searchTerm, projectGrantTerm, dateFrom, dateTo, dateError]);
 
   const clearOverdue = () => {
     const next = new URLSearchParams(searchParams);
@@ -737,7 +747,7 @@ export default function AdminWalletRechargeRequests() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Transaction no. (IIC-TXN-…), user, emp no, email, grant…"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") fetchRows();
+                    if (e.key === "Enter") setSearchTerm(search.trim());
                   }}
                 />
               </div>
@@ -748,6 +758,7 @@ export default function AdminWalletRechargeRequests() {
               <div className="space-y-1">
                 <Label>To</Label>
                 <DateInput aria-label="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <DateRangeHint message={dateError} />
               </div>
               <div className="space-y-1">
                 <Label>Project grant</Label>
@@ -755,12 +766,14 @@ export default function AdminWalletRechargeRequests() {
                   aria-label="Project grant"
                   value={projectGrant}
                   onChange={(e) => setProjectGrant(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setProjectGrantTerm(projectGrant.trim());
+                  }}
                   placeholder="Grant code"
                 />
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={fetchRows}>Apply filters</Button>
               <Button variant="outline" onClick={clearFilters}>
                 Clear
               </Button>
@@ -768,8 +781,9 @@ export default function AdminWalletRechargeRequests() {
                 <RotateCcw className="h-4 w-4" aria-hidden />
               </Button>
               <span className="text-sm text-muted-foreground self-center ml-1">
-                {loading ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
+                {loading && rows.length === 0 ? "Loading…" : `${rows.length} request${rows.length === 1 ? "" : "s"}`}
               </span>
+              <UpdatingIndicator active={loading && rows.length > 0} className="self-center" />
               <div className="flex flex-wrap items-center gap-4 self-center ml-auto">
                 <div className="flex items-center gap-2" title="Test-account requests are not counted in revenue and need no SRIC cash-book entry">
                   <Switch id="show-test-accounts" checked={showTestAccounts} onCheckedChange={setShowTestAccounts} />
@@ -848,14 +862,14 @@ export default function AdminWalletRechargeRequests() {
             ) : null}
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading && rows.length === 0 ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : rows.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No recharge requests found.</p>
             ) : (
-              <div className="overflow-x-auto rounded-md border">
+              <div className={`overflow-x-auto rounded-md border ${refetchingClass(loading)}`} aria-busy={loading || undefined}>
                 <Table stickyFirstColumn>
                   <TableHeader>
                     <TableRow>

@@ -17,6 +17,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Archive, Eye, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { StandaloneOnly } from "@/components/PageShell";
+import { UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type CatalogRow = {
   id: string;
@@ -73,8 +76,10 @@ export default function AnalysisSoftwareCatalog() {
   const [rows, setRows] = useState<CatalogRow[]>([]);
   const [licenseTypes, setLicenseTypes] = useState<Array<{ value: string; label: string }>>([]);
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
   const [licenseFilter, setLicenseFilter] = useState("all");
   const [activeFilter, setActiveFilter] = useState("active");
+  const beginRequest = useLatestRequest();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -88,10 +93,11 @@ export default function AnalysisSoftwareCatalog() {
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     try {
       const params: Record<string, string> = {};
-      if (search.trim()) params.q = search.trim();
+      if (searchTerm) params.q = searchTerm;
       if (licenseFilter !== "all") params.license_type = licenseFilter;
       if (activeFilter === "active") {
         params.active = "1";
@@ -102,6 +108,7 @@ export default function AnalysisSoftwareCatalog() {
         params.archived = "1";
       }
       const res = await apiClient.listAnalysisSoftwareCatalog(params);
+      if (!request.isLatest()) return;
       if (res.error) {
         toast.error(res.error);
         return;
@@ -110,9 +117,9 @@ export default function AnalysisSoftwareCatalog() {
       setLicenseTypes(res.data?.license_types || []);
       setSelectedIds(new Set());
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [search, licenseFilter, activeFilter]);
+  }, [searchTerm, licenseFilter, activeFilter, beginRequest]);
 
   useEffect(() => {
     if (canView) void load();
@@ -364,6 +371,9 @@ export default function AnalysisSoftwareCatalog() {
               placeholder="Search name, vendor, category…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSearchTerm(search.trim());
+              }}
               className="max-w-sm"
             />
             <Select value={licenseFilter} onValueChange={setLicenseFilter}>
@@ -390,9 +400,7 @@ export default function AnalysisSoftwareCatalog() {
                 <SelectItem value="all">All</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="secondary" onClick={() => void load()}>
-              Apply
-            </Button>
+            <UpdatingIndicator active={loading && rows.length > 0} className="self-center" />
           </CardContent>
         </Card>
 
@@ -423,12 +431,12 @@ export default function AnalysisSoftwareCatalog() {
                 </div>
               </div>
             )}
-            {loading ? (
+            {loading && rows.length === 0 ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog…
               </div>
             ) : (
-              <Table serialAfterFirstColumn={canManage}>
+              <Table serialAfterFirstColumn={canManage} className={refetchingClass(loading)} aria-busy={loading || undefined}>
                 <TableHeader>
                   <TableRow>
                     {canManage && (

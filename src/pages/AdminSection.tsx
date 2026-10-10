@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { apiClient, ADMIN_SECTION_ENDPOINTS, flattenApiErrorMessage } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
@@ -44,6 +44,9 @@ import { CmsBlockEditor } from "@/components/admin/CmsBlockEditor";
 import { StandaloneOnly } from "@/components/PageShell";
 import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { formatDMY } from "@/lib/dateFormat";
+import { DateRangeHint, UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { dateRangeError, useLatestRequest } from "@/hooks/use-live-filters";
 
 /** Staff roles Department Administrators may create or map. */
 const DEPT_ADMIN_STAFF_USER_TYPES: Array<{ value: string; label: string }> = [
@@ -251,6 +254,12 @@ export default function AdminSection() {
   const [repeatSampleDateFromFilter, setRepeatSampleDateFromFilter] = useState("");
   const [repeatSampleDateToFilter, setRepeatSampleDateToFilter] = useState("");
   const [repeatSampleSearchFilter, setRepeatSampleSearchFilter] = useState("");
+  const [equipmentSearchTerm, setEquipmentSearchTerm] = useLiveSearchTerm(equipmentSearchFilter);
+  const [repeatSampleSearchTerm, setRepeatSampleSearchTerm] = useLiveSearchTerm(repeatSampleSearchFilter);
+  const repeatSampleDateError = dateRangeError(repeatSampleDateFromFilter, repeatSampleDateToFilter);
+  const beginListRequest = useLatestRequest();
+  /** Section whose rows `list` holds, so a section switch shows the spinner instead of the old table. */
+  const [listSection, setListSection] = useState<string | null>(null);
   const [rejectRepeatId, setRejectRepeatId] = useState<number | null>(null);
   const [rejectRepeatNotes, setRejectRepeatNotes] = useState("");
   const [repeatActionLoading, setRepeatActionLoading] = useState(false);
@@ -390,6 +399,40 @@ export default function AdminSection() {
     if (sectionKey !== "dailySlots" && sectionKey !== "bookings" && sectionKey !== "repeatSampleRequests") setListPagination(null);
   }, [sectionKey]);
 
+  // Equipment, daily slot, booking and repeat sample filters apply as they change (search after a short pause),
+  // from page 1; an out-of-order repeat sample date range waits until it is fixed.
+  const sectionFilterKey = useMemo(() => {
+    switch (sectionKey) {
+      case "equipment":
+        return JSON.stringify([equipmentSearchTerm, equipmentStatusFilter, equipmentProfileTypeFilter, equipmentCategoryFilter, equipmentGroupFilter]);
+      case "dailySlots":
+        return JSON.stringify([dailySlotStatusFilter, dailySlotDateFilter, dailySlotEquipmentFilter]);
+      case "bookings":
+        return JSON.stringify([bookingStatusFilter, bookingDateFilter, bookingEquipmentFilter]);
+      case "repeatSampleRequests":
+        if (repeatSampleDateError) return null;
+        return JSON.stringify([repeatSampleStatusFilter, repeatSampleDateFromFilter, repeatSampleDateToFilter, repeatSampleSearchTerm]);
+      default:
+        return null;
+    }
+  }, [
+    sectionKey,
+    equipmentSearchTerm, equipmentStatusFilter, equipmentProfileTypeFilter, equipmentCategoryFilter, equipmentGroupFilter,
+    dailySlotStatusFilter, dailySlotDateFilter, dailySlotEquipmentFilter,
+    bookingStatusFilter, bookingDateFilter, bookingEquipmentFilter,
+    repeatSampleStatusFilter, repeatSampleDateFromFilter, repeatSampleDateToFilter, repeatSampleSearchTerm, repeatSampleDateError,
+  ]);
+  const lastSectionFilterRef = useRef<{ section: string; key: string } | null>(null);
+  useEffect(() => {
+    if (!authChecked || !hasEndpoint || sectionFilterKey == null) return;
+    const last = lastSectionFilterRef.current;
+    lastSectionFilterRef.current = { section: sectionKey, key: sectionFilterKey };
+    // The section's first load comes from the effect above.
+    if (!last || last.section !== sectionKey || last.key === sectionFilterKey) return;
+    loadList(sectionKey === "equipment" ? undefined : 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authChecked, hasEndpoint, sectionKey, sectionFilterKey]);
+
   useEffect(() => {
     if (sectionKey === "dailySlots" || sectionKey === "bookings") {
       apiClient.adminList("equipment").then((res) => {
@@ -517,6 +560,7 @@ export default function AdminSection() {
 
   const loadList = async (requestedPage?: number) => {
     if (!sectionKey) return;
+    const request = beginListRequest();
     setLoading(true);
     setError(null);
     const params: Record<string, string> = {};
@@ -535,12 +579,12 @@ export default function AdminSection() {
     }
     if (sectionKey === "repeatSampleRequests") {
       if (repeatSampleStatusFilter) params.status = repeatSampleStatusFilter;
-      if (repeatSampleDateFromFilter) params.date_from = repeatSampleDateFromFilter;
-      if (repeatSampleDateToFilter) params.date_to = repeatSampleDateToFilter;
-      if (repeatSampleSearchFilter) params.search = repeatSampleSearchFilter;
+      if (repeatSampleDateFromFilter && !repeatSampleDateError) params.date_from = repeatSampleDateFromFilter;
+      if (repeatSampleDateToFilter && !repeatSampleDateError) params.date_to = repeatSampleDateToFilter;
+      if (repeatSampleSearchTerm) params.search = repeatSampleSearchTerm;
     }
     if (sectionKey === "equipment") {
-      if (equipmentSearchFilter) params.search = equipmentSearchFilter;
+      if (equipmentSearchTerm) params.search = equipmentSearchTerm;
       if (equipmentStatusFilter) params.status = equipmentStatusFilter;
       if (equipmentProfileTypeFilter) params.profile_type = equipmentProfileTypeFilter;
       if (equipmentCategoryFilter) params.category = equipmentCategoryFilter;
@@ -577,6 +621,7 @@ export default function AdminSection() {
       if (effectiveIsActive) params.is_active = effectiveIsActive;
     }
     const res = await apiClient.adminList(sectionKey, Object.keys(params).length ? params : undefined);
+    if (!request.isLatest()) return;
     if (res.error) {
       setError(res.error);
       setList([]);
@@ -605,6 +650,7 @@ export default function AdminSection() {
     if (sectionKey === "users" && !didInitialUsersFetchRef.current) {
       didInitialUsersFetchRef.current = true;
     }
+    setListSection(sectionKey);
     setLoading(false);
   };
 
@@ -1357,6 +1403,9 @@ export default function AdminSection() {
                       placeholder="Code, name, category, group..."
                       value={equipmentSearchFilter}
                       onChange={(e) => setEquipmentSearchFilter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setEquipmentSearchTerm(equipmentSearchFilter.trim());
+                      }}
                       className="w-[200px]"
                     />
                   </div>
@@ -1428,15 +1477,6 @@ export default function AdminSection() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => loadList()}
-                    disabled={loading}
-                  >
-                    Apply filters
-                  </Button>
                   {(equipmentSearchFilter || equipmentStatusFilter || equipmentProfileTypeFilter || equipmentCategoryFilter || equipmentGroupFilter) && (
                     <Button
                       type="button"
@@ -1444,16 +1484,17 @@ export default function AdminSection() {
                       size="sm"
                       onClick={() => {
                         setEquipmentSearchFilter("");
+                        setEquipmentSearchTerm("");
                         setEquipmentStatusFilter("");
                         setEquipmentProfileTypeFilter("");
                         setEquipmentCategoryFilter("");
                         setEquipmentGroupFilter("");
-                        loadList();
                       }}
                     >
                       Clear
                     </Button>
                   )}
+                  <UpdatingIndicator active={loading && listSection === sectionKey} />
                 </div>
               </div>
             )}
@@ -1594,18 +1635,6 @@ export default function AdminSection() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setListPage(1);
-                      loadList(1);
-                    }}
-                    disabled={loading}
-                  >
-                    Apply filters
-                  </Button>
                   {(dailySlotStatusFilter || dailySlotDateFilter || dailySlotEquipmentFilter) && (
                     <Button
                       type="button"
@@ -1615,13 +1644,12 @@ export default function AdminSection() {
                         setDailySlotStatusFilter("");
                         setDailySlotDateFilter("");
                         setDailySlotEquipmentFilter("");
-                        setListPage(1);
-                        loadList(1);
                       }}
                     >
                       Clear
                     </Button>
                   )}
+                  <UpdatingIndicator active={loading && listSection === sectionKey} />
                 </div>
               </div>
             )}
@@ -1674,18 +1702,6 @@ export default function AdminSection() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setListPage(1);
-                      loadList(1);
-                    }}
-                    disabled={loading}
-                  >
-                    Apply filters
-                  </Button>
                   {(bookingStatusFilter || bookingDateFilter || bookingEquipmentFilter) && (
                     <Button
                       type="button"
@@ -1695,13 +1711,12 @@ export default function AdminSection() {
                         setBookingStatusFilter("");
                         setBookingDateFilter("");
                         setBookingEquipmentFilter("");
-                        setListPage(1);
-                        loadList(1);
                       }}
                     >
                       Clear
                     </Button>
                   )}
+                  <UpdatingIndicator active={loading && listSection === sectionKey} />
                 </div>
               </div>
             )}
@@ -1751,18 +1766,12 @@ export default function AdminSection() {
                       placeholder="Booking ID, email, equipment"
                       value={repeatSampleSearchFilter}
                       onChange={(e) => setRepeatSampleSearchFilter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setRepeatSampleSearchTerm(repeatSampleSearchFilter.trim());
+                      }}
                       className="w-[200px]"
                     />
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => { setListPage(1); loadList(1); }}
-                    disabled={loading}
-                  >
-                    Apply filters
-                  </Button>
                   {(repeatSampleStatusFilter || repeatSampleDateFromFilter || repeatSampleDateToFilter || repeatSampleSearchFilter) && (
                     <Button
                       type="button"
@@ -1773,17 +1782,18 @@ export default function AdminSection() {
                         setRepeatSampleDateFromFilter("");
                         setRepeatSampleDateToFilter("");
                         setRepeatSampleSearchFilter("");
-                        setListPage(1);
-                        loadList(1);
+                        setRepeatSampleSearchTerm("");
                       }}
                     >
                       Clear
                     </Button>
                   )}
+                  <UpdatingIndicator active={loading && listSection === sectionKey} />
                 </div>
+                <DateRangeHint message={repeatSampleDateError} />
               </div>
             )}
-            {loading ? (
+            {loading && (list.length === 0 || listSection !== sectionKey) ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
@@ -1795,7 +1805,7 @@ export default function AdminSection() {
               </p>
             ) : (
               <>
-                <div className="overflow-x-auto rounded-md border">
+                <div className={`overflow-x-auto rounded-md border ${refetchingClass(loading)}`} aria-busy={loading || undefined}>
                   <Table stickyFirstColumn serialStart={(listPagination?.offset ?? 0) + 1}>
                     <TableHeader>
                       {sectionKey === "repeatSampleRequests" ? (

@@ -16,6 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { dateRangeError, isCompleteIsoDate, useLatestRequest } from "@/hooks/use-live-filters";
+import { DateRangeHint } from "@/components/filters/LiveFilterStatus";
 import {
   LineChart,
   Line,
@@ -293,11 +295,15 @@ const FinanceReports = () => {
   const [loading, setLoading] = useState(true);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
+  const beginRequest = useLatestRequest();
+  const customRangeError = dateRangeError(customFrom, customTo);
 
   const fetchReport = useCallback(
     async (params: { preset?: string; date_from?: string; date_to?: string }) => {
+      const request = beginRequest();
       setLoading(true);
       const res = await apiClient.getFinanceReportDashboard(params);
+      if (!request.isLatest()) return;
       if (res.error) {
         toast({ title: "Unable to load report", description: res.error, variant: "destructive" });
         setData(null);
@@ -306,7 +312,7 @@ const FinanceReports = () => {
       }
       setLoading(false);
     },
-    [toast],
+    [toast, beginRequest],
   );
 
   useEffect(() => {
@@ -320,17 +326,18 @@ const FinanceReports = () => {
     void fetchReport({ preset: value });
   };
 
-  const handleApplyCustomRange = () => {
-    if (!customFrom || !customTo) {
-      toast({ title: "Select both dates", description: "Please choose a from and to date.", variant: "destructive" });
-      return;
-    }
+  /** The custom range loads as soon as both dates are complete and in order. */
+  const changeCustomRange = (from: string, to: string) => {
+    setCustomFrom(from);
+    setCustomTo(to);
+    if (!isCompleteIsoDate(from) || !isCompleteIsoDate(to) || dateRangeError(from, to)) return;
     setPreset("custom");
-    void fetchReport({ preset: "custom", date_from: customFrom, date_to: customTo });
+    void fetchReport({ preset: "custom", date_from: from, date_to: to });
   };
 
   const handleRefresh = () => {
     if (preset === "custom") {
+      if (customRangeError) return;
       void fetchReport({ preset: "custom", date_from: customFrom, date_to: customTo });
     } else {
       void fetchReport({ preset });
@@ -382,7 +389,9 @@ const FinanceReports = () => {
               <BarChart3 className="h-5 w-5 text-primary" />
               Report period
             </CardTitle>
-            <CardDescription>Pick a preset range or set a custom date range, then export the report.</CardDescription>
+            <CardDescription>
+              Pick a preset range or set custom dates (the report updates as soon as both are set), then export the report.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
@@ -406,23 +415,23 @@ const FinanceReports = () => {
                 <DateInput
                   aria-label="Custom from"
                   value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
+                  onChange={(e) => changeCustomRange(e.target.value, customTo)}
                   className="w-40"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Custom to</Label>
-                <DateInput aria-label="Custom to" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-40" />
+                <DateInput
+                  aria-label="Custom to"
+                  value={customTo}
+                  onChange={(e) => changeCustomRange(customFrom, e.target.value)}
+                  className="w-40"
+                />
               </div>
-              <Button
-                type="button"
-                variant={preset === "custom" ? "default" : "outline"}
-                className={preset === "custom" ? "bg-brand hover:bg-brand/90 text-white" : ""}
-                onClick={handleApplyCustomRange}
-                disabled={loading}
-              >
-                Apply custom range
-              </Button>
+              <DateRangeHint message={customRangeError} className="basis-full sm:basis-auto sm:self-center" />
+              {preset === "custom" && !customRangeError ? (
+                <span className="self-center text-xs font-medium text-primary">Showing the custom range</span>
+              ) : null}
               <div className="ml-auto flex flex-wrap gap-2">
                 <Button type="button" variant="secondary" onClick={handleRefresh} disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}

@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Receipt, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { cn } from "@/lib/utils";
 import { errorMessage, pmGet, type Page, type PmRecord } from "@/lib/procurementApi";
 import { EmptyRow, fmtDate, humanize, LoadingRow, money, NativeSelect, pageSerialStart, Pager, SectionCard, StatusBadge, usePm } from "./shared";
 
@@ -17,12 +20,18 @@ export default function RecordsPage({ small = false }: { small?: boolean }) {
   const [status, setStatus] = useState("");
   const [origin, setOrigin] = useState("");
   const [term, setTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(1);
+  }
   const q = useQuery({
     queryKey: ["procurement", small ? "small-purchases" : "records", deptId, page, status, origin, search],
     queryFn: () =>
       pmGet<Page<PmRecord>>(small ? "small-purchases/" : "records/", { department_id: deptId, page, status, origin, q: search }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   return (
     <SectionCard
@@ -68,7 +77,7 @@ export default function RecordsPage({ small = false }: { small?: boolean }) {
         ) : null}
       </form>
       {q.error ? <p className="mb-2 text-sm text-destructive">{errorMessage(q.error)}</p> : null}
-      <div className="overflow-x-auto">
+      <div className={cn("overflow-x-auto", refetchingClass(q.isPlaceholderData))} aria-busy={q.isFetching}>
         <Table serialStart={pageSerialStart(q.data)}>
           <TableHeader>
             <TableRow>

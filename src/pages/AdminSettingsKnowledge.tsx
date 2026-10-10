@@ -26,6 +26,9 @@ import { ArrowLeft, BookOpen, Loader2, RefreshCw, Search, Sprout } from "lucide-
 import { toast } from "sonner";
 import EquipmentManualsPanel from "@/components/admin/EquipmentManualsPanel";
 import { StandaloneOnly } from "@/components/PageShell";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type KnowledgeDoc = {
   id: string;
@@ -65,30 +68,34 @@ const AdminSettingsKnowledge = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
   const [indexFilter, setIndexFilter] = useState("all");
+  const beginRequest = useLatestRequest();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("faq");
   const [security, setSecurity] = useState("authenticated");
 
   const load = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     try {
       const params: { search?: string; index_status?: string } = {};
-      if (search.trim()) params.search = search.trim();
+      if (searchTerm) params.search = searchTerm;
       if (indexFilter !== "all") params.index_status = indexFilter;
       const [docsRes, analyticsRes] = await Promise.all([
         apiClient.researchCopilotKnowledgeDocuments(params),
         apiClient.researchCopilotKnowledgeAnalytics(),
       ]);
+      if (!request.isLatest()) return;
       if (docsRes.error) toast.error(docsRes.error);
       else setDocs(docsRes.data?.results || []);
       if (analyticsRes.error) toast.error(analyticsRes.error);
       else setAnalytics(analyticsRes.data || null);
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [search, indexFilter]);
+  }, [searchTerm, indexFilter, beginRequest]);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) {
@@ -305,7 +312,7 @@ const AdminSettingsKnowledge = () => {
                   placeholder="Search title / content"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && void load()}
+                  onKeyDown={(e) => e.key === "Enter" && setSearchTerm(search.trim())}
                 />
               </div>
               <Select value={indexFilter} onValueChange={setIndexFilter}>
@@ -326,12 +333,12 @@ const AdminSettingsKnowledge = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {loading && docs.length === 0 ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <Table>
+              <Table className={refetchingClass(loading)} aria-busy={loading || undefined}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>

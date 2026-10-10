@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import { pmGet, pmPatch, pmPost, type Page, type PmCategory, type PmGstRate, type PmItem, type PmVendor } from "@/lib/procurementApi";
 import { Switch } from "@/components/ui/switch";
 import ItemLinksPanel from "./ItemLinksPanel";
@@ -34,8 +35,14 @@ export default function MastersPage() {
 
 function SearchBox({ onSearch, placeholder }: { onSearch: (q: string) => void; placeholder: string }) {
   const [term, setTerm] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(term);
+  const onSearchRef = useRef(onSearch);
+  onSearchRef.current = onSearch;
+  useEffect(() => {
+    onSearchRef.current(search);
+  }, [search]);
   return (
-    <form className="relative mb-3 w-full sm:w-72" onSubmit={(e) => { e.preventDefault(); onSearch(term.trim()); }}>
+    <form className="relative mb-3 w-full sm:w-72" onSubmit={(e) => { e.preventDefault(); setSearch(term.trim()); }}>
       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
       <Input className="pl-8" placeholder={placeholder} value={term} onChange={(e) => setTerm(e.target.value)} />
     </form>
@@ -54,6 +61,7 @@ function Vendors() {
     queryKey: ["procurement", "vendors", deptId, page, search],
     queryFn: () => pmGet<Page<PmVendor>>("vendors/", { department_id: deptId, page, q: search, include_inactive: 1 }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: ["procurement"] });
   return (
@@ -166,6 +174,7 @@ function Items() {
     queryKey: ["procurement", "items", deptId, page, search],
     queryFn: () => pmGet<Page<PmItem & { default_gst_rate: string | null }>>("items/", { department_id: deptId, page, q: search }),
     enabled: !!deptId,
+    placeholderData: keepPreviousData,
   });
   return (
     <SectionCard title="Items" description="Department item master used by requests, bills and the stock ledger." actions={<Button size="sm" onClick={() => setAdding(true)}><Plus className="mr-2 h-4 w-4" />Add item</Button>}>

@@ -24,6 +24,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type Option = { value: string; label: string };
 
@@ -113,6 +116,8 @@ const AdminSettingsCopilotAnswers = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const [queryTerm, setQueryTerm] = useLiveSearchTerm(query);
+  const beginRequest = useLatestRequest();
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -131,13 +136,15 @@ const AdminSettingsCopilotAnswers = () => {
   }, [authLoading, isAuthenticated, user, navigate]);
 
   const loadArticles = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     try {
       const res = await apiClient.copilotAnswersList({
         status: statusFilter === "all" ? undefined : statusFilter,
         category: categoryFilter === "all" ? undefined : categoryFilter,
-        q: query.trim() || undefined,
+        q: queryTerm || undefined,
       });
+      if (!request.isLatest()) return;
       if (res.status === 404) {
         setGate("disabled");
         return;
@@ -157,15 +164,15 @@ const AdminSettingsCopilotAnswers = () => {
       setAudiences(res.data.audiences);
       setStatuses(res.data.statuses);
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [statusFilter, categoryFilter, query]);
+  }, [statusFilter, categoryFilter, queryTerm, beginRequest]);
 
+  // Search applies a moment after typing stops (or on Enter).
   useEffect(() => {
     if (isAuthenticated) void loadArticles();
-    // Search is applied on submit, not on every keystroke.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, statusFilter, categoryFilter]);
+  }, [isAuthenticated, statusFilter, categoryFilter, queryTerm]);
 
   const loadGaps = useCallback(async () => {
     const res = await apiClient.copilotConsoleUnanswered(gapStatus);
@@ -353,16 +360,21 @@ const AdminSettingsCopilotAnswers = () => {
           <TabsContent value="articles" className="space-y-3">
             <div className="flex flex-wrap items-end gap-2">
               <form
-                className="flex min-w-[220px] flex-1 gap-2"
+                role="search"
+                className="relative min-w-[220px] flex-1"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void loadArticles();
+                  setQueryTerm(query.trim());
                 }}
               >
-                <Input placeholder="Search title, question or answer" value={query} onChange={(e) => setQuery(e.target.value)} />
-                <Button type="submit" variant="outline" size="icon" aria-label="Search">
-                  <Search className="h-4 w-4" />
-                </Button>
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  aria-label="Search"
+                  className="pl-8"
+                  placeholder="Search title, question or answer"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
               </form>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-44" aria-label="Status filter">
@@ -401,14 +413,14 @@ const AdminSettingsCopilotAnswers = () => {
 
             <Card>
               <CardContent className="p-0">
-                {loading || gate === "loading" ? (
+                {(loading && articles.length === 0) || gate === "loading" ? (
                   <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading...
                   </div>
                 ) : articles.length === 0 ? (
                   <p className="p-6 text-sm text-muted-foreground">No answers match these filters.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className={`overflow-x-auto ${refetchingClass(loading)}`} aria-busy={loading || undefined}>
                     <Table>
                       <TableHeader>
                         <TableRow>

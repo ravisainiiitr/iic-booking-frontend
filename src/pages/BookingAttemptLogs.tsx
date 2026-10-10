@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Search, Trash2, X, Calculator, FileText } from "lucide-react";
+import { Loader2, Trash2, X, Calculator, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
@@ -37,6 +37,8 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { ExportMenu } from "@/components/ExportMenu";
+import { DateRangeHint, UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { filtersFromSearchParams, useLatestRequest, useLiveFilters, useSyncFiltersToUrl } from "@/hooks/use-live-filters";
 
 /** Format date string for display; returns fallback if invalid. */
 function formatDateSafe(
@@ -83,6 +85,17 @@ type LogRow = {
 
 const PAGE_SIZE = 50;
 
+const FILTER_DEFAULTS = {
+  equipment_id: "",
+  user_id: "",
+  department_id: "",
+  outcome: "ALL",
+  date_from: "",
+  date_to: "",
+  failure_reason_contains: "",
+};
+type AttemptLogFilters = typeof FILTER_DEFAULTS;
+
 type EquipmentOption = { equipment_id: number; name: string; code: string };
 type UserOption = { id: number; name: string; email: string };
 type DepartmentOption = { id: number; name: string; code: string };
@@ -93,7 +106,17 @@ const BookingAttemptLogs = () => {
   const [list, setList] = useState<LogRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const liveFilters = useLiveFilters(FILTER_DEFAULTS, {
+    text: ["failure_reason_contains"],
+    dateRanges: [["date_from", "date_to"]],
+    start: filtersFromSearchParams(searchParams, FILTER_DEFAULTS),
+  });
+  const filters = liveFilters.values;
+  const setFilter = liveFilters.set;
+  const offset = (liveFilters.page - 1) * PAGE_SIZE;
+  useSyncFiltersToUrl(liveFilters.applied, FILTER_DEFAULTS, searchParams, setSearchParams);
+  const beginRequest = useLatestRequest();
   const [equipmentOptions, setEquipmentOptions] = useState<EquipmentOption[]>([]);
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [internalDepartments, setInternalDepartments] = useState<DepartmentOption[]>([]);
@@ -109,15 +132,6 @@ const BookingAttemptLogs = () => {
   const [deletingLogId, setDeletingLogId] = useState<number | null>(null);
   const [bookingDetailPopup, setBookingDetailPopup] = useState<BookingDetailCardBooking | null>(null);
   const [loadingBookingDetail, setLoadingBookingDetail] = useState(false);
-  const [filters, setFilters] = useState({
-    equipment_id: "",
-    user_id: "",
-    department_id: "",
-    outcome: "ALL" as "ALL" | "SUCCESS" | "FAILED",
-    date_from: "",
-    date_to: "",
-    failure_reason_contains: "",
-  });
 
   const userTypeStr = user?.user_type != null ? String(user.user_type).toLowerCase() : "";
   const isLabInchargeUser = userTypeStr === "operator";
@@ -142,7 +156,8 @@ const BookingAttemptLogs = () => {
       return;
     }
     fetchList();
-  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading, offset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigate, isAuthenticated, user?.id, canAccess, authLoading, liveFilters.appliedKey, offset]);
 
   // Load equipment, user, and department options for filter dropdowns (once when user has access)
   // Backend restricts equipment list to OIC's/operator's mapped equipments for managers/operators
@@ -206,20 +221,34 @@ const BookingAttemptLogs = () => {
     return () => { cancelled = true; };
   }, [canAccess, user?.id, isLabInchargeUser]);
 
+  // A department restored from the URL: show it under the Internal / External choice it belongs to.
+  useEffect(() => {
+    if (!filters.department_id || departmentType !== "ALL") return;
+    if (internalDepartments.some((d) => String(d.id) === filters.department_id)) setDepartmentType("INTERNAL");
+    else if (externalDepartments.some((d) => String(d.id) === filters.department_id)) setDepartmentType("EXTERNAL");
+  }, [filters.department_id, departmentType, internalDepartments, externalDepartments]);
+
+  /** Filters the list is showing; Export uses the same so both match. */
+  const listParams = (applied: AttemptLogFilters): Parameters<typeof apiClient.listBookingAttemptLogs>[0] => ({
+    equipment_id: applied.equipment_id ? Number(applied.equipment_id) : undefined,
+    user_id: !isLabInchargeUser && applied.user_id ? Number(applied.user_id) : undefined,
+    department_id: !isLabInchargeUser && applied.department_id ? Number(applied.department_id) : undefined,
+    outcome: applied.outcome === "SUCCESS" || applied.outcome === "FAILED" ? applied.outcome : undefined,
+    date_from: applied.date_from || undefined,
+    date_to: applied.date_to || undefined,
+    failure_reason_contains: applied.failure_reason_contains || undefined,
+  });
+
   const fetchList = async () => {
+    const request = beginRequest();
     setLoading(true);
     try {
       const res = await apiClient.listBookingAttemptLogs({
-        equipment_id: filters.equipment_id ? Number(filters.equipment_id) : undefined,
-        user_id: !isLabInchargeUser && filters.user_id ? Number(filters.user_id) : undefined,
-        department_id: !isLabInchargeUser && filters.department_id ? Number(filters.department_id) : undefined,
-        outcome: filters.outcome !== "ALL" ? filters.outcome : undefined,
-        date_from: filters.date_from || undefined,
-        date_to: filters.date_to || undefined,
-        failure_reason_contains: filters.failure_reason_contains || undefined,
+        ...listParams(liveFilters.applied),
         limit: PAGE_SIZE,
         offset,
       });
+      if (!request.isLatest()) return;
       if ((res as { error?: string }).error) {
         toast.error((res as { error: string }).error);
         setList([]);
@@ -233,17 +262,20 @@ const BookingAttemptLogs = () => {
       setList(results);
       setTotalCount(total);
     } catch (e) {
+      if (!request.isLatest()) return;
       toast.error("Failed to load booking attempt log");
       setList([]);
       setTotalCount(0);
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
   };
 
-  const handleApplyFilters = () => {
-    setOffset(0);
-    fetchList();
+  const clearFilters = () => {
+    liveFilters.reset();
+    setUserSearchText("");
+    setDepartmentType("ALL");
+    setDepartmentSearchText("");
   };
 
   const handleDeleteLog = async (logId: number) => {
@@ -387,7 +419,7 @@ const BookingAttemptLogs = () => {
                   id="equipment_filter"
                   className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   value={filters.equipment_id}
-                  onChange={(e) => setFilters((f) => ({ ...f, equipment_id: e.target.value }))}
+                  onChange={(e) => setFilter("equipment_id", e.target.value)}
                   disabled={loadingOptions}
                 >
                   <option value="">All equipments</option>
@@ -408,7 +440,7 @@ const BookingAttemptLogs = () => {
                     value={selectedUser ? `${selectedUser.name || selectedUser.email}${selectedUser.name && selectedUser.email ? ` (${selectedUser.email})` : ""}` : userSearchText}
                     onChange={(e) => {
                       setUserSearchText(e.target.value);
-                      if (filters.user_id) setFilters((f) => ({ ...f, user_id: "" }));
+                      if (filters.user_id) setFilter("user_id", "");
                     }}
                     onFocus={() => setUserDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setUserDropdownOpen(false), 200)}
@@ -420,7 +452,7 @@ const BookingAttemptLogs = () => {
                       type="button"
                       className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       onClick={() => {
-                        setFilters((f) => ({ ...f, user_id: "" }));
+                        setFilter("user_id", "");
                         setUserSearchText("");
                       }}
                       aria-label="Clear user"
@@ -435,7 +467,7 @@ const BookingAttemptLogs = () => {
                       type="button"
                       className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
                       onClick={() => {
-                        setFilters((f) => ({ ...f, user_id: "" }));
+                        setFilter("user_id", "");
                         setUserSearchText("");
                         setUserDropdownOpen(false);
                       }}
@@ -448,7 +480,7 @@ const BookingAttemptLogs = () => {
                         type="button"
                         className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
                         onClick={() => {
-                          setFilters((f) => ({ ...f, user_id: String(u.id) }));
+                          setFilter("user_id", String(u.id));
                           setUserSearchText("");
                           setUserDropdownOpen(false);
                         }}
@@ -475,7 +507,7 @@ const BookingAttemptLogs = () => {
                       checked={departmentType === "ALL"}
                       onChange={() => {
                         setDepartmentType("ALL");
-                        setFilters((f) => ({ ...f, department_id: "" }));
+                        setFilter("department_id", "");
                         setDepartmentSearchText("");
                       }}
                       className="h-4 w-4"
@@ -489,7 +521,7 @@ const BookingAttemptLogs = () => {
                       checked={departmentType === "INTERNAL"}
                       onChange={() => {
                         setDepartmentType("INTERNAL");
-                        setFilters((f) => ({ ...f, department_id: "" }));
+                        setFilter("department_id", "");
                         setDepartmentSearchText("");
                       }}
                       className="h-4 w-4"
@@ -503,7 +535,7 @@ const BookingAttemptLogs = () => {
                       checked={departmentType === "EXTERNAL"}
                       onChange={() => {
                         setDepartmentType("EXTERNAL");
-                        setFilters((f) => ({ ...f, department_id: "" }));
+                        setFilter("department_id", "");
                         setDepartmentSearchText("");
                       }}
                       className="h-4 w-4"
@@ -519,7 +551,7 @@ const BookingAttemptLogs = () => {
                       value={selectedDepartment ? `${selectedDepartment.name}${selectedDepartment.code ? ` (${selectedDepartment.code})` : ""}` : departmentSearchText}
                       onChange={(e) => {
                         setDepartmentSearchText(e.target.value);
-                        if (filters.department_id) setFilters((f) => ({ ...f, department_id: "" }));
+                        if (filters.department_id) setFilter("department_id", "");
                       }}
                       onFocus={() => setDepartmentDropdownOpen(true)}
                       onBlur={() => setTimeout(() => setDepartmentDropdownOpen(false), 200)}
@@ -531,7 +563,7 @@ const BookingAttemptLogs = () => {
                         type="button"
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                         onClick={() => {
-                          setFilters((f) => ({ ...f, department_id: "" }));
+                          setFilter("department_id", "");
                           setDepartmentSearchText("");
                         }}
                         aria-label="Clear department"
@@ -545,7 +577,7 @@ const BookingAttemptLogs = () => {
                           type="button"
                           className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
                           onClick={() => {
-                            setFilters((f) => ({ ...f, department_id: "" }));
+                            setFilter("department_id", "");
                             setDepartmentSearchText("");
                             setDepartmentDropdownOpen(false);
                           }}
@@ -558,7 +590,7 @@ const BookingAttemptLogs = () => {
                             type="button"
                             className="w-full px-3 py-2 text-left text-sm hover:bg-muted focus:bg-muted focus:outline-none"
                             onClick={() => {
-                              setFilters((f) => ({ ...f, department_id: String(d.id) }));
+                              setFilter("department_id", String(d.id));
                               setDepartmentSearchText("");
                               setDepartmentDropdownOpen(false);
                             }}
@@ -582,7 +614,7 @@ const BookingAttemptLogs = () => {
                   aria-label="Outcome"
                   className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                   value={filters.outcome}
-                  onChange={(e) => setFilters((f) => ({ ...f, outcome: e.target.value as "ALL" | "SUCCESS" | "FAILED" }))}
+                  onChange={(e) => setFilter("outcome", e.target.value)}
                 >
                   <option value="ALL">All</option>
                   <option value="SUCCESS">Success</option>
@@ -594,7 +626,7 @@ const BookingAttemptLogs = () => {
                 <DateInput
                   id="date_from"
                   value={filters.date_from}
-                  onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+                  onChange={(e) => setFilter("date_from", e.target.value)}
                   className="mt-1"
                 />
               </div>
@@ -603,9 +635,10 @@ const BookingAttemptLogs = () => {
                 <DateInput
                   id="date_to"
                   value={filters.date_to}
-                  onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+                  onChange={(e) => setFilter("date_to", e.target.value)}
                   className="mt-1"
                 />
+                <DateRangeHint message={liveFilters.dateError} className="mt-1" />
               </div>
               <div className="sm:col-span-2">
                 <Label htmlFor="failure_reason">Failure reason contains</Label>
@@ -614,29 +647,21 @@ const BookingAttemptLogs = () => {
                   type="text"
                   placeholder="Search in failure reason"
                   value={filters.failure_reason_contains}
-                  onChange={(e) => setFilters((f) => ({ ...f, failure_reason_contains: e.target.value }))}
+                  onChange={(e) => setFilter("failure_reason_contains", e.target.value)}
+                  onKeyDown={liveFilters.onSearchKeyDown}
                   className="mt-1"
                 />
               </div>
               <div className="flex items-end gap-2">
-                <Button onClick={handleApplyFilters}>
-                  <Search className="h-4 w-4 mr-2" />
-                  Apply filters
+                <Button variant="outline" onClick={clearFilters} disabled={liveFilters.isDefault && departmentType === "ALL"}>
+                  Clear
                 </Button>
                 <ExportMenu
                   report="booking-attempt-logs"
                   noun="log entries"
                   size="default"
                   description="All log entries matching these filters"
-                  getParams={() => ({
-                    equipment_id: filters.equipment_id || undefined,
-                    user_id: !isLabInchargeUser ? filters.user_id || undefined : undefined,
-                    department_id: !isLabInchargeUser ? filters.department_id || undefined : undefined,
-                    outcome: filters.outcome !== "ALL" ? filters.outcome : undefined,
-                    date_from: filters.date_from || undefined,
-                    date_to: filters.date_to || undefined,
-                    failure_reason_contains: filters.failure_reason_contains || undefined,
-                  })}
+                  getParams={() => listParams(liveFilters.applied)}
                 />
               </div>
             </div>
@@ -647,12 +672,13 @@ const BookingAttemptLogs = () => {
           <CardHeader className="pb-4">
             <CardTitle className="text-base">Log entries</CardTitle>
             <CardDescription>
-              Total: {totalCount}. Showing {totalCount === 0 ? 0 : offset + 1}–{Math.min(offset + PAGE_SIZE, totalCount)}.
+              Total: {totalCount}. Showing {totalCount === 0 ? 0 : offset + 1}–{Math.min(offset + PAGE_SIZE, totalCount)}.{" "}
+              <UpdatingIndicator active={loading && list.length > 0} className="ml-1" />
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <Table serialStart={offset + 1}>
+              <Table serialStart={offset + 1} className={refetchingClass(loading && list.length > 0)} aria-busy={loading || undefined}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Time</TableHead>
@@ -674,7 +700,7 @@ const BookingAttemptLogs = () => {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ) : loading ? (
+                  ) : loading && list.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="h-24 text-center">
                         <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
@@ -789,13 +815,13 @@ const BookingAttemptLogs = () => {
                 </TableBody>
               </Table>
             </div>
-            {!loading && list.length > 0 && (
+            {list.length > 0 && (
               <div className="flex items-center justify-between mt-4">
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={offset === 0}
-                  onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                  disabled={offset === 0 || loading}
+                  onClick={() => liveFilters.setPage((p) => Math.max(1, p - 1))}
                 >
                   Previous
                 </Button>
@@ -805,8 +831,8 @@ const BookingAttemptLogs = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={offset + PAGE_SIZE >= totalCount}
-                  onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                  disabled={offset + PAGE_SIZE >= totalCount || loading}
+                  onClick={() => liveFilters.setPage((p) => p + 1)}
                 >
                   Next
                 </Button>

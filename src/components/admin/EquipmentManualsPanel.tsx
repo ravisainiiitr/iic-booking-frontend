@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FileUp, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type EquipmentOption = { equipment_id: number; name: string; code?: string };
 
@@ -46,6 +48,9 @@ export default function EquipmentManualsPanel() {
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<EquipmentOption[]>([]);
   const [searching, setSearching] = useState(false);
+  const [noMatch, setNoMatch] = useState(false);
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(query);
+  const beginSearch = useLatestRequest();
   const [equipment, setEquipment] = useState<EquipmentOption | null>(null);
   const [manuals, setManuals] = useState<CopilotManual[]>([]);
   const [storageConfigured, setStorageConfigured] = useState(true);
@@ -86,30 +91,36 @@ export default function EquipmentManualsPanel() {
     return () => window.clearTimeout(t);
   }, [manuals, loadManuals]);
 
-  const searchEquipment = async () => {
-    const q = query.trim();
-    if (q.length < 2) {
-      toast.error("Type at least 2 characters of the equipment name or code");
+  useEffect(() => {
+    if (!searchTerm) {
+      beginSearch();
+      setSearching(false);
+      setOptions([]);
+      setNoMatch(false);
       return;
     }
+    const request = beginSearch();
     setSearching(true);
-    try {
-      const res = await apiClient.getEquipments(q, undefined, undefined, false, "all", "all");
-      if (res.error) {
-        toast.error(res.error);
-        return;
+    void (async () => {
+      try {
+        const res = await apiClient.getEquipments(searchTerm, undefined, undefined, false, "all", "all");
+        if (!request.isLatest()) return;
+        if (res.error) {
+          toast.error(res.error);
+          return;
+        }
+        const rows = (res.data?.equipments || []).map((e) => ({
+          equipment_id: e.equipment_id,
+          name: e.name,
+          code: e.code,
+        }));
+        setOptions(rows.slice(0, 20));
+        setNoMatch(!rows.length);
+      } finally {
+        if (request.isLatest()) setSearching(false);
       }
-      const rows = (res.data?.equipments || []).map((e) => ({
-        equipment_id: e.equipment_id,
-        name: e.name,
-        code: e.code,
-      }));
-      setOptions(rows.slice(0, 20));
-      if (!rows.length) toast.message("No equipment matched");
-    } finally {
-      setSearching(false);
-    }
-  };
+    })();
+  }, [searchTerm, beginSearch]);
 
   const onPickFile = (f: File | null) => {
     if (!f) {
@@ -221,25 +232,29 @@ export default function EquipmentManualsPanel() {
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <div className="relative flex-1 min-w-[220px]">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              {searching ? (
+                <Loader2 className="absolute left-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" aria-label="Searching" />
+              ) : (
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              )}
               <Input
                 className="pl-8"
                 placeholder="Find equipment by name or code"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void searchEquipment()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setSearchTerm(query.trim());
+                }}
+                aria-label="Find equipment"
               />
             </div>
-            <Button variant="secondary" onClick={() => void searchEquipment()} disabled={searching}>
-              {searching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Search
-            </Button>
             {equipment ? (
               <Button variant="ghost" onClick={() => setEquipment(null)}>
                 Show all manuals
               </Button>
             ) : null}
           </div>
+          {noMatch && !searching ? <p className="text-xs text-muted-foreground">No equipment matched.</p> : null}
           {options.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {options.map((o) => (

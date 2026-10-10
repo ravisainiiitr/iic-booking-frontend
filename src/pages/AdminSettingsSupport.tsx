@@ -36,6 +36,9 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
+import { UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type TicketRow = TicketDetailsData & {
   comments_count?: number;
@@ -58,15 +61,22 @@ const AdminSettingsSupport = () => {
   const [statusFilter, setStatusFilter] = useState("open");
   const [ticketTypeFilter, setTicketTypeFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
-  const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useLiveSearchTerm(searchInput);
   const [ordering, setOrdering] = useState("-created_at");
   const [page, setPage] = useState(0);
+  const [pageSearch, setPageSearch] = useState(search);
+  if (pageSearch !== search) {
+    setPageSearch(search);
+    setPage(0);
+  }
+  const beginRequest = useLatestRequest();
 
   const [selectedTicket, setSelectedTicket] = useState<TicketRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
   const loadTickets = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     const params: {
       status?: string;
@@ -86,6 +96,7 @@ const AdminSettingsSupport = () => {
     if (priorityFilter) params.priority = priorityFilter;
     if (search.trim()) params.search = search.trim();
     const res = await apiClient.getTickets(params);
+    if (!request.isLatest()) return;
     setLoading(false);
     if (res.error) {
       toast({ title: "Error", description: res.error, variant: "destructive" });
@@ -95,7 +106,7 @@ const AdminSettingsSupport = () => {
     }
     setTickets((res.data?.tickets ?? []) as TicketRow[]);
     setTotalCount(res.data?.count ?? 0);
-  }, [statusFilter, ticketTypeFilter, priorityFilter, search, ordering, page, toast]);
+  }, [statusFilter, ticketTypeFilter, priorityFilter, search, ordering, page, toast, beginRequest]);
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) {
@@ -245,10 +256,7 @@ const AdminSettingsSupport = () => {
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        setSearch(searchInput);
-                        setPage(0);
-                      }
+                      if (e.key === "Enter") setSearch(searchInput.trim());
                     }}
                   />
                 </div>
@@ -317,19 +325,10 @@ const AdminSettingsSupport = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSearch(searchInput);
-                  setPage(0);
-                }}
-                disabled={loading}
-              >
-                Apply
-              </Button>
+              <UpdatingIndicator active={loading && tickets.length > 0} className="self-center" />
             </div>
 
-            {loading ? (
+            {loading && tickets.length === 0 ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
@@ -339,7 +338,7 @@ const AdminSettingsSupport = () => {
               </p>
             ) : (
               <>
-            <div className="overflow-x-auto rounded-xl border max-md:border-0">
+            <div className={cn("overflow-x-auto rounded-xl border max-md:border-0", refetchingClass(loading))} aria-busy={loading || undefined}>
               <Table stackOnMobile serialStart={page * PAGE_SIZE + 1}>
                     <TableHeader>
                       <TableRow className="bg-muted/40">

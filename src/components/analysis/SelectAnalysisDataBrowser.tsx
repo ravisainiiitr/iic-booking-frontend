@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,20 +98,33 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
   const [preview, setPreview] = useState<DataBrowserFile | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
+  const [qTerm] = useLiveSearchTerm(q);
+  const [equipmentTerm] = useLiveSearchTerm(equipment);
+  const [sampleTerm] = useLiveSearchTerm(sample);
+  const [fileTypeTerm] = useLiveSearchTerm(fileType, { minChars: 1 });
+  const filterKey = JSON.stringify([qTerm, equipmentTerm, sampleTerm, fileTypeTerm, scope]);
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
+    setPage(1);
+  }
+  const beginLoad = useLatestRequest();
 
   const load = useCallback(async () => {
     if (!bookingId || !open) return;
+    const request = beginLoad();
     setLoading(true);
     try {
       const res = await apiClient.getBookingAnalysisDataBrowser(bookingId, {
-        q: q.trim() || undefined,
-        equipment: equipment.trim() || undefined,
-        sample: sample.trim() || undefined,
-        file_type: fileType.trim() || undefined,
+        q: qTerm || undefined,
+        equipment: equipmentTerm || undefined,
+        sample: sampleTerm || undefined,
+        file_type: fileTypeTerm || undefined,
         scope,
         page,
         page_size: 20,
       });
+      if (!request.isLatest()) return;
       if (res.error) {
         toast.error(res.error);
         setDatasets([]);
@@ -123,9 +138,9 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
       setDatasets((prev) => (page > 1 ? [...prev, ...rows] : rows));
       setHasMore(Boolean(data?.pagination?.has_more));
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [bookingId, open, q, equipment, sample, fileType, scope, page]);
+  }, [bookingId, open, qTerm, equipmentTerm, sampleTerm, fileTypeTerm, scope, page, beginLoad]);
 
   useEffect(() => {
     void load();
@@ -207,38 +222,26 @@ export function SelectAnalysisDataBrowser({ bookingId, open, onOpenChange, onSel
                 className="pl-8"
                 placeholder="Search sample, file, booking…"
                 value={q}
-                onChange={(e) => {
-                  setPage(1);
-                  setQ(e.target.value);
-                }}
+                onChange={(e) => setQ(e.target.value)}
               />
             </div>
             <Input
               className="w-[140px]"
               placeholder="Equipment"
               value={equipment}
-              onChange={(e) => {
-                setPage(1);
-                setEquipment(e.target.value);
-              }}
+              onChange={(e) => setEquipment(e.target.value)}
             />
             <Input
               className="w-[140px]"
               placeholder="Sample"
               value={sample}
-              onChange={(e) => {
-                setPage(1);
-                setSample(e.target.value);
-              }}
+              onChange={(e) => setSample(e.target.value)}
             />
             <Input
               className="w-[110px]"
               placeholder="File type"
               value={fileType}
-              onChange={(e) => {
-                setPage(1);
-                setFileType(e.target.value);
-              }}
+              onChange={(e) => setFileType(e.target.value)}
             />
           </div>
 

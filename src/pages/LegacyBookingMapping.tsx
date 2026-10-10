@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -26,6 +26,19 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { StandaloneOnly } from "@/components/PageShell";
+import { UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
+
+/** Problem with the preview fixture text, or null when it is empty or a JSON array. */
+function previewJsonError(text: string): string | null {
+  if (!text.trim()) return null;
+  try {
+    return Array.isArray(JSON.parse(text)) ? null : "Preview JSON must be an array of rows";
+  } catch {
+    return "Preview JSON is invalid";
+  }
+}
 
 type LegacyBookingRow = {
   legacy_booking_id?: number;
@@ -71,26 +84,27 @@ export default function LegacyBookingMapping() {
   const [previewJson, setPreviewJson] = useState("");
   const [conflictCount, setConflictCount] = useState(0);
   const [schemaPending, setSchemaPending] = useState<Record<string, unknown> | null>(null);
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
+  // Fixture JSON applies a moment after typing stops, and only once it parses.
+  const [previewTerm] = useLiveSearchTerm(previewJson, { minChars: 1, delayMs: 600 });
+  const previewError = useMemo(() => previewJsonError(previewTerm), [previewTerm]);
+  const beginRequest = useLatestRequest();
 
   const load = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     setSchemaPending(null);
     try {
       const params: Record<string, string> = {};
       if (eligibility !== "all") params.eligibility = eligibility;
       if (userMap !== "all") params.user_mapping_status = userMap;
-      if (search.trim()) params.search = search.trim();
+      if (searchTerm) params.search = searchTerm;
 
       let legacyRows: unknown[] | undefined;
-      if (previewJson.trim()) {
-        try {
-          legacyRows = JSON.parse(previewJson) as unknown[];
-        } catch {
-          throw new Error("Preview JSON is invalid");
-        }
-      }
+      if (previewTerm && !previewJsonError(previewTerm)) legacyRows = JSON.parse(previewTerm) as unknown[];
 
       const res = await apiClient.getLegacyBookings(params, legacyRows);
+      if (!request.isLatest()) return;
       const body = (res.data || {}) as Record<string, unknown>;
       if (res.errorCode === "SCHEMA_PENDING" || body.code === "SCHEMA_PENDING" || res.status === 503) {
         setSchemaPending(body.code ? body : { code: "SCHEMA_PENDING", message: res.error, ...(body || {}) });
@@ -104,16 +118,16 @@ export default function LegacyBookingMapping() {
       setCounts((body.discovery_counts || {}) as Record<string, number>);
       setConflictCount(Number((body.conflict_report as Record<string, unknown>)?.conflict_count || 0));
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to load legacy bookings");
+      if (request.isLatest()) toast.error(e instanceof Error ? e.message : "Failed to load legacy bookings");
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [eligibility, userMap, search, previewJson]);
+  }, [eligibility, userMap, searchTerm, previewTerm, beginRequest]);
 
   useEffect(() => {
-    if (!isStaff) return;
+    if (!isStaff || previewError) return;
     void load();
-  }, [isStaff, load]);
+  }, [isStaff, load, previewError]);
 
   if (!isStaff) {
     return (
@@ -240,12 +254,18 @@ export default function LegacyBookingMapping() {
             </div>
             <div className="min-w-[200px] flex-1 space-y-2">
               <Label>Search</Label>
-              <Input aria-label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Booking or equipment ID" />
+              <Input
+                aria-label="Search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setSearchTerm(search.trim());
+                }}
+                placeholder="Booking or equipment ID"
+              />
             </div>
-            <div className="flex items-end">
-              <Button onClick={() => void load()} disabled={loading}>
-                Apply
-              </Button>
+            <div className="flex items-end pb-2">
+              <UpdatingIndicator active={loading && rows.length > 0} />
             </div>
           </div>
           {isAdmin ? (
@@ -258,6 +278,11 @@ export default function LegacyBookingMapping() {
                 onChange={(e) => setPreviewJson(e.target.value)}
                 placeholder='[{"legacy_booking_id":1,"old_equipment_id":101,...}]'
               />
+              {previewError ? (
+                <p role="alert" className="text-xs text-destructive">
+                  {previewError}
+                </p>
+              ) : null}
             </div>
           ) : null}
         </CardContent>
@@ -265,7 +290,7 @@ export default function LegacyBookingMapping() {
 
       <Card>
         <CardContent className="overflow-x-auto pt-6">
-          <Table>
+          <Table className={refetchingClass(loading && rows.length > 0)} aria-busy={loading || undefined}>
             <TableHeader>
               <TableRow>
                 <TableHead>Booking ID</TableHead>
@@ -283,7 +308,7 @@ export default function LegacyBookingMapping() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {loading && rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={12}>Loading…</TableCell>
                 </TableRow>

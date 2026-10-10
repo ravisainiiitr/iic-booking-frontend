@@ -46,6 +46,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { StandaloneOnly } from "@/components/PageShell";
+import { UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
+import { useLiveSearchTerm } from "@/hooks/use-live-search";
+import { useLatestRequest } from "@/hooks/use-live-filters";
 
 type CapacitySplit = {
   id: number;
@@ -223,8 +226,11 @@ export default function LegacyEquipmentMapping() {
   const [splitTargetA, setSplitTargetA] = useState<number | "">("");
   const [splitTargetB, setSplitTargetB] = useState<number | "">("");
   const [previewText, setPreviewText] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useLiveSearchTerm(search);
+  const beginRequest = useLatestRequest();
 
   const load = useCallback(async () => {
+    const request = beginRequest();
     setLoading(true);
     setSchemaPending(null);
     try {
@@ -232,8 +238,9 @@ export default function LegacyEquipmentMapping() {
       if (mappedFilter === "mapped") params.mapped = "mapped";
       if (mappedFilter === "unmapped") params.mapped = "unmapped";
       if (mappedFilter === "not_required") params.mapped = "not_required";
-      if (search.trim()) params.search = search.trim();
+      if (searchTerm) params.search = searchTerm;
       const res = await apiClient.getLegacyEquipmentMappings(params);
+      if (!request.isLatest()) return;
       const body = (res.data || {}) as Record<string, unknown>;
       if (res.errorCode === "SCHEMA_PENDING" || body.code === "SCHEMA_PENDING" || res.status === 503) {
         setSchemaPending(body.code ? body : { code: "SCHEMA_PENDING", message: res.error, ...(body || {}) });
@@ -257,11 +264,11 @@ export default function LegacyEquipmentMapping() {
       });
       setDrafts(nextDrafts);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Failed to load equipment mappings");
+      if (request.isLatest()) toast.error(e instanceof Error ? e.message : "Failed to load equipment mappings");
     } finally {
-      setLoading(false);
+      if (request.isLatest()) setLoading(false);
     }
-  }, [mappedFilter, search]);
+  }, [mappedFilter, searchTerm, beginRequest]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -805,7 +812,15 @@ export default function LegacyEquipmentMapping() {
         <CardContent className="flex flex-wrap gap-4">
           <div className="min-w-[200px] flex-1 space-y-2">
             <Label>Search</Label>
-            <Input aria-label="Search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Legacy ID or name" />
+            <Input
+              aria-label="Search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") setSearchTerm(search.trim());
+              }}
+              placeholder="Legacy ID or name"
+            />
           </div>
           <div className="w-48 space-y-2">
             <Label>Mapping</Label>
@@ -821,10 +836,8 @@ export default function LegacyEquipmentMapping() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-end">
-            <Button onClick={() => void load()} disabled={loading}>
-              Apply
-            </Button>
+          <div className="flex items-end pb-2">
+            <UpdatingIndicator active={loading && rows.length > 0} />
           </div>
         </CardContent>
       </Card>
@@ -839,7 +852,7 @@ export default function LegacyEquipmentMapping() {
           </CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <Table>
+          <Table className={refetchingClass(loading && rows.length > 0)} aria-busy={loading || undefined}>
             <TableHeader>
               <TableRow>
                 <TableHead>Legacy ID</TableHead>
@@ -853,7 +866,7 @@ export default function LegacyEquipmentMapping() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {loading && rows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8}>Loading…</TableCell>
                 </TableRow>
