@@ -104,6 +104,28 @@ describe("fabricationPartDetail", () => {
       fabricationPartDetail({ ...base, support_mode: "none", support_mode_label: "None", orientation: [1, 0, 0, 0, 0, -1, 0, 1, 0] }),
     ).toBe("40 g · 90 min total · Supports: None · User-selected orientation");
   });
+
+  it("names the support type, interface and brim / raft with the weight make-up of each copy", () => {
+    const base = { kind: "print" as const, analysis_id: "p", name: "Gear", quantity: 2, weight_g_total: 26, time_min_total: 90 };
+    const part = {
+      ...base,
+      support_mode: "buildplate" as const,
+      support_mode_label: "Touching build plate only",
+      support_g_each: 3.2,
+      support_type: "tree",
+      support_type_label: "Tree",
+      support_interface: false,
+      adhesion: "raft",
+      adhesion_label: "Raft",
+      adhesion_g_each: 0.5,
+      weight_composition: "model 8.0 g + supports 3.2 g + raft 0.5 g + purge 0.5 g",
+    };
+    expect(fabricationPartDetail(part)).toBe(
+      "26 g · 90 min total · Supports: Tree (touching build plate only), no interface (~3.2 g each, included)" +
+        " · Raft ~0.5 g each · Each: model 8.0 g + supports 3.2 g + raft 0.5 g + purge 0.5 g",
+    );
+    expect(fabricationPartDetail({ ...part, actual_weight: true })).not.toContain("Each:");
+  });
 });
 
 describe("FabricationBookingParts", () => {

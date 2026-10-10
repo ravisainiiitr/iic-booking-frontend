@@ -117,15 +117,22 @@ export function fabricationPartDetail(part: FabricationPart): string {
   ].filter(Boolean);
   const text = bits.length ? `${bits.join(" · ")} total` : "Not measured";
   const supports = part.support_mode ? ` · ${fabricationPartSupports(part)}` : "";
-  return `${text}${supports}${part.orientation ? " · User-selected orientation" : ""}`;
+  const makeUp = part.weight_composition && !part.actual_weight ? ` · Each: ${part.weight_composition}` : "";
+  return `${text}${supports}${makeUp}${part.orientation ? " · User-selected orientation" : ""}`;
 }
 
 function fabricationPartSupports(part: FabricationPart): string {
-  let text = `Supports: ${part.support_mode_label || part.support_mode}`;
+  const mode = part.support_mode_label || part.support_mode || "";
+  let text =
+    part.support_type_label && part.support_mode !== "none"
+      ? `Supports: ${part.support_type_label} (${mode.toLowerCase()})`
+      : `Supports: ${mode}`;
+  if (part.support_type && part.support_interface === false) text += ", no interface";
   const separate = num(part.support_weight_g_total);
   const included = num(part.support_g_each);
   if (separate && part.support_material_code) text += ` (+${separate} g ${part.support_material_code})`;
   else if (included) text += ` (~${included} g each, included)`;
+  if (part.adhesion) text += ` · ${part.adhesion_label || part.adhesion} ~${num(part.adhesion_g_each) ?? 0} g each`;
   return text;
 }
 
