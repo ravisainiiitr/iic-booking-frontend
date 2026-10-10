@@ -112,6 +112,8 @@ import {
   sectionMenuOrder,
 } from "@/components/dashboard/dashboardMenuLayout";
 import { ADMIN_MENU_SECTIONS } from "@/components/dashboard/adminMenuSections";
+import { InsightMenuCard } from "@/components/admin-insights/InsightMenuCard";
+import { INSIGHT_MENU } from "@/components/admin-insights/insightMenu";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 import { useWorkspaceResume } from "@/lib/workspaceResume";
 import { useRememberedOpen } from "@/lib/rememberedOpen";
@@ -226,6 +228,18 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/training/attendance": { title: "Training Attendance", description: "Mark attendance for training sessions and demonstrations." },
   "/my-trainings": { title: "My Trainings", description: "Your training applications, sessions and certifications." },
   "/admin-settings/training": { title: "Training Policy" },
+  "/admin/insights/equipment": {
+    title: "Equipment overview",
+    description: "Status, ownership, downtime, upcoming bookings and utilisation of every instrument.",
+  },
+  "/admin/insights/users": {
+    title: "Users overview",
+    description: "Who uses the facility: categories, programmes, departments, organisations and sign-up trends.",
+  },
+  "/admin/insights/cancellations": {
+    title: "Cancellations",
+    description: "Who cancelled, why, how late, what was refunded and whether the freed slots were re-booked.",
+  },
 };
 
 /** Main / Department Administrator title for /urgent-requests (OICs keep "Urgent Booking"). */
@@ -2011,6 +2025,13 @@ const Dashboard = () => {
             </Card>
       ),
     },
+    ...INSIGHT_MENU.map((item) => ({
+      id: item.id,
+      label: item.label,
+      path: item.path,
+      visible: Boolean(isAdmin || isDeptAdmin),
+      render: () => <InsightMenuCard item={item} onOpen={(path) => openWorkspace(path)} />,
+    })),
     {
       id: "view_bookings",
       label: "View Booking",
