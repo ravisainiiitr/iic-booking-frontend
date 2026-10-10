@@ -155,6 +155,38 @@ describe("Reports utilization factor", () => {
     await renderWith({ utilization_factor: null });
     expect(screen.getByText("N/A")).toBeTruthy();
   });
+
+  it("shows the effective period when it starts at portal go-live", async () => {
+    await renderWith({
+      utilization_period_from: "2026-10-05",
+      utilization_period_to: "2026-10-31",
+      utilization_period_clamped: true,
+      portal_go_live_date: "2026-10-05",
+    });
+    expect(screen.getByText("Since 05-10-2026 (portal go-live)")).toBeTruthy();
+  });
+
+  it("explains a period entirely before portal go-live", async () => {
+    await renderWith({
+      utilization_factor: null,
+      utilization_period_from: null,
+      utilization_period_to: null,
+      utilization_period_clamped: true,
+      portal_go_live_date: "2026-10-05",
+    });
+    expect(screen.getByText("Period is before portal go-live (05-10-2026)")).toBeTruthy();
+    expect(screen.getByText("N/A")).toBeTruthy();
+  });
+
+  it("adds no period note when the period starts after go-live", async () => {
+    await renderWith({
+      utilization_period_from: "2026-11-01",
+      utilization_period_to: "2026-11-30",
+      utilization_period_clamped: false,
+      portal_go_live_date: "2026-10-05",
+    });
+    expect(screen.queryByText(/portal go-live/)).toBeNull();
+  });
 });
 
 describe("Reports booking details revenue visibility", () => {

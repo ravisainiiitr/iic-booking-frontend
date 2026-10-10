@@ -14144,6 +14144,11 @@ class ApiClient {
         utilization_booked_hours?: number;
         utilization_available_hours?: number;
         booked_hours_outside_window?: number;
+        /** Slot-hour figures start no earlier than the portal go-live date; null when the period ends before it. */
+        utilization_period_from?: string | null;
+        utilization_period_to?: string | null;
+        utilization_period_clamped?: boolean;
+        portal_go_live_date?: string | null;
         revenue_total?: number;
         revenue_internal?: number;
         revenue_external?: number;

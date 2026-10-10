@@ -122,6 +122,23 @@ const UTILIZATION_FORMULA_DETAIL =
 const formatUtilization = (value: number | null | undefined, digits = 1) =>
   value == null ? "N/A" : `${(Number(value) * 100).toFixed(digits)}%`;
 
+const isoToDmy = (iso: string) => iso.split("-").reverse().join("-");
+
+/** Mirrors the backend caption: empty unless the portal go-live date shortened the period. */
+const utilizationPeriodCaption = (summary: {
+  utilization_period_from?: string | null;
+  utilization_period_to?: string | null;
+  utilization_period_clamped?: boolean;
+  portal_go_live_date?: string | null;
+}) => {
+  if (!summary.portal_go_live_date) return "";
+  const goLive = isoToDmy(summary.portal_go_live_date);
+  if (summary.utilization_period_from === null && "utilization_period_to" in summary) {
+    return `Period is before portal go-live (${goLive})`;
+  }
+  return summary.utilization_period_clamped ? `Since ${goLive} (portal go-live)` : "";
+};
+
 const getStatusColor = (status: string) => STATUS_COLORS[status] ?? "#94a3b8";
 const getStatusLabel = (status: string) => STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 
@@ -1307,11 +1324,22 @@ const Reports = () => {
                             </UiTooltipTrigger>
                             <UiTooltipContent className="max-w-xs text-xs font-normal">
                               {UTILIZATION_FORMULA_DETAIL}
+                              {equipmentReportData.summary.portal_go_live_date &&
+                                ` Slots before the portal go-live date (${isoToDmy(
+                                  equipmentReportData.summary.portal_go_live_date,
+                                )}) are not counted.`}
                             </UiTooltipContent>
                           </UiTooltip>
                         </UiTooltipProvider>
                       </CardTitle>
-                      <CardDescription>{UTILIZATION_FORMULA}</CardDescription>
+                      <CardDescription>
+                        {UTILIZATION_FORMULA}
+                        {utilizationPeriodCaption(equipmentReportData.summary) && (
+                          <span className="block font-medium text-foreground/80">
+                            {utilizationPeriodCaption(equipmentReportData.summary)}
+                          </span>
+                        )}
+                      </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-1">
                       <div className="text-2xl font-semibold">
