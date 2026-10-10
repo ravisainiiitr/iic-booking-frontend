@@ -34,9 +34,37 @@ import type {
   TrainingPolicy,
   TrainingPolicyOverview,
   TrainingSession,
+  TrainingUserRef,
   TrainingWindow,
   WorkspaceSummary,
 } from "@/lib/trainingTypes";
+import type {
+  AccountingQuery,
+  Assessment,
+  AssessmentCandidate,
+  AssessmentInput,
+  CertificationAction,
+  CertificationDetail,
+  CertificationLevelInfo,
+  CompetencyChecklist,
+  DutyAllocation,
+  DutyCalendar,
+  DutyCreateInput,
+  DutyLive,
+  DutyPlan,
+  DutyPlanInput,
+  DutyShift,
+  DutyStatement,
+  HoursSummary,
+  MyDuty,
+  OperatorPolicy,
+  OperatorPolicyInput,
+  OperatorPolicyOverview,
+  PublicCertificate,
+  PublicDuty,
+  RosterEntry,
+  ShiftAction,
+} from "@/lib/trainingOpsTypes";
 
 const BASE = "/v1/training/";
 
@@ -111,6 +139,8 @@ const post = <T>(path: string, body: unknown = {}) =>
   request<T>(path, { method: "POST", body: JSON.stringify(body) });
 const patch = <T>(path: string, body: unknown) =>
   request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+const put = <T>(path: string, body: unknown) =>
+  request<T>(path, { method: "PUT", body: JSON.stringify(body) });
 
 /** Reservation conflicts returned with a 409/400 when instrument slots are taken. */
 export function reservationConflicts(res: TrainingResult<unknown>): ReservationConflict[] {
@@ -235,4 +265,56 @@ export const trainingApi = {
     get<{ count: number; limit: number; results: TrainingModuleEquipment[] }>("admin/equipment/", query),
   setEquipmentEnabled: (equipmentId: number, enabled: boolean) =>
     post<TrainingModuleEquipment>(`admin/equipment/${equipmentId}/`, { enabled }),
+
+  levels: () => get<Results<CertificationLevelInfo>>("levels/"),
+  checklist: (equipmentId: number) => get<CompetencyChecklist>(`equipment/${equipmentId}/checklist/`),
+  saveChecklist: (equipmentId: number, input: Pick<CompetencyChecklist, "items" | "theory_pass_pct" | "practical_pass_pct">) =>
+    put<CompetencyChecklist>(`equipment/${equipmentId}/checklist/`, input),
+  assessments: (query: { equipment_id?: number; awaiting_sign_off?: boolean; user_id?: number } = {}) =>
+    get<Results<Assessment>>("assessments/", query),
+  recordAssessment: (input: AssessmentInput) => post<Assessment>("assessments/", input),
+  signOffAssessment: (id: number) => post<Assessment>(`assessments/${id}/sign-off/`),
+  assessmentCandidates: (equipmentId: number, q?: string) =>
+    get<Results<AssessmentCandidate>>("assessment-candidates/", { equipment_id: equipmentId, q }),
+  certification: (id: number) => get<CertificationDetail>(`certifications/${id}/`),
+  certificationAction: (id: number, action: CertificationAction, input: { reason: string; until?: string; months?: number }) =>
+    post<TrainingAward>(`certifications/${id}/${action}/`, input),
+  downloadCertificate: (id: number, certificateNo?: string) =>
+    downloadFile(`certifications/${id}/certificate.pdf`, `${certificateNo || `certificate-${id}`}.pdf`),
+  verifyCertificate: (token: string) => get<PublicCertificate>(`verify/${encodeURIComponent(token)}/`),
+
+  roster: (query: { equipment_id?: number; include_removed?: boolean } = {}) => get<Results<RosterEntry>>("roster/", query),
+  addToRoster: (input: { equipment_id: number; user_id: number; reason: string }) => post<RosterEntry>("roster/", input),
+  updateRoster: (id: number, input: { max_hours_week?: number | null; note?: string }) => patch<RosterEntry>(`roster/${id}/`, input),
+  rosterAction: (id: number, action: "pause" | "resume" | "remove", reason: string) =>
+    post<RosterEntry>(`roster/${id}/${action}/`, { reason }),
+  rosterPeople: (equipmentId: number, q: string) => get<Results<TrainingUserRef>>("roster/people/", { equipment_id: equipmentId, q }),
+
+  planDuty: (input: DutyPlanInput) => post<DutyPlan>("duty/plan/", input),
+  createDuty: (input: DutyCreateInput) => post<DutyAllocation>("duty/allocations/", input),
+  dutyAllocations: (query: { equipment_id?: number; operator_id?: number; status?: string; academic_year?: string } = {}) =>
+    get<Results<DutyAllocation>>("duty/allocations/", query),
+  dutyAllocation: (id: number) => get<DutyAllocation>(`duty/allocations/${id}/`),
+  dutyAction: (id: number, action: "confirm" | "decline" | "cancel" | "remind", reason?: string) =>
+    post<DutyAllocation>(`duty/allocations/${id}/${action}/`, reason ? { reason } : {}),
+  shiftAction: (id: number, action: ShiftAction, input: { operated_minutes?: number; remarks?: string } = {}) =>
+    post<DutyShift>(`duty/shifts/${id}/${action}/`, input),
+  dutyCalendar: (equipmentId: number, dateFrom: string, dateTo: string) =>
+    get<DutyCalendar>("duty/calendar/", { equipment_id: equipmentId, date_from: dateFrom, date_to: dateTo }),
+  myDuty: (academicYear?: string) => get<MyDuty>("duty/me/", { academic_year: academicYear }),
+  dutyAccounting: (query: AccountingQuery) => get<HoursSummary>("duty/accounting/", { ...query }),
+  exportDutyAccounting: (query: AccountingQuery) =>
+    downloadFile(withQuery("duty/accounting/export/", { ...query }), "operator-duty-hours.csv"),
+  dutyStatement: (query: AccountingQuery) => get<DutyStatement>("duty/statement/", { ...query }),
+  exportDutyStatement: (query: AccountingQuery) =>
+    downloadFile(withQuery("duty/statement/", { ...query, format: "csv" }), "duty-statement.csv"),
+  dutyLive: () => get<DutyLive>("duty/live/"),
+  /** Public: the signed link from the duty email (works without signing in). */
+  dutyRespondView: (token: string) => get<PublicDuty>("duty/respond/", { token }),
+  dutyRespond: (token: string, action: "confirm" | "decline", reason?: string) =>
+    post<PublicDuty>("duty/respond/", { token, action, reason }),
+
+  operatorPolicy: (equipmentId?: number) => get<OperatorPolicyOverview>("operator-policy/", { equipment_id: equipmentId }),
+  publishOperatorPolicy: (input: OperatorPolicyInput) => post<OperatorPolicy>("operator-policy/", input),
+  operatorPolicyHistory: () => get<Results<OperatorPolicy>>("operator-policy/history/"),
 };

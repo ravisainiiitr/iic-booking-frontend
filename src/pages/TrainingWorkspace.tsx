@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ClipboardList, Presentation, School } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ClipboardList, Presentation, School, UserCog } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { heroButtonClass } from "@/components/PageShell";
+import { AssessmentsPanel } from "@/components/training/AssessmentsPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +19,7 @@ import { useTrainingAvailability } from "@/components/training/useTrainingAvaila
 import { trainingApi } from "@/lib/trainingApi";
 import type { DemoRequest, WorkspaceSummary } from "@/lib/trainingTypes";
 
-const TABS = ["requests", "calls", "events", "attendance", "certifications"] as const;
+const TABS = ["requests", "calls", "events", "attendance", "assessments", "certifications"] as const;
 type Tab = (typeof TABS)[number];
 
 const REQUEST_FILTERS = [
@@ -127,6 +130,8 @@ function RequestsInbox({ onOpen, reloadKey }: { onOpen: (id: number) => void; re
 export default function TrainingWorkspace() {
   const { loading: bootLoading, menu } = useTrainingAvailability();
   const allowed = menu("training_workspace");
+  const dutyAllowed = menu("operator_duty");
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const rawTab = params.get("tab") as Tab | null;
   const tab: Tab = rawTab && TABS.includes(rawTab) ? rawTab : "requests";
@@ -160,9 +165,22 @@ export default function TrainingWorkspace() {
   return (
     <TrainingPageFrame
       title="Training workspace"
-      description="Demonstration requests, nomination calls, sessions, attendance and certifications for your equipment."
+      description="Demonstration requests, nomination calls, sessions, attendance, competency assessments and certificates for your equipment."
       icon={<School className="h-5 w-5" />}
       onRefresh={allowed ? () => setReloadKey((k) => k + 1) : undefined}
+      actions={(onHero) =>
+        dutyAllowed ? (
+          <Button
+            type="button"
+            variant={onHero ? "ghost" : "outline"}
+            size="sm"
+            className={onHero ? heroButtonClass.secondary : undefined}
+            onClick={() => navigate("/training/duty")}
+          >
+            <UserCog className="mr-1.5 h-4 w-4" /> Operator duty
+          </Button>
+        ) : null
+      }
     >
       {bootLoading ? (
         <LoadingBlock />
@@ -170,14 +188,16 @@ export default function TrainingWorkspace() {
         <ModuleUnavailable />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-9">
             <CountTile label="Requests to decide" value={summary?.demo_open} highlight onClick={() => goTab("requests")} />
             <CountTile label="Demos to schedule" value={summary?.demo_to_schedule} highlight onClick={() => goTab("requests")} />
             <CountTile label="Open calls" value={summary?.calls_open} onClick={() => goTab("calls")} />
             <CountTile label="Calls to publish" value={summary?.calls_to_publish} highlight onClick={() => goTab("calls")} />
             <CountTile label="Appeals pending" value={summary?.appeals_pending} highlight onClick={() => goTab("calls")} />
             <CountTile label="Attendance due" value={summary?.attendance_due} highlight onClick={() => goTab("attendance")} />
+            <CountTile label="To sign off" value={summary?.assessments_to_sign_off} highlight onClick={() => goTab("assessments")} />
             <CountTile label="Active certifications" value={summary?.certified_active} onClick={() => goTab("certifications")} />
+            <CountTile label="Expiring in 30 days" value={summary?.certifications_expiring} highlight onClick={() => goTab("certifications")} />
           </div>
 
           <Tabs value={tab} onValueChange={(v) => goTab(v as Tab)}>
@@ -188,6 +208,7 @@ export default function TrainingWorkspace() {
               <TabsTrigger value="calls">Nomination calls</TabsTrigger>
               <TabsTrigger value="events">Events & sessions</TabsTrigger>
               <TabsTrigger value="attendance">Attendance</TabsTrigger>
+              <TabsTrigger value="assessments">Assessments</TabsTrigger>
               <TabsTrigger value="certifications">Certifications</TabsTrigger>
             </TabsList>
             <TabsContent value="requests" className="mt-3">
@@ -201,6 +222,9 @@ export default function TrainingWorkspace() {
             </TabsContent>
             <TabsContent value="attendance" className="mt-3">
               <SessionAttendancePanel key={`attendance-${reloadKey}`} onOpenDemoRequest={(id) => update({ request: String(id) })} />
+            </TabsContent>
+            <TabsContent value="assessments" className="mt-3">
+              <AssessmentsPanel key={`assess-${reloadKey}`} onChanged={() => void loadSummary()} />
             </TabsContent>
             <TabsContent value="certifications" className="mt-3">
               <CertificationsPanel key={`certs-${reloadKey}`} />

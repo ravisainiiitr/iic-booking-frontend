@@ -225,6 +225,8 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/training/oic": { title: "Training Workspace", description: "Demonstration requests, nomination calls, sessions, attendance and certifications." },
   "/training/attendance": { title: "Training Attendance", description: "Mark attendance for training sessions and demonstrations." },
   "/my-trainings": { title: "My Trainings", description: "Your training applications, sessions and certifications." },
+  "/training/duty": { title: "Operator Duty", description: "Allocate certified operators fairly, track confirmations and hours operated." },
+  "/my-duty": { title: "My Operator Duty", description: "Confirm duty, check in and out, and see your hours." },
   "/admin-settings/training": { title: "Training Policy" },
 };
 
@@ -2200,6 +2202,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "my_duty",
+      label: "My operator duty",
+      path: "/my-duty",
+      visible: trainingMenu("my_duty"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/my-duty")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My operator duty</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Confirm duty, check in and out, and see the hours you have operated
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open My operator duty</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "urgent_booking_requests",
       label: "Urgent booking requests",
       path: "/urgent-requests-wallet",
@@ -2461,6 +2493,36 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open training workspace</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "operator_duty",
+      label: "Operator duty",
+      path: "/training/duty",
+      visible: trainingMenu("operator_duty"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/training/duty")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <CalendarCheck2 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Operator duty</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Allocate certified operators fairly, track confirmations and hours operated live
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open operator duty</Button>
               </CardContent>
             </Card>
       ),

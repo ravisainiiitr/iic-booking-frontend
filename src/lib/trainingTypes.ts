@@ -3,7 +3,9 @@ export type TrainingMenuKey =
   | "my_trainings"
   | "training_workspace"
   | "training_attendance"
-  | "training_policy_settings";
+  | "training_policy_settings"
+  | "operator_duty"
+  | "my_duty";
 
 export interface TrainingRoles {
   admin: boolean;
@@ -12,6 +14,8 @@ export interface TrainingRoles {
   oic: boolean;
   operator: boolean;
   dept_admin: boolean;
+  /** On an operator roster or ever allocated duty. */
+  duty_operator?: boolean;
 }
 
 export type TrainingAudience = "TEST_ACCOUNTS" | "EVERYONE";
@@ -560,6 +564,15 @@ export interface TrainingAward {
   awarded_at: string;
   valid_until: string | null;
   source_event_id: number | null;
+  level_rank?: number;
+  status_label?: string;
+  last_used_at?: string | null;
+  certificate_no?: string;
+  /** Public verification page path (no login), e.g. /verify/certificate/<token>. */
+  verify_path?: string;
+  suspended_until?: string | null;
+  suspend_reason?: string;
+  revoke_reason?: string;
 }
 
 export interface TrainingBadge {
@@ -606,6 +619,11 @@ export interface WorkspaceSummary {
   attendance_due: number;
   certified_active: number;
   can_manage: boolean;
+  assessments_to_sign_off?: number;
+  certifications_expiring?: number;
+  duty_awaiting_confirmation?: number;
+  duty_hours_to_verify?: number;
+  duty_on_now?: number;
 }
 
 export type PolicyScope = "GLOBAL" | "DEPARTMENT" | "EQUIPMENT";
