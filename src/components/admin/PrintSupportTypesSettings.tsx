@@ -37,7 +37,7 @@ export function supportOptionsUpdate(
   config: PrintSupportOptionsConfig,
 ): { value?: PrintSupportOptionsUpdate; error?: string } {
   if (config.types.length > 0 && draft.types.length === 0) {
-    return { error: "Offer at least one support type (turn supports off with 'Estimate supports' instead)." };
+    return { error: "Offer at least one support type (turn off 'Add supports in Auto' to print without them by default)." };
   }
   const factors: NonNullable<PrintSupportOptionsUpdate["factors"]> = {};
   for (const t of config.types) {

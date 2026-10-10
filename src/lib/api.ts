@@ -728,7 +728,10 @@ export interface PrintEstimateBreakdown {
 export interface PrintSupportDefaults {
   technology: string;
   technology_label?: string;
+  /** Every printer except powder beds. */
   supports_available: boolean;
+  /** False when the printer adds no supports in Auto (users can still choose a mode). */
+  supports_by_default?: boolean;
   /** Users may choose none / build plate / everywhere (FDM and resin). */
   modes_selectable: boolean;
   density_pct: number;

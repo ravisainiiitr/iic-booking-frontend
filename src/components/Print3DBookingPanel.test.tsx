@@ -352,9 +352,50 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
     expect(screen.getByTestId("print-bar-weight").textContent).toContain("raft 1.4 g");
   });
 
-  it("hides the supports choice for printers without supports and old analyses show no breakdown", async () => {
+  it("keeps the support choice on printers set to print without supports in Auto", async () => {
     api.getEquipmentPrintMaterials.mockResolvedValue({
-      data: { materials: [pla], support_defaults: { technology: "SLS", supports_available: false, modes_selectable: false, density_pct: 0, angle_deg: 45, angle_range: [30, 70] } },
+      data: {
+        materials: [pla],
+        support_defaults: {
+          technology: "FDM",
+          supports_available: true,
+          supports_by_default: false,
+          modes_selectable: true,
+          density_pct: 12,
+          angle_deg: 45,
+          angle_range: [30, 70],
+          support_types: [
+            { key: "normal", label: "Normal (grid)", description: "Straight columns.", volume_factor: 1, speed_factor: 1 },
+            { key: "tree", label: "Tree", description: "Branches.", volume_factor: 0.55, speed_factor: 0.85 },
+          ],
+          default_support_type: "normal",
+        },
+      },
+    });
+    renderPanel(vi.fn(), null);
+    expect((await screen.findByTestId("print-support-mode-hint")).textContent).toContain(
+      "This printer prints without supports in Auto",
+    );
+    expect(screen.getByTestId("print-support-type-field")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("print-support-mode"));
+    fireEvent.click(await screen.findByRole("option", { name: "Everywhere" }));
+    expect(screen.getByTestId("print-support-mode-hint").textContent).not.toContain("without supports in Auto");
+  });
+
+  it("explains that powder printers need no supports and old analyses show no breakdown", async () => {
+    api.getEquipmentPrintMaterials.mockResolvedValue({
+      data: {
+        materials: [pla],
+        support_defaults: {
+          technology: "SLS",
+          technology_label: "Powder (SLS)",
+          supports_available: false,
+          modes_selectable: false,
+          density_pct: 0,
+          angle_deg: 45,
+          angle_range: [30, 70],
+        },
+      },
     });
     api.analyzeEquipmentStl.mockResolvedValue({
       data: { id: "a3", status: "COMPLETED", weight_grams: 10, estimated_time_minutes: 30, material_code_snapshot: "PLA" },
@@ -364,6 +405,7 @@ describe("Print3DBookingPanel supports and estimate breakdown", () => {
     fireEvent.change(input, { target: { files: [stlFile("cube.stl", boxStl(20, 20, 20))] } });
     expect((await screen.findByTestId("print-total-time")).textContent).toBe("30 min");
     expect(screen.queryByTestId("print-supports")).toBeNull();
+    expect(screen.getByTestId("print-supports-not-needed").textContent).toContain("Powder (SLS) printer");
     expect(screen.queryByTestId("print-estimate-breakdown")).toBeNull();
   });
 });

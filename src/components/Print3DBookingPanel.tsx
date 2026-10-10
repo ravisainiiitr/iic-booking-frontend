@@ -1365,8 +1365,10 @@ export function Print3DBookingPanel({
                 <p className="text-sm text-muted-foreground">This printer always prints supports wherever the model needs them.</p>
               )}
               {supportModesSelectable && (
-                <p className="text-xs text-muted-foreground">
-                  {SUPPORT_MODE_OPTIONS.find((o) => o.value === supportMode)?.hint}
+                <p className="text-xs text-muted-foreground" data-testid="print-support-mode-hint">
+                  {supportMode === "auto" && supportDefaults?.supports_by_default === false
+                    ? "This printer prints without supports in Auto. Choose Touching build plate only or Everywhere to add them."
+                    : SUPPORT_MODE_OPTIONS.find((o) => o.value === supportMode)?.hint}
                 </p>
               )}
               {estimateTotals && (
@@ -1499,6 +1501,10 @@ export function Print3DBookingPanel({
               </div>
             )}
           </div>
+  ) : supportDefaults ? (
+    <p className="rounded-md border p-3 text-sm text-muted-foreground" data-testid="print-supports-not-needed">
+      Supports: none needed. This {supportDefaults.technology_label || "powder"} printer holds the part in loose powder.
+    </p>
   ) : null;
 
   return (
