@@ -360,6 +360,8 @@ export interface FabricationPart {
   support_material_code?: string;
   support_weight_g_each?: number | null;
   support_weight_g_total?: number | null;
+  /** Booking detail only: false once the STL / DXF is deleted (after the booking is completed). */
+  file_available?: boolean;
   /** Booking detail only: what the 3D / 2D preview draws, as on the booking page. */
   material_family?: LaserMaterialFamily | string | null;
   layer_height_mm?: number | string | null;
