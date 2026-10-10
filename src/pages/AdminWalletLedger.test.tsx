@@ -243,6 +243,18 @@ describe("Wallet owners", () => {
     expect(await screen.findByText("Prof. Asha Rao")).toBeTruthy();
   });
 
+  it("badges test accounts and filters them", async () => {
+    state.api.getWalletLedgerOwners.mockResolvedValue({
+      data: { ...ownersResponse, results: [{ ...owner, is_test_account: true }] },
+    });
+    renderList();
+    const row = await screen.findByRole("row", { name: /Open wallet of Prof. Asha Rao/ });
+    expect(within(row).getByTestId("test-account-badge").textContent).toBe("Test — not counted in revenue");
+    expect(lastCall(state.api.getWalletLedgerOwners).test).toBeUndefined();
+    await choose("Test accounts", "Hide test accounts");
+    await waitFor(() => expect(lastCall(state.api.getWalletLedgerOwners)).toMatchObject({ test: "hide", page: 1 }));
+  });
+
   it("is limited to the Main Administrator", async () => {
     state.user = { id: 2, user_type: "dept_admin" };
     renderList();
@@ -278,6 +290,14 @@ describe("Owner page and credit / debit", () => {
     expect(await screen.findByText("Professor · Faculty")).toBeTruthy();
     await screen.findByText("TXN-77");
     expect(lastCall(state.api.getWalletLedgerTransactions)).toMatchObject({ owner: "5" });
+    expect(screen.queryByTestId("test-account-badge")).toBeNull();
+  });
+
+  it("badges a test account owner", async () => {
+    state.api.getWalletLedgerOwner.mockResolvedValue({ data: { ...detail, is_test_account: true } });
+    renderOwner();
+    expect(await screen.findByText("Professor · Faculty")).toBeTruthy();
+    expect(screen.getByTestId("test-account-badge").textContent).toBe("Test — not counted in revenue");
   });
 
   it("shows the owner's photo on the ID card, enlarges it, and falls back to initials if it fails", async () => {

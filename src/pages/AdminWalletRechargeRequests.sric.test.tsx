@@ -177,6 +177,47 @@ describe("Wallet recharge requests: delete, show deleted, SRIC reminder", () => 
   });
 });
 
+describe("Wallet recharge requests: test accounts", () => {
+  const testRow = {
+    ...creditedRow,
+    id: 50,
+    transaction_number: "IIC-TXN-000050",
+    request_id: "WRR-50",
+    is_test_account: true,
+    fund_receipt_verified: false,
+    wallet_credit_pending: false,
+  };
+
+  beforeEach(() => {
+    adminList.mockResolvedValue({ data: { results: [pendingRow, testRow] } });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("badges test-account requests and needs no fund receipt or cash-book entry", async () => {
+    renderPage();
+    const row = await rowFor("IIC-TXN-000050");
+    expect(within(row).getByTestId("test-account-badge").textContent).toBe("Test — not counted in revenue");
+    expect(within(row).getByText("Not needed (test)")).toBeTruthy();
+    expect(within(row).getByText("Not expected (test)")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: "Verify fund receipt" })).toBeNull();
+
+    const realRow = await rowFor("IIC-TXN-000048");
+    expect(within(realRow).queryByTestId("test-account-badge")).toBeNull();
+  });
+
+  it("hide test accounts asks the API to exclude them", async () => {
+    renderPage();
+    await rowFor("IIC-TXN-000050");
+    expect(adminList.mock.calls[0][1]).not.toHaveProperty("test");
+    fireEvent.click(screen.getByRole("switch", { name: "Show test accounts" }));
+    await waitFor(() => expect(adminList.mock.calls.at(-1)?.[1]).toMatchObject({ test: "hide" }));
+  });
+});
+
 describe("cash-book upload summary", () => {
   it("reports rows ignored before the cutoff", () => {
     expect(formatCutoffDate("2026-09-30")).toBe("30 Sep 2026");

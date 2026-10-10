@@ -915,6 +915,7 @@ export interface LedgerOwner {
   linked_students: number;
   status: "active" | "inactive";
   last_transaction_at: string | null;
+  is_test_account?: boolean;
 }
 
 export interface LedgerOwnerDetail extends LedgerOwner {
@@ -1132,6 +1133,7 @@ export interface LedgerTransaction {
   reference: string;
   external_reference: string;
   related_user_name: string;
+  is_test_account?: boolean;
 }
 
 export interface LedgerTransactionsResponse {
@@ -13930,6 +13932,18 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Main Admin only: mark/unmark a test account (its wallet activity is excluded from revenue and SRIC matching). */
+  async adminUserSetTestAccount(userId: number | string, isTestAccount: boolean) {
+    const endpoint = this.getAdminEndpoint('users');
+    return this.request<{ message: string; changed: boolean; user: { id: number; is_test_account: boolean } }>(
+      `${endpoint}${userId}/set-test-account/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ is_test_account: isTestAccount }),
+      },
+    );
   }
 
   /** Admin/OIC/Dept Admin: selected-user details while booking on behalf (equipment-scoped). */

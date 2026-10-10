@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDownLeft, ArrowUpRight, Receipt, RotateCcw, Scale, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 
 import { ExportMenu } from "@/components/ExportMenu";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
@@ -25,6 +26,7 @@ import {
   DATE_PRESETS,
   EMPTY_TRANSACTION_FILTERS,
   formatLedgerAmount,
+  TEST_ACCOUNT_FILTER_OPTIONS,
   transactionFilterParams,
   type DatePreset,
   type TransactionFilters,
@@ -276,6 +278,14 @@ export default function TransactionsPanel({
                       options={options?.sub_wallet_departments ?? []}
                       allLabel="All sub-wallets"
                     />
+                    <FilterSelect
+                      id="wl-tx-test"
+                      label="Test accounts"
+                      value={filters.test}
+                      onChange={(v) => update({ test: v })}
+                      options={TEST_ACCOUNT_FILTER_OPTIONS}
+                      allLabel="Show (badged)"
+                    />
                   </>
                 ) : (
                   <FilterSelect
@@ -399,10 +409,12 @@ export default function TransactionsPanel({
                               <span className="font-medium">{t.owner_name}</span>
                             )}
                             {t.owner_department ? <div className="text-xs text-muted-foreground">{t.owner_department}</div> : null}
+                            {t.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                           </TableCell>
                         ) : null}
                         <TableCell className="text-center">
                           <TypeBadge type={t.transaction_type} />
+                          {!global && t.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                         </TableCell>
                         <TableCell className="text-center">
                           <CategoryBadge category={t.category} label={t.category_label} />

@@ -6,6 +6,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { LinkedStudentsDrawer } from "@/components/walletLedger/LinkedStudents";
 import TransactionsPanel from "@/components/walletLedger/TransactionsPanel";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { FilterSelect, LedgerPagination, SortHeader, SummaryStat } from "@/components/walletLedger/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
   EMPTY_OWNER_FILTERS,
   formatLedgerAmount,
   ownerFilterParams,
+  TEST_ACCOUNT_FILTER_OPTIONS,
   type OwnerFilters,
 } from "@/lib/walletLedger";
 import { cn } from "@/lib/utils";
@@ -241,6 +243,14 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
               options={HAS_STUDENTS_OPTIONS}
               allLabel="With or without"
             />
+            <FilterSelect
+              id="wl-owner-test"
+              label="Test accounts"
+              value={filters.test}
+              onChange={(v) => update({ test: v })}
+              options={TEST_ACCOUNT_FILTER_OPTIONS}
+              allLabel="Show (badged)"
+            />
             <div className="space-y-1.5">
               <Label htmlFor="wl-owner-afrom" className="text-xs">
                 Transactions from
@@ -338,6 +348,7 @@ function OwnersPanel({ options }: { options: LedgerOptions | null }) {
                           <div className="font-medium">{o.name}</div>
                           <div className="text-xs text-muted-foreground">{o.email}</div>
                           {o.employee_id ? <div className="text-xs text-muted-foreground">ID: {o.employee_id}</div> : null}
+                          {o.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{o.user_type_label}</TableCell>
                         <TableCell>{o.department_name || "—"}</TableCell>

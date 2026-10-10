@@ -4,6 +4,7 @@ import { Building2, IdCard, Mail, Maximize2, Phone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import type { LedgerOwnerDetail } from "@/lib/api";
 import { formatDMYTime } from "@/lib/dateFormat";
 import { getInitials } from "@/lib/displayName";
@@ -94,10 +95,15 @@ export default function OwnerIdCard({ owner }: { owner: LedgerOwnerDetail }) {
             <div>
               <h2 className="break-words text-lg font-semibold leading-tight">{owner.name}</h2>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
-              {owner.employee_id ? (
-                <p className="mt-1.5 inline-flex rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-xs font-medium">
-                  ID: {owner.employee_id}
-                </p>
+              {owner.employee_id || owner.is_test_account ? (
+                <div className="mt-1.5 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+                  {owner.employee_id ? (
+                    <p className="inline-flex rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-xs font-medium">
+                      ID: {owner.employee_id}
+                    </p>
+                  ) : null}
+                  {owner.is_test_account ? <TestAccountBadge /> : null}
+                </div>
               ) : null}
             </div>
             <dl className="space-y-2.5 text-left">
