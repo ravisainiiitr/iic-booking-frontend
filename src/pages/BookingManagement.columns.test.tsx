@@ -106,7 +106,7 @@ describe("View Booking columns", { timeout: 20_000 }, () => {
       expect(headers).toEqual(EXPECTED_HEADERS);
       expect(within(table).queryByText(/email/i)).toBeNull();
       expect(within(table).queryByText(EQUIPMENT)).toBeNull();
-      expect(within(table).getByText("NMR TXI").getAttribute("title")).toBe(EQUIPMENT);
+      expect(within(table).getByText("NMR TXI").closest("td")!.getAttribute("title")).toBe(EQUIPMENT);
       expect(within(table).queryByText(row.user_email)).toBeNull();
       expect(within(table).getByText(row.user_phone)).toBeTruthy();
       expect(within(table).getByText("23h 59m")).toBeTruthy();

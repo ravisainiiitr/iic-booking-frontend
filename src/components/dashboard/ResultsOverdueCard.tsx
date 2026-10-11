@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AlarmClock, ArrowRight } from "lucide-react";
 
 import { apiClient, type ResultsOverdueBooking } from "@/lib/api";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,7 +67,9 @@ export default function ResultsOverdueCard({ className = "" }: { className?: str
                       {row.booking_ref}
                     </Link>
                   </TableCell>
-                  <TableCell>{row.equipment_name}</TableCell>
+                  <TableCell>
+                    <EquipmentLink id={row.equipment_id} name={row.equipment_name} code={row.equipment_code} />
+                  </TableCell>
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.due_display}</TableCell>
                   <TableCell className="whitespace-nowrap text-red-700 dark:text-red-300">{row.overdue_by}</TableCell>

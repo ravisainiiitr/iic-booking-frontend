@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { BookingExportMenu } from "@/components/BookingExportMenu";
 import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
@@ -713,10 +715,14 @@ const BookingManagement = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className={CELL_CLASS} title={booking.equipment_name || undefined}>
-                          {booking.equipment_code || booking.equipment_name || "—"}
+                          <EquipmentLink id={booking.equipment}>
+                            {booking.equipment_code || booking.equipment_name || "—"}
+                          </EquipmentLink>
                         </TableCell>
                         <TableCell className={TRUNCATE_CELL_CLASS} title={booking.user_name || undefined}>
-                          {booking.user_name || "—"}
+                          <UserIdCardLink userId={booking.user} className="max-w-full">
+                            <span className="block truncate">{booking.user_name || "—"}</span>
+                          </UserIdCardLink>
                         </TableCell>
                         <TableCell className={TRUNCATE_CELL_CLASS} title={booking.wallet_owner_name || undefined}>
                           {booking.wallet_owner_name || "—"}

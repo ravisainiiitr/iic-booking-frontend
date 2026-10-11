@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { trainingApi } from "@/lib/trainingApi";
 import type {
   AppealRow,
@@ -304,7 +305,9 @@ function RankedTable({
                 <TableRow className={cn(open && "border-b-0")}>
                   <TableCell className="font-semibold tabular-nums">{e.rank ?? "—"}</TableCell>
                   <TableCell>
-                    <p className="font-medium">{e.student.name}</p>
+                    <p className="font-medium">
+                      <UserIdCardLink userId={e.student.id} name={e.student.name} />
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {e.department_name}
                       {e.need_category ? ` · ${humanizeCode(e.need_category)}` : ""}
@@ -559,7 +562,9 @@ function CallDetail({ callId, onBack }: { callId: number; onBack: () => void }) 
                   {nominations.map((n) => (
                     <TableRow key={n.id}>
                       <TableCell>
-                        <p className="font-medium">{n.student.name}</p>
+                        <p className="font-medium">
+                          <UserIdCardLink userId={n.student.id} name={n.student.name} />
+                        </p>
                         <p className="text-xs text-muted-foreground">{n.student.department ?? n.student.email}</p>
                       </TableCell>
                       <TableCell className="text-sm">{n.nominator?.name ?? "—"}</TableCell>
@@ -740,7 +745,7 @@ function CallDetail({ callId, onBack }: { callId: number; onBack: () => void }) 
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium">
-                        {a.student.name}
+                        <UserIdCardLink userId={a.student.id} name={a.student.name} />
                         {a.entry?.rank ? <span className="text-xs text-muted-foreground"> · rank {a.entry.rank}</span> : null}
                       </p>
                       <p className="text-xs text-muted-foreground">

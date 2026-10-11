@@ -4,6 +4,7 @@ import { CalendarCheck2, CheckCircle2, ClipboardList, LogIn, LogOut, Timer, User
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { AllocationDialog } from "@/components/training/duty/AllocationDialog";
 import { AllocationsTable } from "@/components/training/duty/AllocationsPanel";
 import { HoursTiles, PeriodSelect, StatementView } from "@/components/training/duty/HoursPanel";
@@ -230,7 +231,9 @@ export default function MyDuty() {
                 {data.roster.map((r) => (
                   <li key={r.id} className="rounded-lg border border-border/70 p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-medium">{r.equipment.name}</p>
+                      <p className="font-medium">
+                        <EquipmentLink id={r.equipment.equipment_id} name={r.equipment.name} />
+                      </p>
                       <StatusChip kind="roster" status={r.status} label={r.status_label} />
                     </div>
                     <p className="text-xs text-muted-foreground">{r.basis || r.source_label}</p>

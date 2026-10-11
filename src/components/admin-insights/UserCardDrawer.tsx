@@ -26,6 +26,8 @@ import UserBookingRows from "@/components/admin-insights/UserBookingRows";
 import WalletLinkedBookings from "@/components/admin-insights/WalletLinkedBookings";
 import { userBookingsPath, type ResolvedSupervisor, type UserCard } from "@/lib/adminInsights";
 import { apiClient } from "@/lib/api";
+import { opensBookingManagement } from "@/lib/bookingLinks";
+import { useOptionalAuth } from "@/contexts/AuthContext";
 import { formatDMY, formatDMYTime } from "@/lib/dateFormat";
 import { formatINRAmount } from "@/lib/money";
 
@@ -187,8 +189,23 @@ function IdCardHeader({ card, onOpenUser }: { card: UserCard; onOpenUser: (id: n
   );
 }
 
-/** User card from the Users overview: ID card, recent bookings and, for wallet owners, linked users' bookings. */
-export default function UserCardDrawer({ userId, onClose }: { userId: number | null; onClose: () => void }) {
+/**
+ * User card: ID card, recent bookings and, for wallet owners, linked users' bookings.
+ *
+ * ``source="admin"`` (Users overview) reads the administrators' insight card; ``source="any"`` reads the role-aware
+ * card (GET /users/<id>/card/) so staff, supervisors and users see only what their role allows.
+ */
+export default function UserCardDrawer({
+  userId,
+  onClose,
+  source = "admin",
+}: {
+  userId: number | null;
+  onClose: () => void;
+  source?: "admin" | "any";
+}) {
+  const auth = useOptionalAuth();
+  const staffViewer = opensBookingManagement(auth?.user?.user_type);
   const [trail, setTrail] = useState<number[]>([]);
   const [card, setCard] = useState<UserCard | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -206,7 +223,8 @@ export default function UserCardDrawer({ userId, onClose }: { userId: number | n
     let cancelled = false;
     setLoading(true);
     setError(null);
-    apiClient.getAdminUserCard(current).then((res) => {
+    const load = source === "any" ? apiClient.getUserCard(current) : apiClient.getAdminUserCard(current);
+    load.then((res) => {
       if (cancelled) return;
       setLoading(false);
       if (res.error || !res.data) {
@@ -219,9 +237,11 @@ export default function UserCardDrawer({ userId, onClose }: { userId: number | n
     return () => {
       cancelled = true;
     };
-  }, [current, reloadKey]);
+  }, [current, reloadKey, source]);
 
   const shown = card && card.profile.id === current ? card : null;
+  const fullAccess = source === "admin" || shown?.access === "full";
+  const showAllBookingsLink = Boolean(shown?.profile.email) && (source === "admin" || staffViewer);
 
   return (
     <Sheet open={userId != null} onOpenChange={(open) => !open && onClose()}>
@@ -257,9 +277,11 @@ export default function UserCardDrawer({ userId, onClose }: { userId: number | n
             <section aria-label="Recent bookings" className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Recent bookings</h3>
-                {shown.profile.email ? (
+                {showAllBookingsLink ? (
                   <Button asChild variant="outline" size="sm">
-                    <Link to={userBookingsPath(shown.profile.email)}>View all bookings</Link>
+                    <Link to={userBookingsPath(shown.profile.email)} onClick={onClose}>
+                      View all bookings
+                    </Link>
                   </Button>
                 ) : null}
               </div>
@@ -283,7 +305,7 @@ export default function UserCardDrawer({ userId, onClose }: { userId: number | n
               )}
             </section>
 
-            {shown.linked_wallet ? <WalletLinkedBookings ownerId={shown.linked_wallet.owner_id} /> : null}
+            {shown.linked_wallet && fullAccess ? <WalletLinkedBookings ownerId={shown.linked_wallet.owner_id} /> : null}
           </>
         )}
       </SheetContent>

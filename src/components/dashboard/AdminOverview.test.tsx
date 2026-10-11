@@ -91,7 +91,8 @@ describe("AdminOverview", () => {
     expect(screen.getByText("10/12")).toBeTruthy();
     expect(screen.getByText("Notice board requests")).toBeTruthy();
     expect(screen.getByText("Disrupted bookings")).toBeTruthy();
-    expect(screen.getByText("IIC-0099 · A. Kumar")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "IIC-0099" })).toBeTruthy();
+    expect(screen.getByText(/· A\. Kumar/)).toBeTruthy();
     expect(screen.getByText(/Backend online · v2.5.47/)).toBeTruthy();
   });
 

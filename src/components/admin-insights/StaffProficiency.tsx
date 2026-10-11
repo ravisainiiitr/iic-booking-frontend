@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -198,7 +199,7 @@ function PendingDialog({
                         {item.overdue ? <div className="text-xs font-medium text-red-600 dark:text-red-400">Overdue</div> : null}
                       </TableCell>
                       <TableCell>
-                        {item.equipment_name}
+                        <EquipmentLink id={item.equipment_id} name={item.equipment_name} code={item.equipment_code} />
                         {item.equipment_code ? <div className="text-xs text-muted-foreground">{item.equipment_code}</div> : null}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">

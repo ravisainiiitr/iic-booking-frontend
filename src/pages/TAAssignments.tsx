@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BookingLink } from "@/components/BookingLink";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { apiClient, type TAAssignment, type TADutyLog } from "@/lib/api";
@@ -933,11 +935,13 @@ export default function TAAssignments() {
                   return (
                     <TableRow key={a.id}>
                       <TableCell>{a.id}</TableCell>
-                      <TableCell>{a.ta_student_name || a.ta_student_email || a.ta_student}</TableCell>
+                      <TableCell>
+                        <UserIdCardLink userId={a.ta_student} name={a.ta_student_name} email={a.ta_student_email} />
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1 max-w-[min(100vw-4rem,22rem)]">
                           <div className="font-medium leading-snug">
-                            {a.equipment_name || a.equipment_code || a.equipment}
+                            <EquipmentLink id={a.equipment}>{a.equipment_name || a.equipment_code || a.equipment}</EquipmentLink>
                           </div>
                           {a.booking_slot_summary ? (
                             <div className="text-xs text-muted-foreground leading-snug">{a.booking_slot_summary}</div>

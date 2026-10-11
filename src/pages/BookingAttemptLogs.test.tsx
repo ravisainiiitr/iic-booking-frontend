@@ -237,7 +237,7 @@ describe("Booking Attempt Log details", () => {
     expect(within(quota).getByText(/Weeks run Monday to Sunday/)).toBeTruthy();
   });
 
-  it("keeps a details button in Actions and leaves the user name as plain text", async () => {
+  it("keeps a details button in Actions and links the user name to their ID card", async () => {
     api.list.mockResolvedValue({ data: { results: [row], total_count: 1 } });
     api.detail.mockResolvedValue({ data: detail });
     render(
@@ -246,7 +246,7 @@ describe("Booking Attempt Log details", () => {
       </MemoryRouter>,
     );
     const name = await screen.findByText("Pragya Sharma");
-    expect(name.closest("button")).toBeNull();
+    expect(name.closest("button")?.getAttribute("title")).toBe("View ID card");
     fireEvent.click(screen.getByRole("button", { name: "View attempt details" }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
   });

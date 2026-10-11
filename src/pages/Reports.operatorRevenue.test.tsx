@@ -127,6 +127,42 @@ describe("Reports & Statistics revenue visibility", () => {
     expect(await screen.findByText("Revenue (total)")).toBeTruthy();
     expect(screen.getByText("Revenue by user type")).toBeTruthy();
   });
+
+  it("labels user types as IITR categories and opens each row's users", async () => {
+    getCurrentUser.mockResolvedValue({ data: { id: 6, user_type: "manager", rbac_permissions: ["reports.view"] } });
+    getBookingStats.mockResolvedValue(stats(true));
+    const report = equipmentReport(true);
+    getEquipmentReportData.mockResolvedValue({
+      data: {
+        ...report.data,
+        financial: {
+          ...report.data.financial,
+          revenue_by_user_type: [
+            { category: "iitr_student", user_type_snapshot: "IITR Students", user_type_label: "IITR Students",
+              drill_value: "iitr_student", total: 4350, count: 16, users: 9 },
+            { category: "iitr_faculty", user_type_snapshot: "IITR Faculty", user_type_label: "IITR Faculty",
+              drill_value: "iitr_faculty", total: 200, count: 1, users: 1 },
+          ],
+          revenue_by_department: [
+            { user__department_id: 4, user__department__name: "Physics", drill_value: 4, total: 4550, count: 17, users: 10 },
+          ],
+        },
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/reports?from=2026-10-01&to=2026-10-31&eq=all"]}>
+        <Reports />
+      </MemoryRouter>,
+    );
+    const students = await screen.findByRole("link", { name: "IITR Students" });
+    expect(students.getAttribute("href")).toContain("/reports/drilldown?src=performance&dim=category&val=iitr_student");
+    expect(screen.getByRole("link", { name: "IITR Faculty" })).toBeTruthy();
+    expect(screen.queryByText("student")).toBeNull();
+    const physics = screen.getByRole("link", { name: "Physics" });
+    expect(physics.getAttribute("href")).toContain("dim=department&val=4");
+    const total = screen.getByRole("link", { name: /Revenue \(total\)/ });
+    expect(total.getAttribute("href")).toContain("dim=all");
+  });
 });
 
 describe("Reports utilization factor", () => {

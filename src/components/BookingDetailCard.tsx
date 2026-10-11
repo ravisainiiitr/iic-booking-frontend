@@ -73,6 +73,7 @@ import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
@@ -1690,7 +1691,9 @@ export function BookingDetailCard({
         <CardHeader>
           <div className="flex justify-between items-start gap-3">
             <div className="min-w-0">
-              <CardTitle className="text-xl sm:text-2xl">{booking.equipment_name}</CardTitle>
+              <CardTitle className="text-xl sm:text-2xl">
+                <EquipmentLink id={booking.equipment} name={booking.equipment_name} />
+              </CardTitle>
               <p className="text-lg sm:text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
                 <span className="break-all">Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
                 <IstemFbrSeal
@@ -1709,6 +1712,7 @@ export function BookingDetailCard({
                   profilePicture={booking.user_profile_picture ? apiClient.getProfilePictureUrl(booking.user) : undefined}
                   size="md"
                   nameClassName="font-semibold"
+                  userId={booking.user}
                 />
                 {booking.wallet_owner_name && (
                   <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-2 ml-[3.25rem]">

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowDownLeft, ArrowUpRight, Receipt, RotateCcw, Scale, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 
 import { ExportMenu } from "@/components/ExportMenu";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -408,6 +409,9 @@ export default function TransactionsPanel({
                             ) : (
                               <span className="font-medium">{t.owner_name}</span>
                             )}
+                            <UserIdCardLink userId={t.owner_id} showIcon className="ml-1.5 align-middle">
+                              <span className="sr-only">ID card of {t.owner_name}</span>
+                            </UserIdCardLink>
                             {t.owner_department ? <div className="text-xs text-muted-foreground">{t.owner_department}</div> : null}
                             {t.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                           </TableCell>

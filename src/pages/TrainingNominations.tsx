@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { heroButtonClass } from "@/components/PageShell";
 import { NominationCard } from "@/components/training/NominationCard";
 import { TrainingBadgeChips } from "@/components/training/TrainingBadgeChips";
@@ -330,7 +331,9 @@ export default function TrainingNominations() {
                     {studentRows.map((row) => (
                       <TableRow key={row.student.id}>
                         <TableCell className="align-top">
-                          <p className="font-medium">{row.student.name}</p>
+                          <p className="font-medium">
+                            <UserIdCardLink userId={row.student.id} name={row.student.name} />
+                          </p>
                           <p className="text-xs text-muted-foreground">{row.student.email}</p>
                           {row.student.department ? <p className="text-xs text-muted-foreground">{row.student.department}</p> : null}
                         </TableCell>

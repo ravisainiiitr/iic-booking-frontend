@@ -1,6 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { apiClient, type FacultyWalletExpenseReportData, type ReportExportParams } from "@/lib/api";
+import { drilldownPath, formatInr } from "@/lib/reportDrilldown";
+import { userCategoryLabel } from "@/lib/userCategories";
+import { DrillTable, type DrillTableRow } from "@/components/reports/DrillTable";
+import { ReportKpiCard } from "@/components/reports/ReportKpiCard";
+import { ReportSectionNav, type ReportSection } from "@/components/reports/ReportSectionNav";
+import { EXTERNAL_COLOR, INTERNAL_COLOR, reportColor } from "@/components/reports/palette";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { hasRbacPermission } from "@/lib/rbac";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -186,6 +194,20 @@ function ReportSectionHeader({
   );
 }
 
+function PeopleLinks({ people }: { people?: Array<{ id: number; name: string; email: string }> }) {
+  if (!people?.length) return <>—</>;
+  return (
+    <>
+      {people.map((p, i) => (
+        <Fragment key={p.id ?? i}>
+          {i > 0 ? ", " : null}
+          <UserIdCardLink userId={p.id} name={p.name} email={p.email} />
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 function ReportBanner({ header }: { header: NonNullable<EquipmentReportData>["report_header"] }) {
   const fullTitle = header.report_title || "";
   const forMarker = " for ";
@@ -261,14 +283,26 @@ const Reports = () => {
       else next.add(id);
       return next;
     });
-  const [dateFrom, setDateFrom] = useState(() => getDefaultReportDateRange().from);
-  const [dateTo, setDateTo] = useState(() => getDefaultReportDateRange().to);
-  const [equipmentId, setEquipmentId] = useState<string>("all");
+  // Filters live in the URL (?from=&to=&eq=) so a drill-down's "back" and shared links reopen the same report.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlEquipment = useRef(searchParams.get("eq"));
+  const labInchargeRef = useRef(false);
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get("from") || getDefaultReportDateRange().from);
+  const [dateTo, setDateTo] = useState(() => searchParams.get("to") || getDefaultReportDateRange().to);
+  const [equipmentId, setEquipmentId] = useState<string>(() => searchParams.get("eq") || "all");
   const reportDateError = dateRangeError(dateFrom, dateTo);
   const beginReportRequest = useLatestRequest();
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   /** After equipment list fetch completes (so auto-report waits for default equipment id). */
   const [equipmentListLoaded, setEquipmentListLoaded] = useState(false);
+  useEffect(() => {
+    if (!isAdmin || !equipmentListLoaded) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("from", dateFrom);
+    next.set("to", dateTo);
+    next.set("eq", equipmentId);
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+  }, [isAdmin, equipmentListLoaded, dateFrom, dateTo, equipmentId, searchParams, setSearchParams]);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
 
@@ -306,6 +340,7 @@ const Reports = () => {
       adminByType;
     setIsAdmin(canEquipReports || adminCheck.data?.is_admin === true);
     const labIncharge = String(userResponse.data.user_type || "").toLowerCase() === "operator";
+    labInchargeRef.current = labIncharge;
     setIsLabInchargeUser(labIncharge);
     const faculty = String(userResponse.data.user_type || "").toLowerCase() === "faculty";
     setIsFacultyUser(faculty);
@@ -357,8 +392,10 @@ const Reports = () => {
           : [];
       setEquipmentList(list);
       if (list.length > 0) {
+        const fromUrl = urlEquipment.current;
         setEquipmentId((prev) => {
           if (prev && prev !== "all" && list.some((e) => String(e.equipment_id) === prev)) return prev;
+          if (fromUrl === "all" && !labInchargeRef.current) return "all";
           return String(list[0].equipment_id);
         });
       }
@@ -469,6 +506,7 @@ const Reports = () => {
     () =>
       Object.entries(stats.statusCounts).map(([name, value]) => ({
         name: getStatusLabel(name),
+        status: name,
         value,
         fill: getStatusColor(name),
       })),
@@ -479,6 +517,7 @@ const Reports = () => {
     () =>
       Object.entries(stats.statusCounts).map(([name, value]) => ({
         status: getStatusLabel(name),
+        code: name,
         count: value,
         fill: getStatusColor(name),
       })),
@@ -498,6 +537,75 @@ const Reports = () => {
     () => utilizationPieData.reduce((s, x) => s + (Number(x.hours) || 0), 0),
     [utilizationPieData]
   );
+
+  const reportFrom = equipmentReportData?.date_from || dateFrom;
+  const reportTo = equipmentReportData?.date_to || dateTo;
+  const drillTo = useCallback(
+    (dimension: string, value?: string | number | null, user?: number) =>
+      drilldownPath({
+        source: "performance",
+        dimension,
+        value,
+        from: reportFrom,
+        to: reportTo,
+        equipment: equipmentId,
+        user,
+      }),
+    [reportFrom, reportTo, equipmentId],
+  );
+
+  const revenueTables = useMemo(() => {
+    const fin = equipmentReportData?.financial;
+    const row = (key: string | number, label: string, r: { total: string | number; count: number; users?: number; drill_value?: string | number }, dimension: string, sublabel?: string): DrillTableRow => ({
+      key,
+      label,
+      sublabel,
+      bookings: Number(r.count || 0),
+      users: r.users,
+      revenue: Number(r.total || 0),
+      to: r.drill_value !== undefined && r.drill_value !== null ? drillTo(dimension, r.drill_value) : undefined,
+    });
+    const categoryLabel = (r: { user_type_label?: string; user_type_snapshot?: string }) =>
+      r.user_type_label || userCategoryLabel(r.user_type_snapshot);
+    return {
+      userType: (fin?.revenue_by_user_type ?? []).map((r, i) =>
+        row(String(r.drill_value ?? i), categoryLabel(r), r, "category"),
+      ),
+      department: (fin?.revenue_by_department ?? []).map((r, i) =>
+        row(String(r.drill_value ?? i), r.user__department__name || "No department", r, "department"),
+      ),
+      equipment: (fin?.revenue_by_equipment ?? []).slice(0, 30).map((r, i) =>
+        row(String(r.drill_value ?? r.equipment_id ?? i), r.equipment__name || r.equipment__code || "—", r, "equipment", r.equipment__code || undefined),
+      ),
+      external: (fin?.revenue_by_external_category ?? []).map((r, i) =>
+        row(String(r.drill_value ?? i), categoryLabel(r), r, "external_category"),
+      ),
+      month: (fin?.revenue_by_month ?? []).map((r, i) => row(String(r.drill_value ?? i), r.month_label || r.month, r, "month")),
+      users: (fin?.revenue_by_user ?? []).slice(0, 15).map((r) => ({
+        key: r.user_id,
+        label: r.user__name || r.user__email || "—",
+        sublabel: r.user__name ? r.user__email || undefined : undefined,
+        bookings: Number(r.count || 0),
+        revenue: Number(r.total || 0),
+        to: drillTo("all", undefined, r.user_id),
+      })),
+    };
+  }, [equipmentReportData, drillTo]);
+
+  const userTypeChart = useMemo(
+    () => revenueTables.userType.map((r) => ({ name: String(r.label), value: r.revenue })).filter((r) => r.value > 0),
+    [revenueTables],
+  );
+
+  const reportSections = useMemo<ReportSection[]>(() => {
+    if (!equipmentReportData) return [];
+    const list: ReportSection[] = [{ id: "report-summary", label: "Summary" }];
+    if (!isLabInchargeUser && equipmentReportData.revenue_visible !== false && equipmentReportData.financial) {
+      list.push({ id: "report-revenue", label: "Revenue" }, { id: "report-revenue-trend", label: "Monthly trend" });
+    }
+    list.push({ id: "report-utilization", label: "Utilization" }, { id: "report-equipment", label: "Equipment-wise" });
+    return list;
+  }, [equipmentReportData, isLabInchargeUser]);
 
   const isStaffScope = ["equipment", "department", "institute"].includes(stats.scope);
   const spentLabel = isStaffScope ? "Total Charged" : "Total Spent";
@@ -882,7 +990,7 @@ const Reports = () => {
                                       )}
                                     </TableCell>
                                     <TableCell>
-                                      <div className="font-medium">{m.name}</div>
+                                      <UserIdCardLink userId={m.user_id} name={m.name} email={m.email} />
                                       <div className="text-xs text-muted-foreground">{m.email}</div>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-sm">{m.role_label}</TableCell>
@@ -907,7 +1015,7 @@ const Reports = () => {
                                                 <TableRow key={`${m.user_id}-${eq.equipment_id}`}>
                                                   <TableCell className="text-sm">
                                                     <span className="font-mono text-xs mr-2">{eq.equipment_code}</span>
-                                                    {eq.equipment_name}
+                                                    <EquipmentLink id={eq.equipment_id} name={eq.equipment_name} code={eq.equipment_code} />
                                                   </TableCell>
                                                   <TableCell className="text-right">{eq.booking_count}</TableCell>
                                                   <TableCell className="text-right">₹{Number(eq.total_spend || 0).toFixed(2)}</TableCell>
@@ -945,7 +1053,7 @@ const Reports = () => {
                               <TableRow key={eq.equipment_id}>
                                 <TableCell className="font-medium">
                                   <span className="font-mono text-xs text-muted-foreground mr-2">{eq.equipment_code}</span>
-                                  {eq.equipment_name}
+                                  <EquipmentLink id={eq.equipment_id} name={eq.equipment_name} code={eq.equipment_code} />
                                 </TableCell>
                                 <TableCell className="text-right">{eq.booking_count}</TableCell>
                                 <TableCell className="text-right">₹{Number(eq.total_spend || 0).toFixed(2)}</TableCell>
@@ -973,83 +1081,43 @@ const Reports = () => {
           </p>
         )}
         {!isLabInchargeUser && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <Link to="/reports/bookings" className="block group">
-            <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Bookings
-                </CardTitle>
-                <Calendar className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-4xl font-bold text-primary">{stats.totalBookings}</p>
-                <p className="text-xs text-muted-foreground mt-1">All statuses, incl. cancelled and refunded</p>
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  View full list <ArrowRight className="h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/reports/bookings" className="block group">
-            <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {spentLabel}
-                </CardTitle>
-                <IndianRupee className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-4xl font-bold text-primary">₹{stats.totalSpent.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1" title={SPEND_DEFINITION}>
-                  Excludes refunded amounts
-                  {stats.refundedAmount > 0 ? ` (₹${stats.refundedAmount.toFixed(2)} refunded)` : ""}
-                </p>
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  View amount details <ArrowRight className="h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/reports/bookings" className="block group">
-            <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Total Hours Booked
-                </CardTitle>
-                <Clock className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-4xl font-bold text-primary">{stats.totalHours.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">Charged bookings only</p>
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  View booking list <ArrowRight className="h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/reports/bookings" className="block group">
-            <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:scale-[1.02]">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Avg. Cost per Booking
-                </CardTitle>
-                <TrendingUp className="h-5 w-5 text-muted-foreground group-hover:text-primary" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-4xl font-bold text-primary">₹{stats.averageCost.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {spentLabel} ÷ {stats.chargedBookings} charged booking(s)
-                </p>
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  View all bookings <ArrowRight className="h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <ReportKpiCard
+            title="Total Bookings"
+            icon={Calendar}
+            value={stats.totalBookings}
+            hint="All statuses, incl. cancelled and refunded"
+            to="/reports/bookings"
+            linkLabel="View full list"
+          />
+          <ReportKpiCard
+            title={spentLabel}
+            icon={IndianRupee}
+            tone="emerald"
+            value={formatInr(stats.totalSpent)}
+            hint={`Excludes refunded amounts${stats.refundedAmount > 0 ? ` (${formatInr(stats.refundedAmount)} refunded)` : ""}`}
+            definition={SPEND_DEFINITION}
+            to="/reports/bookings"
+            linkLabel="View amount details"
+          />
+          <ReportKpiCard
+            title="Total Hours Booked"
+            icon={Clock}
+            tone="sky"
+            value={stats.totalHours.toFixed(2)}
+            hint="Charged bookings only"
+            to="/reports/bookings"
+            linkLabel="View booking list"
+          />
+          <ReportKpiCard
+            title="Avg. Cost per Booking"
+            icon={TrendingUp}
+            tone="violet"
+            value={formatInr(stats.averageCost)}
+            hint={`${spentLabel} ÷ ${stats.chargedBookings} charged booking(s)`}
+            to="/reports/bookings"
+            linkLabel="View all bookings"
+          />
         </div>
         )}
 
@@ -1075,6 +1143,10 @@ const Reports = () => {
                       paddingAngle={2}
                       dataKey="value"
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      className="cursor-pointer"
+                      onClick={(entry: { status?: string }) =>
+                        entry?.status && navigate(`/reports/bookings?status=${encodeURIComponent(entry.status)}`)
+                      }
                     >
                       {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -1102,7 +1174,19 @@ const Reports = () => {
                     <XAxis dataKey="status" tick={{ fontSize: 12 }} />
                     <YAxis allowDecimals={false} />
                     <Tooltip />
-                    <Bar dataKey="count" name="Bookings" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="count"
+                      name="Bookings"
+                      radius={[4, 4, 0, 0]}
+                      className="cursor-pointer"
+                      onClick={(entry: { code?: string }) =>
+                        entry?.code && navigate(`/reports/bookings?status=${encodeURIComponent(entry.code)}`)
+                      }
+                    >
+                      {barData.map((entry) => (
+                        <Cell key={entry.code} fill={entry.fill} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -1265,39 +1349,36 @@ const Reports = () => {
                   {equipmentReportData.summary.total_equipment} equipment
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6">
+                <ReportSectionNav sections={reportSections} />
+
+                <div id="report-summary" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-6 scroll-mt-16">
                   {showRevenue && (
                     <>
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <IndianRupee className="h-4 w-4" />
-                            Revenue (total)
-                          </CardTitle>
-                          <CardDescription>Completed bookings in period</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-2xl font-semibold">
-                          ₹{Number(equipmentReportData.summary.revenue_total || 0).toFixed(2)}
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Revenue (internal)</CardTitle>
-                          <CardDescription>Students / faculty</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-2xl font-semibold">
-                          ₹{Number(equipmentReportData.summary.revenue_internal || 0).toFixed(2)}
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Revenue (external)</CardTitle>
-                          <CardDescription>External categories combined</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-2xl font-semibold">
-                          ₹{Number(equipmentReportData.summary.revenue_external || 0).toFixed(2)}
-                        </CardContent>
-                      </Card>
+                      <ReportKpiCard
+                        title="Revenue (total)"
+                        icon={IndianRupee}
+                        tone="brand"
+                        value={formatInr(equipmentReportData.summary.revenue_total)}
+                        hint="Completed bookings in period"
+                        definition="Charges of bookings completed with a slot in the period. Test accounts and test equipment are left out."
+                        to={drillTo("all")}
+                      />
+                      <ReportKpiCard
+                        title="Revenue (internal)"
+                        icon={Users}
+                        tone="sky"
+                        value={formatInr(equipmentReportData.summary.revenue_internal)}
+                        hint="IITR Students, Faculty, Staff and Startups"
+                        to={drillTo("internal")}
+                      />
+                      <ReportKpiCard
+                        title="Revenue (external)"
+                        icon={Building2}
+                        tone="amber"
+                        value={formatInr(equipmentReportData.summary.revenue_external)}
+                        hint="Academic, Industry, Govt R&D, Startup / MSME and other external users"
+                        to={drillTo("external")}
+                      />
                     </>
                   )}
                   <Card>
@@ -1393,65 +1474,77 @@ const Reports = () => {
                 </div>
 
                 {showRevenue && equipmentReportData.financial && (
-                  <div className="grid lg:grid-cols-2 gap-6 mb-6">
+                  <section id="report-revenue" className="mb-6 scroll-mt-16 space-y-6">
                     <Card>
                       <ReportSectionHeader
                         title="Revenue by user type"
-                        description="Internal + external category distribution"
+                        description="IITR Students, IITR Faculty and each external category. Click a row for the users and their bookings."
                         table="revenue_user_type"
                         getParams={equipmentReportParams}
                       />
-                      <CardContent className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>User type</TableHead>
-                              <TableHead className="text-right">Bookings</TableHead>
-                              <TableHead className="text-right">Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(equipmentReportData.financial.revenue_by_user_type || []).map((r, idx) => (
-                              <TableRow key={`${r.user_type_snapshot}-${idx}`}>
-                                <TableCell className="font-medium">{String(r.user_type_snapshot || "—")}</TableCell>
-                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
-                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                      <CardContent className="grid gap-6 lg:grid-cols-5">
+                        <div className="lg:col-span-2">
+                          {userTypeChart.length === 0 ? (
+                            <p className="py-12 text-center text-sm text-muted-foreground">No revenue in this period</p>
+                          ) : (
+                            <ResponsiveContainer width="100%" height={260}>
+                              <PieChart>
+                                <Pie
+                                  data={userTypeChart}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  innerRadius={58}
+                                  outerRadius={100}
+                                  paddingAngle={2}
+                                  onClick={(entry: { name?: string }) => {
+                                    const target = revenueTables.userType.find((r) => r.label === entry?.name)?.to;
+                                    if (target) navigate(target);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  {userTypeChart.map((_, i) => (
+                                    <Cell key={i} fill={reportColor(i)} />
+                                  ))}
+                                </Pie>
+                                <Tooltip formatter={(v: number, name: string) => [formatInr(v), name]} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          )}
+                        </div>
+                        <div className="lg:col-span-3">
+                          <DrillTable rows={revenueTables.userType} labelHeader="User type" swatches />
+                        </div>
                       </CardContent>
                     </Card>
 
-                    <Card>
-                      <ReportSectionHeader
-                        title="Revenue by department"
-                        description="Internal department split (where available)"
-                        table="revenue_department"
-                        getParams={equipmentReportParams}
-                      />
-                      <CardContent className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Department</TableHead>
-                              <TableHead className="text-right">Bookings</TableHead>
-                              <TableHead className="text-right">Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(equipmentReportData.financial.revenue_by_department || []).map((r, idx) => (
-                              <TableRow key={`${r.user__department__name}-${idx}`}>
-                                <TableCell className="font-medium">{String(r.user__department__name || "—")}</TableCell>
-                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
-                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </Card>
-                  </div>
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      <Card>
+                        <ReportSectionHeader
+                          title="Revenue by department"
+                          description="Department of the user who booked. Click a department for its users."
+                          table="revenue_department"
+                          getParams={equipmentReportParams}
+                        />
+                        <CardContent>
+                          <DrillTable rows={revenueTables.department} labelHeader="Department" />
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <ReportSectionHeader
+                          title="Top users by revenue"
+                          description="Click a user for their bookings in this report."
+                          table="revenue_user"
+                          getParams={equipmentReportParams}
+                        />
+                        <CardContent>
+                          <DrillTable rows={revenueTables.users} labelHeader="User" showUsers={false} showTotal={false} />
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </section>
                 )}
 
                 {showRevenue && equipmentReportData.financial && (
@@ -1459,66 +1552,71 @@ const Reports = () => {
                     <Card>
                       <ReportSectionHeader
                         title="Revenue by equipment"
-                        description="Completed bookings revenue per equipment"
+                        description="Completed bookings revenue per equipment (modes counted under their parent)"
                         table="revenue_equipment"
                         getParams={equipmentReportParams}
                       />
-                      <CardContent className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Equipment</TableHead>
-                              <TableHead className="text-right">Bookings</TableHead>
-                              <TableHead className="text-right">Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(equipmentReportData.financial.revenue_by_equipment || []).slice(0, 30).map((r, idx) => (
-                              <TableRow key={`${r.equipment_id}-${idx}`}>
-                                <TableCell className="font-medium">
-                                  {String(r.equipment__code || "")} – {String(r.equipment__name || "—")}
-                                </TableCell>
-                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
-                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                      <CardContent>
+                        <DrillTable rows={revenueTables.equipment} labelHeader="Equipment" />
                       </CardContent>
                     </Card>
 
                     <Card>
                       <ReportSectionHeader
                         title="External revenue by category"
-                        description="RND / Industry / Educational Institute / Other"
+                        description="Educational / Academic, Industry, Govt R&D, Startup / MSME and other external users"
                         table="revenue_external"
                         getParams={equipmentReportParams}
                       />
-                      <CardContent className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Category</TableHead>
-                              <TableHead className="text-right">Bookings</TableHead>
-                              <TableHead className="text-right">Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(equipmentReportData.financial.revenue_by_external_category || []).map((r, idx) => (
-                              <TableRow key={`${r.user_type_snapshot}-${idx}`}>
-                                <TableCell className="font-medium">{String(r.user_type_snapshot || "—")}</TableCell>
-                                <TableCell className="text-right">{Number(r.count || 0)}</TableCell>
-                                <TableCell className="text-right">₹{Number(r.total || 0).toFixed(2)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                      <CardContent>
+                        <DrillTable rows={revenueTables.external} labelHeader="Category" emptyText="No external revenue in this period" />
                       </CardContent>
                     </Card>
                   </div>
                 )}
 
-                <div className="mb-6 grid gap-6">
+                {showRevenue && equipmentReportData.financial && (
+                  <Card id="report-revenue-trend" className="mb-6 scroll-mt-16">
+                    <ReportSectionHeader
+                      title="Revenue by month"
+                      description="Month of the booked slot. Click a bar or row for that month's users and bookings."
+                      table="revenue_month"
+                      getParams={equipmentReportParams}
+                    />
+                    <CardContent className="grid gap-6 lg:grid-cols-5">
+                      <div className="lg:col-span-3">
+                        {revenueTables.month.length === 0 ? (
+                          <p className="py-12 text-center text-sm text-muted-foreground">No revenue in this period</p>
+                        ) : (
+                          <ResponsiveContainer width="100%" height={260}>
+                            <BarChart
+                              data={revenueTables.month.map((m) => ({ name: String(m.label), revenue: m.revenue, to: m.to }))}
+                              margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                              <YAxis tickFormatter={(v) => `₹${Number(v).toLocaleString("en-IN")}`} width={80} />
+                              <Tooltip formatter={(v: number) => [formatInr(v), "Revenue"]} />
+                              <Bar
+                                dataKey="revenue"
+                                name="Revenue"
+                                fill={INTERNAL_COLOR}
+                                radius={[4, 4, 0, 0]}
+                                className="cursor-pointer"
+                                onClick={(entry: { to?: string }) => entry?.to && navigate(entry.to)}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                      <div className="lg:col-span-2">
+                        <DrillTable rows={revenueTables.month} labelHeader="Month" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div id="report-utilization" className="mb-6 grid gap-6 scroll-mt-16">
                   <Card>
                     <ReportSectionHeader
                       title="Overall equipment utilization"
@@ -1578,7 +1676,7 @@ const Reports = () => {
 
                 </div>
 
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div id="report-equipment" className="mb-2 flex flex-wrap items-center justify-between gap-2 scroll-mt-16">
                   <div>
                     <h3 className="text-base font-semibold tracking-tight">Equipment-wise report</h3>
                     <p className="text-xs text-muted-foreground">
@@ -1618,8 +1716,8 @@ const Reports = () => {
                       { label: "Completed (work window)", h: Number(eq.completed_slot_hours_working_window ?? 0), fill: "#7c3aed" },
                     ];
                     const userBar = [
-                      { label: "Internal users", n: eq.distinct_users_internal ?? 0, fill: "#2563eb" },
-                      { label: "External users", n: eq.distinct_users_external ?? 0, fill: "#ea580c" },
+                      { label: "Internal users", n: eq.distinct_users_internal ?? 0, fill: INTERNAL_COLOR },
+                      { label: "External users", n: eq.distinct_users_external ?? 0, fill: EXTERNAL_COLOR },
                     ];
                     const critLabels: Record<string, string> = {
                       on_time_operator_availability: "On-time & operator availability",
@@ -1685,16 +1783,24 @@ const Reports = () => {
                               <Building2 className="h-4 w-4 mt-0.5 shrink-0 text-slate-500" />
                               <span>
                                 <span className="font-medium text-foreground">OIC:</span>{" "}
-                                {(eq.officers_in_charge || []).map((m) => m.name || m.email).join(", ") || "—"}
+                                <PeopleLinks people={eq.officers_in_charge} />
                               </span>
                             </div>
                             <div className="flex items-start gap-2">
                               <Users className="h-4 w-4 mt-0.5 shrink-0 text-slate-500" />
                               <span>
                                 <span className="font-medium text-foreground">Lab operator(s):</span>{" "}
-                                {(eq.lab_operators || []).map((m) => m.name || m.email).join(", ") || "—"}
+                                <PeopleLinks people={eq.lab_operators} />
                               </span>
                             </div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                            <EquipmentLink id={eq.equipment_id} name="Open equipment page" />
+                            {showRevenue ? (
+                              <Link to={drillTo("equipment", eq.equipment_id)} className="text-primary hover:underline">
+                                Users &amp; bookings behind its revenue
+                              </Link>
+                            ) : null}
                           </div>
                         </div>
                         <CardContent className="space-y-6 pt-4">

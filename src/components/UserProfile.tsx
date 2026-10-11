@@ -2,6 +2,7 @@ import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Mail, Phone, Building2 } from 'lucide-react';
 import { getInitials } from '@/lib/displayName';
+import { UserIdCardLink } from '@/components/users/UserIdCardLink';
 
 interface UserProfileProps {
   name?: string | null;
@@ -13,6 +14,8 @@ interface UserProfileProps {
   showPhone?: boolean;
   className?: string;
   nameClassName?: string;
+  /** Makes the name open the user's ID card. */
+  userId?: number | string | null;
 }
 
 const sizeClasses = {
@@ -43,6 +46,7 @@ const UserProfile: React.FC<UserProfileProps> = ({
   showPhone = true,
   className = '',
   nameClassName = 'font-medium',
+  userId,
 }) => {
   const sizes = sizeClasses[size];
   const displayName = name || email || 'Unknown User';
@@ -57,7 +61,9 @@ const UserProfile: React.FC<UserProfileProps> = ({
         </AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <p className={`${nameClassName} ${sizes.text} truncate`}>{displayName}</p>
+        <p className={`${nameClassName} ${sizes.text} truncate`}>
+          {userId != null ? <UserIdCardLink userId={userId} name={displayName} className={nameClassName} /> : displayName}
+        </p>
         {email && (
           <div className="flex items-center gap-1 text-muted-foreground">
             <Mail className={sizes.icon} />

@@ -14,6 +14,7 @@ import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
 import QuotaBreakdownHost from "./components/quota/QuotaBreakdownHost";
+import { UserCardProvider } from "./components/users/UserIdCardLink";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useStaffAppShell } from "./lib/staffApp";
 import { isNativeApp } from "./lib/nativeApp";
@@ -50,6 +51,7 @@ const App = () => (
           <Sonner />
           <BuildUpdateNotifier />
           <PeakWindowGate>
+            <UserCardProvider>
             <EmbedChrome />
             <GlobalBackButton />
             <AssistantLauncher />
@@ -57,6 +59,7 @@ const App = () => (
             <AppRoutes />
             <StaffAppChrome />
             <QuotaBreakdownHost />
+            </UserCardProvider>
           </PeakWindowGate>
         </NotificationProvider>
         </UserGuideProvider>

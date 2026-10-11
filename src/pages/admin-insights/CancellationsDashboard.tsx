@@ -4,6 +4,7 @@ import { CalendarX2, Info } from "lucide-react";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import { BookingLink } from "@/components/BookingLink";
 import { ExportMenu } from "@/components/ExportMenu";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -472,7 +473,9 @@ export default function CancellationsDashboard() {
                           <div className="text-xs text-muted-foreground">{r.booking.status_display}</div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{r.user.name}</div>
+                          <div className="font-medium">
+                            <UserIdCardLink userId={r.user.id} name={r.user.name} />
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {[r.user.category_display, r.user.department].filter(Boolean).join(" · ")}
                           </div>

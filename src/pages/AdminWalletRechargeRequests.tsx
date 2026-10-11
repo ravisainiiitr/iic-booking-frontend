@@ -4,6 +4,7 @@ import { apiClient, extractAdminListItems, type SricReminderPreview } from "@/li
 import { cashbookUploadSummary, formatCutoffDate, sricDeclineOutcome } from "@/lib/walletRecharge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -917,6 +918,9 @@ export default function AdminWalletRechargeRequests() {
                               Emp: {row.employee_number || row.user_emp_id || "—"}
                             </div>
                           </button>
+                          <UserIdCardLink userId={row.user} showIcon className="mt-1 text-xs">
+                            ID card
+                          </UserIdCardLink>
                           {row.is_test_account ? <TestAccountBadge className="mt-1" /> : null}
                         </TableCell>
                         <TableCell>

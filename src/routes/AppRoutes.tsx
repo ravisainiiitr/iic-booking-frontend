@@ -67,6 +67,7 @@ const LegacyBookingMapping = lazyPage(() => import("@/pages/LegacyBookingMapping
 const MigrationBookingDetail = lazyPage(() => import("@/pages/MigrationBookingDetail"));
 const Reports = lazyPage(() => import("@/pages/Reports"));
 const ReportBookingsList = lazyPage(() => import("@/pages/ReportBookingsList"));
+const ReportDrilldown = lazyPage(() => import("@/pages/ReportDrilldown"));
 const AdminSection = lazyPage(() => import("@/pages/AdminSection"));
 const DepartmentRbacManagement = lazyPage(() => import("@/pages/DepartmentRbacManagement"));
 const DepartmentAdministrationHub = lazyPage(() => import("@/pages/DepartmentAdministrationHub"));
@@ -306,6 +307,7 @@ export default function AppRoutes() {
           />
           <Route path="/reports" element={<Reports />} />
           <Route path="/reports/bookings" element={<ReportBookingsList />} />
+          <Route path="/reports/drilldown" element={<ReportDrilldown />} />
           <Route path="/proforma-invoice" element={<ProformaInvoice />} />
           {/* /admin is deprecated: everything is on /dashboard */}
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />

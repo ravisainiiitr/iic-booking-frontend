@@ -31,6 +31,8 @@ import { Loader2, Trash2, X, Calculator, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { preloadQuotaBreakdown } from "@/components/quota/QuotaBreakdownHost";
 import { openQuotaBreakdown } from "@/lib/quotaBreakdown";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -719,11 +721,13 @@ const BookingAttemptLogs = () => {
                           {formatDateSafe(row.requested_at, "dd MMM yyyy, HH:mm:ss")}
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">{row.user_name}</div>
+                          <div className="font-medium">
+                            <UserIdCardLink userId={row.user_id} name={row.user_name} email={row.user_email} />
+                          </div>
                           <div className="text-xs text-muted-foreground">{row.user_email}</div>
                         </TableCell>
                         <TableCell>
-                          <div>{row.equipment_name}</div>
+                          <EquipmentLink id={row.equipment_id} name={row.equipment_name} code={row.equipment_code} className="block" />
                           <div className="text-xs text-muted-foreground">{row.equipment_code}</div>
                         </TableCell>
                         <TableCell>

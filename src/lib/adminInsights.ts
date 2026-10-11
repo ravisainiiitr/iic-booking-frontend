@@ -547,6 +547,11 @@ export interface UserCard {
     certificate_no: string;
   }>;
   bookings: { total: number; charged: number; cancelled: number; recent: UserCardBooking[] };
+  /**
+   * From GET /users/<id>/card/: "full" for administrators (wallet, linked users' bookings), "scoped" for staff and
+   * supervisors (bookings within their own scope), "self" for the signed-in user's own card.
+   */
+  access?: "full" | "scoped" | "self";
 }
 
 export interface WalletMember {

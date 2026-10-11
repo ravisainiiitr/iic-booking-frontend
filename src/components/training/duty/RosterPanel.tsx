@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { trainingApi } from "@/lib/trainingApi";
 import type { RosterEntry } from "@/lib/trainingOpsTypes";
 import type { TrainingEquipmentRef, TrainingUserRef } from "@/lib/trainingTypes";
@@ -235,10 +237,16 @@ export function RosterPanel({ refreshKey }: { refreshKey: number }) {
               {visible.map((r) => (
                 <TableRow key={r.id} className={cn(r.status === "REMOVED" && "opacity-60")}>
                   <TableCell>
-                    <p className="text-sm font-medium">{r.user.name}</p>
+                    <p className="text-sm font-medium">
+                      <UserIdCardLink userId={r.user.id} name={r.user.name} />
+                    </p>
                     <p className="text-xs text-muted-foreground">{r.user.email}</p>
                   </TableCell>
-                  {!equipment ? <TableCell className="text-sm">{r.equipment.name}</TableCell> : null}
+                  {!equipment ? (
+                    <TableCell className="text-sm">
+                      <EquipmentLink id={r.equipment.equipment_id} name={r.equipment.name} />
+                    </TableCell>
+                  ) : null}
                   <TableCell className="text-xs">
                     <p>{r.basis || r.source_label}</p>
                     {r.award?.valid_until ? <p className="text-muted-foreground">valid to {formatDate(r.award.valid_until)}</p> : null}

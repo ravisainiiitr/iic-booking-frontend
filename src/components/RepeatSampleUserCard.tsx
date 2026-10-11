@@ -69,6 +69,7 @@ export function RepeatSampleUserCard({ loading, source, onBack }: Props) {
             }
             size="md"
             nameClassName="font-semibold"
+            userId={source.user}
           />
           {source.wallet_owner_name && (
             <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-2 ml-[3.25rem]">

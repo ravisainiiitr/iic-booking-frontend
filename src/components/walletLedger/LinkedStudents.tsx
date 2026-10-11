@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import {
   apiClient,
@@ -109,7 +110,7 @@ function SupervisedList({ rows, compact = false }: { rows: LedgerSupervisedUser[
         {rows.map((u) => (
           <li key={u.student_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2">
             <span className="font-medium">
-              {u.name}
+              <UserIdCardLink userId={u.student_id} name={u.name} />
               {!u.is_active ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(inactive)</span> : null}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -339,6 +340,9 @@ export function LinkedStudentsPanel({
                           >
                             {s.name}
                           </button>
+                          <UserIdCardLink userId={s.student_id} showIcon className="ml-1.5 align-middle">
+                            <span className="sr-only">ID card of {s.name}</span>
+                          </UserIdCardLink>
                           {!s.is_active ? <span className="ml-1.5 text-xs text-muted-foreground">(inactive)</span> : null}
                           {s.enrollment ? <div className="text-xs text-muted-foreground">ID: {s.enrollment}</div> : null}
                           <div className="break-all text-xs text-muted-foreground">{s.email}</div>

@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { trainingApi } from "@/lib/trainingApi";
 import type {
   Assessment,
@@ -343,8 +345,12 @@ function AssessmentTable({ rows, onSignOff }: { rows: Assessment[]; onSignOff?: 
           {rows.map((a) => (
             <TableRow key={a.id}>
               <TableCell>
-                <p className="font-medium">{a.user.name}</p>
-                <p className="text-xs text-muted-foreground">{a.equipment.name}</p>
+                <p className="font-medium">
+                  <UserIdCardLink userId={a.user.id} name={a.user.name} />
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <EquipmentLink id={a.equipment.equipment_id} name={a.equipment.name} />
+                </p>
               </TableCell>
               <TableCell className="text-sm">{a.target_level_name}</TableCell>
               <TableCell>
@@ -486,7 +492,9 @@ export function AssessmentsPanel({ onChanged }: { onChanged?: () => void }) {
                     {filtered.map((c) => (
                       <TableRow key={c.user.id}>
                         <TableCell>
-                          <p className="font-medium">{c.user.name}</p>
+                          <p className="font-medium">
+                            <UserIdCardLink userId={c.user.id} name={c.user.name} />
+                          </p>
                           <p className="text-xs text-muted-foreground">{c.user.department || c.user.email}</p>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">{c.reasons.join(" · ")}</TableCell>

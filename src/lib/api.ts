@@ -1633,14 +1633,14 @@ export interface FinanceReportDashboardData {
   charts: {
     revenue_trend: Array<{ date: string; revenue: number }>;
     internal_vs_external: Array<{ name: string; value: number }>;
-    revenue_by_department: Array<{ name: string; revenue: number; bookings: number }>;
-    revenue_by_org_category: Array<{ name: string; revenue: number; bookings: number; pct: number }>;
-    equipment_revenue: Array<{ name: string; code: string; revenue: number; bookings: number }>;
+    revenue_by_department: Array<{ name: string; revenue: number; bookings: number; drill_value?: string | number }>;
+    revenue_by_org_category: Array<{ name: string; revenue: number; bookings: number; pct: number; drill_value?: string }>;
+    equipment_revenue: Array<{ name: string; code: string; revenue: number; bookings: number; drill_value?: number }>;
   };
   tables: {
-    internal_by_department: Array<{ name: string; revenue: number; bookings: number }>;
-    internal_by_equipment: Array<{ name: string; code: string; revenue: number; bookings: number }>;
-    external_by_category: Array<{ name: string; revenue: number; bookings: number }>;
+    internal_by_department: Array<{ name: string; revenue: number; bookings: number; drill_value?: string | number }>;
+    internal_by_equipment: Array<{ name: string; code: string; revenue: number; bookings: number; drill_value?: number }>;
+    external_by_category: Array<{ name: string; revenue: number; bookings: number; drill_value?: string }>;
     equipment_analysis: Array<{ name: string; code: string; revenue: number; bookings: number; booking_hours: number }>;
     payment_analytics: {
       wallet_recharge_approved: number;
@@ -1652,6 +1652,100 @@ export interface FinanceReportDashboardData {
       online_payments: number;
     };
   };
+}
+
+/** One row of a Reports & Statistics revenue table; ``drill_value`` opens it at /reports/drilldown. */
+export interface ReportRevenueRow {
+  total: string | number;
+  count: number;
+  users?: number;
+  drill_value?: string | number;
+}
+
+export type ReportDrillSource = "performance" | "finance";
+
+export interface ReportDrillParams {
+  dimension: string;
+  value?: string;
+  date_from?: string;
+  date_to?: string;
+  equipment_id?: string;
+  preset?: string;
+  user?: number;
+}
+
+const reportDrillBase = (source: ReportDrillSource) =>
+  source === "finance" ? "/finance/reports/" : "/admin/equipment-reports/";
+
+function reportDrillQuery(params: ReportDrillParams): string {
+  const q = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") q.set(key, String(value));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+interface ReportDrillHeader {
+  source: ReportDrillSource;
+  report_title: string;
+  date_from: string;
+  date_to: string;
+  period_display: string;
+  revenue_definition: string;
+  revenue_visible: boolean;
+  segment: {
+    dimension: string;
+    dimension_label: string;
+    value: string;
+    label: string;
+    bookings: number;
+    users: number;
+    revenue?: number;
+  };
+}
+
+export interface ReportDrillUsers extends ReportDrillHeader {
+  users: Array<{
+    user_id: number;
+    name: string;
+    email: string;
+    category: string;
+    category_label: string;
+    department: string;
+    bookings: number;
+    revenue?: number;
+  }>;
+  count: number;
+}
+
+export interface ReportDrillBookings extends ReportDrillHeader {
+  user: {
+    user_id: number;
+    name: string;
+    email: string;
+    category_label: string;
+    department: string;
+    bookings: number;
+    revenue?: number;
+  } | null;
+  bookings: Array<{
+    pk: number;
+    display_id: string;
+    equipment: { id: number; name: string; code: string };
+    user: { id: number; name: string; email: string };
+    category_label: string;
+    department: string;
+    slot_start: string | null;
+    slot_end: string | null;
+    completed_at: string | null;
+    hours: number;
+    status: string;
+    status_display: string;
+    charge?: number;
+  }>;
+  count: number;
+  truncated: boolean;
 }
 
 export interface GroupEquipmentSummary {
@@ -7011,6 +7105,26 @@ class ApiClient {
   /** Main Admin / Dept Admin: user card opened from the Users overview. */
   async getAdminUserCard(userId: number) {
     return this.request<UserCard>(`/admin/insights/users/${userId}/`, { method: 'GET' });
+  }
+
+  /** A user's ID card for any signed-in viewer; the backend limits it to users within the viewer's scope. */
+  async getUserCard(userId: number) {
+    return this.request<UserCard>(`/users/${userId}/card/`, { method: 'GET' });
+  }
+
+  /** Users behind one Reports & Statistics row (Equipment Performance or Departmental Finance report). */
+  async getReportDrilldownUsers(source: ReportDrillSource, params: ReportDrillParams) {
+    return this.request<ReportDrillUsers>(`${reportDrillBase(source)}drilldown/${reportDrillQuery(params)}`, {
+      method: 'GET',
+    });
+  }
+
+  /** Bookings behind one Reports & Statistics row, or one user's share of it (``params.user``). */
+  async getReportDrilldownBookings(source: ReportDrillSource, params: ReportDrillParams) {
+    return this.request<ReportDrillBookings>(
+      `${reportDrillBase(source)}drilldown-bookings/${reportDrillQuery(params)}`,
+      { method: 'GET' },
+    );
   }
 
   /** Main Admin / Dept Admin: bookings by every user linked to the user's wallet. */
@@ -14176,11 +14290,13 @@ class ApiClient {
         utilization_vs_working_capacity?: number | null;
       };
       financial?: {
-        revenue_by_user_type?: Array<{ user_type_snapshot: string; total: string | number; count: number }>;
-        revenue_by_department?: Array<{ user__department__name: string | null; total: string | number; count: number }>;
-        revenue_by_user?: Array<{ user_id: number; user__name: string | null; user__email: string | null; total: string | number; count: number }>;
-        revenue_by_equipment?: Array<{ equipment_id: number; equipment__code: string | null; equipment__name: string | null; total: string | number; count: number }>;
-        revenue_by_external_category?: Array<{ user_type_snapshot: string; total: string | number; count: number }>;
+        /** ``user_type_snapshot`` / ``user_type_label`` hold the category name (e.g. "IITR Students"). */
+        revenue_by_user_type?: Array<ReportRevenueRow & { category?: string; user_type_snapshot: string; user_type_label?: string }>;
+        revenue_by_department?: Array<ReportRevenueRow & { user__department_id?: number | null; user__department__name: string | null }>;
+        revenue_by_user?: Array<ReportRevenueRow & { user_id: number; user__name: string | null; user__email: string | null }>;
+        revenue_by_equipment?: Array<ReportRevenueRow & { equipment_id: number; equipment__code: string | null; equipment__name: string | null }>;
+        revenue_by_external_category?: Array<ReportRevenueRow & { category?: string; user_type_snapshot: string; user_type_label?: string }>;
+        revenue_by_month?: Array<ReportRevenueRow & { month: string; month_label: string }>;
       };
     }>(`${endpoint}${q.toString() ? `?${q.toString()}` : ''}`, { method: 'GET' });
   }

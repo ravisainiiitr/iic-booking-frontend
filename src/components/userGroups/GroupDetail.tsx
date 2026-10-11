@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import {
   EMPTY_FILTERS,
   facilityGroupsApi,
@@ -348,7 +349,9 @@ export function GroupDetail({
                       </TableCell>
                     ) : null}
                     <TableCell>
-                      <div className="font-medium">{m.name}</div>
+                      <div className="font-medium">
+                        <UserIdCardLink userId={m.user_id} name={m.name} />
+                      </div>
                       <div className="flex flex-wrap justify-center gap-1">
                         <RoleBadge role={m.role} />
                         {m.is_active ? null : <Badge variant="outline" className="text-[11px]">Inactive</Badge>}

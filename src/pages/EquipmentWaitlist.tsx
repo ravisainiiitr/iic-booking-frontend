@@ -21,6 +21,8 @@ import WaitlistManualConfirmDialog from "@/components/WaitlistManualConfirmDialo
 import { BookingAttemptDetailsDialog } from "@/components/attemptLog/BookingAttemptDetailsDialog";
 import { StaffListFilterRow, useStaffListFilters } from "@/components/StaffListFilters";
 import { ExportMenu } from "@/components/ExportMenu";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { ClampedText, InlineDateTime, StackedDateTime, StatusChip, type StatusChipTone } from "@/components/StaffListCells";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { formatDurationMinutes } from "@/lib/jobSheet";
@@ -172,7 +174,7 @@ export default function EquipmentWaitlist() {
   const renderUser = (e: WaitlistEntry) => (
     <div className="min-w-0 leading-tight">
       <div className="truncate font-medium" title={e.user_name || undefined}>
-        {e.user_name || "—"}
+        <UserIdCardLink userId={e.user_id} name={e.user_name} className="max-w-full" />
       </div>
       <div className="truncate text-xs text-muted-foreground" title={e.user_email}>
         {e.user_email}
@@ -389,7 +391,7 @@ export default function EquipmentWaitlist() {
                               {showEquipmentColumn ? (
                                 <TableCell className="px-2 py-3">
                                   <div className="line-clamp-2 text-sm leading-snug" title={e.equipment_name || e.equipment_code}>
-                                    {e.equipment_name || e.equipment_code || "—"}
+                                    <EquipmentLink id={e.equipment_id} name={e.equipment_name} code={e.equipment_code} />
                                   </div>
                                   <div className="mt-0.5 text-[11px] text-muted-foreground">
                                     Position <span className="font-mono font-medium text-foreground">{positionLabel(e)}</span>
@@ -421,7 +423,7 @@ export default function EquipmentWaitlist() {
                               <div className="min-w-0">
                                 {showEquipmentColumn ? (
                                   <div className="line-clamp-2 text-sm font-semibold leading-snug">
-                                    {e.equipment_name || e.equipment_code || "—"}
+                                    <EquipmentLink id={e.equipment_id} name={e.equipment_name} code={e.equipment_code} />
                                   </div>
                                 ) : null}
                                 <div className="text-xs text-muted-foreground">

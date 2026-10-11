@@ -3,6 +3,8 @@ import { ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { trainingApi } from "@/lib/trainingApi";
 import type { DutyAllocation } from "@/lib/trainingOpsTypes";
 import type { TrainingEquipmentRef } from "@/lib/trainingTypes";
@@ -40,8 +42,14 @@ export function AllocationsTable({ rows, onOpen, showOperator = true }: { rows: 
           {rows.map((a) => (
             <TableRow key={a.id} className="cursor-pointer hover:bg-muted/40" onClick={() => onOpen(a.id)}>
               <TableCell className="font-mono text-xs">{a.reference}</TableCell>
-              {showOperator ? <TableCell className="text-sm">{a.operator.name}</TableCell> : null}
-              <TableCell className="text-sm">{a.equipment.name}</TableCell>
+              {showOperator ? (
+                <TableCell className="text-sm">
+                  <UserIdCardLink userId={a.operator.id} name={a.operator.name} className="font-normal" />
+                </TableCell>
+              ) : null}
+              <TableCell className="text-sm">
+                <EquipmentLink id={a.equipment.equipment_id} name={a.equipment.name} />
+              </TableCell>
               <TableCell className="text-xs">
                 {a.first_start ? formatWindow(a.first_start, a.last_end) : "—"}
                 {a.shift_count > 1 ? <p className="text-muted-foreground">{a.shift_count} shifts</p> : null}

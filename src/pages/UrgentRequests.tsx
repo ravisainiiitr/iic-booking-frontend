@@ -29,6 +29,7 @@ import { StandaloneOnly } from "@/components/PageShell";
 import { RequesterIdentityButton } from "@/components/UserIdentityCardDialog";
 import { StaffListFilterRow, useStaffListFilters, type StaffEquipmentOption } from "@/components/StaffListFilters";
 import { ExportMenu } from "@/components/ExportMenu";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { ArrowLeft, Loader2, Check, X, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SampleRequirementsTable } from "@/components/booking/SampleRequirementsTable";
@@ -322,7 +323,7 @@ const UrgentRequests = () => {
   const renderEquipment = (row: UrgentRequestRow) => (
     <div className="min-w-0">
       <div className="line-clamp-2 text-sm leading-snug" title={row.equipment_name}>
-        {row.equipment_name}
+        <EquipmentLink id={row.equipment_id} name={row.equipment_name} />
       </div>
       <div className="truncate text-xs text-muted-foreground">{row.equipment_code}</div>
     </div>

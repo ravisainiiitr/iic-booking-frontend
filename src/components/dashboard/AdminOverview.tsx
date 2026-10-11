@@ -22,6 +22,7 @@ import {
 import { apiClient, type AdminDashboardSummary } from "@/lib/api";
 import { INSIGHT_PATHS } from "@/lib/adminInsights";
 import { DepartmentPicker, useDepartmentParam, withDepartment } from "@/components/admin-insights/DepartmentPicker";
+import { BookingLink } from "@/components/BookingLink";
 import { formatINRAmount } from "@/lib/money";
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { peakNow } from "@/lib/peakWindow";
@@ -501,7 +502,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
                       {b.equipment_name}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
-                      {b.reference} · {b.user_name}
+                      <BookingLink pk={b.booking_id} displayId={b.reference} /> · {b.user_name}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

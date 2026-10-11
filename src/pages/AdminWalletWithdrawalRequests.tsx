@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, Landmark, RotateCcw, Eye } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 
 interface WalletWithdrawalRequestRow {
   id: number;
@@ -188,7 +189,9 @@ export default function AdminWalletWithdrawalRequests() {
                     {rows.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell>
-                          <div className="font-medium">{row.user_name ?? `User #${row.user}`}</div>
+                          <div className="font-medium">
+                            <UserIdCardLink userId={row.user} name={row.user_name ?? `User #${row.user}`} />
+                          </div>
                           <div className="text-xs text-muted-foreground">{row.user_email}</div>
                         </TableCell>
                         <TableCell>₹{row.amount}</TableCell>

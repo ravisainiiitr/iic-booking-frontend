@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import {
   BreakdownBars,
   ClearFilters,
@@ -376,6 +377,9 @@ export default function RefundRequestsPanel({
                         >
                           {r.user.name}
                         </button>
+                        <UserIdCardLink userId={r.user.id} showIcon className="ml-1.5 align-middle">
+                          <span className="sr-only">ID card of {r.user.name}</span>
+                        </UserIdCardLink>
                         <div className="text-xs text-muted-foreground">
                           {[r.user.category_display, r.user.department].filter(Boolean).join(" · ")}
                         </div>

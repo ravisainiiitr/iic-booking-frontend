@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { trainingApi } from "@/lib/trainingApi";
 import type { TrainingAward, TrainingEquipmentRef } from "@/lib/trainingTypes";
 import { CertificateDialog } from "./CertificateDialog";
@@ -47,12 +49,16 @@ export function AwardsTable({
             <TableRow key={a.id} className={onOpen ? "cursor-pointer" : undefined} onClick={onOpen ? () => onOpen(a) : undefined}>
               {showUser ? (
                 <TableCell>
-                  <p className="font-medium">{a.user?.name}</p>
+                  <p className="font-medium">
+                    <UserIdCardLink userId={a.user?.id} name={a.user?.name} />
+                  </p>
                   <p className="text-xs text-muted-foreground">{a.user?.department ?? a.user?.email}</p>
                 </TableCell>
               ) : null}
               <TableCell>
-                <p className="text-sm font-medium">{a.equipment?.name}</p>
+                <p className="text-sm font-medium">
+                  <EquipmentLink id={a.equipment?.equipment_id} name={a.equipment?.name} />
+                </p>
                 <p className="text-xs text-muted-foreground">{a.equipment?.code}</p>
               </TableCell>
               <TableCell className="text-sm">{a.level_name || a.level}</TableCell>

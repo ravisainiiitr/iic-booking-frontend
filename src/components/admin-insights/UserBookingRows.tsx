@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { BookingLink } from "@/components/BookingLink";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { Muted } from "@/components/admin-insights/InsightParts";
 import type { UserCardBooking } from "@/lib/adminInsights";
 import { formatDMYTime } from "@/lib/dateFormat";
@@ -15,7 +16,11 @@ export default function UserBookingRows({ rows, showUser }: { rows: UserCardBook
           <TableCell className="whitespace-nowrap">
             <BookingLink pk={b.pk} displayId={b.display_id} />
           </TableCell>
-          {showUser ? <TableCell className="whitespace-nowrap">{b.user.name}</TableCell> : null}
+          {showUser ? (
+            <TableCell className="whitespace-nowrap">
+              <UserIdCardLink userId={b.user.id} name={b.user.name} />
+            </TableCell>
+          ) : null}
           <TableCell>
             <Link to={`/equipment/${b.equipment.id}`} className="text-primary underline-offset-2 hover:underline">
               {b.equipment.name}

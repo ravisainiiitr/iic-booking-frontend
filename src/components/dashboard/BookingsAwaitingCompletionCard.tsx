@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 import { apiClient, type BookingAwaitingCompletion } from "@/lib/api";
+import { EquipmentLink } from "@/components/EquipmentLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,7 +101,9 @@ export default function BookingsAwaitingCompletionCard({ className = "" }: { cla
                   <TableCell>
                     <Badge className={`whitespace-nowrap ${bookingStatusBadgeClass(rowStatus.key)}`}>{rowStatus.label}</Badge>
                   </TableCell>
-                  <TableCell>{row.equipment_name}</TableCell>
+                  <TableCell>
+                    <EquipmentLink id={row.equipment_id} name={row.equipment_name} code={row.equipment_code} />
+                  </TableCell>
                   <TableCell>{row.user_name}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.ended_display}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.sample_received_display || "—"}</TableCell>

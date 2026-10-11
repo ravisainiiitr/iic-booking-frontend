@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { apiClient, type FinanceReportDashboardData } from "@/lib/api";
+import { drilldownPath } from "@/lib/reportDrilldown";
+import { DrillTable, type DrillTableRow } from "@/components/reports/DrillTable";
+import { reportColor } from "@/components/reports/palette";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +51,7 @@ import {
   FlaskConical,
   Info,
   BarChart3,
+  ArrowRight,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { downloadStyledWorkbook, pdfTableStyle, type StyledSheet } from "@/lib/styledExport";
@@ -55,8 +60,6 @@ import autoTable from "jspdf-autotable";
 
 const NAVY = "#1e4d8c";
 const OCEAN = "#1d6fa3";
-const DONUT_COLORS = ["#1e4d8c", "#1d6fa3", "#334155", "#2563eb", "#64748b", "#0ea5e9", "#0f172a"];
-
 const PRESETS: Array<{ value: string; label: string }> = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
@@ -268,28 +271,58 @@ interface KpiCardProps {
   hint?: string;
   icon: ReactNode;
   accent?: string;
+  /** Drill-down to the users and bookings behind the figure. */
+  to?: string;
 }
 
-function KpiCard({ label, value, hint, icon, accent }: KpiCardProps) {
-  return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
+function KpiCard({ label, value, hint, icon, accent, to }: KpiCardProps) {
+  const card = (
+    <div
+      className={`h-full rounded-xl border bg-card p-4 shadow-sm transition-all ${
+        to ? "group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-md" : ""
+      }`}
+    >
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
         {icon}
       </div>
       <p className={`mt-1 text-2xl font-bold ${accent ?? "text-slate-900 dark:text-slate-100"}`}>₹{value}</p>
       {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      {to ? (
+        <p className="mt-2 flex items-center gap-1 text-xs font-medium text-primary/80 group-hover:text-primary">
+          View users &amp; bookings <ArrowRight className="h-3 w-3" />
+        </p>
+      ) : null}
     </div>
+  );
+  return to ? (
+    <Link to={to} className="group block h-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {card}
+    </Link>
+  ) : (
+    card
   );
 }
 
 const FinanceReports = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  // A drill-down's "back to report" carries the period as ?from=&to= (or ?preset=).
+  const [initial] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const from = q.get("from");
+    const to = q.get("to");
+    if (from && to && isCompleteIsoDate(from) && isCompleteIsoDate(to) && !dateRangeError(from, to)) {
+      return { preset: "custom", from, to };
+    }
+    const named = q.get("preset");
+    return { preset: PRESETS.some((p) => p.value === named) ? (named as string) : "this_month", from: "", to: "" };
+  });
 
-  const [preset, setPreset] = useState<string>("this_month");
-  const [customFrom, setCustomFrom] = useState<string>(monthStartStr());
-  const [customTo, setCustomTo] = useState<string>(todayStr());
+  const [preset, setPreset] = useState<string>(initial.preset);
+  const [customFrom, setCustomFrom] = useState<string>(initial.from || monthStartStr());
+  const [customTo, setCustomTo] = useState<string>(initial.to || todayStr());
 
   const [data, setData] = useState<FinanceReportDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -316,7 +349,11 @@ const FinanceReports = () => {
   );
 
   useEffect(() => {
-    void fetchReport({ preset: "this_month" });
+    void fetchReport(
+      initial.preset === "custom"
+        ? { preset: "custom", date_from: initial.from, date_to: initial.to }
+        : { preset: initial.preset },
+    );
     // Load once on mount; subsequent loads are user-triggered via preset/custom-range controls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -369,6 +406,27 @@ const FinanceReports = () => {
   const revenueByDepartmentData = data?.charts.revenue_by_department ?? [];
   const equipmentRevenueData = (data?.charts.equipment_revenue ?? []).slice(0, 10);
   const revenueTrendData = data?.charts.revenue_trend ?? [];
+
+  const drillTo = (dimension: string, value?: string | number | null) =>
+    drilldownPath({
+      source: "finance",
+      dimension,
+      value,
+      from: data?.meta.date_from,
+      to: data?.meta.date_to,
+    });
+  const drillRows = (
+    rows: Array<{ name: string; code?: string; revenue: number; bookings: number; drill_value?: string | number }>,
+    dimension: string,
+  ): DrillTableRow[] =>
+    rows.map((r, i) => ({
+      key: String(r.drill_value ?? `${r.name}-${i}`),
+      label: r.name || r.code || "—",
+      sublabel: r.code && r.name ? r.code : undefined,
+      bookings: r.bookings,
+      revenue: r.revenue,
+      to: r.drill_value !== undefined && r.drill_value !== null ? drillTo(dimension, r.drill_value) : undefined,
+    }));
 
   return (
     <div className="page-shell">
@@ -512,18 +570,21 @@ const FinanceReports = () => {
                 hint={`${data.summary.booking_count} booking(s) · avg ₹${fmtMoney(data.summary.avg_booking_value)}`}
                 icon={<IndianRupee className="h-4 w-4 text-primary" />}
                 accent="text-primary dark:text-sky-200"
+                to={drillTo("all")}
               />
               <KpiCard
                 label="Internal revenue"
                 value={fmtMoney(data.summary.internal_revenue)}
-                hint="Students / faculty"
+                hint="IITR Students, Faculty, Staff and Startups"
                 icon={<Building2 className="h-4 w-4 text-slate-600" />}
+                to={drillTo("internal")}
               />
               <KpiCard
                 label="External revenue"
                 value={fmtMoney(data.summary.external_revenue)}
-                hint="RND / Industry / Educational / Other"
+                hint="Academic, Industry, Govt R&D, Startup / MSME, other"
                 icon={<FlaskConical className="h-4 w-4 text-accent" />}
+                to={drillTo("external")}
               />
               <KpiCard
                 label="Wallet recharges"
@@ -639,7 +700,16 @@ const FinanceReports = () => {
                         <XAxis type="number" tickFormatter={(v) => `₹${v}`} tick={{ fontSize: 11 }} />
                         <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
                         <Tooltip formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]} />
-                        <Bar dataKey="revenue" name="Revenue" fill={NAVY} radius={[0, 4, 4, 0]} />
+                        <Bar
+                          dataKey="revenue"
+                          name="Revenue"
+                          fill={NAVY}
+                          radius={[0, 4, 4, 0]}
+                          className="cursor-pointer"
+                          onClick={(entry: { drill_value?: string | number }) =>
+                            entry?.drill_value != null && navigate(drillTo("equipment_department", entry.drill_value))
+                          }
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
@@ -666,9 +736,13 @@ const FinanceReports = () => {
                           outerRadius={90}
                           label={false}
                           labelLine={false}
+                          className="cursor-pointer"
+                          onClick={(entry: { drill_value?: string }) =>
+                            entry?.drill_value && navigate(drillTo("category", entry.drill_value))
+                          }
                         >
                           {revenueByOrgCategoryData.map((_, i) => (
-                            <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                            <Cell key={i} fill={reportColor(i)} />
                           ))}
                         </Pie>
                         <Tooltip
@@ -693,6 +767,18 @@ const FinanceReports = () => {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Revenue by user category</CardTitle>
+                <CardDescription>
+                  IITR Students, IITR Faculty and each external category. Click a row for the users and their bookings.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DrillTable rows={drillRows(revenueByOrgCategoryData, "category")} labelHeader="User category" showUsers={false} swatches />
+              </CardContent>
+            </Card>
 
             <Card className="mb-6">
               <CardHeader>
@@ -722,7 +808,16 @@ const FinanceReports = () => {
                         formatter={(v: number) => [`₹${fmtMoney(v)}`, "Revenue"]}
                         labelFormatter={(_label, payload) => (payload?.[0]?.payload as { name?: string })?.name ?? ""}
                       />
-                      <Bar dataKey="revenue" name="Revenue" fill={OCEAN} radius={[0, 4, 4, 0]} />
+                      <Bar
+                        dataKey="revenue"
+                        name="Revenue"
+                        fill={OCEAN}
+                        radius={[0, 4, 4, 0]}
+                        className="cursor-pointer"
+                        onClick={(entry: { drill_value?: string | number }) =>
+                          entry?.drill_value != null && navigate(drillTo("equipment", entry.drill_value))
+                        }
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -734,68 +829,30 @@ const FinanceReports = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Internal revenue by department</CardTitle>
+                  <CardDescription>Equipment department · click a row for its users and bookings</CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Department</TableHead>
-                        <TableHead className="text-right">Bookings</TableHead>
-                        <TableHead className="text-right">Revenue</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.tables.internal_by_department.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                            No internal revenue in this period.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        data.tables.internal_by_department.map((r, idx) => (
-                          <TableRow key={`${r.name}-${idx}`}>
-                            <TableCell className="font-medium">{r.name}</TableCell>
-                            <TableCell className="text-right">{r.bookings}</TableCell>
-                            <TableCell className="text-right">₹{fmtMoney(r.revenue)}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                <CardContent>
+                  <DrillTable
+                    rows={drillRows(data.tables.internal_by_department, "internal_department")}
+                    labelHeader="Department"
+                    showUsers={false}
+                    emptyText="No internal revenue in this period."
+                  />
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
                   <CardTitle>External revenue by category</CardTitle>
+                  <CardDescription>Click a category for its users and bookings</CardDescription>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-right">Bookings</TableHead>
-                        <TableHead className="text-right">Revenue</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.tables.external_by_category.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                            No external revenue in this period.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        data.tables.external_by_category.map((r, idx) => (
-                          <TableRow key={`${r.name}-${idx}`}>
-                            <TableCell className="font-medium">{r.name}</TableCell>
-                            <TableCell className="text-right">{r.bookings}</TableCell>
-                            <TableCell className="text-right">₹{fmtMoney(r.revenue)}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
+                <CardContent>
+                  <DrillTable
+                    rows={drillRows(data.tables.external_by_category, "external_category")}
+                    labelHeader="Category"
+                    showUsers={false}
+                    emptyText="No external revenue in this period."
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -803,37 +860,15 @@ const FinanceReports = () => {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Internal revenue by equipment</CardTitle>
+                <CardDescription>Click an instrument for its users and bookings</CardDescription>
               </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Equipment</TableHead>
-                      <TableHead className="text-right">Bookings</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.tables.internal_by_equipment.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                          No internal equipment revenue in this period.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      data.tables.internal_by_equipment.slice(0, 30).map((r, idx) => (
-                        <TableRow key={`${r.code}-${idx}`}>
-                          <TableCell className="font-medium">
-                            <span className="font-mono text-xs text-muted-foreground mr-2">{r.code}</span>
-                            {r.name}
-                          </TableCell>
-                          <TableCell className="text-right">{r.bookings}</TableCell>
-                          <TableCell className="text-right">₹{fmtMoney(r.revenue)}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+              <CardContent>
+                <DrillTable
+                  rows={drillRows(data.tables.internal_by_equipment.slice(0, 30), "internal_equipment")}
+                  labelHeader="Equipment"
+                  showUsers={false}
+                  emptyText="No internal equipment revenue in this period."
+                />
               </CardContent>
             </Card>
 

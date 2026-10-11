@@ -23,6 +23,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { ExportMenu } from "@/components/ExportMenu";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { formatProgramme } from "@/lib/programmeLabel";
 import { ArrowLeft, Loader2, ClipboardList, Check, X, Download } from "lucide-react";
 import { format } from "date-fns";
@@ -248,7 +250,9 @@ export default function TANominationsLog() {
                       {nominations.map((n) => (
                         <TableRow key={n.id}>
                           <TableCell>
-                            <p className="font-medium">{n.student_name || "—"}</p>
+                            <p className="font-medium">
+                              <UserIdCardLink userId={n.student_id} name={n.student_name} />
+                            </p>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                             {n.student_email || "—"}
@@ -256,9 +260,13 @@ export default function TANominationsLog() {
                           <TableCell className="text-sm text-muted-foreground">
                             {programLabel(n)}
                           </TableCell>
-                          <TableCell className="text-sm">{n.supervisor_name || "—"}</TableCell>
+                          <TableCell className="text-sm">
+                            <UserIdCardLink userId={n.supervisor_id} name={n.supervisor_name} className="font-normal" />
+                          </TableCell>
                           <TableCell>
-                            <p className="font-medium text-sm">{n.equipment_name}</p>
+                            <p className="font-medium text-sm">
+                              <EquipmentLink id={n.equipment_id} name={n.equipment_name} />
+                            </p>
                             <p className="text-xs text-muted-foreground">{n.equipment_code}</p>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-sm">

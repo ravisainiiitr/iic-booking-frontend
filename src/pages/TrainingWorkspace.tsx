@@ -4,6 +4,8 @@ import { ClipboardList, Presentation, School, UserCog } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { heroButtonClass } from "@/components/PageShell";
+import { EquipmentLink } from "@/components/EquipmentLink";
+import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { AssessmentsPanel } from "@/components/training/AssessmentsPanel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -88,11 +90,13 @@ function RequestsInbox({ onOpen, reloadKey }: { onOpen: (id: number) => void; re
                 <TableRow key={r.id} className="cursor-pointer" onClick={() => onOpen(r.id)}>
                   <TableCell>
                     <p className="text-xs font-semibold text-muted-foreground">{r.reference}</p>
-                    <p className="font-medium">{r.equipment.name}</p>
+                    <p className="font-medium">
+                      <EquipmentLink id={r.equipment.equipment_id} name={r.equipment.name} />
+                    </p>
                     <p className="text-xs text-muted-foreground">{r.equipment.code}</p>
                   </TableCell>
                   <TableCell className="text-sm">
-                    {r.requester.name}
+                    <UserIdCardLink userId={r.requester.id} name={r.requester.name} className="font-normal" />
                     {r.requester.department ? <p className="text-xs text-muted-foreground">{r.requester.department}</p> : null}
                   </TableCell>
                   <TableCell className="text-sm">
