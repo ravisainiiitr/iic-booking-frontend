@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useRef, useState, type ReactNode } from "react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
@@ -21,11 +21,15 @@ import {
   type SlotStatusPreview,
 } from "@/lib/disruptions";
 import {
-  DisruptionPromptDialog,
   disruptionDialogTitle,
   type DisruptionPromptMode,
   type DisruptionSummaryItem,
-} from "./DisruptionPromptDialog";
+} from "./disruptionPromptTypes";
+
+// The dialog pulls in the date pickers; pages that only might prompt (the public equipment grid) load it on first use.
+const DisruptionPromptDialog = lazy(() =>
+  import("./DisruptionPromptDialog").then((m) => ({ default: m.DisruptionPromptDialog }))
+);
 
 interface DialogRequest {
   mode: DisruptionPromptMode;
@@ -195,11 +199,13 @@ async function loadProcurementOptions(equipmentId: number | null | undefined): P
  */
 export function useDisruptionPrompt() {
   const [request, setRequest] = useState<DialogRequest | null>(null);
+  const [everOpened, setEverOpened] = useState(false);
   const resolverRef = useRef<((v: { values: DisruptionDialogValues; skipped: boolean } | null) => void) | null>(null);
 
   const openDialog = useCallback((req: DialogRequest) => {
     return new Promise<{ values: DisruptionDialogValues; skipped: boolean } | null>((resolve) => {
       resolverRef.current = resolve;
+      setEverOpened(true);
       setRequest(req);
     });
   }, []);
@@ -374,7 +380,8 @@ export function useDisruptionPrompt() {
     [openDialog]
   );
 
-  const element = (
+  const element = everOpened ? (
+    <Suspense fallback={null}>
     <DisruptionPromptDialog
       open={request !== null}
       mode={request?.mode ?? "disrupt"}
@@ -389,7 +396,8 @@ export function useDisruptionPrompt() {
       onCancel={() => close(null)}
       onSubmit={(values, skipped) => close({ values, skipped })}
     />
-  );
+    </Suspense>
+  ) : null;
 
   return { askForSlotStatusChange, askForEquipmentStatusChange, askForBookingDisruption, element };
 }

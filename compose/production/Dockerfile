@@ -24,6 +24,11 @@ RUN if [ -n "$VITE_API_URL" ]; then \
       npm run build; \
     fi
 
+# Precompress hashed assets once (served by gzip_static). index.html is excluded:
+# the entrypoint rewrites it at container start.
+RUN find dist/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.json' \) \
+      -size +1k -exec gzip -9 -k {} \;
+
 # Production stage with nginx
 FROM nginx:alpine
 

@@ -32,13 +32,9 @@ import {
   type ProcurementOptions,
   type ProcurementRequestDraft,
 } from "@/lib/disruptions";
+import type { DisruptionPromptMode, DisruptionSummaryItem } from "./disruptionPromptTypes";
 
-export type DisruptionPromptMode = "disrupt" | "resume";
-
-export interface DisruptionSummaryItem {
-  label: string;
-  value: ReactNode;
-}
+export { disruptionDialogTitle, type DisruptionPromptMode, type DisruptionSummaryItem } from "./disruptionPromptTypes";
 
 export interface DisruptionPromptDialogProps {
   open: boolean;
@@ -370,9 +366,4 @@ export function DisruptionPromptDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-export function disruptionDialogTitle(mode: DisruptionPromptMode, type?: DisruptionType | null): string {
-  if (mode === "resume") return "Record action taken";
-  return type ? `Reason for ${DISRUPTION_TYPE_LABELS[type]}` : "Record a reason";
 }

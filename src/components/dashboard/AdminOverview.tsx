@@ -261,6 +261,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
               departments={summary.departments}
               value={dept}
               onChange={setDept}
+              equipmentOwnersOnly
               className="sm:w-64"
             />
             <div

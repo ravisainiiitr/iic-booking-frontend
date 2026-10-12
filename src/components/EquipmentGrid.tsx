@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, lazy, useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import type { CardModeAvailability } from "@/lib/modeAvailability";
@@ -17,8 +17,12 @@ import type { EquipmentDisruptionNotice } from "@/lib/disruptions";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
-import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
+
+// Staff-only dialog with date pickers; keep it out of the home page's first download.
+const NoticeExpiryDialog = lazy(() =>
+  import("@/components/NoticeExpiryDialog").then((m) => ({ default: m.NoticeExpiryDialog }))
+);
 
 interface ApiEquipment {
   equipment_id: number;
@@ -423,14 +427,18 @@ const EquipmentGrid = () => {
       )}
 
       {disruptionPrompt.element}
-      <NoticeExpiryDialog
-        open={noticeExpiryPrompt != null}
-        noticeId={noticeExpiryPrompt?.noticeId ?? null}
-        equipmentName={noticeExpiryPrompt?.equipmentName}
-        onOpenChange={(open) => {
-          if (!open) setNoticeExpiryPrompt(null);
-        }}
-      />
+      {noticeExpiryPrompt != null && (
+        <Suspense fallback={null}>
+          <NoticeExpiryDialog
+            open
+            noticeId={noticeExpiryPrompt.noticeId ?? null}
+            equipmentName={noticeExpiryPrompt.equipmentName}
+            onOpenChange={(open) => {
+              if (!open) setNoticeExpiryPrompt(null);
+            }}
+          />
+        </Suspense>
+      )}
     </section>
   );
 };
