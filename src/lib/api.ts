@@ -2990,7 +2990,7 @@ interface EmailVerificationError {
   admin_approved: boolean;
 }
 
-interface BookingEvent {
+export interface BookingEvent {
   event_id: number;
   booking: number;
   event_type: string;
@@ -3003,8 +3003,24 @@ interface BookingEvent {
   created_by: number | null;
   created_by_name: string | null;
   metadata: Record<string, any>;
+  audit?: BookingEventAudit;
   notification_sent: boolean;
   created_at: string;
+}
+
+/** Who changed the booking (role or System), why, and from where. */
+export interface BookingEventAudit {
+  actor_kind?: "system" | "user" | "staff";
+  actor_role?: string;
+  actor_role_label?: string;
+  actor_name?: string;
+  source?: string;
+  source_label?: string;
+  reason_code?: string;
+  reason_label?: string;
+  reason?: string;
+  disruption_kind?: string;
+  auto_recorded?: boolean;
 }
 
 export type BookingLabMessageKind = "user" | "staff_reply" | "staff_reminder" | "staff_question";

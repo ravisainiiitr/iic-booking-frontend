@@ -15,8 +15,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { MessageSquare, Clock, User, CheckCircle, XCircle, Calendar, RefreshCw, DollarSign, CopyPlus, BadgeCheck } from "lucide-react";
+import { MessageSquare, Clock, User, CheckCircle, XCircle, Calendar, RefreshCw, DollarSign, CopyPlus, BadgeCheck, Bot, Info, Globe } from "lucide-react";
 import { format } from "date-fns";
+import {
+  bookingEventActor,
+  bookingEventReason,
+  bookingEventSource,
+  bookingEventTitle,
+  isSystemEvent,
+} from "@/lib/bookingEventAudit";
 
 const commentRecipientsLabel = (metadata?: Record<string, unknown> | null): string => {
   const r = metadata?.comment_recipients as { user?: boolean; oic?: boolean; lab_incharge?: boolean } | undefined;
@@ -24,21 +31,6 @@ const commentRecipientsLabel = (metadata?: Record<string, unknown> | null): stri
   return [r.user && "Booking user", r.oic && "Officer In Charge", r.lab_incharge && "Lab Operator"]
     .filter(Boolean)
     .join(", ");
-};
-
-const LAB_MESSAGE_TITLES: Record<string, string> = {
-  user: "Message to the lab",
-  staff_reply: "Lab reply to user",
-  staff_reminder: "Reminder sent to user",
-  staff_question: "Question sent to user",
-};
-
-const eventTitle = (event: BookingEvent): string => {
-  const kind = event.metadata?.lab_message;
-  if (typeof kind === "string" && LAB_MESSAGE_TITLES[kind]) {
-    return kind === "user" && event.metadata?.in_reply_to ? "User replied to lab question" : LAB_MESSAGE_TITLES[kind];
-  }
-  return event.event_type_display;
 };
 
 interface BookingEventHistoryProps {
@@ -193,7 +185,12 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold">Booking Event History</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Booking Event History</h3>
+          <p className="text-xs text-muted-foreground">
+            Every status change with who made it (name and role, or System), the reason and where it came from.
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -229,7 +226,7 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                   <div className="flex items-center gap-2">
                     {getEventIcon(event.event_type)}
                     <CardTitle className="text-base">
-                      {eventTitle(event)}
+                      {bookingEventTitle(event)}
                     </CardTitle>
                     <Badge className={getEventColor(event.event_type)}>
                       {event.event_type_display}
@@ -253,14 +250,30 @@ const BookingEventHistory = ({ bookingId, onEventAdded }: BookingEventHistoryPro
                     </Badge>
                   </div>
                 )}
+                {bookingEventReason(event) && (
+                  <p className="mb-2 text-sm">
+                    <span className="text-muted-foreground">Reason: </span>
+                    <span className="font-medium">{bookingEventReason(event)}</span>
+                  </p>
+                )}
                 {event.comment && (
                   <p className="text-sm text-foreground mb-2">{event.comment}</p>
                 )}
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  {event.created_by_name && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1" data-testid="event-actor">
+                    {isSystemEvent(event) ? <Bot className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                    <span>By: {bookingEventActor(event)}</span>
+                  </div>
+                  {bookingEventSource(event) && (
                     <div className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      <span>{event.created_by_name}</span>
+                      <Globe className="h-3 w-3" />
+                      <span>Via: {bookingEventSource(event)}</span>
+                    </div>
+                  )}
+                  {event.audit?.auto_recorded && (
+                    <div className="flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      <span>Recorded from the status change</span>
                     </div>
                   )}
                   {event.notification_sent && (
