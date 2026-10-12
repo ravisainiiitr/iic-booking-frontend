@@ -10,6 +10,7 @@ export const LAB_BOOKING_COLOR_KEYS = [
   { key: "BOOKED_INTERNAL", label: "Internal booked" },
   { key: "BOOKED_EXTERNAL", label: "External booked" },
   { key: "AVAILABLE", label: "Available" },
+  { key: "PENDING", label: "Pending (sample accepted)" },
   { key: "COMPLETED", label: "Completed" },
 ] as const;
 
@@ -20,6 +21,7 @@ export const DEFAULT_LAB_BOOKING_COLORS: Record<LabBookingColorKey, string> = {
   BOOKED_INTERNAL: "#ef4444",
   BOOKED_EXTERNAL: "#2563eb",
   AVAILABLE: "#22c55e",
+  PENDING: "#f59e0b",
   COMPLETED: "#059669",
 };
 
@@ -163,7 +165,7 @@ export function LabCalendarColorConfig({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 {LAB_BOOKING_COLOR_KEYS.map(({ key, label }) => (
                   <div key={key} className="flex min-w-0 items-center gap-2.5">
                     <Input

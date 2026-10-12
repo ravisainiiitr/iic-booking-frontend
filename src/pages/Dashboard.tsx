@@ -55,7 +55,7 @@ import PortalFeedbackDialog from "@/components/PortalFeedbackDialog";
 import DepartmentBrochureDialog from "@/components/DepartmentBrochureDialog";
 import { formatUserDisplayName, formatWelcomeGreeting } from "@/lib/displayName";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
-import { EXTERNAL_BOOKED_COLOR, LabOperatorWeekCalendarGrid } from "@/components/LabOperatorWeekCalendarGrid";
+import { EXTERNAL_BOOKED_COLOR, LabOperatorWeekCalendarGrid, PENDING_COLOR } from "@/components/LabOperatorWeekCalendarGrid";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { LabCalendarColorConfig } from "@/components/LabCalendarColorConfig";
 import {
@@ -4115,6 +4115,7 @@ const Dashboard = () => {
       color: labLegendPalette.slotColors.BOOKED_INTERNAL || labLegendPalette.slotColors.BOOKED,
     },
     { label: "External booked", color: labLegendPalette.slotColors.BOOKED_EXTERNAL || EXTERNAL_BOOKED_COLOR },
+    { label: "Pending (sample accepted)", color: labLegendPalette.slotColors.PENDING || PENDING_COLOR },
     ...slotCalendarLegend(labLegendPalette).filter((item) => item.label !== "Booked"),
   ];
 

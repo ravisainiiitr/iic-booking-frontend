@@ -29,6 +29,8 @@ export interface LabCalendarSlot {
   booking_is_external?: boolean | null;
   /** When BOOKED: latest sample-trace status display (staff calendars). */
   booking_sample_status_display?: string | null;
+  /** Staff calendars: the lab accepted the sample; the open booking shows the Pending colour. */
+  booking_sample_accepted?: boolean | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
 }

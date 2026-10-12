@@ -83,7 +83,7 @@ export function disruptionsSection(): GuideSection {
     icon: "shield",
     group: GROUP,
     intro: [
-      "If the lab cannot run your booking, you are emailed and the booking waits for your choice with a decision deadline.",
+      "If the lab cannot run your booking, you are emailed and the booking waits for your choice: cancel for a full refund or reschedule, at any time and regardless of the usual cancel/reschedule cut-off.",
     ],
     glossary: [
       { term: "Under Maintenance", meaning: "Instrument down. Cancel with refund now, or reschedule once it is Operational." },
@@ -92,7 +92,7 @@ export function disruptionsSection(): GuideSection {
       { term: "Booking Not Utilized", meaning: "You did not attend or the sample never arrived. Usually not refunded." },
     ],
     rules: [
-      "Act before the deadline; otherwise the booking may be cancelled automatically under the policy.",
+      "Choose within 5 days of the disruption; otherwise the booking is marked Refunded and the full amount is refunded automatically.",
       "Facility-side disruptions are refunded or rescheduled. Not Utilized is user-side.",
     ],
     tips: ["Cancel unused bookings early to avoid Not Utilized."],

@@ -115,6 +115,8 @@ function isBookingSlotStatus(status: string): boolean {
 
 /** External bookings keep their own colour on staff calendars; labs can change it under Calendar colours. */
 export const EXTERNAL_BOOKED_COLOR = "#2563eb";
+/** Open booking whose sample the lab has accepted (Pending until it completes). */
+export const PENDING_COLOR = "#f59e0b";
 
 export interface LabCalendarSelection {
   selectedIds: ReadonlySet<number>;
@@ -322,9 +324,12 @@ export function LabOperatorWeekCalendarGrid({
       const bookingSt = String(slotData.booking_status || "").toUpperCase();
       if (bookingSt !== "CANCELLED" && bookingSt !== "REFUNDED") {
         const isExternal = slotData.booking_is_external === true || isExternalBookingUserType(slotData.booking_user_type);
-        background = isExternal
-          ? palette.slotColors.BOOKED_EXTERNAL || EXTERNAL_BOOKED_COLOR
-          : palette.slotColors.BOOKED_INTERNAL || palette.slotColors.BOOKED;
+        background =
+          slotData.booking_sample_accepted === true && bookingSt !== "COMPLETED"
+            ? palette.slotColors.PENDING || PENDING_COLOR
+            : isExternal
+              ? palette.slotColors.BOOKED_EXTERNAL || EXTERNAL_BOOKED_COLOR
+              : palette.slotColors.BOOKED_INTERNAL || palette.slotColors.BOOKED;
       }
       if (displayRef || userName) {
         content = (

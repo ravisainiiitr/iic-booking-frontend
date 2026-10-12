@@ -273,6 +273,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   /** True when this booking is already in maintenance-disruption workflow (Admin/OIC flag or equipment maintenance). */
   maintenance_disruption_flag?: boolean;
   disruption_kind?: string | null;
+  maintenance_decision_deadline_at?: string | null;
   /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
@@ -4024,7 +4025,7 @@ export function BookingDetailCard({
               )}
               {actionDialog.type === "absent" && (
                 <p className="text-sm text-muted-foreground">
-                  This does not refund immediately. The booking moves to &quot;Awaiting your choice (disruption)&quot; and the user is emailed to choose cancel (refund) or reschedule. If they take no action by the decision deadline, a full refund is issued automatically.
+                  This does not refund immediately. The booking moves to &quot;Awaiting your choice (disruption)&quot; and the user is emailed to choose cancel (refund) or reschedule. If they take no action within 5 days, the booking is marked Refunded and a full refund is issued automatically.
                 </p>
               )}
             </div>

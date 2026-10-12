@@ -272,6 +272,17 @@ describe("cancelRescheduleDeadline", () => {
     expect(result).toMatchObject({ kind: "disruption", deadline: null, rescheduleOnly: false });
   });
 
+  it("shows when an undecided disruption is refunded automatically", () => {
+    const result = cancelRescheduleDeadline(
+      booking({ status: "DISRUPTION_PENDING", maintenance_decision_deadline_at: at(12, 21).toISOString() }),
+      NOW,
+    );
+    expect(result.autoRefundAt).toEqual(at(12, 21));
+    expect(formatDeadlineText(result)).toBe(
+      "Reschedule or cancel for a full refund until Mon 12 Oct, 9:00 pm (lab disruption); after that it is refunded in full automatically",
+    );
+  });
+
   it("does not wait for the equipment when the operator was absent", () => {
     const result = cancelRescheduleDeadline(
       booking({

@@ -91,6 +91,22 @@ describe("LabOperatorWeekCalendarGrid cells", () => {
     expect(card?.textContent).toContain("Equipment: Powder X-Ray Diffractometer (PXRD) [A]");
   });
 
+  it("shows an open booking in the Pending colour once the lab accepted the sample", () => {
+    const pendingPayload = {
+      ...weekPayload,
+      slots: weekPayload.slots.map((s) => (s.id === 3 ? { ...s, booking_status: "BOOKED", booking_sample_accepted: true } : s)),
+    } as LabWeekCalendarSlotsPayload;
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: pendingPayload });
+    const cell = screen.getByRole("button", { name: /Booking ID: B-77/ });
+    expect(cell.getAttribute("style")).toContain("rgb(245, 158, 11)");
+  });
+
+  it("keeps the booked colour before the sample is accepted", () => {
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: weekPayload });
+    const cell = screen.getByRole("button", { name: /Booking ID: B-77/ });
+    expect(cell.getAttribute("style")).not.toContain("rgb(245, 158, 11)");
+  });
+
   it("lets an OIC pick free slots when selection is enabled", () => {
     const onToggle = vi.fn();
     renderGrid({

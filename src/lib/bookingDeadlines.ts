@@ -12,6 +12,8 @@ export interface DeadlineBookingFields {
   maintenance_disruption_flag?: boolean | null;
   /** MAINTENANCE / OPERATOR_ABSENT / OTHER_DISRUPTION while the booking awaits the user's choice. */
   disruption_kind?: string | null;
+  /** After this the undecided disruption booking is marked Refunded with a full refund. */
+  maintenance_decision_deadline_at?: string | null;
   equipment_is_operational?: boolean | null;
   is_waitlist_entry?: boolean | null;
   source_booking_id?: number | null;
@@ -33,6 +35,8 @@ export interface CancelRescheduleDeadline {
   rescheduleOnly: boolean;
   /** The lab has accepted the sample, so the owner / supervisor can no longer reschedule or cancel. */
   sampleLocked?: boolean;
+  /** Lab disruption: undecided bookings are refunded automatically at this time. */
+  autoRefundAt?: Date | null;
 }
 
 export const DEADLINE_PASSED_TEXT = "Deadline passed — contact the Officer in Charge";
@@ -110,7 +114,12 @@ function timeWindow(booking: DeadlineBookingFields, now: Date): CancelReschedule
   }
   if (isLabDisruption(booking)) {
     const waiting = booking.equipment_is_operational === false && disruptionNeedsOperationalEquipment(booking);
-    return { kind: waiting ? "disruption_waiting" : "disruption", deadline: null, rescheduleOnly: false };
+    return {
+      kind: waiting ? "disruption_waiting" : "disruption",
+      deadline: null,
+      rescheduleOnly: false,
+      autoRefundAt: parseDate(booking.maintenance_decision_deadline_at),
+    };
   }
   const start = parseDate(booking.start_time);
   if (!start) return { kind: "none", deadline: null, rescheduleOnly };
@@ -195,6 +204,12 @@ export function formatDeadlineDateTime(date: Date): string {
 
 export function formatDeadlineText(result: CancelRescheduleDeadline): string | null {
   if (result.sampleLocked) return SAMPLE_ACCEPTED_LOCKED_TEXT;
+  if (result.autoRefundAt && (result.kind === "disruption" || result.kind === "disruption_waiting")) {
+    const by = formatDeadlineDateTime(result.autoRefundAt);
+    return result.kind === "disruption"
+      ? `Reschedule or cancel for a full refund until ${by} (lab disruption); after that it is refunded in full automatically`
+      : `Reschedule opens when the equipment is working again; you can cancel anytime. No choice by ${by}: refunded in full automatically`;
+  }
   switch (result.kind) {
     case "open":
       if (!result.deadline) return null;
