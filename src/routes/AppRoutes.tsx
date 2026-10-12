@@ -395,6 +395,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/wallet-payment-modes" element={<AdminWalletPaymentModes />} />
           <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
           <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
+          <Route path="/admin-settings/sric-wallet-recharges" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
           <Route path="/admin-settings/wallet-credit-facility-settings" element={<AdminWalletCreditFacilitySettings />} />
           <Route path="/admin-settings/wallet-student-recharge-settings" element={<AdminWalletStudentRechargeSettings />} />

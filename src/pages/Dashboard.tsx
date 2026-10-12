@@ -26,7 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark } from "lucide-react";
+import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
@@ -190,6 +191,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/admin/wallet-ledger": {
     title: "Wallet Ledger",
     description: "Wallet owners, sub-wallet balances and transactions, with manual credit and debit.",
+  },
+  [SRIC_WALLET_RECHARGES_PATH]: {
+    title: "SRIC Wallet Recharges",
+    description: "Recharges read from the SRIC Wallet_Recharge.csv: credit, reject or verify each row.",
   },
   "/admin-settings/wallet-payment-modes": {
     title: "Wallet Payment Modes",
@@ -1908,6 +1913,44 @@ const Dashboard = () => {
                   }}
                 >
                   Open list
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "sric_wallet_recharges",
+      label: "SRIC wallet recharges",
+      path: SRIC_WALLET_RECHARGES_PATH,
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800 h-full"
+              onClick={() => openWorkspace(SRIC_WALLET_RECHARGES_PATH)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-lg">
+                    <Landmark className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">SRIC wallet recharges</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Recharges from the SRIC Wallet_Recharge.csv — credit, reject and verify
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-sky-700 hover:bg-sky-800 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace(SRIC_WALLET_RECHARGES_PATH);
+                  }}
+                >
+                  Open SRIC recharges
                 </Button>
               </CardContent>
             </Card>

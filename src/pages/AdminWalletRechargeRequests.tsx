@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, extractAdminListItems, type SricReminderPreview } from "@/lib/api";
-import { cashbookUploadSummary, formatCutoffDate, sricDeclineOutcome } from "@/lib/walletRecharge";
+import {
+  SRIC_WALLET_RECHARGES_PATH,
+  cashbookUploadSummary,
+  formatCutoffDate,
+  rechargeTabHref,
+  sricDeclineOutcome,
+  type RechargeRequestsTab,
+} from "@/lib/walletRecharge";
 import DashboardHeader from "@/components/DashboardHeader";
 import { TestAccountBadge } from "@/components/wallet/TestAccountBadge";
 import { UserIdCardLink } from "@/components/users/UserIdCardLink";
@@ -282,8 +289,11 @@ export default function AdminWalletRechargeRequests() {
   const [submitting, setSubmitting] = useState(false);
   const [cashbookFilter, setCashbookFilter] = useState<string>("__all__");
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const onSricPath = location.pathname.replace(/\/+$/, "") === SRIC_WALLET_RECHARGES_PATH;
+  const legacySricTab = searchParams.get("tab") === "sric";
   const overdueOnly = searchParams.get("overdue") === "1";
-  const activeTab = isAdmin && searchParams.get("tab") === "sric" ? "sric" : "requests";
+  const activeTab: RechargeRequestsTab = isAdmin && (onSricPath || legacySricTab) ? "sric" : "requests";
   const [cashbookRow, setCashbookRow] = useState<WalletRechargeRequestRow | null>(null);
   const [linkingEntryId, setLinkingEntryId] = useState<number | null>(null);
   const [cashbookUploading, setCashbookUploading] = useState(false);
@@ -314,6 +324,13 @@ export default function AdminWalletRechargeRequests() {
       navigate(isFinance ? "/dashboard" : "/user-management");
     }
   }, [navigate, isAuthenticated, user, canAccess, authLoading, isFinance]);
+
+  useEffect(() => {
+    if (authLoading || !user || !canAccess) return;
+    if (isAdmin ? legacySricTab && !onSricPath : onSricPath) {
+      navigate(rechargeTabHref(isAdmin ? "sric" : "requests", location.search), { replace: true });
+    }
+  }, [authLoading, user, canAccess, isAdmin, legacySricTab, onSricPath, location.search, navigate]);
 
   useEffect(() => {
     if (!canAccess || !isAdmin) return;
@@ -637,10 +654,7 @@ export default function AdminWalletRechargeRequests() {
           <Tabs
             value={activeTab}
             onValueChange={(value) => {
-              const next = new URLSearchParams(searchParams);
-              if (value === "sric") next.set("tab", "sric");
-              else next.delete("tab");
-              setSearchParams(next, { replace: true });
+              navigate(rechargeTabHref(value === "sric" ? "sric" : "requests", location.search), { replace: true });
             }}
             className="mb-4"
           >

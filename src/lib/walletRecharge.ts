@@ -307,3 +307,17 @@ export function summarizeRechargeRequests(requests: RechargeRequestLike[]) {
   summary.creditOutstanding = Math.round(summary.creditOutstanding * 100) / 100;
   return summary;
 }
+
+export const WALLET_RECHARGE_REQUESTS_PATH = "/admin-settings/wallet-recharge-requests";
+/** The SRIC recharges tab has its own path so the dashboard menu can highlight it (the panel tracks paths, not queries). */
+export const SRIC_WALLET_RECHARGES_PATH = "/admin-settings/sric-wallet-recharges";
+
+export type RechargeRequestsTab = "requests" | "sric";
+
+/** Path for a tab of the Wallet Recharge Requests page, keeping other query params; the legacy ?tab=sric is dropped. */
+export function rechargeTabHref(tab: RechargeRequestsTab, search: string): string {
+  const params = new URLSearchParams(search);
+  params.delete("tab");
+  const query = params.toString();
+  return `${tab === "sric" ? SRIC_WALLET_RECHARGES_PATH : WALLET_RECHARGE_REQUESTS_PATH}${query ? `?${query}` : ""}`;
+}
