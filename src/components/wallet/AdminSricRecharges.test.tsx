@@ -224,7 +224,7 @@ describe("AdminSricRecharges", () => {
     expect(await within(card).findByText("Saved: Friday 8:55–9:15 PM")).toBeTruthy();
   });
 
-  it("badges test entries, shows a reversed credit with its adjustment and can hide test entries", async () => {
+  it("hides test entries until they are switched on, then badges them and shows a reversed credit with its adjustment", async () => {
     const testRow = {
       ...base,
       id: 9,
@@ -242,6 +242,16 @@ describe("AdminSricRecharges", () => {
     const res = listResponse();
     api.getAdminSricRecharges.mockResolvedValue({ data: { ...res.data, results: [...rows, testRow], test_count: 1 } });
     render(<AdminSricRecharges />);
+    await waitFor(() =>
+      expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ test: "hide" })),
+    );
+    const toggle = await screen.findByRole("switch", { name: /Show test entries/ });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ test: "", page: 1 })),
+    );
     const row = await screen.findByTestId("sric-row-9");
     expect(within(row).getByText("TEST")).toBeTruthy();
     expect(within(row).getByText("Reversed")).toBeTruthy();
@@ -250,10 +260,5 @@ describe("AdminSricRecharges", () => {
     expect(within(row).queryByRole("button", { name: /Verify/ })).toBeNull();
     expect(within(screen.getByTestId("sric-row-3")).queryByText("TEST")).toBeNull();
     expect(screen.getByText(/test entries are not counted in totals or exports/)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("switch", { name: /Show test entries/ }));
-    await waitFor(() =>
-      expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ test: "hide", page: 1 })),
-    );
   });
 });

@@ -76,7 +76,7 @@ const EMPTY_FILTERS: Filters = {
   date_from: "",
   date_to: "",
   search: "",
-  test: "",
+  test: "hide",
 };
 
 function amountText(row: SricRechargeRow) {
