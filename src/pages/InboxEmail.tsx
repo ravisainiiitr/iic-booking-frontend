@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, Inbox, Loader2, Mail, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import SricMailboxSyncBar from "@/components/wallet/SricMailboxSyncBar";
 import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -179,6 +180,15 @@ const InboxEmailPage = () => {
           </Button>
           </div>
         </div>
+
+        {isAdmin ? (
+          <SricMailboxSyncBar
+            className="mb-4"
+            onRefreshed={() => {
+              if (emails.length) void fetchEmails();
+            }}
+          />
+        ) : null}
 
         <Card>
           <CardHeader className="pb-2">

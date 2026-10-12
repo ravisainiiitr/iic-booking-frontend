@@ -69,6 +69,7 @@ import { StandaloneOnly } from "@/components/PageShell";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AdminSricRecharges from "@/components/wallet/AdminSricRecharges";
+import SricMailboxSyncBar from "@/components/wallet/SricMailboxSyncBar";
 import { formatDMY } from "@/lib/dateFormat";
 import { DateRangeHint, UpdatingIndicator, refetchingClass } from "@/components/filters/LiveFilterStatus";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
@@ -368,6 +369,8 @@ export default function AdminWalletRechargeRequests() {
     return params;
   };
 
+  const [sricReload, setSricReload] = useState(0);
+
   const fetchRows = async () => {
     const request = beginRequest();
     setLoading(true);
@@ -650,6 +653,16 @@ export default function AdminWalletRechargeRequests() {
           <p className="text-muted-foreground mt-1">{roleCaption}</p>
         </div>
 
+        {isAdmin || isFinance ? (
+          <SricMailboxSyncBar
+            className="mb-4"
+            onRefreshed={() => {
+              void fetchRows();
+              setSricReload((n) => n + 1);
+            }}
+          />
+        ) : null}
+
         {isAdmin ? (
           <Tabs
             value={activeTab}
@@ -665,7 +678,7 @@ export default function AdminWalletRechargeRequests() {
           </Tabs>
         ) : null}
 
-        {activeTab === "sric" ? <AdminSricRecharges /> : null}
+        {activeTab === "sric" ? <AdminSricRecharges reloadSignal={sricReload} /> : null}
 
         <Card className={activeTab === "sric" ? "hidden" : undefined}>
           <CardHeader className="space-y-4">

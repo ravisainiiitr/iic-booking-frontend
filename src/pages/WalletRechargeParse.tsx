@@ -56,6 +56,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { StandaloneOnly } from "@/components/PageShell";
+import SricMailboxSyncBar from "@/components/wallet/SricMailboxSyncBar";
 
 /** Unique key for an entry: date + receipt_no + emp_no (cumulative table dedup). */
 function rowKey(r: WalletRechargeParseRow): string {
@@ -1179,6 +1180,18 @@ const WalletRechargeParsePage = () => {
             </div>
           </div>
         </div>
+
+        {isWalletRechargeStaff ? (
+          <SricMailboxSyncBar
+            className="mb-6"
+            onRefreshed={() => {
+              void loadFacultyPipeline();
+              void apiClient.getWalletRechargeParseEntries().then((res) => {
+                if (!res.error && res.data?.rows) setRows(res.data.rows);
+              });
+            }}
+          />
+        ) : null}
 
         <Card className={cn(WALLET_CARD, "mb-6")}>
           <CardHeader className="pb-2 space-y-0">

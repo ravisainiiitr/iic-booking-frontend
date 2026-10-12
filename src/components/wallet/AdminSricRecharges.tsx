@@ -84,7 +84,7 @@ function amountText(row: SricRechargeRow) {
 }
 
 /** Main Administrator: SRIC Wallet_Recharge.csv rows — review, credit, reject, verify fund receipt, settings. */
-export default function AdminSricRecharges() {
+export default function AdminSricRecharges({ reloadSignal = 0 }: { reloadSignal?: number } = {}) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [searchText, setSearchText] = useState("");
   const [page, setPage] = useState(1);
@@ -118,7 +118,7 @@ export default function AdminSricRecharges() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadSignal]);
 
   useEffect(() => {
     const t = window.setTimeout(() => {

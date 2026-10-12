@@ -1212,6 +1212,43 @@ export interface SricRefreshResponse {
   scan?: Record<string, unknown>;
 }
 
+export interface SricMailboxReaderStatus {
+  key: "sric_csv" | "cashbook";
+  label: string;
+  enabled: boolean;
+  last_checked_at: string | null;
+  last_result: Record<string, unknown>;
+  running: boolean;
+  schedule_seconds: number | null;
+  schedule_enabled: boolean;
+  next_check_at: string | null;
+}
+
+export interface SricMailboxCounts {
+  new_emails: number;
+  rows_parsed: number;
+  matched: number;
+  unmatched: number;
+}
+
+export interface SricMailboxRefreshResult {
+  totals: SricMailboxCounts;
+  readers: Record<string, SricMailboxCounts & { status?: string; error?: string; credited?: number }>;
+  message: string;
+}
+
+export interface SricMailboxStatus {
+  poll_seconds: number;
+  cooldown_seconds: number;
+  cooldown_remaining: number;
+  running: boolean;
+  last_checked_at: string | null;
+  next_check_at: string | null;
+  next_check_in_seconds: number | null;
+  readers: SricMailboxReaderStatus[];
+  last_refresh: (SricMailboxRefreshResult & { at: string; by_user_id: number | null }) | null;
+}
+
 export interface SricAdminListResponse {
   results: SricRechargeRow[];
   count: number;
@@ -6620,6 +6657,17 @@ class ApiClient {
 
   async refreshAdminSricRecharges() {
     return this.request<SricRefreshResponse>('/admin/sric-wallet-recharges/refresh/', { method: 'POST', body: '{}' });
+  }
+
+  async getSricMailboxStatus() {
+    return this.request<SricMailboxStatus>('/admin/sric-mailbox/status/', { method: 'GET' });
+  }
+
+  async refreshSricMailbox() {
+    return this.request<{ result: SricMailboxRefreshResult; status: SricMailboxStatus }>('/admin/sric-mailbox/refresh/', {
+      method: 'POST',
+      body: '{}',
+    });
   }
 
   async creditSricRecharge(id: number, payload: { user_id?: number; receiver_code?: string; note?: string } = {}) {
