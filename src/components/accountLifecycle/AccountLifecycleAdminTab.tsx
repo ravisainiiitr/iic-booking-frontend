@@ -27,7 +27,7 @@ const DEGREE_LABEL: Record<string, string> = {
   int_mtech: "Int. M.Tech (5 years)",
   btech: "B.Tech. (4 years)",
   other: "Other (5 years)",
-  missing: "No degree / dates",
+  no_degree_no_joining_date: "No degree or joining date",
 };
 
 type UserStatus = AccountLifecycleStatus & { user: { id: number; name: string; email: string } };
