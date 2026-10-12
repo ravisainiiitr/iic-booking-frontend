@@ -80,6 +80,7 @@ import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
   cancelRescheduleDeadline,
+  isLabDisruption,
   lifecycleCountdownVisible,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
@@ -271,6 +272,7 @@ export interface BookingDetailCardBooking extends BookingRef {
   maintenance_reschedule_extra_week?: boolean;
   /** True when this booking is already in maintenance-disruption workflow (Admin/OIC flag or equipment maintenance). */
   maintenance_disruption_flag?: boolean;
+  disruption_kind?: string | null;
   /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
@@ -2595,7 +2597,7 @@ export function BookingDetailCard({
                   booking.status.toUpperCase() === "DISRUPTION_PENDING" ||
                   booking.status.toUpperCase() === "WAITLISTED" ||
                   (booking as any).is_waitlist_entry === true) &&
-                !booking.source_booking_id &&
+                (!booking.source_booking_id || isLabDisruption(booking)) &&
                 (() => {
                   const isOwn =
                     currentUserId != null && Number(booking.user) === Number(currentUserId);

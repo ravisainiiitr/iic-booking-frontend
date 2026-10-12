@@ -62,6 +62,8 @@ import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
   cancelRescheduleDeadline,
+  disruptionNeedsOperationalEquipment,
+  isLabDisruption,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
 } from "@/lib/bookingDeadlines";
@@ -191,6 +193,7 @@ interface Booking extends BookingRef {
   booking_attempt_additional_info?: any;
   /** Equipment under-maintenance disruption policy */
   maintenance_disruption_flag?: boolean;
+  disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
   maintenance_reschedule_extra_week?: boolean;
   /** When equipment became operational again; used server-side for extra reschedule weeks */
@@ -1029,8 +1032,10 @@ const MyBookings = () => {
       const startTime = new Date(booking.start_time);
       const now = new Date();
       
+      const disrupted = isLabDisruption(booking);
+
       // Check if start time is in the past
-      if (!booking.maintenance_disruption_flag && startTime <= now) {
+      if (!disrupted && startTime <= now) {
         return false;
       }
       
@@ -1040,12 +1045,12 @@ const MyBookings = () => {
       const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
 
       // Under maintenance disruption: reschedule only after equipment is operational again
-      if (booking.maintenance_disruption_flag && booking.equipment_is_operational === false) {
+      if (disrupted && booking.equipment_is_operational === false && disruptionNeedsOperationalEquipment(booking)) {
         return false;
       }
 
       // Disruption policy (maintenance/operator absent): reschedule allowed even inside threshold
-      if (booking.maintenance_disruption_flag) {
+      if (disrupted) {
         return true;
       }
 
@@ -1060,7 +1065,7 @@ const MyBookings = () => {
 
   /** Cancel allowed outside normal threshold when maintenance disruption policy applies. Waitlist: any time if entry id present. Staff canceling others bypasses the owner time window. */
   const canUseCancelButton = (booking: Booking) => {
-    if (isRepeatBooking(booking)) return false;
+    if (isRepeatBooking(booking) && !isLabDisruption(booking)) return false;
     if (isWaitlistedEntry(booking)) {
       return Boolean(booking.waitlist_entry_id);
     }
@@ -1070,9 +1075,12 @@ const MyBookings = () => {
     return (
       serverAllowsOwnerCancel(booking) &&
       canCancelBooking(booking) &&
-      (!!booking.maintenance_disruption_flag || isFabricationRejected(booking) || isWithinThresholdWindow(booking))
+      (isLabDisruption(booking) || isFabricationRejected(booking) || isWithinThresholdWindow(booking))
     );
   };
+
+  /** Admin / OIC, or the user during a lab disruption (operator absent etc. usually hits slots that already started). */
+  const canCancelStartedSlots = (booking: Booking) => isAdminOrOIC() || isLabDisruption(booking);
 
   const restrictedExternalUserType =
     currentUserType && isExternalBookingUserType(currentUserType);
@@ -1100,7 +1108,7 @@ const MyBookings = () => {
 
     const backendId = getRealBookingId(booking);
     if (backendId == null) {
-      setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+      setCancelSlotIds(getDefaultCancelSlotIds(booking, canCancelStartedSlots(booking)));
       return;
     }
 
@@ -1110,17 +1118,17 @@ const MyBookings = () => {
       const fullBooking = res.data?.bookings?.[0] as unknown as Booking | undefined;
       if (!res.error && fullBooking) {
         setSelectedBooking(fullBooking);
-        setCancelSlotIds(getDefaultCancelSlotIds(fullBooking, isAdminOrOIC()));
+        setCancelSlotIds(getDefaultCancelSlotIds(fullBooking, canCancelStartedSlots(fullBooking)));
         const currentA = getCurrentReductionValue(fullBooking, "A");
         setCancelReducedValue(currentA > 1 ? currentA - 1 : 1);
       } else {
-        setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+        setCancelSlotIds(getDefaultCancelSlotIds(booking, canCancelStartedSlots(booking)));
         if (res.error) {
           toast.error(res.error || "Could not load booking slots");
         }
       }
     } catch {
-      setCancelSlotIds(getDefaultCancelSlotIds(booking, isAdminOrOIC()));
+      setCancelSlotIds(getDefaultCancelSlotIds(booking, canCancelStartedSlots(booking)));
       toast.error("Could not load booking slots");
     } finally {
       setCancelSlotsLoading(false);
@@ -1128,7 +1136,7 @@ const MyBookings = () => {
   };
 
   const handleCancelClick = (booking: Booking) => {
-    if (isRepeatBooking(booking)) {
+    if (isRepeatBooking(booking) && !isLabDisruption(booking)) {
       toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
       return;
     }
@@ -1144,7 +1152,7 @@ const MyBookings = () => {
     // Staff canceling another user's booking: no owner time-window gate (server enforces role scope).
     if (
       !isStaffCancelingOtherUser(booking) &&
-      !booking.maintenance_disruption_flag &&
+      !isLabDisruption(booking) &&
       !isFabricationRejected(booking) &&
       !isWithinThresholdWindow(booking)
     ) {
@@ -2265,7 +2273,7 @@ const MyBookings = () => {
                                   new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime()
                               )
                               .map((slot) => {
-                                const allowStartedSlots = isAdminOrOIC();
+                                const allowStartedSlots = canCancelStartedSlots(selectedBooking);
                                 const started = slotHasStarted(slot);
                                 const slotDisabled = !allowStartedSlots && started;
                                 const checked = cancelSlotIds.includes(slot.id);
@@ -2307,7 +2315,7 @@ const MyBookings = () => {
                               })}
                           </div>
                         )}
-                        {!cancelSlotsLoading && !isAdminOrOIC() && (selectedBooking.daily_slots ?? []).some((s) => slotHasStarted(s)) ? (
+                        {!cancelSlotsLoading && !canCancelStartedSlots(selectedBooking) && (selectedBooking.daily_slots ?? []).some((s) => slotHasStarted(s)) ? (
                           <p className="text-xs text-muted-foreground">
                             Slots that have already started cannot be cancelled. Contact the Officer in Charge or admin if you need help.
                           </p>

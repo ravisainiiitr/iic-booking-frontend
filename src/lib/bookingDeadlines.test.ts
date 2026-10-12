@@ -236,9 +236,9 @@ describe("cancelRescheduleDeadline", () => {
     expect(result.deadline?.getTime()).toBe(at(8, 21).getTime());
   });
 
-  it("applies to PENDING and DISRUPTION_PENDING too", () => {
+  it("applies to PENDING too; DISRUPTION_PENDING has no cutoff", () => {
     expect(cancelRescheduleDeadline(booking({ status: "PENDING" }), NOW).kind).toBe("open");
-    expect(cancelRescheduleDeadline(booking({ status: "disruption_pending" }), NOW).kind).toBe("open");
+    expect(cancelRescheduleDeadline(booking({ status: "disruption_pending" }), NOW).kind).toBe("disruption");
   });
 
   it("returns none for statuses the owner cannot change", () => {
@@ -261,7 +261,28 @@ describe("cancelRescheduleDeadline", () => {
       NOW,
     );
     expect(result).toMatchObject({ kind: "disruption", deadline: null });
-    expect(formatDeadlineText(result)).toBe("Reschedule or cancel anytime (equipment disruption)");
+    expect(formatDeadlineText(result)).toBe("Reschedule or cancel for a full refund anytime (lab disruption)");
+  });
+
+  it("ignores the threshold for any booking awaiting the user's choice, even without the flag", () => {
+    const result = cancelRescheduleDeadline(
+      booking({ status: "DISRUPTION_PENDING", disruption_kind: "OPERATOR_ABSENT", start_time: at(1, 9).toISOString() }),
+      NOW,
+    );
+    expect(result).toMatchObject({ kind: "disruption", deadline: null, rescheduleOnly: false });
+  });
+
+  it("does not wait for the equipment when the operator was absent", () => {
+    const result = cancelRescheduleDeadline(
+      booking({
+        status: "DISRUPTION_PENDING",
+        maintenance_disruption_flag: true,
+        disruption_kind: "OPERATOR_ABSENT",
+        equipment_is_operational: false,
+      }),
+      NOW,
+    );
+    expect(result.kind).toBe("disruption");
   });
 
   it("waits for the equipment to work again when it is not operational", () => {
@@ -288,6 +309,6 @@ describe("cancelRescheduleDeadline", () => {
       expect(formatDeadlineText(result)).toBe("Reschedule until Wed 7 Oct, 9:00 pm");
     }
     const disrupted = cancelRescheduleDeadline(booking({ source_booking_id: 12, maintenance_disruption_flag: true }), NOW);
-    expect(formatDeadlineText(disrupted)).not.toMatch(/cancel/i);
+    expect(formatDeadlineText(disrupted)).toMatch(/cancel for a full refund/i);
   });
 });

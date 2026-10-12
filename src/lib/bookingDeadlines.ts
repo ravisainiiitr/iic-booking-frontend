@@ -10,6 +10,8 @@ export interface DeadlineBookingFields {
   start_time?: string | null;
   equipment_reschedule_hours_threshold?: number | null;
   maintenance_disruption_flag?: boolean | null;
+  /** MAINTENANCE / OPERATOR_ABSENT / OTHER_DISRUPTION while the booking awaits the user's choice. */
+  disruption_kind?: string | null;
   equipment_is_operational?: boolean | null;
   is_waitlist_entry?: boolean | null;
   source_booking_id?: number | null;
@@ -67,6 +69,20 @@ export function isRepeatBooking(booking: DeadlineBookingFields): boolean {
   );
 }
 
+/**
+ * The lab disrupted the slot (maintenance, operator absent, ...) and the user chooses refund vs reschedule:
+ * the reschedule-hours threshold does not apply (backend `lab_disruption_active`).
+ */
+export function isLabDisruption(booking: DeadlineBookingFields): boolean {
+  return !!booking.maintenance_disruption_flag || String(booking.status || "").toUpperCase() === "DISRUPTION_PENDING";
+}
+
+/** Only an equipment-maintenance disruption waits for the equipment to work again before rescheduling. */
+export function disruptionNeedsOperationalEquipment(booking: DeadlineBookingFields): boolean {
+  const kind = String(booking.disruption_kind || "").toUpperCase();
+  return kind !== "OPERATOR_ABSENT" && kind !== "OTHER_DISRUPTION";
+}
+
 function parseDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const d = new Date(value);
@@ -92,9 +108,9 @@ function timeWindow(booking: DeadlineBookingFields, now: Date): CancelReschedule
   if (!OWNER_ACTIONABLE_STATUSES.has(String(booking.status || "").toUpperCase())) {
     return { kind: "none", deadline: null, rescheduleOnly };
   }
-  if (booking.maintenance_disruption_flag) {
-    const kind = booking.equipment_is_operational === false ? "disruption_waiting" : "disruption";
-    return { kind, deadline: null, rescheduleOnly };
+  if (isLabDisruption(booking)) {
+    const waiting = booking.equipment_is_operational === false && disruptionNeedsOperationalEquipment(booking);
+    return { kind: waiting ? "disruption_waiting" : "disruption", deadline: null, rescheduleOnly: false };
   }
   const start = parseDate(booking.start_time);
   if (!start) return { kind: "none", deadline: null, rescheduleOnly };
@@ -187,8 +203,8 @@ export function formatDeadlineText(result: CancelRescheduleDeadline): string | n
       return DEADLINE_PASSED_TEXT;
     case "disruption":
       return result.rescheduleOnly
-        ? "Reschedule anytime (equipment disruption)"
-        : "Reschedule or cancel anytime (equipment disruption)";
+        ? "Reschedule anytime (lab disruption)"
+        : "Reschedule or cancel for a full refund anytime (lab disruption)";
     case "disruption_waiting":
       return result.rescheduleOnly
         ? "Reschedule opens when the equipment is working again"
