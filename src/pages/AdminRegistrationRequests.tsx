@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import RegistrationAutomationTab from "@/components/registrationApprovals/RegistrationAutomationTab";
+import AccountLifecycleAdminTab from "@/components/accountLifecycle/AccountLifecycleAdminTab";
 import RegistrationLogTab from "@/components/registrationApprovals/RegistrationLogTab";
 import RegistrationRequestDetailSheet from "@/components/registrationApprovals/RegistrationRequestDetailSheet";
 import { formatDay, formatMoment, RegistrationStatusBadge } from "@/components/registrationApprovals/shared";
@@ -51,6 +52,7 @@ const TABS = [
   { value: "requests", label: "Requests", icon: UserCheck },
   { value: "log", label: "Log", icon: History },
   { value: "automation", label: "Programme expiry", icon: CalendarClock },
+  { value: "end-dates", label: "End dates", icon: CalendarClock },
 ] as const;
 type TabValue = (typeof TABS)[number]["value"];
 
@@ -412,6 +414,10 @@ export default function AdminRegistrationRequests() {
 
           <TabsContent value="automation" className="mt-0">
             {tab === "automation" && !schemaPending ? <RegistrationAutomationTab onOpenUser={setOpenUserId} onChanged={load} /> : null}
+          </TabsContent>
+
+          <TabsContent value="end-dates" className="mt-0">
+            {tab === "end-dates" ? <AccountLifecycleAdminTab /> : null}
           </TabsContent>
         </Tabs>
       </main>

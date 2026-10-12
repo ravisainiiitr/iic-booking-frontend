@@ -4,6 +4,7 @@ import { CalendarClock, CheckCircle2, Clock, Loader2, UserCheck, XCircle } from 
 import { toast } from "sonner";
 
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
+import SupervisedEndDatesCard from "@/components/accountLifecycle/SupervisedEndDatesCard";
 import {
   DisclaimerBox,
   ExtensionStatusBadge,
@@ -318,6 +319,8 @@ export default function RegistrationApprovals() {
             <CardContent className="py-10 text-center text-sm text-muted-foreground">Nothing is waiting for your approval.</CardContent>
           </Card>
         ) : null}
+
+        {user?.is_faculty || String(user?.user_type ?? "").toLowerCase() === "faculty" ? <SupervisedEndDatesCard /> : null}
 
         {overview && (overview.recent_registrations.length || overview.recent_extensions.length) ? (
           <Card>

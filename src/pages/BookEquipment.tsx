@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { SuspendedBookingGate } from "@/components/accountLifecycle/SuspendedGate";
 import {
   apiClient,
   type BookingTemplate,
@@ -12591,4 +12592,10 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
   );
 };
 
-export default BookEquipment;
+const BookEquipmentPage = (props: BookEquipmentProps = {}) => (
+  <SuspendedBookingGate>
+    <BookEquipment {...props} />
+  </SuspendedBookingGate>
+);
+
+export default BookEquipmentPage;

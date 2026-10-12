@@ -13,6 +13,7 @@ import PendingActionsPrompt from "./components/PendingActions/PendingActionsProm
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
+import AccountLifecycleBanner from "./components/accountLifecycle/AccountLifecycleBanner";
 import QuotaBreakdownHost from "./components/quota/QuotaBreakdownHost";
 import { UserCardProvider } from "./components/users/UserIdCardLink";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
@@ -52,6 +53,7 @@ const App = () => (
           <BuildUpdateNotifier />
           <PeakWindowGate>
             <UserCardProvider>
+            <AccountLifecycleBanner />
             <EmbedChrome />
             <GlobalBackButton />
             <AssistantLauncher />

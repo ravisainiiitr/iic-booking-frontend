@@ -24,6 +24,7 @@ import ReturnToBookingBanner from "@/components/wallet/ReturnToBookingBanner";
 import DirectRechargeEntry from "@/components/walletModes/DirectRechargeEntry";
 import { clearReturnToBooking, readReturnToBooking } from "@/lib/rechargeReturn";
 import { Button } from "@/components/ui/button";
+import { SuspendedActionTooltip } from "@/components/accountLifecycle/SuspendedGate";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
@@ -1890,15 +1891,17 @@ const Wallet = () => {
                 </Button>
               )}
               {canShowWalletRecharge && (
-                <Button
-                  size="lg"
-                  className="h-12 px-6 text-base"
-                  onClick={() => openRechargeDialog()}
-                  data-testid="wallet-recharge-button"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  Recharge Wallet
-                </Button>
+                <SuspendedActionTooltip>
+                  <Button
+                    size="lg"
+                    className="h-12 px-6 text-base"
+                    onClick={() => openRechargeDialog()}
+                    data-testid="wallet-recharge-button"
+                  >
+                    <Plus className="h-5 w-5 mr-2" />
+                    Recharge Wallet
+                  </Button>
+                </SuspendedActionTooltip>
               )}
             </div>
           )}

@@ -54,9 +54,15 @@ function gettingStartedSection(g: Gate): GuideSection {
           ? "If you registered as IITR Startup, the IITR faculty member who mentors your startup must approve within 24 hours of receiving the request. If they decline or do not respond in time, the request is cancelled and you can register again. You are emailed at each step."
           : "If you registered with email instead of Channel i, the faculty member you chose at registration must approve within 24 hours of receiving the request. If they decline or do not respond in time, the request is cancelled and you can register again. You are emailed at each step; the Sign in page names them while it is pending.",
       }),
-      g.when(g.is("project_staff", "startup"), {
-        title: "Programme validity and extensions",
-        body: "You are reminded 30, 7 and 1 days before your programme validity ends. Click Request an extension in the email, or on the Sign in page once it has ended, and your faculty is asked to approve. An extension lasts at most six months and can be requested again.",
+      g.when(g.is("student", "project_staff", "startup"), {
+        title: "Programme or employment end date",
+        body: g.is("student")
+          ? "My Profile shows your Degree Name and Programme or employment end date: your graduation date, or your joining date plus the usual length of the degree (Ph.D. 5 years, M.Sc. 2, M.Tech. 2, Int. M.Tech 5, B.Tech. 4, others 5). Post-doctoral fellows, research associates and IITR Startups use the end date given at registration; if it is missing, a banner asks for it."
+          : "My Profile shows your Programme or employment end date, as given at registration. If it is missing, a banner asks you to add it.",
+      }),
+      g.when(g.is("student", "project_staff", "startup"), {
+        title: "Extensions and suspension",
+        body: "You are reminded 30, 7 and 1 days before your end date. From 30 days before it, click Request extension on the banner or in the email; your IITR supervisor approves up to six months at a time, and you can ask again. Once the end date passes your account is suspended: you can still sign in, see past bookings and download results, but cannot book or upload until your supervisor approves an extension.",
       }),
       g.when(campus, {
         title: "Optional: email sign-in",
@@ -107,11 +113,11 @@ function studentsSection(g: Gate): GuideSection {
       },
       {
         title: "Registration approvals",
-        body: "When someone registers with email (a post-doctoral fellow, research associate or IITR Startup) and names you as their faculty, you get an email with Approve and Decline buttons; no sign-in is needed. Check their details, tick the confirmation that they work under you and the details are correct to the best of your knowledge, then Approve, or Decline with a reason. Please respond within 24 hours: after that the request is treated as declined and they can register again. The request is also listed under Registration approvals.",
+        body: "When someone registers with email (a post-doctoral fellow, research associate or IITR Startup) and names you as their faculty, you get an email with Approve and Decline buttons; no sign-in is needed. Check their details, tick the confirmation that they work under you and the details are correct to the best of your knowledge, then Approve, or Decline with a reason. Please respond within 24 hours: after that the request is treated as declined and they can register again. The request is also listed under Registration approvals. Approving a post-doctoral fellow or research associate also links them to your wallet; no separate wallet approval is needed.",
       },
       {
-        title: "Programme extensions",
-        body: "Before a researcher's programme validity ends they can ask you for an extension. It appears in Registration approvals with its own confirmation. Approve for up to six months (you may choose an earlier date) or decline with a reason.",
+        title: "End-date extensions",
+        body: "From 30 days before their programme or employment end date, your students and researchers can ask you for an extension. You get an email with Approve and Decline buttons, and the request also appears in Registration approvals with its own confirmation. Approve for up to six months (you may choose an earlier date) or decline with a reason. Registration approvals also lists the people linked to you whose end date is near or has passed.",
       },
     ]),
     rules: [

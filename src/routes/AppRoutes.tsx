@@ -96,6 +96,7 @@ const AdminRegistrationRequests = lazyPage(() => import("@/pages/AdminRegistrati
 const RegistrationApprovals = lazyPage(() => import("@/pages/RegistrationApprovals"));
 const ProgrammeExtension = lazyPage(() => import("@/pages/ProgrammeExtension"));
 const RegistrationDecision = lazyPage(() => import("@/pages/RegistrationDecision"));
+const ExtensionDecision = lazyPage(() => import("@/pages/ExtensionDecision"));
 const AdminWalletWithdrawalRequests = lazyPage(() => import("@/pages/AdminWalletWithdrawalRequests"));
 const AdminWalletCreditFacilitySettings = lazyPage(() => import("@/pages/AdminWalletCreditFacilitySettings"));
 const AdminWalletStudentRechargeSettings = lazyPage(() => import("@/pages/AdminWalletStudentRechargeSettings"));
@@ -235,6 +236,7 @@ export default function AppRoutes() {
           <Route path="/programme-extension" element={<ProgrammeExtension />} />
           <Route path="/registration-approvals" element={<RegistrationApprovals />} />
           <Route path="/registration-decision" element={<RegistrationDecision />} />
+          <Route path="/extension-decision" element={<ExtensionDecision />} />
           <Route path="/dashboard" element={<DashboardEntry />} />
           <Route path="/equipments" element={<EquipmentList />} />
           <Route path="/book-equipment" element={<BookEquipment />} />

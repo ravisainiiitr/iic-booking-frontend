@@ -1,6 +1,17 @@
 import { type BookingRef } from "@/lib/bookingRef";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
+  ACCOUNT_SUSPENDED_CODE,
+  isSuspendedBody,
+  notifyAccountSuspended,
+  type AccountLifecycleCompact,
+  type AccountLifecycleStatus,
+  type ExtensionDecisionItem,
+  type LifecycleReport,
+  type MyAccountLifecycle,
+  type SupervisorLifecycleOverview,
+} from "@/lib/accountLifecycle";
+import {
   APP_AUDIENCE_CODE,
   appAudienceRefused,
   clearNativeSession,
@@ -2633,6 +2644,7 @@ interface User {
   oic_enable_reward_config?: boolean;
   /** Effective RBAC permission codes for the current user. */
   rbac_permissions?: string[];
+  account_lifecycle?: AccountLifecycleCompact | null;
   /** Whether this user's role/department is configured for Admin Panel access (Main Admin always true). */
   admin_panel_enabled?: boolean;
   /** Expanded Admin Settings module keys the user may access (only computed for the authenticated self). */
@@ -3775,6 +3787,11 @@ class ApiClient {
           const message = data.message || data.detail || "External access is paused while new slots open.";
           return { error: message, status: 403, errorCode: PEAK_EXTERNAL_PAUSED_CODE, data: data as T };
         }
+        if (response.status === 403 && isSuspendedBody(data)) {
+          const message = data.error || data.detail || "Your account is suspended.";
+          notifyAccountSuspended(message);
+          return { error: message, status: 403, errorCode: ACCOUNT_SUSPENDED_CODE };
+        }
         // Portal-migration SCHEMA_PENDING (503): keep full JSON payload for UI banners.
         // Do not treat schema/results/table as "field errors".
         const schemaPendingBody = data as { code?: unknown; message?: unknown; error?: unknown };
@@ -4595,6 +4612,65 @@ class ApiClient {
     return this.request<{ message: string; validity: ProgrammeValidity }>("/registration-approvals/my-validity/", {
       method: "POST",
       body: JSON.stringify({ reason }),
+    });
+  }
+
+  async getMyAccountLifecycle() {
+    return this.request<MyAccountLifecycle>("/account-lifecycle/me/");
+  }
+
+  async requestAccountExtension(reason: string) {
+    return this.request<{ message: string; status: AccountLifecycleStatus }>("/account-lifecycle/me/extension-request/", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async provideAccountEndDate(endDate: string) {
+    return this.request<{ message: string; status: AccountLifecycleStatus }>("/account-lifecycle/me/end-date/", {
+      method: "POST",
+      body: JSON.stringify({ end_date: endDate }),
+    });
+  }
+
+  async getSupervisorLifecycle() {
+    return this.request<SupervisorLifecycleOverview>("/account-lifecycle/supervisor/");
+  }
+
+  async getExtensionDecision(token: string) {
+    return this.request<{ item: ExtensionDecisionItem }>(
+      `/account-lifecycle/extension-decision/?token=${encodeURIComponent(token)}`,
+    );
+  }
+
+  async submitExtensionDecision(body: {
+    token: string;
+    decision: "approve" | "disapprove";
+    until?: string;
+    reason?: string;
+    disclaimer_accepted?: boolean;
+    disclaimer_version?: string;
+  }) {
+    return this.request<{ decision: "approved" | "declined"; message: string }>("/account-lifecycle/extension-decision/", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async getAccountLifecycleReport() {
+    return this.request<LifecycleReport>("/account-lifecycle/admin/report/");
+  }
+
+  async getAdminUserLifecycle(userId: number) {
+    return this.request<AccountLifecycleStatus & { user: { id: number; name: string; email: string } }>(
+      `/account-lifecycle/admin/users/${userId}/`,
+    );
+  }
+
+  async adminExtendUserLifecycle(userId: number, until: string, reason: string) {
+    return this.request<{ message: string; status: AccountLifecycleStatus }>(`/account-lifecycle/admin/users/${userId}/extend/`, {
+      method: "POST",
+      body: JSON.stringify({ until, reason }),
     });
   }
 

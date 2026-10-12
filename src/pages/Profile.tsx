@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { INDIAN_MOBILE_ERROR, INDIAN_MOBILE_HINT, isValidMobileNumber } from "@/lib/mobileNumber";
 import { useAuth } from "@/contexts/AuthContext";
+import ProgrammeEndDateFields from "@/components/accountLifecycle/ProgrammeEndDateFields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -817,6 +818,10 @@ const Profile = () => {
                   <p className="text-xs text-muted-foreground">Programme end / graduation (from Channel i)</p>
                 </div>
               )}
+
+              {user?.account_lifecycle ? (
+                <ProgrammeEndDateFields showDegree={!profileData.degree_name} endDate={user.account_lifecycle.programme_end_date} />
+              ) : null}
 
               {profileData.supervisor && (
                 <div className="space-y-2">

@@ -201,7 +201,7 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   },
   "/registration-approvals": {
     title: "Registration Approvals",
-    description: "Confirm users who named you as their IITR supervisor and extend their access.",
+    description: "Confirm users who named you as their IITR supervisor, extend their end dates and see whose end date is near.",
   },
   "/calendar-colors": { title: "Calendar Colours" },
   "/leave-management": { title: "Intimate Unavailability" },

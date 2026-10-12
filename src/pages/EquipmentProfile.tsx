@@ -40,6 +40,7 @@ import {
   BookmarkCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isAccountSuspended, SUSPENDED_ACTION_TOOLTIP } from "@/lib/accountLifecycle";
 import { InPanelRoute } from "@/components/InPanelRouter";
 import { BookingTemplatesPanel } from "@/components/BookingTemplatesPanel";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
@@ -396,6 +397,12 @@ const EquipmentProfile = () => {
     if (!equipment) return;
     if (!canManageEquipment() && !isEquipmentOperational()) {
       toast.error("This equipment is not operational and cannot be booked.");
+      return;
+    }
+    if (isAccountSuspended(user)) {
+      toast.error(SUSPENDED_ACTION_TOOLTIP, {
+        action: { label: "Request extension", onClick: () => navigate("/programme-extension") },
+      });
       return;
     }
     const t = String(userType ?? "").toLowerCase();

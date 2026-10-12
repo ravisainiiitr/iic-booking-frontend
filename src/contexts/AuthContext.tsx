@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
+import type { AccountLifecycleCompact } from "@/lib/accountLifecycle";
 import type { DepartmentModulesAvailability } from "@/lib/departmentModulesApi";
 import { appEntryPath, isNativeApp } from "@/lib/nativeApp";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
@@ -66,6 +67,8 @@ export interface User {
   admin_panel_modules?: string[];
   /** Effective per-department module availability (DSA, Remote Analysis, Training, Procurement). */
   department_modules?: DepartmentModulesAvailability | null;
+  /** Programme / employment end date and suspension (IITR students, post-docs, RAs, startups; null otherwise). */
+  account_lifecycle?: AccountLifecycleCompact | null;
 }
 
 interface AuthContextType {
@@ -225,7 +228,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             JSON.stringify(prev.rbac_permissions ?? null) ===
               JSON.stringify(next.rbac_permissions ?? null) &&
             prev.department === next.department &&
-            prev.is_active === next.is_active;
+            prev.is_active === next.is_active &&
+            JSON.stringify(prev.account_lifecycle ?? null) === JSON.stringify(next.account_lifecycle ?? null);
           if (sameAccess) {
             // Refresh localStorage quietly without forcing re-renders.
             localStorage.setItem("user", JSON.stringify({ ...prev, ...next }));

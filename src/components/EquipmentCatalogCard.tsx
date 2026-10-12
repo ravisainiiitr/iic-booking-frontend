@@ -13,6 +13,7 @@ import { Play, Star, StarHalf, BookOpen, ExternalLink, Loader2 } from "lucide-re
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
+import { SuspendedActionTooltip } from "@/components/accountLifecycle/SuspendedGate";
 import CardModeAvailability from "@/components/modeAvailability/CardModeAvailability";
 import type { CardModeAvailability as CardModeAvailabilityData } from "@/lib/modeAvailability";
 import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
@@ -382,9 +383,11 @@ export default function EquipmentCatalogCard({
               <div className="flex gap-2">
                 {directToBooking ? (
                   <>
-                    <Button className={cn("flex-1 text-white", accent.button)} onClick={openBooking}>
-                      Book now
-                    </Button>
+                    <SuspendedActionTooltip wrapperClassName="flex-1">
+                      <Button className={cn("flex-1 text-white", accent.button)} onClick={openBooking}>
+                        Book now
+                      </Button>
+                    </SuspendedActionTooltip>
                     <Button variant="outline" onClick={openDetails}>
                       Details
                     </Button>
@@ -395,14 +398,16 @@ export default function EquipmentCatalogCard({
                       View details
                     </Button>
                     {canBookHere ? (
-                      <Button
-                        variant="outline"
-                        onClick={openBooking}
-                        aria-label={`Book ${item.name}`}
-                        className="border-primary/40 text-primary hover:bg-primary/5"
-                      >
-                        Book
-                      </Button>
+                      <SuspendedActionTooltip>
+                        <Button
+                          variant="outline"
+                          onClick={openBooking}
+                          aria-label={`Book ${item.name}`}
+                          className="border-primary/40 text-primary hover:bg-primary/5"
+                        >
+                          Book
+                        </Button>
+                      </SuspendedActionTooltip>
                     ) : null}
                   </>
                 )}

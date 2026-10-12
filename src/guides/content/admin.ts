@@ -107,6 +107,10 @@ export const adminGuide: RoleGuide = {
             title: "Programme expiry",
             body: "The Programme expiry tab shows whether automatic expiry is on and a dry run of who would be warned or disabled today. To switch it on, click Enable and type ENABLE.",
           },
+          {
+            title: "End dates",
+            body: "The End dates tab counts IITR students (by degree), post-doctoral fellows, research associates and IITR Startups who are active, past their end date, ending within 30 days or missing an end date. To extend or override one account, enter its user ID, click Look up, choose a date (at most six months ahead) and give a reason.",
+          },
         ],
         rules: [
           "Only the Main Administrator can open Registration requests. A faculty member can act only on requests that name them, and each email link works once.",
@@ -114,6 +118,7 @@ export const adminGuide: RoleGuide = {
           "If the faculty declines, or does not decide within 24 hours, the request is cancelled, the pending account is removed (the Registration log keeps a snapshot) and the user is emailed that they can register again. Requests sent before the window was introduced do not time out.",
           "With automatic expiry on, users are warned 30, 7 and 1 days before their programme validity ends and disabled when it passes unless their faculty grants an extension. An extension runs for at most six months from the current end date (or from today if it has already passed), and can be repeated.",
           "Future bookings of a disabled account are never cancelled automatically; they are listed in the request and on the Programme expiry tab for you or the Officer In Charge to handle.",
+          "When end-date enforcement is on, accounts past their end date are suspended rather than disabled: they can sign in, view past bookings and download results, but cannot book or upload. Their future bookings stay in place and each Officer In Charge is notified to review them. Automatic expiry above then stands down.",
         ],
       },
       {
