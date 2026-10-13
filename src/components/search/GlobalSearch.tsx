@@ -84,6 +84,8 @@ function shortDate(iso: string | null): string {
   }
 }
 
+const SECONDARY = "truncate text-xs text-muted-foreground group-data-[selected=true]:text-current group-data-[selected=true]:opacity-90";
+
 const EMPTY: GlobalSearchResult = { query: "", equipment: [], bookings: [], people: [], people_enabled: false };
 
 export function GlobalSearchHost() {
@@ -175,8 +177,10 @@ export function GlobalSearchHost() {
   const hasHits =
     pageHits.length + result.equipment.length + result.bookings.length + result.people.length > 0;
   const searching = trimmed.length >= 2;
+  const isStaffUser =
+    isAuthenticated && (staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase()));
   const placeholder = isAuthenticated
-    ? staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase())
+    ? isStaffUser
       ? "Search booking ID, equipment, user name or email…"
       : "Search your bookings, equipment or pages…"
     : "Search equipment and pages…";
@@ -256,8 +260,11 @@ export function GlobalSearchHost() {
                   ))}
                 </CommandGroup>
                 <p className="px-4 pb-4 pt-1 text-xs text-muted-foreground">
-                  Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code
-                  {isAuthenticated && staffView ? ", or a user's name, email or phone" : ""}.
+                  {!isAuthenticated
+                    ? "Tip: type an instrument name, code or technique, e.g. XRD, SEM or Raman. Sign in to search your bookings."
+                    : isStaffUser
+                      ? "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code, or a user's name, email or phone."
+                      : "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code."}
                 </p>
               </>
             ) : null}
@@ -294,15 +301,15 @@ export function GlobalSearchHost() {
                     key={`b-${b.id}`}
                     value={`booking-${b.id}`}
                     onSelect={() => go(bookingHref(b, staffView))}
-                    className="items-start"
+                    className="group items-start"
                   >
-                    <CalendarClock className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <CalendarClock className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-sm font-semibold">{b.virtual_booking_id}</span>
                         <StatusPill status={b.status} label={b.status_label} />
                       </div>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className={SECONDARY}>
                         {b.equipment}
                         {b.user_name ? ` · ${b.user_name}` : ""}
                         {b.slot_start ? ` · ${shortDate(b.slot_start)}` : ""}
@@ -332,10 +339,17 @@ export function GlobalSearchHost() {
                     onSelect={() => go(`/equipment/${e.id}`)}
                     className="group items-start"
                   >
-                    <FlaskConical className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <FlaskConical className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{e.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <span className="truncate">{e.name}</span>
+                        {e.status && e.status !== "ACTIVE" ? (
+                          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
+                            {e.status === "DISPOSED" ? "Disposed" : "Under maintenance"}
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className={SECONDARY}>
                         {e.code}
                         {e.category ? ` · ${e.category}` : ""}
                         {e.department ? ` · ${e.department}` : ""}
@@ -366,11 +380,11 @@ export function GlobalSearchHost() {
             {searching && result.people.length > 0 ? (
               <CommandGroup heading="People">
                 {result.people.map((p) => (
-                  <CommandItem key={`p-${p.id}`} value={`person-${p.id}`} onSelect={() => openPerson(p.id)}>
-                    <IdCard className="mr-3 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <CommandItem key={`p-${p.id}`} value={`person-${p.id}`} onSelect={() => openPerson(p.id)} className="group">
+                    <IdCard className="mr-3 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{p.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className={SECONDARY}>
                         {[p.user_type, p.department, p.email].filter(Boolean).join(" · ")}
                       </p>
                     </div>
