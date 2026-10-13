@@ -159,6 +159,19 @@ const NotificationPanel = () => {
                   <span>Mark all read</span>
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                aria-label="Notification settings"
+                title="Notification settings"
+                onClick={() => {
+                  setOpen(false);
+                  navigate("/notifications?tab=settings");
+                }}
+              >
+                <Settings2 className="h-4 w-4" aria-hidden />
+              </Button>
               <SheetClose asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
                   <X className="h-4 w-4" aria-hidden />
@@ -304,7 +317,7 @@ const NotificationPanel = () => {
             }}
           >
             <Settings2 className="mr-1.5 h-4 w-4" aria-hidden />
-            Settings
+            Notification settings
           </Button>
         </div>
       </SheetContent>

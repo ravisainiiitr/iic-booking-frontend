@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark } from "lucide-react";
+import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
@@ -35,6 +35,7 @@ import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceip
 import { toast } from "sonner";
 import NotificationPanel from "@/components/NotificationPanel";
 import DashboardHeader from "@/components/DashboardHeader";
+import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
@@ -4337,6 +4338,24 @@ const Dashboard = () => {
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <DashboardSearchBar
+            className="sm:flex-1"
+            placeholder={
+              ["admin", "dept_admin", "manager", "operator"].includes(userTypeStr)
+                ? "Search booking ID, equipment, user name or email…"
+                : undefined
+            }
+          />
+          <Button
+            variant="outline"
+            className="h-12 shrink-0 gap-2 rounded-xl"
+            onClick={() => navigate("/notifications?tab=settings")}
+          >
+            <BellRing className="h-4 w-4" aria-hidden />
+            Notification settings
+          </Button>
+        </div>
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(

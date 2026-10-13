@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen, Sparkles } from "lucide-react";
+import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen, Sparkles, BellRing } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import { toast } from "sonner";
@@ -207,6 +207,10 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                       <UserIcon className="mr-2 h-4 w-4" />
                       <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/notifications?tab=settings")}>
+                      <BellRing className="mr-2 h-4 w-4" />
+                      <span>Notification settings</span>
                     </DropdownMenuItem>
                     {hasGuide ? (
                       <DropdownMenuItem onClick={openWhatsNew}>

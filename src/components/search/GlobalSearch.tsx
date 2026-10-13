@@ -429,14 +429,38 @@ export function GlobalSearchButton({ className, wideFrom = "md" }: { className?:
       aria-keyshortcuts="Control+K /"
       title={`Search (${SEARCH_SHORTCUT_LABEL})`}
       className={cn(
-        "inline-flex h-10 items-center gap-2 rounded-md border border-border/80 bg-background/70 px-2.5 text-sm text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex h-10 items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-sm text-foreground/80 shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         width.box,
         className,
       )}
     >
-      <Search className="h-4 w-4 shrink-0" aria-hidden />
+      <Search className="h-4 w-4 shrink-0 text-primary dark:text-sky-300" aria-hidden />
       <span className={cn("flex-1 text-left", width.label)}>Search…</span>
       <kbd className={cn("rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium", width.label)}>
+        {SEARCH_SHORTCUT_LABEL}
+      </kbd>
+    </button>
+  );
+}
+
+/** Search field at the top of the dashboard, visible at every screen width. */
+export function DashboardSearchBar({ className, placeholder }: { className?: string; placeholder?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => openGlobalSearch()}
+      aria-label="Search bookings, equipment and pages"
+      aria-keyshortcuts="Control+K /"
+      className={cn(
+        "group flex h-12 w-full min-w-0 items-center gap-3 rounded-xl border-2 border-primary/30 bg-card px-4 text-left text-sm text-muted-foreground shadow-sm transition-all hover:border-primary/60 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-base",
+        className,
+      )}
+    >
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:text-sky-300">
+        <Search className="h-4 w-4" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{placeholder ?? "Search booking ID, equipment or a page…"}</span>
+      <kbd className="hidden shrink-0 rounded-md border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground sm:inline">
         {SEARCH_SHORTCUT_LABEL}
       </kbd>
     </button>

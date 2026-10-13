@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles } from "lucide-react";
+import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles, BellRing } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
 import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import IITRBanner from "@/components/IITRBanner";
@@ -442,6 +442,10 @@ const DashboardHeader = () => {
               <DropdownMenuItem onClick={() => safeNavigate("/profile")}>
                 <UserIcon className="mr-2 h-4 w-4" />
                 <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/notifications?tab=settings")}>
+                <BellRing className="mr-2 h-4 w-4" />
+                <span>Notification settings</span>
               </DropdownMenuItem>
               {hasGuide ? (
                 <DropdownMenuItem onClick={openWhatsNew}>
