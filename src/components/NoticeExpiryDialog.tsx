@@ -24,8 +24,8 @@ type NoticeExpiryDialogProps = {
 };
 
 /**
- * OIC sets expiry (or Unlimited) for an equipment-unavailable notice draft,
- * then submits it for Main Admin approval.
+ * OIC sets expiry (or Unlimited) for an equipment-unavailable notice draft; it is published on the
+ * notice board at once (no Main Admin approval).
  * Defaults to Unlimited — notice is closed automatically when equipment returns to Operational.
  */
 export function NoticeExpiryDialog({
@@ -105,8 +105,8 @@ export function NoticeExpiryDialog({
       }
       toast.success(
         unlimited
-          ? "Notice submitted. It will close automatically when the equipment is Operational again."
-          : "Notice submitted for Main Admin approval."
+          ? "Notice published on the notice board. It closes automatically when the equipment is Operational again."
+          : "Notice published on the notice board until the expiry you chose."
       );
       reset();
       onOpenChange(false);
@@ -130,9 +130,9 @@ export function NoticeExpiryDialog({
         <DialogHeader>
           <DialogTitle>Publish on notice board?</DialogTitle>
           <DialogDescription>
-            Equipment was set to Under Maintenance. Review the notice details below and submit
-            for the notice board. With Unlimited expiry, the notice closes automatically when you
-            set the equipment back to Operational.
+            Equipment was set to Under Maintenance. Review the notice below; it appears on the notice
+            board as soon as you publish it (no approval needed). With Unlimited expiry, the notice
+            closes automatically when you set the equipment back to Operational.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-1">

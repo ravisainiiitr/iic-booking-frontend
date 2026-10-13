@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Ban, Check, Loader2, RefreshCw, Search, Settings2 } from "lucide-react";
+import { BadgeCheck, Ban, Check, Loader2, Mail, RefreshCw, Search, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ExportMenu } from "@/components/ExportMenu";
@@ -97,6 +97,7 @@ export default function AdminSricRecharges({ reloadSignal = 0 }: { reloadSignal?
 
   const [creditRow, setCreditRow] = useState<SricRechargeRow | null>(null);
   const [rejectRow, setRejectRow] = useState<SricRechargeRow | null>(null);
+  const [signinRow, setSigninRow] = useState<SricRechargeRow | null>(null);
   const [verifyRow, setVerifyRow] = useState<SricRechargeRow | null>(null);
 
   const params = useMemo(
@@ -396,6 +397,16 @@ export default function AdminSricRecharges({ reloadSignal = 0 }: { reloadSignal?
                         {row.review_message && row.status !== "credited" ? (
                           <span className="mt-1 block text-muted-foreground">{row.review_message}</span>
                         ) : null}
+                        {row.signin_notice_sent_at ? (
+                          <span className="mt-1 block text-muted-foreground" data-testid="sric-signin-notice-sent">
+                            Asked to sign in with Channel i: emailed {row.signin_notice_email || "faculty"} on{" "}
+                            {formatDateTime(row.signin_notice_sent_at)}
+                          </span>
+                        ) : row.can_send_signin_notice ? (
+                          <span className="mt-1 block text-amber-700 dark:text-amber-400">
+                            Not yet asked to sign in with Channel i
+                          </span>
+                        ) : null}
                         {row.status === "duplicate" && row.duplicate_of_reference ? (
                           <span className="mt-1 block text-muted-foreground">Same as {row.duplicate_of_reference}</span>
                         ) : null}
@@ -433,6 +444,12 @@ export default function AdminSricRecharges({ reloadSignal = 0 }: { reloadSignal?
                           {row.can_credit ? (
                             <Button size="sm" onClick={() => setCreditRow(row)}>
                               Credit
+                            </Button>
+                          ) : null}
+                          {row.can_send_signin_notice ? (
+                            <Button size="sm" variant="outline" onClick={() => setSigninRow(row)}>
+                              <Mail className="mr-1 h-3.5 w-3.5" />
+                              {row.signin_notice_sent_at ? "Email again" : "Email to sign in"}
                             </Button>
                           ) : null}
                           {row.can_reject ? (
@@ -491,6 +508,16 @@ export default function AdminSricRecharges({ reloadSignal = 0 }: { reloadSignal?
           onClose={() => setRejectRow(null)}
           onDone={() => {
             setRejectRow(null);
+            void load();
+          }}
+        />
+      ) : null}
+      {signinRow ? (
+        <SigninNoticeDialog
+          row={signinRow}
+          onClose={() => setSigninRow(null)}
+          onDone={() => {
+            setSigninRow(null);
             void load();
           }}
         />
@@ -705,6 +732,62 @@ function RejectDialog({ row, onClose, onDone }: { row: SricRechargeRow; onClose:
   );
 }
 
+function SigninNoticeDialog({ row, onClose, onDone }: { row: SricRechargeRow; onClose: () => void; onDone: () => void }) {
+  const [email, setEmail] = useState(row.signin_notice_email || "");
+  const [needsAddress, setNeedsAddress] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    setSaving(true);
+    const res = await apiClient.sendSricSigninNotice(row.id, email.trim());
+    setSaving(false);
+    if (res.error || !res.data) {
+      if (res.errorCode === "EMAIL_REQUIRED") setNeedsAddress(true);
+      toast.error(res.error || "Could not send the email.");
+      return;
+    }
+    toast.success(res.data.message);
+    onDone();
+  };
+  return (
+    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Ask to sign in — {row.reference}</DialogTitle>
+          <DialogDescription>
+            Emails {row.pi_name || "the faculty member"} that this recharge is waiting for them to sign in to the new
+            portal with Channel i, with a link to the portal. Once they sign in, the row is matched and credited.
+          </DialogDescription>
+        </DialogHeader>
+        <RowSummary row={row} />
+        <div className="space-y-1.5">
+          <Label htmlFor="sric-signin-email">Email address</Label>
+          <Input
+            id="sric-signin-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Leave blank to use the address on record"
+          />
+          <p className={needsAddress ? "text-xs text-amber-700 dark:text-amber-400" : "text-xs text-muted-foreground"}>
+            {needsAddress
+              ? `No address is on record for Employee ID ${row.employee_id || "—"}. Enter the faculty member's email.`
+              : "Blank: the address from their portal account or the old portal records for this Employee ID."}
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={() => void submit()} disabled={saving || (needsAddress && !email.trim())}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+            Send email
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function VerifyDialog({ row, onClose, onDone }: { row: SricRechargeRow; onClose: () => void; onDone: () => void }) {
   const [verified, setVerified] = useState<boolean>(true);
   const [remarks, setRemarks] = useState(row.fund_receipt_verification_remarks || "");
@@ -767,6 +850,7 @@ type SettingsDraft = Pick<
   | "gateway_marker_value"
   | "confirmation_cc_emails"
   | "review_alert_emails"
+  | "signin_notice_enabled"
   | "quiet_window_enabled"
   | "quiet_window_weekday"
   | "quiet_window_start"
@@ -798,6 +882,7 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
       gateway_marker_value: data.gateway_marker_value,
       confirmation_cc_emails: data.confirmation_cc_emails,
       review_alert_emails: data.review_alert_emails,
+      signin_notice_enabled: data.signin_notice_enabled ?? true,
       quiet_window_enabled: data.quiet_window_enabled ?? true,
       quiet_window_weekday: data.quiet_window_weekday ?? 2,
       quiet_window_start: data.quiet_window_start || "20:55",
@@ -861,7 +946,7 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
   );
 
   const toggle = (
-    key: "scan_enabled" | "auto_credit_enabled" | "require_internal_relay" | "quiet_window_enabled",
+    key: "scan_enabled" | "auto_credit_enabled" | "require_internal_relay" | "signin_notice_enabled" | "quiet_window_enabled",
     label: string,
     hint: string,
   ) => (
@@ -870,7 +955,7 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
         <Label htmlFor={`sric-setting-${key}`}>{label}</Label>
         <p className="text-xs text-muted-foreground">{hint}</p>
       </div>
-      <Switch id={`sric-setting-${key}`} checked={draft[key]} onCheckedChange={(c) => setDraft({ ...draft, [key]: c })} />
+      <Switch id={`sric-setting-${key}`} checked={Boolean(draft[key])} onCheckedChange={(c) => setDraft({ ...draft, [key]: c })} />
     </div>
   );
 
@@ -892,6 +977,11 @@ function SricSettingsCard({ onSaved }: { onSaved: () => void }) {
             "require_internal_relay",
             "Require internal relay",
             "Without a trusted Authentication-Results, only accept emails relayed inside the campus network.",
+          )}
+          {toggle(
+            "signin_notice_enabled",
+            "Email faculty not yet signed in",
+            "When a recharge arrives for an Employee ID with no portal account, ask the faculty member once to sign in with Channel i.",
           )}
         </div>
         <div className="grid gap-3 md:grid-cols-2">

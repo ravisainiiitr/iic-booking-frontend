@@ -1196,6 +1196,10 @@ export interface SricRechargeRow {
   can_credit?: boolean;
   can_reject?: boolean;
   can_verify?: boolean;
+  /** Waiting only because the faculty member has not signed in with Channel i yet. */
+  can_send_signin_notice?: boolean;
+  signin_notice_sent_at?: string | null;
+  signin_notice_email?: string;
 }
 
 export interface SricReceiverInfo {
@@ -1306,6 +1310,8 @@ export interface SricRechargeSettings {
   gateway_marker_value: string;
   confirmation_cc_emails: string;
   review_alert_emails: string;
+  /** Email faculty with no portal account yet to sign in with Channel i. */
+  signin_notice_enabled?: boolean;
   /** Weekly pause of mailbox checks during peak booking time (IST). Weekday: 0 = Monday … 6 = Sunday. */
   quiet_window_enabled: boolean;
   quiet_window_weekday: number;
@@ -5507,6 +5513,8 @@ class ApiClient {
           notice_closed_on_operational?: boolean;
         };
         disruption_events?: DisruptionEventIds;
+        /** Modes of this base instrument whose status followed it (Under Maintenance, or back to Operational). */
+        modes_status_changed?: Array<{ equipment_id: number; code: string; name: string; status: string }>;
       };
       error?: string;
     }>;
@@ -6714,6 +6722,14 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
+  }
+
+  /** Email the faculty member of a row to sign in with Channel i; ``email`` overrides the address found. */
+  async sendSricSigninNotice(id: number, email = "") {
+    return this.request<{ message: string; row: SricRechargeRow }>(
+      `/admin/sric-wallet-recharges/${id}/signin-notice/`,
+      { method: 'POST', body: JSON.stringify(email ? { email } : {}) },
+    );
   }
 
   async verifySricRecharge(id: number, verified: boolean, remarks: string) {

@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   creditReadySricRecharges: vi.fn(),
   rejectSricRecharge: vi.fn(),
   verifySricRecharge: vi.fn(),
+  sendSricSigninNotice: vi.fn(),
   lookupSricRechargeUser: vi.fn(),
   getSricRechargeSettings: vi.fn(),
   updateSricRechargeSettings: vi.fn(),
@@ -174,6 +175,52 @@ describe("AdminSricRecharges", () => {
     await waitFor(() =>
       expect(api.getAdminSricRecharges).toHaveBeenLastCalledWith(expect.objectContaining({ status: "needs_review", page: 1 })),
     );
+  });
+
+  it("emails a faculty member with no portal account to sign in with Channel i", async () => {
+    const unmatched = {
+      ...base,
+      id: 9,
+      reference: "SWR-000009",
+      ledger_id: "L-1009",
+      employee_id: "100684",
+      pi_name: "Prof. New Faculty",
+      matched_user: null,
+      status: "needs_review",
+      status_display: "Needs review",
+      review_reason: "unmatched_employee",
+      review_message: "No portal user has this Employee ID.",
+      can_credit: true,
+      can_reject: true,
+      can_send_signin_notice: true,
+      signin_notice_sent_at: null,
+    };
+    const res = listResponse();
+    api.getAdminSricRecharges.mockResolvedValue({ data: { ...res.data, results: [unmatched] } });
+    api.sendSricSigninNotice
+      .mockResolvedValueOnce({ error: "No email address is known for this Employee ID.", errorCode: "EMAIL_REQUIRED" })
+      .mockResolvedValueOnce({
+        data: {
+          message: "Sign-in email sent to new.faculty@example.test.",
+          row: { ...unmatched, signin_notice_sent_at: "2026-10-13T10:00:00+05:30" },
+        },
+      });
+    render(<AdminSricRecharges />);
+    const row = await screen.findByTestId("sric-row-9");
+    expect(within(row).getByText("Not yet asked to sign in with Channel i")).toBeTruthy();
+
+    fireEvent.click(within(row).getByRole("button", { name: /Email to sign in/ }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Send email/ }));
+    await waitFor(() => expect(api.sendSricSigninNotice).toHaveBeenCalledWith(9, ""));
+    expect(await within(dialog).findByText(/No address is on record for Employee ID 100684/)).toBeTruthy();
+    const send = within(dialog).getByRole("button", { name: /Send email/ }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+
+    fireEvent.change(within(dialog).getByLabelText("Email address"), { target: { value: "new.faculty@example.test" } });
+    fireEvent.click(send);
+    await waitFor(() => expect(api.sendSricSigninNotice).toHaveBeenLastCalledWith(9, "new.faculty@example.test"));
+    await waitFor(() => expect(api.getAdminSricRecharges).toHaveBeenCalledTimes(2));
   });
 
   it("edits the peak booking pause in Settings", async () => {

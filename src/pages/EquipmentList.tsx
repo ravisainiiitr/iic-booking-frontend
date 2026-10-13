@@ -414,6 +414,10 @@ const EquipmentList = () => {
       }
       const label = newStatus === "ACTIVE" ? "Operational" : "Under Maintenance";
       toast.success(`Equipment set to ${label}`);
+      const modes = res.data?.modes_status_changed ?? [];
+      if (modes.length > 0) {
+        toast.message(`Its modes were also set to ${label}: ${modes.map((m) => m.code || m.name).join(", ")}`);
+      }
       await outcome?.afterApply(res.data?.disruption_events);
       const nb = res.data?.notice_board;
       if (nb?.notice_closed_on_operational) {

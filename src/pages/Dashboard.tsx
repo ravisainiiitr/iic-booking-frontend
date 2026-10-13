@@ -2989,7 +2989,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Notice board requests</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Submit notices for approval; complete expiry for equipment unavailability drafts
+                      Submit notices for approval; equipment unavailability notices publish once you set an expiry
                     </CardDescription>
                   </div>
                 </div>

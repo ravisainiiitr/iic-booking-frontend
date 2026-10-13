@@ -203,7 +203,7 @@ const NoticeBoardRequests = () => {
                   Notice board requests
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  Submit notices for Main Admin approval. Equipment unavailability drafts only need an expiry.
+                  New notices need Main Admin approval. Equipment unavailability notices are published as soon as you set an expiry.
                 </p>
               </div>
             </div>
@@ -227,7 +227,7 @@ const NoticeBoardRequests = () => {
               <CardHeader>
                 <CardTitle className="text-lg">Equipment unavailability — set expiry</CardTitle>
                 <CardDescription>
-                  Auto-created when equipment is set Under Maintenance. Choose an expiry or Unlimited, then submit for approval.
+                  Auto-created when equipment is set Under Maintenance. Choose an expiry or Unlimited to publish it on the notice board; no approval is needed.
                 </CardDescription>
               </CardHeader>
               <CardContent>
