@@ -31,6 +31,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { DisruptionCategoryChips } from "@/components/disruptions/DisruptionCategoryChips";
 import { DISRUPTION_REASON_CATEGORIES } from "@/lib/disruptions";
 import { ResultsZipProgress, useResultsZipDownload, zipButtonLabel } from "@/components/ResultsZipDownload";
+import { CompleteUploadProgress } from "@/components/booking/CompleteUploadProgress";
+import { formatBytes } from "@/lib/resultsDownload";
+import { uploadProgress, type UploadProgress } from "@/lib/uploadWithProgress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
@@ -705,6 +708,19 @@ export function BookingDetailCard({
   const [completeResultFiles, setCompleteResultFiles] = useState<File[]>([]);
   const [completeUploadedFiles, setCompleteUploadedFiles] = useState<string[]>([]);
   const [completeLoading, setCompleteLoading] = useState(false);
+  const [completeUploadProgress, setCompleteUploadProgress] = useState<UploadProgress | null>(null);
+  const completeUploadAbortRef = useRef<AbortController | null>(null);
+  const completeUploading = completeLoading && completeUploadProgress?.phase === "uploading";
+  const completeUploadActive = completeLoading && completeUploadProgress !== null;
+  useEffect(() => {
+    if (!completeUploadActive) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [completeUploadActive]);
   const [expandedBookings, setExpandedBookings] = useState<Set<string | number>>(new Set());
   const bookingPk = getRealBookingId(booking);
   const [resultsData, setResultsData] = useState<{
@@ -1045,13 +1061,25 @@ export function BookingDetailCard({
   const handleComplete = async () => {
     if (!actionDialog.booking) return;
     setCompleteLoading(true);
+    const abort = new AbortController();
+    completeUploadAbortRef.current = abort;
     try {
       const filesToSend = completeResultFiles.length > 0 ? completeResultFiles : undefined;
       const bookingPk = getRealBookingId(actionDialog.booking);
       if (bookingPk == null) throw new Error("Invalid booking reference.");
-      const response = await apiClient.completeBooking(bookingPk, filesToSend);
+      if (filesToSend) {
+        setCompleteUploadProgress(uploadProgress(0, filesToSend.reduce((sum, f) => sum + f.size, 0), 0));
+      }
+      const response = await apiClient.completeBooking(bookingPk, filesToSend, {
+        onProgress: setCompleteUploadProgress,
+        signal: abort.signal,
+      });
       if (response.error) {
-        toast.error(response.error);
+        if ((response as { errorCode?: string }).errorCode === "cancelled") {
+          toast.info("Upload cancelled. The booking was not completed.");
+        } else {
+          toast.error(response.error);
+        }
         return;
       }
       const uploaded = (response.data as { uploaded_files?: string[] })?.uploaded_files ?? [];
@@ -1064,6 +1092,8 @@ export function BookingDetailCard({
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to complete booking");
     } finally {
+      completeUploadAbortRef.current = null;
+      setCompleteUploadProgress(null);
       setCompleteLoading(false);
     }
   };
@@ -3803,7 +3833,7 @@ export function BookingDetailCard({
         </CardContent>
       </Card>
 
-      <Dialog open={actionDialog.open} onOpenChange={(open) => !open && closeActionDialog()}>
+      <Dialog open={actionDialog.open} onOpenChange={(open) => !open && !completeLoading && closeActionDialog()}>
         <DialogContent className={actionDialog.type === "reschedule" ? "sm:max-w-[90vw] max-w-4xl max-h-[90dvh] overflow-y-auto" : ""}>
           <DialogHeader>
             <DialogTitle>
@@ -3913,11 +3943,11 @@ export function BookingDetailCard({
                       e.target.value = "";
                     }}
                   />
-                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById(`complete-results-input-${booking.booking_id}`)?.click()}>
+                  <Button type="button" variant="outline" size="sm" disabled={completeLoading} onClick={() => document.getElementById(`complete-results-input-${booking.booking_id}`)?.click()}>
                     Browse
                   </Button>
                   {completeResultFiles.length > 0 && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setCompleteResultFiles([])}>
+                    <Button type="button" variant="ghost" size="sm" disabled={completeLoading} onClick={() => setCompleteResultFiles([])}>
                       Clear files
                     </Button>
                   )}
@@ -3925,9 +3955,14 @@ export function BookingDetailCard({
                 {completeResultFiles.length > 0 && (
                   <ul className="mt-2 text-sm text-muted-foreground list-disc list-inside">
                     {completeResultFiles.map((f, i) => (
-                      <li key={`${f.name}-${i}`}>{f.name}</li>
+                      <li key={`${f.name}-${i}`}>
+                        {f.name} <span className="tabular-nums">({formatBytes(f.size)})</span>
+                      </li>
                     ))}
                   </ul>
+                )}
+                {completeLoading && completeUploadProgress && (
+                  <CompleteUploadProgress progress={completeUploadProgress} />
                 )}
               </div>
               {completeUploadedFiles.length > 0 && (
@@ -4026,8 +4061,16 @@ export function BookingDetailCard({
 
           {actionDialog.type !== "reschedule" && (
             <DialogFooter>
-              <Button variant="outline" onClick={closeActionDialog} disabled={actionSubmitLoading || completeLoading}>
-                {actionDialog.type === "complete" && completeUploadedFiles.length > 0 ? "Close" : "Cancel"}
+              <Button
+                variant="outline"
+                onClick={() => (completeUploading ? completeUploadAbortRef.current?.abort() : closeActionDialog())}
+                disabled={actionSubmitLoading || (completeLoading && !completeUploading)}
+              >
+                {completeUploading
+                  ? "Cancel upload"
+                  : actionDialog.type === "complete" && completeUploadedFiles.length > 0
+                    ? "Close"
+                    : "Cancel"}
               </Button>
               <Button
                 onClick={() => {
@@ -4042,7 +4085,11 @@ export function BookingDetailCard({
                 }}
                 disabled={actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)}
               >
-                {actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)
+                {actionDialog.type === "complete" && completeLoading && completeUploadProgress
+                  ? completeUploadProgress.phase === "uploading"
+                    ? `Uploading ${completeUploadProgress.percent}%…`
+                    : "Saving files…"
+                  : actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)
                   ? "Request under process…"
                   : actionDialog.type === "complete" && completeUploadedFiles.length > 0
                     ? "Done"

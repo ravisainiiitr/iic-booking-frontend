@@ -1,4 +1,5 @@
 import { type BookingRef } from "@/lib/bookingRef";
+import { postFormWithProgress, type UploadProgress } from "@/lib/uploadWithProgress";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
   ACCOUNT_SUSPENDED_CODE,
@@ -9041,19 +9042,25 @@ class ApiClient {
 
   // Booking endpoints
   // Booking action endpoints (operator/manager only)
-  async completeBooking(bookingId: number, resultFiles?: File[]) {
+  async completeBooking(
+    bookingId: number,
+    resultFiles?: File[],
+    upload?: { onProgress?: (progress: UploadProgress) => void; signal?: AbortSignal },
+  ) {
     if (resultFiles && resultFiles.length > 0) {
       const form = new FormData();
       resultFiles.forEach((file) => form.append('results', file));
       const url = `${this.baseURL}/bookings/${bookingId}/complete/`;
-      const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
-      const res = await fetch(url, { method: 'POST', headers, body: form });
-      const data = await res.json().catch(() => ({}));
+      const headers: Record<string, string> = this.token ? { Authorization: `Token ${this.token}` } : {};
+      const res = await postFormWithProgress(url, form, headers, upload?.onProgress, upload?.signal);
       if (!res.ok) {
-        return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+        const error = (res.data as { error?: string })?.error;
+        if (res.aborted) return { error: error || 'Upload cancelled.', errorCode: 'cancelled' };
+        if (res.status === 413) return { error: 'The files are larger than the server accepts in one upload.' };
+        return { error: error || (res.status ? `HTTP ${res.status}` : 'Network error while uploading. Please try again.') };
       }
       return {
-        data: data as { message: string; booking: any; uploaded_files?: string[] },
+        data: res.data as { message: string; booking: any; uploaded_files?: string[] },
       };
     }
     return this.request<{
