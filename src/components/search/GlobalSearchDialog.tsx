@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Loader2,
   Search,
+  Sparkles,
   X,
 } from "lucide-react";
 import { Command as CommandPrimitive } from "cmdk";
@@ -234,10 +235,10 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                 </CommandGroup>
                 <p className="px-4 pb-4 pt-1 text-xs text-muted-foreground">
                   {!isAuthenticated
-                    ? "Tip: type an instrument name, code or technique, e.g. XRD, SEM or Raman. Sign in to search your bookings."
+                    ? "Tip: type an instrument name, code or what you want to measure, e.g. XRD, crystal structure or thermal stability. Sign in to search your bookings."
                     : isStaffUser
-                      ? "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code, or a user's name, email or phone."
-                      : "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code."}
+                      ? "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name, code or technique, or a user's name, email or phone."
+                      : "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code, or a technique such as surface morphology."}
                 </p>
               </>
             ) : null}
@@ -250,7 +251,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                   <>
                     No matches for <span className="font-medium text-foreground">“{trimmed}”</span>.
                     <br />
-                    Check the spelling, or search by booking ID or equipment code.
+                    Try another word for the technique, or search by booking ID or equipment code.
                   </>
                 )}
               </CommandEmpty>
@@ -305,6 +306,14 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
 
             {searching && result.equipment.length > 0 ? (
               <CommandGroup heading="Equipment">
+                {result.suggestion && result.suggestion.toLowerCase() !== trimmed.toLowerCase() ? (
+                  <CommandItem value="equipment-suggestion" onSelect={() => setQuery(result.suggestion ?? "")}>
+                    <Sparkles className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
+                    <span className="text-sm text-muted-foreground">
+                      Did you mean <span className="font-medium text-foreground">{result.suggestion}</span>?
+                    </span>
+                  </CommandItem>
+                ) : null}
                 {result.equipment.map((e) => (
                   <CommandItem
                     key={`e-${e.id}`}
@@ -327,6 +336,11 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         {e.category ? ` · ${e.category}` : ""}
                         {e.department ? ` · ${e.department}` : ""}
                       </p>
+                      {e.hint ? (
+                        <p className="truncate text-[11px] italic text-muted-foreground group-data-[selected=true]:text-current group-data-[selected=true]:opacity-80">
+                          {e.hint}
+                        </p>
+                      ) : null}
                     </div>
                     {isAuthenticated && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
                       <button

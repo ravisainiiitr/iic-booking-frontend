@@ -62,16 +62,57 @@ export function pagesFor(userType: string | number | null | undefined, signedIn:
   });
 }
 
-/** Pages whose title or keywords contain every word of the query. */
+/** Edit distance (insert, delete, substitute, swap neighbours), or ``limit + 1`` when larger. */
+export function editDistance(a: string, b: string, limit: number): number {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let prev2: number[] = [];
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v;
+      rowMin = Math.min(rowMin, v);
+    }
+    if (rowMin > limit) return limit + 1;
+    prev2 = prev;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+const allowedTypos = (word: string) => (word.length < 4 ? 0 : word.length < 8 ? 1 : 2);
+
+/**
+ * Pages whose title or keywords contain every word of the query. A word found on no page at all may be
+ * misspelt by one letter (two for long words), so "notifcations" still finds Notifications.
+ */
 export function matchPages(pages: SearchPage[], query: string, limit = 5): SearchPage[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
-  return pages
-    .filter((p) => {
-      const hay = `${p.title} ${p.keywords}`.toLowerCase();
-      return words.every((w) => hay.includes(w));
-    })
-    .slice(0, limit);
+  const hays = pages.map((p) => `${p.title} ${p.keywords}`.toLowerCase());
+  const known = (w: string) => hays.some((h) => h.includes(w));
+  const scored: Array<{ page: SearchPage; typos: number; index: number }> = [];
+  pages.forEach((page, index) => {
+    const hay = hays[index];
+    const hayWords = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    let typos = 0;
+    for (const w of words) {
+      if (hay.includes(w)) continue;
+      const max = known(w) ? 0 : allowedTypos(w);
+      if (!max) return;
+      const best = Math.min(...hayWords.map((h) => editDistance(w, h, max)));
+      if (best > max) return;
+      typos += best;
+    }
+    scored.push({ page, typos, index });
+  });
+  return scored
+    .sort((a, b) => a.typos - b.typos || a.index - b.index)
+    .slice(0, limit)
+    .map((s) => s.page);
 }
 
 const RECENT_KEY = "global_search_recent";

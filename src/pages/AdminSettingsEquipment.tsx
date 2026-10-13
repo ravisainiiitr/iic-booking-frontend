@@ -36,6 +36,7 @@ import {
   PackagePlus,
   Receipt,
   RotateCcw,
+  Search,
   Timer,
 } from "lucide-react";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -173,6 +174,14 @@ const EQUIPMENT_SUB_CARDS: SubCard[] = [
     path: "/admin-settings/equipment/booking-charge-settings",
     mainAdminOnly: true,
     moduleKey: "admin_settings.equipment.booking_charge_settings",
+  },
+  {
+    key: "searchSynonyms",
+    label: "Search synonyms",
+    description: "Techniques and the words people search for (e.g. crystal structure → XRD)",
+    icon: <Search className="h-6 w-6" />,
+    path: "/admin-settings/equipment/search-synonyms",
+    mainAdminOnly: true,
   },
   {
     key: "bookingBufferConfig",

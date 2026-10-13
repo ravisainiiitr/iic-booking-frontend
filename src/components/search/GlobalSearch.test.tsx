@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { GlobalSearchHost, openGlobalSearch } from "./GlobalSearch";
-import { bookingHref, matchPages, pagesFor, rememberSearch, loadRecentSearches } from "./searchCatalog";
+import { bookingHref, editDistance, matchPages, pagesFor, rememberSearch, loadRecentSearches } from "./searchCatalog";
 
 const auth = vi.hoisted(() => ({ value: { user: null as unknown, isAuthenticated: false } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
@@ -62,6 +62,20 @@ describe("search catalogue helpers", () => {
     const pages = pagesFor("student", true);
     expect(matchPages(pages, "wallet").map((p) => p.path)).toEqual(["/wallet"]);
     expect(matchPages(pages, "email alerts").map((p) => p.path)).toEqual(["/notifications?tab=settings"]);
+  });
+
+  it("forgives a small spelling mistake only for words found on no page", () => {
+    const pages = pagesFor("student", true);
+    expect(matchPages(pages, "notifcations").map((p) => p.path)).toContain("/notifications");
+    expect(matchPages(pages, "walet").map((p) => p.path)).toEqual(["/wallet"]);
+    expect(matchPages(pages, "wallet").map((p) => p.path)).toEqual(["/wallet"]);
+    expect(matchPages(pages, "zzzzzz")).toEqual([]);
+  });
+
+  it("measures edit distance with swapped letters", () => {
+    expect(editDistance("fesm", "fesem", 1)).toBe(1);
+    expect(editDistance("xdr", "xrd", 1)).toBe(1);
+    expect(editDistance("abc", "xyz", 1)).toBe(2);
   });
 
   it("keeps recent searches unique and newest first", () => {
@@ -133,6 +147,73 @@ describe("GlobalSearchHost", () => {
     act(() => openGlobalSearch("ali"));
     fireEvent.click(await screen.findByText("Alice"));
     expect(openUserCard).toHaveBeenCalledWith(9);
+  });
+
+  it("shows technique hints and a did-you-mean suggestion that refines the query", async () => {
+    auth.value = { user: null, isAuthenticated: false };
+    api.globalSearch.mockImplementation(async (q: string) => ({
+      data:
+        q === "cristal structure"
+          ? {
+              query: q,
+              equipment: [
+                {
+                  id: 1,
+                  name: "Powder X-Ray Diffractometer (PXRD) [A]",
+                  code: "PXRD [A]",
+                  category: "X-Ray Diffraction",
+                  department: "",
+                  status: "ACTIVE",
+                  match: "fuzzy",
+                  hint: "Matched technique: X-ray diffraction",
+                },
+                {
+                  id: 2,
+                  name: "Grazing Incidence X-Ray Diffractometer (GI-XRD)",
+                  code: "GI-XRD",
+                  category: "X-Ray Diffraction",
+                  department: "",
+                  status: "REPAIR",
+                  match: "fuzzy",
+                  hint: "Matched technique: X-ray diffraction",
+                },
+              ],
+              suggestion: "crystal structure",
+              bookings: [],
+              people: [],
+              people_enabled: false,
+            }
+          : { query: q, equipment: [], suggestion: "", bookings: [], people: [], people_enabled: false },
+    }));
+    renderHost();
+    act(() => openGlobalSearch("cristal structure"));
+
+    expect(await screen.findByText("Powder X-Ray Diffractometer (PXRD) [A]")).toBeTruthy();
+    expect(screen.getAllByText("Matched technique: X-ray diffraction")).toHaveLength(2);
+    expect(screen.getByText("Under maintenance")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("crystal structure"));
+    await waitFor(() => expect(api.globalSearch).toHaveBeenLastCalledWith("crystal structure", expect.anything()));
+  });
+
+  it("shows no hint for exact matches", async () => {
+    auth.value = { user: null, isAuthenticated: false };
+    api.globalSearch.mockResolvedValue({
+      data: {
+        query: "TEM",
+        equipment: [
+          { id: 3, name: "Transmission Electron Microscope (TEM)", code: "TEM", category: "", department: "", status: "ACTIVE", match: "exact", hint: "" },
+        ],
+        suggestion: "",
+        bookings: [],
+        people: [],
+        people_enabled: false,
+      },
+    });
+    renderHost();
+    act(() => openGlobalSearch("TEM"));
+    expect(await screen.findByText("Transmission Electron Microscope (TEM)")).toBeTruthy();
+    expect(screen.queryByText(/Matched technique|Did you mean/)).toBeNull();
   });
 
   it("explains when nothing matches", async () => {

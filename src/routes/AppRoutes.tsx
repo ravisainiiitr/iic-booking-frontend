@@ -87,6 +87,7 @@ const AdminSettingsEquipment = lazyPage(() => import("@/pages/AdminSettingsEquip
 const AdminSemesters = lazyPage(() => import("@/pages/AdminSemesters"));
 const AdminIcpmsStandards = lazyPage(() => import("@/pages/AdminIcpmsStandards"));
 const AdminBookingChargeSettings = lazyPage(() => import("@/pages/AdminBookingChargeSettings"));
+const AdminSearchSynonyms = lazyPage(() => import("@/pages/AdminSearchSynonyms"));
 const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBufferConfig"));
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
 const AdminWalletSricSettings = lazyPage(() => import("@/pages/AdminWalletSricSettings"));
@@ -392,6 +393,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/equipment/icpms-standards" element={<AdminIcpmsStandards />} />
           <Route path="/admin-settings/equipment/mode-schedules" element={<Navigate to="/multi-mode-equipment" replace />} />
           <Route path="/admin-settings/equipment/booking-charge-settings" element={<AdminBookingChargeSettings />} />
+          <Route path="/admin-settings/equipment/search-synonyms" element={<AdminSearchSynonyms />} />
           <Route path="/admin-settings/equipment/booking-buffer-config" element={<AdminBookingBufferConfig />} />
           <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
           <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />

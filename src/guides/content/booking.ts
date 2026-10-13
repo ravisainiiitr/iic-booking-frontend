@@ -15,7 +15,7 @@ export function bookSection(g: Gate): GuideSection {
     steps: compact([
       {
         title: "Find the equipment",
-        body: "Open Equipments, search or filter by department or category. Each card shows a From price and a Book now button.",
+        body: "Open Equipments, search or filter by department or category. Each card shows a From price and a Book now button. Or press Ctrl+K (or /) anywhere and type a name, code or what you want to measure, such as crystal structure or thermal stability; small spelling mistakes are fine, and a technique match is labelled Matched technique.",
         screenshotCaption: "Equipment catalog",
         screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
       },

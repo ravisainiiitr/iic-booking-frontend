@@ -263,7 +263,20 @@ export interface SimilarAvailability {
 
 export interface GlobalSearchResult {
   query: string;
-  equipment: Array<{ id: number; name: string; code: string; category: string; department: string; status: string }>;
+  equipment: Array<{
+    id: number;
+    name: string;
+    code: string;
+    category: string;
+    department: string;
+    status: string;
+    /** How the query matched: exact, prefix, contains, technique (search synonym) or fuzzy (spelling). */
+    match?: "exact" | "prefix" | "contains" | "technique" | "fuzzy";
+    /** "Matched technique: …" or "Did you mean …?" on technique and spelling matches. */
+    hint?: string;
+  }>;
+  /** Corrected query when the best equipment match needed a spelling correction. */
+  suggestion?: string;
   bookings: Array<{
     id: number;
     virtual_booking_id: string;
@@ -279,6 +292,30 @@ export interface GlobalSearchResult {
   people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
   people_enabled: boolean;
   staff_view?: boolean;
+}
+
+export interface SearchSynonym {
+  id: number;
+  technique: string;
+  terms: string[];
+  category_ids: number[];
+  equipment_ids: number[];
+  is_active: boolean;
+  updated_at: string | null;
+}
+
+export interface SearchSynonymInput {
+  technique: string;
+  terms: string[] | string;
+  category_ids: number[];
+  equipment_ids: number[];
+  is_active: boolean;
+}
+
+export interface SearchSynonymList {
+  synonyms: SearchSynonym[];
+  categories: Array<{ id: number; name: string }>;
+  equipment: Array<{ id: number; code: string; name: string }>;
 }
 
 /** Department / equipment filters echoed by staff lists (waitlist, repeat samples, urgent requests). */
@@ -7364,6 +7401,23 @@ class ApiClient {
   /** Header search: equipment for everyone; bookings and people limited to the viewer's role. */
   async globalSearch(q: string, signal?: AbortSignal) {
     return this.request<GlobalSearchResult>(`/search/?q=${encodeURIComponent(q)}`, { signal });
+  }
+
+  /** Main Administrator: techniques and search terms used by the header search. */
+  async getSearchSynonyms() {
+    return this.request<SearchSynonymList>("/admin/search-synonyms/");
+  }
+
+  async createSearchSynonym(body: SearchSynonymInput) {
+    return this.request<SearchSynonym>("/admin/search-synonyms/", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async updateSearchSynonym(id: number, body: Partial<SearchSynonymInput>) {
+    return this.request<SearchSynonym>(`/admin/search-synonyms/${id}/`, { method: "PATCH", body: JSON.stringify(body) });
+  }
+
+  async deleteSearchSynonym(id: number) {
+    return this.request<null>(`/admin/search-synonyms/${id}/`, { method: "DELETE" });
   }
 
   async markNotificationAsRead(id: number) {
