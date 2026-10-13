@@ -3,15 +3,21 @@ import { Progress } from "@/components/ui/progress";
 import { formatBytes } from "@/lib/resultsDownload";
 import { formatDuration, type UploadProgress } from "@/lib/uploadWithProgress";
 
-/** Upload progress for result files sent with "Complete booking". */
-export function CompleteUploadProgress({ progress }: { progress: UploadProgress }) {
+/** Upload progress for result files sent with "Complete booking" or "Add result files". */
+export function CompleteUploadProgress({
+  progress,
+  finishNote = "The booking is marked completed only after the upload finishes.",
+}: {
+  progress: UploadProgress;
+  finishNote?: string;
+}) {
   if (progress.phase === "processing") {
     return (
       <div className="mt-3 space-y-2" role="status" aria-live="polite">
         <Progress value={100} className="h-2" />
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-          Upload finished ({formatBytes(progress.totalBytes)}). Saving the files and completing the booking...
+          Upload finished ({formatBytes(progress.totalBytes)}). Saving the files...
         </p>
       </div>
     );
@@ -30,7 +36,7 @@ export function CompleteUploadProgress({ progress }: { progress: UploadProgress 
       <p className="text-xs text-muted-foreground">
         {[rate, left].filter(Boolean).join(" · ")}
         {rate || left ? ". " : ""}
-        Keep this page open. The booking is marked completed only after the upload finishes.
+        Keep this page open. {finishNote}
       </p>
     </div>
   );

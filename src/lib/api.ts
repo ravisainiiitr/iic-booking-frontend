@@ -9072,6 +9072,34 @@ class ApiClient {
     });
   }
 
+  /** Attach more result files to a completed booking; the user is notified unless ``notify`` is false. */
+  async addBookingResults(
+    bookingId: number,
+    resultFiles: File[],
+    options: { note?: string; notify?: boolean } = {},
+    upload?: { onProgress?: (progress: UploadProgress) => void; signal?: AbortSignal },
+  ): Promise<{ data?: { message: string; uploaded_files: string[]; notified: boolean }; error?: string; errorCode?: string }> {
+    const form = new FormData();
+    resultFiles.forEach((file) => form.append('results', file));
+    if (options.note?.trim()) form.append('note', options.note.trim());
+    form.append('notify', options.notify === false ? 'false' : 'true');
+    const headers: Record<string, string> = this.token ? { Authorization: `Token ${this.token}` } : {};
+    const res = await postFormWithProgress(
+      `${this.baseURL}/bookings/${bookingId}/add-results/`,
+      form,
+      headers,
+      upload?.onProgress,
+      upload?.signal,
+    );
+    if (!res.ok) {
+      const error = (res.data as { error?: string })?.error;
+      if (res.aborted) return { error: error || 'Upload cancelled.', errorCode: 'cancelled' };
+      if (res.status === 413) return { error: 'The files are larger than the server accepts in one upload.' };
+      return { error: error || (res.status ? `HTTP ${res.status}` : 'Network error while uploading. Please try again.') };
+    }
+    return { data: res.data as { message: string; uploaded_files: string[]; notified: boolean } };
+  }
+
   async refundBooking(bookingId: number, notes?: string) {
     return this.request<{
       message: string;

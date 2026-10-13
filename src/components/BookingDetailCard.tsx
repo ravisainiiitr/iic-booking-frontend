@@ -74,7 +74,7 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2 } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
@@ -331,6 +331,7 @@ export interface BookingDetailCardBooking extends BookingRef {
 
 type ActionType =
   | "complete"
+  | "add_results"
   | "refund"
   | "absent"
   | "under_maintenance"
@@ -710,6 +711,7 @@ export function BookingDetailCard({
   const [completeLoading, setCompleteLoading] = useState(false);
   const [completeUploadProgress, setCompleteUploadProgress] = useState<UploadProgress | null>(null);
   const completeUploadAbortRef = useRef<AbortController | null>(null);
+  const [addResultsNotify, setAddResultsNotify] = useState(true);
   const completeUploading = completeLoading && completeUploadProgress?.phase === "uploading";
   const completeUploadActive = completeLoading && completeUploadProgress !== null;
   useEffect(() => {
@@ -1056,6 +1058,42 @@ export function BookingDetailCard({
     setActionDialog({ open: false, type: null, booking: null });
     setActionNotes("");
     setActionReasonCategory("");
+    setCompleteResultFiles([]);
+    setAddResultsNotify(true);
+  };
+
+  const handleAddResults = async () => {
+    if (!actionDialog.booking || completeResultFiles.length === 0) return;
+    const bookingPk = getRealBookingId(actionDialog.booking);
+    if (bookingPk == null) {
+      toast.error("Invalid booking reference.");
+      return;
+    }
+    setCompleteLoading(true);
+    const abort = new AbortController();
+    completeUploadAbortRef.current = abort;
+    setCompleteUploadProgress(uploadProgress(0, completeResultFiles.reduce((sum, f) => sum + f.size, 0), 0));
+    try {
+      const response = await apiClient.addBookingResults(
+        bookingPk,
+        completeResultFiles,
+        { note: actionNotes, notify: addResultsNotify },
+        { onProgress: setCompleteUploadProgress, signal: abort.signal },
+      );
+      if (response.error) {
+        if (response.errorCode === "cancelled") toast.info("Upload cancelled. No files were added.");
+        else toast.error(response.error);
+        return;
+      }
+      toast.success(response.data?.message || "Result files added");
+      closeActionDialog();
+      void refreshBookingDetail({ silent: true });
+      onUpdated();
+    } finally {
+      completeUploadAbortRef.current = null;
+      setCompleteUploadProgress(null);
+      setCompleteLoading(false);
+    }
   };
 
   const handleComplete = async () => {
@@ -2777,6 +2815,15 @@ export function BookingDetailCard({
                   }}
                 />
               )}
+              {!isFabrication &&
+                isOperatorOrManager &&
+                booking.status.toUpperCase() === "COMPLETED" &&
+                !isExternalSelfView && (
+                <Button size="sm" variant="outline" onClick={() => openActionDialog("add_results", booking)}>
+                  <FilePlus2 className="h-4 w-4 mr-2" />
+                  Add result files
+                </Button>
+              )}
               {isManagerOrAdmin &&
                 booking.status.toUpperCase() === "COMPLETED" &&
                 !booking.repeat_booking_already_created &&
@@ -3838,6 +3885,7 @@ export function BookingDetailCard({
           <DialogHeader>
             <DialogTitle>
               {actionDialog.type === "complete" && "Complete Booking"}
+              {actionDialog.type === "add_results" && "Add result files"}
               {actionDialog.type === "refund" && "Refund Booking"}
               {actionDialog.type === "absent" && "Operator Unavailable"}
               {actionDialog.type === "under_maintenance" && "Under maintenance (disruption)"}
@@ -3915,9 +3963,9 @@ export function BookingDetailCard({
             />
           )}
 
-          {actionDialog.type === "complete" && (
+          {(actionDialog.type === "complete" || actionDialog.type === "add_results") && (
             <div className="space-y-3">
-              {isFabrication && (
+              {actionDialog.type === "complete" && isFabrication && (
                 <p
                   role="alert"
                   className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
@@ -3926,11 +3974,26 @@ export function BookingDetailCard({
                 </p>
               )}
               <div>
-                <Label>Upload results (optional)</Label>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Upload result files to storage. The user can download them later from this booking via{" "}
-                  <span className="font-medium text-foreground">Results</span>. Files are not attached to email.
-                </p>
+                <Label>{actionDialog.type === "add_results" ? "Result files to add" : "Upload results (optional)"}</Label>
+                {actionDialog.type === "add_results" ? (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    The files are added to the results already sent for this booking (e.g. the next day&apos;s slot or
+                    the remaining samples). The user downloads everything from{" "}
+                    <span className="font-medium text-foreground">Results</span>; files are not attached to email.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Upload result files to storage. The user can download them later from this booking via{" "}
+                    <span className="font-medium text-foreground">Results</span>. Files are not attached to email.
+                    {!isFabrication && (
+                      <>
+                        {" "}
+                        If some slots or samples are still to be run, complete with today&apos;s files and use{" "}
+                        <span className="font-medium text-foreground">Add result files</span> on this booking later.
+                      </>
+                    )}
+                  </p>
+                )}
                 <div className="flex items-center gap-2">
                   <input
                     type="file"
@@ -3962,9 +4025,41 @@ export function BookingDetailCard({
                   </ul>
                 )}
                 {completeLoading && completeUploadProgress && (
-                  <CompleteUploadProgress progress={completeUploadProgress} />
+                  <CompleteUploadProgress
+                    progress={completeUploadProgress}
+                    finishNote={
+                      actionDialog.type === "add_results"
+                        ? "The files are added only after the upload finishes."
+                        : "The booking is marked completed only after the upload finishes."
+                    }
+                  />
                 )}
               </div>
+              {actionDialog.type === "add_results" && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="add-results-note">Note to the user (optional)</Label>
+                    <Textarea
+                      id="add-results-note"
+                      value={actionNotes}
+                      onChange={(e) => setActionNotes(e.target.value)}
+                      disabled={completeLoading}
+                      placeholder="e.g. Results of the remaining 6 samples run on the second slot."
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="add-results-notify"
+                      checked={addResultsNotify}
+                      disabled={completeLoading}
+                      onCheckedChange={(checked) => setAddResultsNotify(checked === true)}
+                    />
+                    <Label htmlFor="add-results-notify" className="text-sm font-medium leading-none">
+                      Email the user that more results are available
+                    </Label>
+                  </div>
+                </div>
+              )}
               {completeUploadedFiles.length > 0 && (
                 <div className="rounded-md bg-muted p-3">
                   <p className="text-sm font-medium mb-1">
@@ -4082,16 +4177,23 @@ export function BookingDetailCard({
                   else if (actionDialog.type === "under_maintenance") handleUnderMaintenanceDisruption();
                   else if (actionDialog.type === "other_disruption") handleOtherDisruption();
                   else if (actionDialog.type === "not_utilized") handleMarkNotUtilized();
+                  else if (actionDialog.type === "add_results") handleAddResults();
                 }}
-                disabled={actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)}
+                disabled={
+                  actionSubmitLoading ||
+                  completeLoading ||
+                  (actionDialog.type === "add_results" && completeResultFiles.length === 0)
+                }
               >
-                {actionDialog.type === "complete" && completeLoading && completeUploadProgress
+                {completeLoading && completeUploadProgress
                   ? completeUploadProgress.phase === "uploading"
                     ? `Uploading ${completeUploadProgress.percent}%…`
                     : "Saving files…"
-                  : actionSubmitLoading || (actionDialog.type === "complete" && completeLoading)
+                  : actionSubmitLoading || completeLoading
                   ? "Request under process…"
-                  : actionDialog.type === "complete" && completeUploadedFiles.length > 0
+                  : actionDialog.type === "add_results"
+                    ? "Add files"
+                    : actionDialog.type === "complete" && completeUploadedFiles.length > 0
                     ? "Done"
                     : "Confirm"}
               </Button>
