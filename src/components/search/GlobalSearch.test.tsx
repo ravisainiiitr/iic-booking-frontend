@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
@@ -35,6 +35,11 @@ function renderHost() {
     </MemoryRouter>,
   );
 }
+
+// The palette is lazy; load it up front so the first open is not racing the module import.
+beforeAll(async () => {
+  await import("./GlobalSearchDialog");
+});
 
 beforeEach(() => {
   localStorage.clear();

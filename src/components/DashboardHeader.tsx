@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles, BellRing } from "lucide-react";
-import NotificationPanel from "@/components/NotificationPanel";
+import NotificationBell from "@/components/NotificationBell";
 import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
@@ -315,7 +315,7 @@ const DashboardHeader = () => {
           <img src={iitrLogo128} width={32} height={32} alt="IIT Roorkee" className="h-8 w-8 shrink-0 object-contain" />
           <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IIC Booking</span>
           <GlobalSearchButton wideFrom="xl" />
-          <NotificationPanel />
+          <NotificationBell />
         </div>
       </header>
     );
@@ -378,7 +378,7 @@ const DashboardHeader = () => {
           </button>
           {isAuthenticated ? (
             <>
-          <NotificationPanel />
+          <NotificationBell />
           {hasWallet && (
             <div className="hidden sm:block text-sm">
               <span className="text-muted-foreground">Balance:</span>{" "}

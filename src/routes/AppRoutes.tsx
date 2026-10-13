@@ -8,8 +8,9 @@ import { apiClient } from "@/lib/api";
 import { lazyPage } from "@/lib/lazyPage";
 import { appEntryPath, APP_SIGN_IN_PATH, isNativeApp } from "@/lib/nativeApp";
 import { isStaffAppUserType } from "@/lib/staffApp";
-import Index from "@/pages/Index";
 import NotFound from "@/pages/NotFound";
+
+const Index = lazyPage(() => import("@/pages/Index"));
 
 const StaffAppRoutes = lazyPage(() => import("@/pages/staff-app/StaffAppRoutes"));
 const AppDownload = lazyPage(() => import("@/pages/AppDownload"));
@@ -140,6 +141,7 @@ const Print3DAnalyzerTest = lazyPage(() => import("@/pages/Print3DAnalyzerTest")
 const EquipmentProfile = lazyPage(() => import("@/pages/EquipmentProfile"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
 const Notifications = lazyPage(() => import("@/pages/Notifications"));
+const Unsubscribe = lazyPage(() => import("@/pages/Unsubscribe"));
 const WalletRechargeRequestAction = lazyPage(() => import("@/pages/WalletRechargeRequestAction"));
 const WalletRechargeEmailAction = lazyPage(() => import("@/pages/WalletRechargeEmailAction"));
 const AdminWalletRechargeRequests = lazyPage(() => import("@/pages/AdminWalletRechargeRequests"));
@@ -422,6 +424,7 @@ export default function AppRoutes() {
           <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="/user-guide" element={<UserGuidePage />} />
           <Route path="/dev/user-guides" element={<UserGuidePreview />} />
           <Route path="/page/:slug" element={<CmsPageView />} />

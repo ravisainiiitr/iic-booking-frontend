@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, CheckCheck, X, AlertCircle, Info, Calendar, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,23 @@ function toInAppPath(link: string): string {
   return link;
 }
 
-const NotificationPanel = () => {
+type NotificationPanelProps = {
+  /** Open the panel right away (the lazy header bell mounts it on the first click). */
+  openOnMount?: boolean;
+};
+
+const NotificationPanel = ({ openOnMount = false }: NotificationPanelProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { notifications, unreadCount, loading, markAsRead, markAllAsRead, removeNotification, refreshNotifications } = useNotifications();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<PendingItem[]>([]);
+
+  useEffect(() => {
+    if (openOnMount) handleOpenChange(true);
+    // Mount-only: later opens go through the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

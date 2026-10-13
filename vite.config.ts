@@ -27,6 +27,39 @@ function preloadHomeHeroImage(): Plugin {
   };
 }
 
+// The home page is lazy so signed-in visitors skip it; on "/" its chunk (and the chunks it imports) are
+// fetched in parallel with the entry instead of after it.
+function preloadHomeChunk(): Plugin {
+  return {
+    name: "preload-home-chunk",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler(_html, ctx) {
+        const bundle = ctx.bundle ?? {};
+        const home = Object.values(bundle).find(
+          (c) => c.type === "chunk" && !c.isEntry && /[\\/]src[\\/]pages[\\/]Index\.tsx$/.test(c.facadeModuleId ?? ""),
+        );
+        if (!home || home.type !== "chunk") return [];
+        const skip = new Set(
+          Object.values(bundle)
+            .filter((c) => c.type === "chunk" && (c.isEntry || c.name === "vendor-react"))
+            .map((c) => c.fileName),
+        );
+        const files = [home.fileName, ...home.imports.filter((f) => !skip.has(f))];
+        const hrefs = JSON.stringify(files.map((f) => `/${f}`));
+        return [
+          {
+            tag: "script",
+            injectTo: "head-prepend",
+            children: `if(location.pathname==="/"){${hrefs}.forEach(function(h){var l=document.createElement("link");l.rel="modulepreload";l.href=h;document.head.appendChild(l)})}`,
+          },
+        ];
+      },
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -41,7 +74,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), preloadHomeHeroImage(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), preloadHomeHeroImage(), preloadHomeChunk(), mode === "development" && componentTagger()].filter(Boolean),
   build: {
     rollupOptions: {
       output: {

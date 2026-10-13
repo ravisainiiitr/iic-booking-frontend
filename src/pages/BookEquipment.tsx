@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { flushSync } from "react-dom";
 import type { CSSProperties, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -16,6 +16,7 @@ import {
   type TemplateSlotAlternative,
   type TemplateHealth,
   type TemplateSlotFallback,
+  type SimilarInstrument,
   isFabricationProfile,
 } from "@/lib/api";
 import { FABRICATION_QUANTITY_KEY, PRINT_3D_SERVER_KEYS, fabricationJobQuantity } from "@/lib/fabricationProfiles";
@@ -189,7 +190,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { periodicTableElements, parsePeriodicHelpText, mergePeriodicDisplaySymbols, periodicSelectionChargeSummaryFromHelpText } from "@/data/periodicTableData";
 import PeriodicElementsDialog from "@/components/PeriodicElementsDialog";
-import RecurringBlockRules from "@/components/slot-status/RecurringBlockRules";
+import { lazyPage } from "@/lib/lazyPage";
 import { cn } from "@/lib/utils";
 import { slotRowEndTimes, slotSpanLabel, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
@@ -263,6 +264,7 @@ import {
 } from "@/lib/waitlistMessage";
 import { shortSlotReason, slotAccessibleLabel, unavailableBookingSlotReason } from "@/lib/slotReason";
 import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator";
+import { SimilarInstrumentsCard } from "@/components/booking/SimilarInstrumentsCard";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
 import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
@@ -364,6 +366,9 @@ function describeGroupSlotWindow(start: string, end: string): string {
   }
 }
 
+/** Staff-only slot-status tool; kept out of the booking chunk every user downloads. */
+const RecurringBlockRules = lazyPage(() => import("@/components/slot-status/RecurringBlockRules"));
+
 /** sessionStorage handoff when the user opens the booking form for a same-group alternative. */
 const GROUP_ALT_PREFILL_KEY = "iic_group_alternative_prefill";
 const NO_TEMPLATE_VALUE = "__none__";
@@ -374,6 +379,9 @@ type GroupAltPrefill = {
   from_name: string;
   input_values: Record<string, string | boolean | string[]>;
   date: string;
+  /** Raw source-form values: keep only fields the target instrument also asks for. */
+  sanitize?: boolean;
+  similar?: boolean;
 };
 
 interface EquipmentDetail {
@@ -1616,6 +1624,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     name: string;
     /** Equipment the form was opened for; the banner/audit only apply while it is selected. */
     forEquipmentId: number;
+    /** Opened from "similar instruments" (same category, not an admin-defined group). */
+    similar?: boolean;
   } | null>(null);
 
   const [userTransactionHistoryDialog, setUserTransactionHistoryDialog] = useState<{ open: boolean; userId: string | null; userDisplayName: string }>({ open: false, userId: null, userDisplayName: "" });
@@ -1789,6 +1799,15 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     : selectedSlots.length > 0 || (canSubmitWithoutSlots && !hasBookableSlotInSelectedWeek)
       ? 3
       : 2;
+  const jumpToBookingStep = (index: number) => {
+    if (index === 0) setSampleInfoExpanded(true);
+    if (index === 1) setChargeCalcExpanded(true);
+    const selector =
+      index === 3 ? '[data-testid="booking-review-line"], [data-testid="booking-summary"]' : `[data-booking-step="${index}"]`;
+    requestAnimationFrame(() => {
+      document.querySelector(selector)?.scrollIntoView({ behavior: "smooth", block: index === 3 ? "center" : "start" });
+    });
+  };
   /** Peak booking window: optional panels start collapsed so the slot grid and Confirm need less scrolling. */
   const peakCompact = usePeakWindow().active && isRegularBookingFlow;
 
@@ -3457,11 +3476,18 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       // ignore
     }
     if (String(prefill.from_equipment_id) !== String(altFromParam)) return;
-    setInputFieldValues((prev) => ({ ...prev, ...prefill!.input_values }));
+    const carried = prefill.sanitize
+      ? sanitizeRebookInputValues(
+          prefill.input_values,
+          equipmentDetail?.input_fields as Array<{ field_key?: string; field_type?: string; options?: unknown }>
+        ).carried
+      : prefill.input_values;
+    setInputFieldValues((prev) => ({ ...prev, ...carried }));
     setAlternativeOf({
       equipmentId: Number(prefill.from_equipment_id),
       name: prefill.from_name,
       forEquipmentId: Number(eqId),
+      similar: Boolean(prefill.similar),
     });
     try {
       setCurrentWeekStart(startOfWeek(parseISO(prefill.date), { weekStartsOn: 1 }));
@@ -7651,6 +7677,38 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     handleEquipmentSelect(alt.equipment_id);
   };
 
+  const handleOpenSimilarInstrument = (alt: SimilarInstrument) => {
+    if (!alt.earliest || !equipmentDetail) return;
+    const values: GroupAltPrefill["input_values"] = {};
+    Object.entries(inputFieldValues).forEach(([key, value]) => {
+      values[key] = typeof value === "number" ? String(value) : value;
+    });
+    const prefill: GroupAltPrefill = {
+      equipment_id: alt.id,
+      from_equipment_id: Number(equipmentDetail.equipment_id),
+      from_name: equipmentDetail.name,
+      input_values: values,
+      date: alt.earliest.date,
+      sanitize: true,
+      similar: true,
+    };
+    try {
+      sessionStorage.setItem(GROUP_ALT_PREFILL_KEY, JSON.stringify(prefill));
+    } catch {
+      // Private mode / quota: the form still opens, only without prefilled inputs.
+    }
+    setSearchParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("equipment_id", String(alt.id));
+      p.set("alt_from", String(prefill.from_equipment_id));
+      p.delete("repeatOf");
+      p.delete("template");
+      p.delete("date");
+      return p;
+    });
+    handleEquipmentSelect(alt.id);
+  };
+
   if (!selectedEquipment || !equipmentDetail) {
     const equipmentIdFromUrl = searchParams.get("equipment_id");
     const isLoadingFromUrl = Boolean(equipmentIdFromUrl) && (loadingEquipmentDetail || !selectedEquipment);
@@ -8048,14 +8106,16 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow &&
           !equipmentCatalogOnly && (isAdminUser() || String(userType).toLowerCase() === 'manager') && (
-          <RecurringBlockRules
-            equipmentId={selectedEquipment.id}
-            onChanged={async () => {
-              setLastFetchedWeek(null);
-              await fetchSlotsForWeek(true, statusChangePopupWeekStart ?? undefined);
-              if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
-            }}
-          />
+          <Suspense fallback={null}>
+            <RecurringBlockRules
+              equipmentId={selectedEquipment.id}
+              onChanged={async () => {
+                setLastFetchedWeek(null);
+                await fetchSlotsForWeek(true, statusChangePopupWeekStart ?? undefined);
+                if (statusChangePopupWeekStart) await fetchStatusChangeSlotsForWeek(statusChangePopupWeekStart);
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Inline week view (pick by time) */}
@@ -9686,7 +9746,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 )}
 
                 {isRegularBookingFlow && (
-                  <BookingStepIndicator current={bookingStepIndex} className="mb-3" />
+                  <BookingStepIndicator current={bookingStepIndex} onStepClick={jumpToBookingStep} className="mb-3" />
                 )}
                 {restoredDraft && (
                   <RestoredDraftNotice savedAt={restoredDraft.savedAt} onDiscard={discardRestoredDraft} />
@@ -9712,7 +9772,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 )}
 
                 {/* Step 1: Input Fields Section */}
-                <Collapsible open={sampleInfoExpanded} onOpenChange={setSampleInfoExpanded} className="mb-3">
+                <Collapsible
+                  open={sampleInfoExpanded}
+                  onOpenChange={setSampleInfoExpanded}
+                  className="mb-3 scroll-mt-24"
+                  data-booking-step="0"
+                >
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <h3 className="text-base font-semibold">Step 1: Sample Information</h3>
                     <CollapsibleTrigger asChild>
@@ -9734,7 +9799,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                   <CollapsibleContent className="space-y-2">
                   {alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment?.id) && (
                     <div className="mb-2 p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sm text-sky-900 dark:text-sky-200">
-                      Alternative for <span className="font-medium">{alternativeOf.name}</span> (same equipment group).
+                      Alternative for <span className="font-medium">{alternativeOf.name}</span>
+                      {alternativeOf.similar ? " (similar instrument)." : " (same equipment group)."}
                       Compatible inputs were carried over — please review them; charges are recalculated for this equipment.
                     </div>
                   )}
@@ -10555,7 +10621,12 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
                 {/* Step 2: Calculated Charge Display (repeat sample: complimentary only) */}
                 {chargeCalculated && calculatedCharge && !chargeCalculationFailed && (
-                  <Collapsible open={chargeCalcExpanded} onOpenChange={setChargeCalcExpanded} className="mb-3">
+                  <Collapsible
+                    open={chargeCalcExpanded}
+                    onOpenChange={setChargeCalcExpanded}
+                    className="mb-3 scroll-mt-24"
+                    data-booking-step="1"
+                  >
                   <div className="p-3 bg-primary/10 rounded-lg border-2 border-primary">
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <h3 className="text-base font-semibold">
@@ -10784,7 +10855,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 {/* Step 3: Slot Selection (only shown after charge calculation); Type B urgent requests have no slot step. */}
                 {showSlots && chargeCalculated && !isProformaFlow && !isCalculateChargesFlow && !isTemplateFlow && !isUrgentTypeBHoldMode && (
                   <>
-                    <div className="mb-2">
+                    <div className="mb-2 scroll-mt-24" data-booking-step="2">
                       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <h3 className="text-base font-semibold">Step 3: Select Time Slots</h3>
                         <SlotChoiceOptions
@@ -10823,6 +10894,23 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     Slots marked <span className="font-semibold">"Just taken"</span> were booked by someone else while you were confirming. Pick other slots and confirm again — your details are kept.
                   </p>
                 )}
+                {isRegularBookingFlow &&
+                  !bookingForAnotherUser &&
+                  !repeatSourceBooking &&
+                  !isSlotsWeekViewLoading &&
+                  !hasBookableSlotInSelectedWeek &&
+                  selectedEquipment && (
+                    <SimilarInstrumentsCard
+                      className="mb-2"
+                      equipmentId={Number(selectedEquipment.id)}
+                      weekKey={step3WeekKey}
+                      onGoToWeek={(date) => {
+                        setCurrentWeekStart(startOfWeek(parseISO(date), { weekStartsOn: 1 }));
+                        setSelectedSlots([]);
+                      }}
+                      onOpenInstrument={handleOpenSimilarInstrument}
+                    />
+                  )}
                 {/* Week nav + grid: full overlay until API data matches visible week (avoids misleading stale grid when changing weeks, e.g. urgent extension). */}
                 <TooltipProvider delayDuration={200}>
                 <div className="relative rounded-lg border border-border/70 bg-muted/30 dark:bg-muted/10 p-3 sm:p-4 min-h-[min(520px,70dvh)]">

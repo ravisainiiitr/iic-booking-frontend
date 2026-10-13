@@ -289,6 +289,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       /* ignore */
     }
     try {
+      if (localStorage.getItem("web_push_enabled") === "1") {
+        const { disableWebPush } = await import("@/lib/webPush");
+        await Promise.race([disableWebPush(), new Promise((resolve) => window.setTimeout(resolve, 2000))]);
+      }
       await apiClient.signOut();
     } catch (error) {
       console.error("Error during logout:", error);

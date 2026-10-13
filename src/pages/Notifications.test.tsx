@@ -86,7 +86,7 @@ describe("Notifications page", () => {
     const locked = await screen.findByRole("switch", { name: "Booking updates: email on" });
     expect((locked as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("switch", { name: "Reminders: email on" }));
-    await waitFor(() => expect(api.saveNotificationPreferences).toHaveBeenCalledWith([{ key: "reminders", email: false }]));
+    await waitFor(() => expect(api.saveNotificationPreferences).toHaveBeenCalledWith([{ key: "reminders", email: false }], undefined));
     expect(await screen.findByRole("switch", { name: "Reminders: email off" })).toBeTruthy();
   });
 });

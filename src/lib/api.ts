@@ -213,11 +213,52 @@ export interface NotificationPreferenceCategory {
   locked: boolean;
   email: boolean;
   in_app: boolean;
+  /** Collect this category's emails into one daily email. */
+  digest: boolean;
+}
+
+export interface NotificationDeliverySettings {
+  quiet_hours_enabled: boolean;
+  /** "HH:MM", portal local time. */
+  quiet_start: string;
+  quiet_end: string;
+  /** 0–23, when the daily digest goes out. */
+  digest_hour: number;
 }
 
 export interface NotificationPreferences {
   categories: NotificationPreferenceCategory[];
   channels: string[];
+  delivery: NotificationDeliverySettings;
+}
+
+export interface NotificationUnsubscribeInfo {
+  category: string;
+  label: string;
+  description: string;
+  email_enabled: boolean;
+}
+
+export interface WebPushStatus {
+  public_key: string;
+  subscriptions: number;
+}
+
+export interface SimilarInstrument {
+  id: number;
+  name: string;
+  code: string;
+  category: string;
+  department: string;
+  location: string;
+  earliest: { slot_id: number; date: string; start: string; end: string } | null;
+}
+
+export interface SimilarAvailability {
+  equipment: SimilarInstrument;
+  alternatives: SimilarInstrument[];
+  /** "group" when an administrator grouped equivalent instruments, else "category". */
+  basis: "group" | "category" | null;
 }
 
 export interface GlobalSearchResult {
@@ -7275,11 +7316,49 @@ class ApiClient {
     return this.request<NotificationPreferences>("/notifications/preferences/");
   }
 
-  async saveNotificationPreferences(categories: Array<{ key: string; email?: boolean; in_app?: boolean }>) {
+  async saveNotificationPreferences(
+    categories: Array<{ key: string; email?: boolean; in_app?: boolean; digest?: boolean }>,
+    delivery?: Partial<NotificationDeliverySettings>,
+  ) {
     return this.request<NotificationPreferences>("/notifications/preferences/", {
       method: "PUT",
-      body: JSON.stringify({ categories }),
+      body: JSON.stringify(delivery ? { categories, delivery } : { categories }),
     });
+  }
+
+  /** One-click unsubscribe link from an email: describe it (``confirm`` false) or switch the emails off. */
+  async notificationUnsubscribe(token: string, confirm: boolean) {
+    const path = `/notifications/unsubscribe/${encodeURIComponent(token)}/`;
+    return confirm
+      ? this.request<NotificationUnsubscribeInfo>(path, { method: "POST" })
+      : this.request<NotificationUnsubscribeInfo>(`${path}?info=1`);
+  }
+
+  async getWebPushStatus() {
+    return this.request<WebPushStatus>("/notifications/push/");
+  }
+
+  async saveWebPushSubscription(subscription: PushSubscriptionJSON) {
+    return this.request<WebPushStatus>("/notifications/push/", {
+      method: "POST",
+      body: JSON.stringify(subscription),
+    });
+  }
+
+  async deleteWebPushSubscription(endpoint: string) {
+    return this.request<WebPushStatus>("/notifications/push/", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint }),
+    });
+  }
+
+  async sendWebPushTest() {
+    return this.request<{ sent: number }>("/notifications/push/test/", { method: "POST" });
+  }
+
+  /** Earliest open slot on this instrument and on equivalent instruments (same group, else category). */
+  async getSimilarAvailability(equipmentId: number) {
+    return this.request<SimilarAvailability>(`/equipments/${equipmentId}/similar-availability/`);
   }
 
   /** Header search: equipment for everyone; bookings and people limited to the viewer's role. */

@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen, Sparkles, BellRing } from "lucide-react";
-import NotificationPanel from "@/components/NotificationPanel";
+import NotificationBell from "@/components/NotificationBell";
 import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
@@ -162,7 +162,7 @@ const Header = () => {
             {isAuthenticated ? (
               <>
                 <BackToDashboardButton />
-                <NotificationPanel />
+                <NotificationBell />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button

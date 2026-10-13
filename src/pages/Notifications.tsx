@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDistanceToNow, isToday, isYesterday } from "date-fns";
-import { Bell, BellOff, Check, CheckCheck, Loader2, Lock, Mail, MonitorSmartphone, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  Bell,
+  BellOff,
+  BellRing,
+  Check,
+  CheckCheck,
+  Inbox,
+  Loader2,
+  Lock,
+  Mail,
+  MonitorSmartphone,
+  Moon,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHero, PageShell, StandaloneOnly, heroButtonClass } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -13,10 +28,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotifications } from "@/contexts/NotificationContext";
 import {
   apiClient,
+  type NotificationDeliverySettings,
   type NotificationInboxItem,
   type NotificationPreferenceCategory,
 } from "@/lib/api";
 import { desktopAlertsEnabled, desktopAlertsSupported, setDesktopAlerts } from "@/lib/desktopNotifications";
+import { disableWebPush, enableWebPush, webPushFlagged, webPushSupported } from "@/lib/webPush";
 import { categoryMeta, toInAppPath } from "@/components/notifications/notificationCategories";
 import { cn } from "@/lib/utils";
 
@@ -271,33 +288,52 @@ function InboxPanel({ onUnreadChange }: { onUnreadChange: (n: number) => void })
   );
 }
 
+type CategoryChange = { key: string; email?: boolean; in_app?: boolean; digest?: boolean };
+
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
+function hourLabel(h: number): string {
+  const suffix = h < 12 ? "am" : "pm";
+  const twelve = h % 12 === 0 ? 12 : h % 12;
+  return `${twelve}:00 ${suffix}`;
+}
+
 function SettingsPanel() {
   const [rows, setRows] = useState<NotificationPreferenceCategory[] | null>(null);
+  const [delivery, setDelivery] = useState<NotificationDeliverySettings | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [desktop, setDesktop] = useState(desktopAlertsEnabled());
+  const [push, setPush] = useState(webPushFlagged() && webPushSupported());
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     apiClient.getNotificationPreferences().then((res) => {
-      if (res.data) setRows(res.data.categories);
-      else toast.error("Notification settings could not be loaded.");
+      if (res.data) {
+        setRows(res.data.categories);
+        setDelivery(res.data.delivery);
+      } else toast.error("Notification settings could not be loaded.");
     });
   }, []);
 
-  const save = async (changes: Array<{ key: string; email?: boolean; in_app?: boolean }>, label: string) => {
+  const save = async (changes: CategoryChange[], label: string, nextDelivery?: Partial<NotificationDeliverySettings>) => {
     if (!rows) return;
     const before = rows;
+    const beforeDelivery = delivery;
     setRows(rows.map((r) => {
       const c = changes.find((x) => x.key === r.key);
       return c && !r.locked ? { ...r, ...c } : r;
     }));
+    if (nextDelivery && delivery) setDelivery({ ...delivery, ...nextDelivery });
     setSaving(label);
-    const res = await apiClient.saveNotificationPreferences(changes);
+    const res = await apiClient.saveNotificationPreferences(changes, nextDelivery);
     setSaving(null);
     if (res.data) {
       setRows(res.data.categories);
+      setDelivery(res.data.delivery);
       toast.success("Notification settings saved");
     } else {
       setRows(before);
+      setDelivery(beforeDelivery);
       toast.error(res.error || "Could not save your settings");
     }
   };
@@ -309,7 +345,32 @@ function SettingsPanel() {
     else if (state === "on") toast.success("Desktop alerts turned on for this browser");
   };
 
+  const togglePush = async (on: boolean) => {
+    setPushBusy(true);
+    if (on) {
+      const state = await enableWebPush();
+      setPush(state === "on");
+      if (state === "on") toast.success("Browser notifications are on. You can close the portal and still get updates.");
+      else if (state === "denied") toast.error("Your browser blocked notifications for this site. Allow them in the browser's site settings.");
+      else toast.error("Browser notifications could not be turned on. Please try again.");
+    } else {
+      await disableWebPush();
+      setPush(false);
+      toast.success("Browser notifications turned off for this browser");
+    }
+    setPushBusy(false);
+  };
+
+  const sendTest = async () => {
+    setPushBusy(true);
+    const res = await apiClient.sendWebPushTest();
+    setPushBusy(false);
+    if (res.data) toast.success("Test sent. It should appear in a few seconds.");
+    else toast.error(res.error || "The test could not be sent.");
+  };
+
   const optional = rows?.filter((r) => !r.locked) ?? [];
+  const anyDigest = optional.some((r) => r.digest && r.email);
 
   return (
     <div className="space-y-6">
@@ -347,7 +408,8 @@ function SettingsPanel() {
             ))}
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-2 text-left font-medium">Category</th>
@@ -356,6 +418,9 @@ function SettingsPanel() {
                 </th>
                 <th className="w-24 px-2 py-2 text-center font-medium">
                   <span className="inline-flex items-center gap-1"><Bell className="h-3.5 w-3.5" aria-hidden /> In-app</span>
+                </th>
+                <th className="w-24 px-2 py-2 text-center font-medium" title="Collect these emails into one email a day">
+                  <span className="inline-flex items-center gap-1"><Inbox className="h-3.5 w-3.5" aria-hidden /> Daily digest</span>
                 </th>
               </tr>
             </thead>
@@ -393,32 +458,178 @@ function SettingsPanel() {
                         />
                       </td>
                     ))}
+                    <td className="px-2 py-3 text-center">
+                      {r.locked ? (
+                        <span className="text-xs text-muted-foreground" title="Service messages are sent straight away">
+                          Instant
+                        </span>
+                      ) : (
+                        <Switch
+                          checked={r.digest && r.email}
+                          disabled={!r.email || saving != null}
+                          onCheckedChange={(v) => void save([{ key: r.key, digest: v }], `${r.key}-digest`)}
+                          aria-label={`${r.label}: daily digest ${r.digest && r.email ? "on" : "off"}`}
+                        />
+                      )}
+                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-4 sm:flex-row sm:items-center">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <MonitorSmartphone className="h-5 w-5" aria-hidden />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">Desktop alerts in this browser</h2>
+      <div className="rounded-xl border bg-card">
+        <div className="border-b px-4 py-4">
+          <h2 className="font-semibold">When emails arrive</h2>
           <p className="text-sm text-muted-foreground">
-            {desktopAlertsSupported()
-              ? "Pop up new notifications on your computer while the portal is open in a background tab."
-              : "This browser does not support desktop alerts."}
+            Hold optional emails overnight or bundle them into one a day. Booking, results, payment and account emails
+            are never delayed.
           </p>
         </div>
-        <Switch
-          checked={desktop}
-          disabled={!desktopAlertsSupported()}
-          onCheckedChange={(v) => void toggleDesktop(v)}
-          aria-label="Desktop alerts"
-        />
+        {!delivery ? (
+          <div className="p-4">
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : (
+          <div className="divide-y">
+            <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                <Moon className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Quiet hours</p>
+                <p className="text-sm text-muted-foreground">
+                  Optional emails and browser notifications wait until quiet hours end, then arrive together.
+                </p>
+                {delivery.quiet_hours_enabled ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                    <label className="flex items-center gap-2">
+                      From
+                      <Input
+                        type="time"
+                        className="h-9 w-32"
+                        key={`start-${delivery.quiet_start}`}
+                        defaultValue={delivery.quiet_start}
+                        disabled={saving != null}
+                        onBlur={(e) =>
+                          e.target.value &&
+                          e.target.value !== delivery.quiet_start &&
+                          void save([], "quiet-start", { quiet_start: e.target.value })
+                        }
+                        aria-label="Quiet hours start"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2">
+                      until
+                      <Input
+                        type="time"
+                        className="h-9 w-32"
+                        key={`end-${delivery.quiet_end}`}
+                        defaultValue={delivery.quiet_end}
+                        disabled={saving != null}
+                        onBlur={(e) =>
+                          e.target.value &&
+                          e.target.value !== delivery.quiet_end &&
+                          void save([], "quiet-end", { quiet_end: e.target.value })
+                        }
+                        aria-label="Quiet hours end"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+              <Switch
+                checked={delivery.quiet_hours_enabled}
+                disabled={saving != null}
+                onCheckedChange={(v) => void save([], "quiet", { quiet_hours_enabled: v })}
+                aria-label="Quiet hours"
+              />
+            </div>
+            <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                <Inbox className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Daily digest time</p>
+                <p className="text-sm text-muted-foreground">
+                  {anyDigest
+                    ? "Categories set to Daily digest arrive as one email at this time."
+                    : "Turn on Daily digest for a category above to collect its emails into one email a day."}
+                </p>
+              </div>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-sm"
+                value={delivery.digest_hour}
+                disabled={saving != null}
+                onChange={(e) => void save([], "digest-hour", { digest_hour: Number(e.target.value) })}
+                aria-label="Daily digest time"
+              >
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {hourLabel(h)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-xl border bg-card">
+        <div className="border-b px-4 py-4">
+          <h2 className="font-semibold">This browser</h2>
+          <p className="text-sm text-muted-foreground">These choices apply only to the browser you are using now.</p>
+        </div>
+        <div className="divide-y">
+          <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary dark:text-sky-300">
+              <BellRing className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">Browser notifications</p>
+              <p className="text-sm text-muted-foreground">
+                {webPushSupported()
+                  ? "Get portal notifications on this computer or phone even when the portal is closed."
+                  : "This browser cannot receive notifications while the portal is closed. On iPhone, add the portal to your Home Screen first."}
+              </p>
+              {push ? (
+                <Button variant="link" size="sm" className="h-auto px-0" disabled={pushBusy} onClick={() => void sendTest()}>
+                  Send a test notification
+                </Button>
+              ) : null}
+            </div>
+            <Switch
+              checked={push}
+              disabled={!webPushSupported() || pushBusy}
+              onCheckedChange={(v) => void togglePush(v)}
+              aria-label="Browser notifications"
+            />
+          </div>
+          {!push ? (
+            <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <MonitorSmartphone className="h-5 w-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Alerts while the portal is open</p>
+                <p className="text-sm text-muted-foreground">
+                  {desktopAlertsSupported()
+                    ? "Pop up new notifications while the portal is open in a background tab."
+                    : "This browser does not support desktop alerts."}
+                </p>
+              </div>
+              <Switch
+                checked={desktop}
+                disabled={!desktopAlertsSupported()}
+                onCheckedChange={(v) => void toggleDesktop(v)}
+                aria-label="Desktop alerts"
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

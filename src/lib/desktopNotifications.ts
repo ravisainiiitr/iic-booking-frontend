@@ -34,6 +34,8 @@ export async function setDesktopAlerts(on: boolean): Promise<"on" | "off" | "den
 
 export function showDesktopAlert(title: string, body: string, link?: string | null, tag?: string) {
   if (!desktopAlertsEnabled() || typeof document === "undefined" || !document.hidden) return;
+  // Browser push already shows this notice when it is on for this browser.
+  if (localStorage.getItem("web_push_enabled") === "1") return;
   try {
     const n = new Notification(title, { body: body.slice(0, 240), tag, icon: "/favicon.ico" });
     n.onclick = () => {

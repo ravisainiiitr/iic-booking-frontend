@@ -188,6 +188,9 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
       const token = apiClient.getToken();
       if (token) {
         refreshNotifications();
+        if (localStorage.getItem("web_push_enabled") === "1") {
+          void import("@/lib/webPush").then((m) => m.refreshWebPush());
+        }
       } else {
         // Load from localStorage if not authenticated
         const stored = localStorage.getItem("notifications");
