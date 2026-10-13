@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatBytes, pickSaveTarget, pipeToFile, progressFor, type ResultsDownloadProgress } from "./resultsDownload";
+import {
+  formatBytes,
+  pickSaveTarget,
+  pipeToFile,
+  preparingProgress,
+  progressFor,
+  type ResultsDownloadProgress,
+} from "./resultsDownload";
 
 function streamOf(chunks: number[][], failAfter?: number): ReadableStream<Uint8Array> {
   let i = 0;
@@ -78,6 +85,13 @@ describe("pickSaveTarget", () => {
       throw Object.assign(new Error("no user activation"), { name: "SecurityError" });
     });
     await expect(pickSaveTarget(picker, "Results.zip")).rejects.toThrow("no user activation");
+  });
+});
+
+describe("preparingProgress", () => {
+  it("shows the server-side build as a percentage held below 100", () => {
+    expect(preparingProgress(0.5, 400)).toEqual({ phase: "preparing", receivedBytes: 200, totalBytes: 400, percent: 50 });
+    expect(preparingProgress(1, 400).percent).toBe(99);
   });
 });
 

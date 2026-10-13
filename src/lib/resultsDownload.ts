@@ -1,9 +1,10 @@
 /**
  * Large result downloads without buffering the file in memory.
  *
- * Where the browser supports the File System Access API (Chrome / Edge on desktop) the user picks the save
- * location first and the response is written to disk as it arrives, so the progress shown is the real number of
- * bytes saved. Elsewhere the browser downloads a signed link natively and shows progress in its own downloads UI.
+ * Stored files, and large ZIPs the server first builds into storage, download from a storage link in the
+ * browser's own downloader, which can resume after a dropped connection. A ZIP streamed by the API is written to
+ * disk as it arrives where the browser supports the File System Access API (Chrome / Edge on desktop), so the
+ * progress shown is the real number of bytes saved; elsewhere the browser downloads it natively.
  */
 
 export type ResultsDownloadProgress = {
@@ -14,6 +15,26 @@ export type ResultsDownloadProgress = {
   /** null while the total is unknown. Held at 99 until the last byte is written. */
   percent: number | null;
 };
+
+/** ``direct``: storage link (resumable); ``stream``: ZIP streamed by the API. ``preparing``: ZIP being built. */
+export type ResultsDownloadLink = {
+  mode: "direct" | "stream";
+  status: "ready" | "preparing";
+  url?: string;
+  filename: string;
+  total_bytes: number;
+  /** 0..1 while preparing. */
+  progress?: number;
+};
+
+export const RESULTS_ZIP_POLL_MS = 1500;
+/** Stream the ZIP instead when the server-side build shows no progress for this long. */
+export const RESULTS_ZIP_BUILD_STALL_MS = 90_000;
+
+export function preparingProgress(fraction: number, totalBytes: number): ResultsDownloadProgress {
+  const percent = Math.max(0, Math.min(99, Math.floor(fraction * 100)));
+  return { phase: "preparing", receivedBytes: Math.round(fraction * totalBytes), totalBytes, percent };
+}
 
 /** "saved": written to disk with in-page progress; "browser": handed to the browser's downloads; "cancelled": save dialog dismissed. */
 export type ResultsDownloadMode = "saved" | "browser" | "cancelled";

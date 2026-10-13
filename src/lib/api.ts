@@ -26,7 +26,11 @@ import {
   getSaveFilePicker,
   pickSaveTarget,
   pipeToFile,
+  preparingProgress,
+  RESULTS_ZIP_BUILD_STALL_MS,
+  RESULTS_ZIP_POLL_MS,
   startBrowserDownload,
+  type ResultsDownloadLink,
   type ResultsDownloadMode,
   type ResultsDownloadProgress,
 } from "@/lib/resultsDownload";
@@ -9431,20 +9435,24 @@ class ApiClient {
   }
 
   /**
-   * Download all result files for a booking as one ZIP (folder named with the booking ID).
+   * Download all result files for a booking (the only file itself, else one ZIP named with the booking ID).
    *
-   * Where supported the user picks the save location first and the ZIP is written to disk as it streams, with
-   * real progress; otherwise the browser downloads a signed link natively and shows progress itself.
+   * A stored file, or a large ZIP the server builds into storage first, downloads from a storage link in the
+   * browser's own downloader, which resumes after a dropped connection. Otherwise the ZIP is streamed by the
+   * API: where supported the user picks the save location first and it is written to disk with real progress.
    */
   async downloadBookingResultsZip(
     bookingId: number,
     onProgress?: (progress: ResultsDownloadProgress) => void
-  ): Promise<{ error?: string; errorCode?: string; istem_portal_url?: string; mode?: ResultsDownloadMode }> {
+  ): Promise<{
+    error?: string;
+    errorCode?: string;
+    istem_portal_url?: string;
+    mode?: ResultsDownloadMode;
+    resumable?: boolean;
+  }> {
     onProgress?.({ phase: "preparing", receivedBytes: 0, totalBytes: 0, percent: null });
-    const link = await this.request<{ url: string; filename: string; total_bytes: number }>(
-      `/bookings/${bookingId}/results/download-link/`,
-      { method: "POST", body: "{}" }
-    );
+    const link = await this.waitForResultsDownloadLink(bookingId, onProgress);
     if (link.error || !link.data?.url) {
       return {
         error: link.error || "Download failed",
@@ -9452,7 +9460,13 @@ class ApiClient {
         istem_portal_url: link.istem_portal_url,
       };
     }
-    const { url, filename, total_bytes: totalBytes } = link.data;
+    const { url, filename, total_bytes: totalBytes, mode } = link.data;
+
+    if (mode === "direct") {
+      if (isNativeApp()) await openInBrowser(url);
+      else startBrowserDownload(url, filename);
+      return { mode: "browser", resumable: true };
+    }
 
     const picker = isNativeApp() ? null : getSaveFilePicker();
     if (picker) {
@@ -9485,6 +9499,33 @@ class ApiClient {
     if (isNativeApp()) await openInBrowser(url);
     else startBrowserDownload(url, filename);
     return { mode: "browser" };
+  }
+
+  /** Ask for the download link until a ZIP being built on the server is ready; streams it if the build stalls. */
+  private async waitForResultsDownloadLink(
+    bookingId: number,
+    onProgress?: (progress: ResultsDownloadProgress) => void
+  ) {
+    const path = `/bookings/${bookingId}/results/download-link/`;
+    let stream = false;
+    let lastProgress = -1;
+    let lastChange = Date.now();
+    for (;;) {
+      const link = await this.request<ResultsDownloadLink>(path, {
+        method: "POST",
+        body: JSON.stringify(stream ? { stream: true } : {}),
+      });
+      if (link.error || link.data?.status !== "preparing") return link;
+      const { progress = 0, total_bytes: totalBytes } = link.data;
+      onProgress?.(preparingProgress(progress, totalBytes));
+      if (progress !== lastProgress) {
+        lastProgress = progress;
+        lastChange = Date.now();
+      } else if (Date.now() - lastChange > RESULTS_ZIP_BUILD_STALL_MS) {
+        stream = true;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, RESULTS_ZIP_POLL_MS));
+    }
   }
 
   /** Requester's bookings with results: not-yet-downloaded first, then most recent first. */
