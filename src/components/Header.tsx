@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Calendar, Settings, User as UserIcon, Wallet, LogOut, Package, ClipboardList, HelpCircle, BookOpen, Sparkles } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
+import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import { toast } from "sonner";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
@@ -157,6 +158,7 @@ const Header = () => {
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
+            <GlobalSearchButton wideFrom="xl" />
             {isAuthenticated ? (
               <>
                 <BackToDashboardButton />

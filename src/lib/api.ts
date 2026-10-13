@@ -185,6 +185,61 @@ const getApiBaseUrl = (): string => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+export interface NotificationInboxItem {
+  id: number;
+  title: string;
+  message: string;
+  type: "booking" | "system" | "warning" | "info";
+  read: boolean;
+  created_at: string;
+  link?: string | null;
+  category: string;
+}
+
+export interface NotificationInboxPage {
+  results: NotificationInboxItem[];
+  count: number;
+  page: number;
+  page_size: number;
+  unread_count: number;
+  category_counts: Record<string, number>;
+}
+
+export interface NotificationPreferenceCategory {
+  key: string;
+  label: string;
+  description: string;
+  /** Service messages that cannot be switched off. */
+  locked: boolean;
+  email: boolean;
+  in_app: boolean;
+}
+
+export interface NotificationPreferences {
+  categories: NotificationPreferenceCategory[];
+  channels: string[];
+}
+
+export interface GlobalSearchResult {
+  query: string;
+  equipment: Array<{ id: number; name: string; code: string; category: string; department: string; status: string }>;
+  bookings: Array<{
+    id: number;
+    virtual_booking_id: string;
+    status: string;
+    status_label: string;
+    equipment: string;
+    equipment_code: string;
+    user_name: string;
+    slot_start: string | null;
+    created_at: string | null;
+    own: boolean;
+  }>;
+  people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
+  people_enabled: boolean;
+  staff_view?: boolean;
+}
+
 /** Department / equipment filters echoed by staff lists (waitlist, repeat samples, urgent requests). */
 export interface StaffListFiltersMeta {
   /** all: Main Admin; department: Department Administrator; equipment: OIC / Lab Operator. */
@@ -7201,7 +7256,35 @@ class ApiClient {
       read: boolean;
       created_at: string;
       link?: string;
+      category?: string;
     }>>('/notifications/');
+  }
+
+  /** Paged notification centre with category / unread / text filters. */
+  async getNotificationInbox(params: { category?: string; unread?: boolean; q?: string; page?: number; pageSize?: number }) {
+    const qs = new URLSearchParams();
+    if (params.category && params.category !== "all") qs.set("category", params.category);
+    if (params.unread) qs.set("unread", "1");
+    if (params.q?.trim()) qs.set("q", params.q.trim());
+    qs.set("page", String(params.page ?? 1));
+    qs.set("page_size", String(params.pageSize ?? 20));
+    return this.request<NotificationInboxPage>(`/notifications/inbox/?${qs.toString()}`);
+  }
+
+  async getNotificationPreferences() {
+    return this.request<NotificationPreferences>("/notifications/preferences/");
+  }
+
+  async saveNotificationPreferences(categories: Array<{ key: string; email?: boolean; in_app?: boolean }>) {
+    return this.request<NotificationPreferences>("/notifications/preferences/", {
+      method: "PUT",
+      body: JSON.stringify({ categories }),
+    });
+  }
+
+  /** Header search: equipment for everyone; bookings and people limited to the viewer's role. */
+  async globalSearch(q: string, signal?: AbortSignal) {
+    return this.request<GlobalSearchResult>(`/search/?q=${encodeURIComponent(q)}`, { signal });
   }
 
   async markNotificationAsRead(id: number) {

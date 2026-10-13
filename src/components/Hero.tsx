@@ -9,6 +9,7 @@ import { storeOmniportState } from "@/lib/omniportAuth";
 import { toast } from "sonner";
 import iitrMainBuilding from "@/assets/iitr-main-building.webp";
 import { cn } from "@/lib/utils";
+import { HeroSearchBar } from "@/components/search/GlobalSearch";
 
 const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
@@ -188,6 +189,8 @@ const Hero = () => {
                 })()}
               </p>
             </div>
+
+            <HeroSearchBar className="max-w-2xl" />
 
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {!isAuthenticated && (

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "@/lib/api";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { showDesktopAlert } from "@/lib/desktopNotifications";
 
 export interface Notification {
   id: string | number;
@@ -10,6 +11,7 @@ export interface Notification {
   read: boolean;
   createdAt: string;
   link?: string;
+  category?: string;
   isFromAPI?: boolean; // Track if notification comes from API
 }
 
@@ -85,11 +87,13 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
           read: notificationData.read || false,
           createdAt: notificationData.created_at || new Date().toISOString(),
           link: notificationData.link,
+          category: notificationData.metadata?.notification_category ?? notificationData.notification_category,
           isFromAPI: true,
         };
         
         // Add notification to state
         setNotifications((prev) => [newNotification, ...prev]);
+        showDesktopAlert(newNotification.title, newNotification.message, newNotification.link, String(newNotification.id));
       } else if (message.type === 'connection') {
         console.log('WebSocket: Connected to notification service', message);
       } else if (message.type === 'pong') {
@@ -134,6 +138,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
           read: n.read,
           createdAt: n.created_at,
           link: n.link,
+          category: n.category,
           isFromAPI: true,
         }));
 

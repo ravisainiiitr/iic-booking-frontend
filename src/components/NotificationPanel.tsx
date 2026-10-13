@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Check, CheckCheck, X, AlertCircle, Info, Calendar, AlertTriangle, RefreshCw } from "lucide-react";
+import { Bell, Check, CheckCheck, X, AlertCircle, Info, Calendar, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -173,7 +173,7 @@ const NotificationPanel = () => {
               : `${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`}
           </SheetDescription>
         </SheetHeader>
-        <ScrollArea className="h-[calc(100dvh-140px)]">
+        <ScrollArea className="h-[calc(100dvh-196px)]">
           {pending.length > 0 ? (
             <div className="border-b bg-amber-50/50 p-4 dark:bg-amber-950/10">
               <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
@@ -282,20 +282,31 @@ const NotificationPanel = () => {
             </div>
           )}
         </ScrollArea>
-        {notifications.length > 0 && (
-          <div className="p-4 border-t">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-xs"
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              Close
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 border-t p-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-xs"
+            onClick={() => {
+              setOpen(false);
+              navigate("/notifications");
+            }}
+          >
+            View all notifications
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => {
+              setOpen(false);
+              navigate("/notifications?tab=settings");
+            }}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4" aria-hidden />
+            Settings
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -16,6 +16,7 @@ import PeakWindowGate from "./components/peak/PeakWindowGate";
 import AccountLifecycleBanner from "./components/accountLifecycle/AccountLifecycleBanner";
 import QuotaBreakdownHost from "./components/quota/QuotaBreakdownHost";
 import { UserCardProvider } from "./components/users/UserIdCardLink";
+import { GlobalSearchHost } from "./components/search/GlobalSearch";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useStaffAppShell } from "./lib/staffApp";
 import { isNativeApp } from "./lib/nativeApp";
@@ -61,6 +62,7 @@ const App = () => (
             <AppRoutes />
             <StaffAppChrome />
             <QuotaBreakdownHost />
+            <GlobalSearchHost />
             </UserCardProvider>
           </PeakWindowGate>
         </NotificationProvider>

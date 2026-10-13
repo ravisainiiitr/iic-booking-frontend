@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles } from "lucide-react";
 import NotificationPanel from "@/components/NotificationPanel";
+import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { BackButton } from "@/components/BackButton";
@@ -313,6 +314,7 @@ const DashboardHeader = () => {
           <BackButton />
           <img src={iitrLogo128} width={32} height={32} alt="IIT Roorkee" className="h-8 w-8 shrink-0 object-contain" />
           <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IIC Booking</span>
+          <GlobalSearchButton wideFrom="xl" />
           <NotificationPanel />
         </div>
       </header>
@@ -359,6 +361,7 @@ const DashboardHeader = () => {
           </div>
         )}
         <div className="flex items-center gap-2 sm:gap-3">
+          <GlobalSearchButton wideFrom={showServerClock ? "xl" : "md"} />
           {showDashboardButton && (
             <BackToDashboardButton className={dashboardInClockRow ? "hidden lg:inline-flex" : undefined} />
           )}

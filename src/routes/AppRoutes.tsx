@@ -139,6 +139,7 @@ const IcpmsStandardsTest = lazyPage(() => import("@/pages/IcpmsStandardsTest"));
 const Print3DAnalyzerTest = lazyPage(() => import("@/pages/Print3DAnalyzerTest"));
 const EquipmentProfile = lazyPage(() => import("@/pages/EquipmentProfile"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
+const Notifications = lazyPage(() => import("@/pages/Notifications"));
 const WalletRechargeRequestAction = lazyPage(() => import("@/pages/WalletRechargeRequestAction"));
 const WalletRechargeEmailAction = lazyPage(() => import("@/pages/WalletRechargeEmailAction"));
 const AdminWalletRechargeRequests = lazyPage(() => import("@/pages/AdminWalletRechargeRequests"));
@@ -420,6 +421,7 @@ export default function AppRoutes() {
           <Route path="/test/icpms-standards" element={<IcpmsStandardsTest />} />
           <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
           <Route path="/tickets" element={<Tickets />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/user-guide" element={<UserGuidePage />} />
           <Route path="/dev/user-guides" element={<UserGuidePreview />} />
           <Route path="/page/:slug" element={<CmsPageView />} />
