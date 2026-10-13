@@ -54,6 +54,18 @@ describe("SimilarInstrumentsCard", () => {
   });
 });
 
+describe("SimilarInstrumentsCard errors", () => {
+  it("renders nothing when the request fails", async () => {
+    api.getSimilarAvailability.mockResolvedValue({ error: "Equipment not found.", status: 404, data: { error: "Equipment not found." } });
+    const { container } = render(
+      <SimilarInstrumentsCard equipmentId={9} weekKey="2026-10-12_2026-10-18" onGoToWeek={vi.fn()} onOpenInstrument={vi.fn()} />,
+    );
+    await vi.waitFor(() => expect(api.getSimilarAvailability).toHaveBeenCalledWith(9));
+    await Promise.resolve();
+    expect(container.querySelector('[data-testid="similar-instruments"]')).toBeNull();
+  });
+});
+
 describe("BookingStepIndicator", () => {
   it("lets the user jump back to reached steps only", () => {
     const onStepClick = vi.fn();

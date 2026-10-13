@@ -33,7 +33,7 @@ export function SimilarInstrumentsCard({ equipmentId, weekKey, onGoToWeek, onOpe
     setLoading(true);
     apiClient.getSimilarAvailability(equipmentId).then((res) => {
       if (cancelled) return;
-      setData(res.data ?? null);
+      setData(res.error || !res.data?.equipment ? null : res.data);
       setLoading(false);
     });
     return () => {

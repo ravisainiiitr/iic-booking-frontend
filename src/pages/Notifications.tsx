@@ -79,7 +79,7 @@ function InboxPanel({ onUnreadChange }: { onUnreadChange: (n: number) => void })
       setLoading(true);
       const res = await apiClient.getNotificationInbox({ category, unread: unreadOnly, q: query, page: nextPage, pageSize: PAGE_SIZE });
       setLoading(false);
-      if (!res.data) {
+      if (res.error || !res.data?.results) {
         setError(true);
         return;
       }
@@ -308,7 +308,7 @@ function SettingsPanel() {
 
   useEffect(() => {
     apiClient.getNotificationPreferences().then((res) => {
-      if (res.data) {
+      if (!res.error && res.data?.categories) {
         setRows(res.data.categories);
         setDelivery(res.data.delivery);
       } else toast.error("Notification settings could not be loaded.");
@@ -327,7 +327,7 @@ function SettingsPanel() {
     setSaving(label);
     const res = await apiClient.saveNotificationPreferences(changes, nextDelivery);
     setSaving(null);
-    if (res.data) {
+    if (!res.error && res.data?.categories) {
       setRows(res.data.categories);
       setDelivery(res.data.delivery);
       toast.success("Notification settings saved");
@@ -365,8 +365,8 @@ function SettingsPanel() {
     setPushBusy(true);
     const res = await apiClient.sendWebPushTest();
     setPushBusy(false);
-    if (res.data) toast.success("Test sent. It should appear in a few seconds.");
-    else toast.error(res.error || "The test could not be sent.");
+    if (res.error || !res.data) toast.error(res.error || "The test could not be sent.");
+    else toast.success("Test sent. It should appear in a few seconds.");
   };
 
   const optional = rows?.filter((r) => !r.locked) ?? [];

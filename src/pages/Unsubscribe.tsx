@@ -22,7 +22,7 @@ const Unsubscribe = () => {
       return;
     }
     apiClient.notificationUnsubscribe(token, false).then((res) => {
-      if (!res.data) setState({ kind: "invalid", message: res.error || "This unsubscribe link is not valid." });
+      if (res.error || !res.data) setState({ kind: "invalid", message: res.error || "This unsubscribe link is not valid." });
       else setState({ kind: res.data.email_enabled ? "ready" : "done", info: res.data });
     });
   }, [token]);
@@ -31,8 +31,8 @@ const Unsubscribe = () => {
     if (state.kind !== "ready") return;
     setState({ kind: "working", info: state.info });
     const res = await apiClient.notificationUnsubscribe(token, true);
-    if (res.data) setState({ kind: "done", info: res.data });
-    else setState({ kind: "invalid", message: res.error || "Something went wrong. Please try again." });
+    if (res.error || !res.data) setState({ kind: "invalid", message: res.error || "Something went wrong. Please try again." });
+    else setState({ kind: "done", info: res.data });
   };
 
   return (

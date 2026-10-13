@@ -62,10 +62,10 @@ export async function enableWebPush(): Promise<WebPushState> {
   if (permission !== "granted") return "denied";
   try {
     const status = await apiClient.getWebPushStatus();
-    if (!status.data) return "error";
+    if (status.error || !status.data?.public_key) return "error";
     const sub = await subscribe(status.data.public_key);
     const saved = await apiClient.saveWebPushSubscription(sub.toJSON());
-    if (!saved.data) return "error";
+    if (saved.error || !saved.data) return "error";
     localStorage.setItem(FLAG, "1");
     return "on";
   } catch {
@@ -90,7 +90,7 @@ export async function refreshWebPush(): Promise<void> {
   if (!webPushFlagged() || !webPushSupported() || Notification.permission !== "granted") return;
   try {
     const status = await apiClient.getWebPushStatus();
-    if (!status.data) return;
+    if (status.error || !status.data?.public_key) return;
     const sub = await subscribe(status.data.public_key);
     await apiClient.saveWebPushSubscription(sub.toJSON());
   } catch {

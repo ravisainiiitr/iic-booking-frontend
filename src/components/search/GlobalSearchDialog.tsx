@@ -121,7 +121,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
       const res = await apiClient.globalSearch(trimmed, controller.signal);
       if (controller.signal.aborted) return;
       setLoading(false);
-      if (res.data) {
+      if (!res.error && res.data?.equipment) {
         setResult(res.data);
         setFailed(false);
       } else {
