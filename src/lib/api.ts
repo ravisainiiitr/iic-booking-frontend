@@ -19,8 +19,17 @@ import {
   isMobileSessionToken,
   isNativeApp,
   markAppAudienceRefused,
+  openInBrowser,
   recoverNativeSession,
 } from "@/lib/nativeApp";
+import {
+  getSaveFilePicker,
+  pickSaveTarget,
+  pipeToFile,
+  startBrowserDownload,
+  type ResultsDownloadMode,
+  type ResultsDownloadProgress,
+} from "@/lib/resultsDownload";
 import { isTypedTableRowsValue, typedTableFilledRowCount } from "@/lib/typedTableField";
 
 /** Sign-in requests from the Android app carry this so the server can apply the app audience. */
@@ -9341,7 +9350,7 @@ class ApiClient {
   async downloadBookingResultFile(
     file: { name: string; download_url: string; source?: string },
     bookingId?: number | null
-  ): Promise<{ error?: string }> {
+  ): Promise<{ error?: string; mode?: ResultsDownloadMode }> {
     const url = (file.download_url || "").trim();
     if (!url) return { error: "Missing download URL" };
     const needsAuth =
@@ -9350,13 +9359,17 @@ class ApiClient {
       url.includes("/results/attachments/") ||
       url.includes("/results/files/");
     if (!needsAuth) {
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.click();
+      if (isNativeApp()) {
+        await openInBrowser(url);
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.click();
+      }
       if (bookingId != null) await this.markBookingResultsViewed(bookingId);
-      return {};
+      return { mode: "browser" };
     }
     const token = this.getToken();
     if (!token) return { error: "Not authenticated" };
@@ -9372,28 +9385,16 @@ class ApiClient {
         fetchUrl = `${base}/${url}`;
       }
     }
+    fetchUrl += `${fetchUrl.includes("?") ? "&" : "?"}link=1`;
     try {
-      const res = await fetch(fetchUrl, { headers: { Authorization: `Token ${token}` } });
-      if (!res.ok) {
-        const text = await res.text();
-        try {
-          const j = JSON.parse(text) as { error?: string };
-          return { error: j.error || res.statusText };
-        } catch {
-          return { error: text || res.statusText };
-        }
-      }
-      const blob = await res.blob();
-      const name =
-        file.name ||
-        res.headers.get("Content-Disposition")?.match(/filename="?([^";]+)"?/)?.[1] ||
-        "result.bin";
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      return {};
+      // The server answers with a short-lived link the browser downloads natively (its own progress, no
+      // in-memory copy), instead of the file itself.
+      const res = await fetch(fetchUrl, { headers: { Authorization: `Token ${token}` }, credentials: "omit" });
+      const body = (await res.json().catch(() => ({}))) as { url?: string; filename?: string; error?: string };
+      if (!res.ok || !body.url) return { error: body.error || res.statusText || "Download failed" };
+      if (isNativeApp()) await openInBrowser(body.url);
+      else startBrowserDownload(body.url, body.filename || file.name);
+      return { mode: "browser" };
     } catch (error: any) {
       return { error: error?.message || "Download failed" };
     }
@@ -9413,82 +9414,61 @@ class ApiClient {
     });
   }
 
-  /** Download all result files for a booking as a single ZIP (folder named with booking ID). Triggers browser download. */
+  /**
+   * Download all result files for a booking as one ZIP (folder named with the booking ID).
+   *
+   * Where supported the user picks the save location first and the ZIP is written to disk as it streams, with
+   * real progress; otherwise the browser downloads a signed link natively and shows progress itself.
+   */
   async downloadBookingResultsZip(
     bookingId: number,
-    filename?: string,
-    onProgress?: (percent: number) => void
-  ): Promise<{ error?: string; errorCode?: string; istem_portal_url?: string }> {
-    const token = this.getToken();
-    if (!token) return { error: 'Not authenticated' };
-    let progress = 3;
-    const emitProgress = (value: number) => {
-      progress = Math.max(progress, Math.min(99, Math.round(value)));
-      onProgress?.(progress);
-    };
-    onProgress?.(progress);
-    const progressTimer = window.setInterval(() => {
-      if (progress < 30) progress += 3;
-      else if (progress < 65) progress += 2;
-      else if (progress < 88) progress += 1;
-      else if (progress < 97) progress += 0.35;
-      else if (progress < 99) progress += 0.12;
-      emitProgress(progress);
-    }, 180);
-    const base = this.baseURL.endsWith('/') ? this.baseURL.slice(0, -1) : this.baseURL;
-    const url = `${base}/bookings/${bookingId}/results/download/`;
-    let res: Response;
-    try {
-      res = await fetch(url, { headers: { Authorization: `Token ${token}` } });
-    } catch (error: any) {
-      window.clearInterval(progressTimer);
-      return { error: error?.message || 'Download failed' };
+    onProgress?: (progress: ResultsDownloadProgress) => void
+  ): Promise<{ error?: string; errorCode?: string; istem_portal_url?: string; mode?: ResultsDownloadMode }> {
+    onProgress?.({ phase: "preparing", receivedBytes: 0, totalBytes: 0, percent: null });
+    const link = await this.request<{ url: string; filename: string; total_bytes: number }>(
+      `/bookings/${bookingId}/results/download-link/`,
+      { method: "POST", body: "{}" }
+    );
+    if (link.error || !link.data?.url) {
+      return {
+        error: link.error || "Download failed",
+        errorCode: link.errorCode,
+        istem_portal_url: link.istem_portal_url,
+      };
     }
-    if (!res.ok) {
-      window.clearInterval(progressTimer);
-      const text = await res.text();
+    const { url, filename, total_bytes: totalBytes } = link.data;
+
+    const picker = isNativeApp() ? null : getSaveFilePicker();
+    if (picker) {
+      let target: Awaited<ReturnType<typeof pickSaveTarget>> | undefined;
       try {
-        const j = JSON.parse(text) as { error?: string; code?: string; istem_portal_url?: string };
-        return {
-          error: j.error || res.statusText,
-          errorCode: j.code,
-          istem_portal_url: j.istem_portal_url,
-        };
+        target = await pickSaveTarget(picker, filename);
       } catch {
-        return { error: text || res.statusText };
+        // The picker can refuse (e.g. the click is no longer a recent user gesture): fall back to the browser.
+        target = undefined;
       }
-    }
-    let blob: Blob;
-    const totalBytes = Number(res.headers.get('Content-Length') || '0');
-    if (res.body && totalBytes > 0) {
-      const reader = res.body.getReader();
-      const chunks: Uint8Array[] = [];
-      let received = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          received += value.byteLength;
-          const percent = Math.min(99, 10 + Math.round((received / totalBytes) * 89));
-          emitProgress(percent);
+      if (target === null) return { mode: "cancelled" };
+      if (target) {
+        try {
+          const res = await fetch(url, { credentials: "omit" });
+          if (!res.ok || !res.body) {
+            await target.abort().catch(() => undefined);
+            const body = (await res.json().catch(() => ({}))) as { error?: string };
+            return { error: body.error || res.statusText || "Download failed" };
+          }
+          const total = Number(res.headers.get("X-Results-Total-Bytes") || "") || totalBytes || 0;
+          await pipeToFile(res.body, target, total, onProgress);
+          return { mode: "saved" };
+        } catch (error: any) {
+          await target.abort().catch(() => undefined);
+          return { error: error?.message || "Download failed" };
         }
       }
-      blob = new Blob(chunks, { type: res.headers.get('Content-Type') || 'application/zip' });
-    } else {
-      // When content length is unavailable, keep showing smooth progress via timer above.
-      blob = await res.blob();
     }
-    window.clearInterval(progressTimer);
-    emitProgress(99);
-    const name = filename || res.headers.get('Content-Disposition')?.match(/filename="?([^";]+)"?/)?.[1] || `Results_${bookingId}.zip`;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    onProgress?.(100);
-    window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    return {};
+
+    if (isNativeApp()) await openInBrowser(url);
+    else startBrowserDownload(url, filename);
+    return { mode: "browser" };
   }
 
   /** Requester's bookings with results: not-yet-downloaded first, then most recent first. */

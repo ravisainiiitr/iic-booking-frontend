@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
+import { ResultsZipProgress, useResultsZipDownload, zipButtonLabel } from "@/components/ResultsZipDownload";
 import { Download, ExternalLink, FolderDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,8 +48,7 @@ export function BookingResultsDialog({
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<ResultFile[]>([]);
   const [error, setError] = useState<{ message: string; portalUrl?: string } | null>(null);
-  const [zipProgress, setZipProgress] = useState(0);
-  const [zipInProgress, setZipInProgress] = useState(false);
+  const { progress: zipProgress, busy: zipInProgress, start: startZipDownload } = useResultsZipDownload();
   const [downloaded, setDownloaded] = useState(false);
 
   useEffect(() => {
@@ -88,22 +87,8 @@ export function BookingResultsDialog({
 
   const downloadZip = async () => {
     if (bookingId == null) return;
-    setZipInProgress(true);
-    setZipProgress(8);
-    const res = await apiClient.downloadBookingResultsZip(bookingId, undefined, (p) => setZipProgress(p));
-    if (res.error) {
-      toast.error(res.error);
-      setZipInProgress(false);
-      setZipProgress(0);
-      return;
-    }
-    setDownloaded(true);
-    toast.success("Download started. Save prompt should appear shortly.");
-    setZipProgress(100);
-    window.setTimeout(() => {
-      setZipInProgress(false);
-      setZipProgress(0);
-    }, 700);
+    const res = await startZipDownload(bookingId);
+    if (!res.error && res.mode !== "cancelled") setDownloaded(true);
   };
 
   const downloadFile = async (file: ResultFile) => {
@@ -146,17 +131,9 @@ export function BookingResultsDialog({
           <div className="flex flex-col gap-3">
             <Button className="w-full bg-green-700 text-white hover:bg-green-800" disabled={zipInProgress} onClick={downloadZip}>
               <FolderDown className="h-4 w-4 mr-2" />
-              {zipInProgress ? "Preparing ZIP..." : "Download folder (ZIP)"}
+              {zipButtonLabel(zipProgress)}
             </Button>
-            {zipInProgress && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Preparing and downloading ZIP...</span>
-                  <span>{zipProgress}%</span>
-                </div>
-                <Progress value={zipProgress} className="h-2" />
-              </div>
-            )}
+            <ResultsZipProgress progress={zipProgress} />
             <p className="text-sm font-medium">Individual files</p>
             <ul className="space-y-3 max-h-72 overflow-y-auto">
               {files.map((file, idx) => (

@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { ResultsZipProgress, useResultsZipDownload, zipButtonLabel } from "@/components/ResultsZipDownload";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -401,8 +402,16 @@ const MyBookings = () => {
   >([]);
   const [resultsDialogBookingId, setResultsDialogBookingId] = useState<number | null>(null);
   const [resultsLoadingId, setResultsLoadingId] = useState<string | number | null>(null);
-  const [zipDownloadInProgress, setZipDownloadInProgress] = useState(false);
-  const [zipDownloadProgress, setZipDownloadProgress] = useState(0);
+  const {
+    progress: zipDownloadProgress,
+    busy: zipDownloadInProgress,
+    start: startZipDownload,
+  } = useResultsZipDownload((res) => {
+    if (res.errorCode === "istem_fbr_not_executed") {
+      setResultsFbrBlock({ message: res.error ?? "", portalUrl: res.istem_portal_url });
+      setResultsFbrInfoOpen(true);
+    }
+  });
   const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
   const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
   const [resultsDialogBooking, setResultsDialogBooking] = useState<Booking | null>(null);
@@ -1986,47 +1995,14 @@ const MyBookings = () => {
                   className="w-full bg-green-700 text-white hover:bg-green-800"
                   disabled={zipDownloadInProgress}
                   onClick={async () => {
-                    setZipDownloadInProgress(true);
-                    setZipDownloadProgress(8);
-                    const err = await apiClient.downloadBookingResultsZip(
-                      resultsDialogBookingId,
-                      undefined,
-                      (percent) => setZipDownloadProgress(percent)
-                    );
-                    if (err.error) {
-                      if (err.errorCode === "istem_fbr_not_executed") {
-                        setResultsFbrBlock({
-                          message: err.error,
-                          portalUrl: err.istem_portal_url,
-                        });
-                        setResultsFbrInfoOpen(true);
-                      }
-                      toast.error(err.error);
-                      setZipDownloadInProgress(false);
-                      setZipDownloadProgress(0);
-                    } else {
-                      toast.success("Download started. Save prompt should appear shortly.");
-                      setZipDownloadProgress(100);
-                      window.setTimeout(() => {
-                        setZipDownloadInProgress(false);
-                        setZipDownloadProgress(0);
-                      }, 700);
-                    }
+                    await startZipDownload(resultsDialogBookingId);
                   }}
                 >
                   <FolderDown className="h-4 w-4 mr-2" />
-                  {zipDownloadInProgress ? "Preparing ZIP..." : "Download folder (ZIP)"}
+                  {zipButtonLabel(zipDownloadProgress)}
                 </Button>
               )}
-              {zipDownloadInProgress && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Preparing and downloading ZIP...</span>
-                    <span>{zipDownloadProgress}%</span>
-                  </div>
-                  <Progress value={zipDownloadProgress} className="h-2" />
-                </div>
-              )}
+              <ResultsZipProgress progress={zipDownloadProgress} />
               <p className="text-sm font-medium">Individual files</p>
               <ul className="space-y-3 max-h-72 overflow-y-auto">
                 {resultsDialogFiles.map((file, idx) => {

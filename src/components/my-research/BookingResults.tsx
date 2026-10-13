@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api";
 import type { ResearchBookingResultFile, ResearchBookingResults } from "@/lib/myResearchTypes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ResultsZipProgress, useResultsZipDownload } from "@/components/ResultsZipDownload";
 import { formatBytes } from "./researchUtils";
 
 /** Results of a project's linked bookings, keyed by booking id. Read-through: nothing is copied into the project. */
@@ -86,7 +87,7 @@ export function BookingResultsFiles({ results, bookingId }: { results: ResearchB
   const [open, setOpen] = useState(false);
   const [allFiles, setAllFiles] = useState<ResearchBookingResultFile[] | null>(null);
   const [loadingAll, setLoadingAll] = useState(false);
-  const [zipping, setZipping] = useState(false);
+  const { progress: zipProgress, busy: zipping, start: startZipDownload } = useResultsZipDownload();
 
   if (!results?.can_view || !results.has_results) return null;
   if (results.locked_code) {
@@ -120,10 +121,7 @@ export function BookingResultsFiles({ results, bookingId }: { results: ResearchB
   };
 
   const downloadZip = async () => {
-    setZipping(true);
-    const res = await apiClient.downloadBookingResultsZip(bookingId);
-    setZipping(false);
-    if (res.error) toast.error(res.error);
+    await startZipDownload(bookingId);
   };
 
   return (
@@ -138,6 +136,7 @@ export function BookingResultsFiles({ results, bookingId }: { results: ResearchB
           Download all
         </Button>
       </div>
+      <ResultsZipProgress progress={zipProgress} />
       {open ? (
         loadingAll ? (
           <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">

@@ -30,7 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { DisruptionCategoryChips } from "@/components/disruptions/DisruptionCategoryChips";
 import { DISRUPTION_REASON_CATEGORIES } from "@/lib/disruptions";
-import { Progress } from "@/components/ui/progress";
+import { ResultsZipProgress, useResultsZipDownload, zipButtonLabel } from "@/components/ResultsZipDownload";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
@@ -728,8 +728,16 @@ export function BookingDetailCard({
   const [fbrInvalidateReason, setFbrInvalidateReason] = useState("");
   const [fbrReviewLoading, setFbrReviewLoading] = useState<null | "execute" | "invalidate">(null);
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
-  const [zipDownloadInProgress, setZipDownloadInProgress] = useState(false);
-  const [zipDownloadProgress, setZipDownloadProgress] = useState(0);
+  const {
+    progress: zipDownloadProgress,
+    busy: zipDownloadInProgress,
+    start: startZipDownload,
+  } = useResultsZipDownload((res) => {
+    if (res.errorCode === "istem_fbr_not_executed") {
+      setResultsFbrBlock({ message: res.error ?? "", portalUrl: res.istem_portal_url });
+      setResultsFbrInfoOpen(true);
+    }
+  });
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const chargeRecalcPayingRef = useRef(false);
@@ -3477,46 +3485,13 @@ export function BookingDetailCard({
                       toast.error("Result files are unavailable for this booking.");
                       return;
                     }
-                    setZipDownloadInProgress(true);
-                    setZipDownloadProgress(8);
-                    const err = await apiClient.downloadBookingResultsZip(
-                      bookingPk,
-                      undefined,
-                      (percent) => setZipDownloadProgress(percent)
-                    );
-                    if (err.error) {
-                      if (err.errorCode === "istem_fbr_not_executed") {
-                        setResultsFbrBlock({
-                          message: err.error,
-                          portalUrl: err.istem_portal_url,
-                        });
-                        setResultsFbrInfoOpen(true);
-                      }
-                      toast.error(err.error);
-                      setZipDownloadInProgress(false);
-                      setZipDownloadProgress(0);
-                    } else {
-                      toast.success("Download started. Save prompt should appear shortly.");
-                      setZipDownloadProgress(100);
-                      window.setTimeout(() => {
-                        setZipDownloadInProgress(false);
-                        setZipDownloadProgress(0);
-                      }, 700);
-                    }
+                    await startZipDownload(bookingPk);
                   }}
                 >
                   <FolderDown className="h-4 w-4 mr-2" />
-                  {zipDownloadInProgress ? "Preparing ZIP..." : "Download folder (ZIP)"}
+                  {zipButtonLabel(zipDownloadProgress)}
                 </Button>
-                {zipDownloadInProgress && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Preparing and downloading ZIP...</span>
-                      <span>{zipDownloadProgress}%</span>
-                    </div>
-                    <Progress value={zipDownloadProgress} className="h-2" />
-                  </div>
-                )}
+                <ResultsZipProgress progress={zipDownloadProgress} />
                 <p className="text-sm font-medium">Individual files</p>
                 <ul className="space-y-3 max-h-72 overflow-y-auto">
                   {resultsData?.files?.map((file, idx) => {
