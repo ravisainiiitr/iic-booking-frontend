@@ -2206,9 +2206,22 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     void fetchStatusChangeSlotsForWeekRef.current(weekStart);
   };
 
-  /** Month calendar dates: one click selects, double click / double tap / Enter opens that week. */
+  /** Hides the week grid and drops its slot selection, so Apply can only act on what is still on screen. */
+  const hideStatusWeekView = () => {
+    statusWeekSlotsFetchGenRef.current += 1;
+    setLoadingStatusSlots(false);
+    setStatusChangePopupWeekStart(null);
+    setStatusChangeSlots(null);
+    setSelectedSlotIdsForStatus([]);
+    setStatusBulkFocusTime(null);
+    setStatusBulkFocusDayOffset(null);
+    setExpandedSlotBooking(null);
+  };
+
+  /** Month calendar dates: one click hides the week and selects, double click / double tap / Enter shows that week. */
   const statusDateClickHandlers = useSelectOrOpenClick<string>({
     onSelect: toggleDateForStatus,
+    onPress: hideStatusWeekView,
     onOpen: (dateStr) => openWeekSlotPopup(parseISO(dateStr)),
     shouldIgnoreClick: () => statusDragSuppressClickRef.current,
     timerRef: statusChangeDateClickTimerRef,
@@ -2652,6 +2665,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
         clearTimeout(statusChangeDateClickTimerRef.current);
         statusChangeDateClickTimerRef.current = null;
       }
+      hideStatusWeekView();
     }
     const [from, to] = drag.anchor <= target ? [drag.anchor, target] : [target, drag.anchor];
     const next = new Set(drag.base);
@@ -7975,7 +7989,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 </div>
                 <span className={STATUS_TIP_CHIP_CLASS}>
                   <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  Click a date to select it · double-click a date to open its week · drag to select several dates
+                  Click a date to select it · double-click a date to show that week's slots · drag to select several dates
                 </span>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
@@ -8036,13 +8050,13 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                           tabIndex={inMonth ? undefined : -1}
                           aria-pressed={inMonth ? isSelected : undefined}
                           aria-label={format(day, "EEEE d MMMM yyyy")}
-                          title={inMonth ? "Click to select · double-click or press Enter to open this week" : undefined}
+                          title={inMonth ? "Click to select · double-click or press Enter to show this week's slots" : undefined}
                           onPointerDown={(e) => {
                             if (inMonth) beginStatusDateDrag(e, dateStr);
                           }}
                           {...(inMonth ? statusDateClickHandlers(dateStr) : {})}
                           className={cn(
-                            "h-8 border-b border-r border-border/40 text-sm font-semibold tabular-nums transition-colors [&:nth-child(7n)]:border-r-0",
+                            "h-8 touch-manipulation border-b border-r border-border/40 text-sm font-semibold tabular-nums transition-colors [&:nth-child(7n)]:border-r-0",
                             inMonth ? "bg-background hover:bg-primary/10" : "bg-muted/30 text-muted-foreground/60",
                             isSelected && "bg-primary text-primary-foreground hover:bg-primary/90"
                           )}
@@ -8112,6 +8126,19 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
           </Suspense>
         )}
 
+        {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && !isCalculateChargesFlow && !statusChangePopupWeekStart && (
+          <div
+            data-testid="status-week-hidden-hint"
+            className="w-full max-w-none mx-auto mb-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-6 text-sm text-muted-foreground"
+          >
+            <MousePointerClick className="h-4 w-4 shrink-0" aria-hidden />
+            <span>
+              Double-click a date to show that week&apos;s slots
+              <span className="hidden sm:inline"> (or press Enter on a date)</span>
+            </span>
+          </div>
+        )}
+
         {/* Inline week view (pick by time) */}
         {canAccessManageEquipmentModes() && adminManageMode === 'status' && selectedEquipment && statusChangePopupWeekStart && (
           <div className="w-full max-w-none mx-auto mb-3 rounded-xl border border-border/70 bg-card shadow-sm">
@@ -8127,7 +8154,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     variant="ghost"
                     size="sm"
                     className="h-9 px-3 text-xs font-medium"
-                    onClick={() => { setStatusChangePopupWeekStart(null); }}
+                    onClick={hideStatusWeekView}
                   >
                     Hide week view
                   </Button>

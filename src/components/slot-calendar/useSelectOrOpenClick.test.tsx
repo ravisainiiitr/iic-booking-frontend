@@ -5,10 +5,11 @@ import { SELECT_CLICK_DELAY_MS, useSelectOrOpenClick } from "./useSelectOrOpenCl
 
 const onSelect = vi.fn();
 const onOpen = vi.fn();
+const onPress = vi.fn();
 let ignore = false;
 
 function Dates() {
-  const bind = useSelectOrOpenClick<string>({ onSelect, onOpen, shouldIgnoreClick: () => ignore });
+  const bind = useSelectOrOpenClick<string>({ onSelect, onOpen, onPress, shouldIgnoreClick: () => ignore });
   return (
     <>
       {["2026-10-21", "2026-10-22"].map((d) => (
@@ -27,6 +28,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   onSelect.mockReset();
   onOpen.mockReset();
+  onPress.mockReset();
   ignore = false;
   render(<Dates />);
 });
@@ -82,5 +84,31 @@ describe("useSelectOrOpenClick", () => {
     fireEvent.click(date("2026-10-21"), { detail: 1 });
     wait();
     expect(onSelect).not.toHaveBeenCalled();
+    expect(onPress).not.toHaveBeenCalled();
+  });
+
+  it("runs onPress at once on the first click, before the select pause", () => {
+    fireEvent.click(date("2026-10-21"), { detail: 1 });
+    expect(onPress).toHaveBeenCalledWith("2026-10-21");
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("runs onPress before onOpen on a double click or double tap, and only once", () => {
+    const order: string[] = [];
+    onPress.mockImplementation(() => order.push("press"));
+    onOpen.mockImplementation(() => order.push("open"));
+    fireEvent.click(date("2026-10-21"), { detail: 1 });
+    fireEvent.click(date("2026-10-21"), { detail: 2 });
+    fireEvent.click(date("2026-10-22"), { detail: 1 });
+    fireEvent.click(date("2026-10-22"), { detail: 1 });
+    wait();
+    expect(order).toEqual(["press", "open", "press", "open"]);
+  });
+
+  it("runs onPress on Space but not on Enter", () => {
+    fireEvent.keyDown(date("2026-10-21"), { key: "Enter" });
+    expect(onPress).not.toHaveBeenCalled();
+    fireEvent.click(date("2026-10-22"), { detail: 0 });
+    expect(onPress).toHaveBeenCalledWith("2026-10-22");
   });
 });

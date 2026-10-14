@@ -7,6 +7,8 @@ type Timer = ReturnType<typeof setTimeout>;
 interface Options<K> {
   onSelect: (key: K) => void;
   onOpen: (key: K) => void;
+  /** Runs at once on the first click or tap (and on Space), before the pause that tells a single click from a double. */
+  onPress?: (key: K) => void;
   /** Skips the click (e.g. it ended a drag). */
   shouldIgnoreClick?: () => boolean;
   /** Pending single-click timer; pass one in when other code must be able to cancel it. */
@@ -21,6 +23,7 @@ interface Options<K> {
 export function useSelectOrOpenClick<K>({
   onSelect,
   onOpen,
+  onPress,
   shouldIgnoreClick,
   timerRef,
   delayMs = SELECT_CLICK_DELAY_MS,
@@ -28,8 +31,8 @@ export function useSelectOrOpenClick<K>({
   const ownTimer = useRef<Timer | null>(null);
   const timer = timerRef ?? ownTimer;
   const pendingKey = useRef<K | null>(null);
-  const latest = useRef({ onSelect, onOpen, shouldIgnoreClick });
-  latest.current = { onSelect, onOpen, shouldIgnoreClick };
+  const latest = useRef({ onSelect, onOpen, onPress, shouldIgnoreClick });
+  latest.current = { onSelect, onOpen, onPress, shouldIgnoreClick };
 
   const cancel = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -54,6 +57,7 @@ export function useSelectOrOpenClick<K>({
         // Keyboard activation (Space) has no click count: select at once.
         if (e.detail === 0) {
           cancel();
+          latest.current.onPress?.(key);
           latest.current.onSelect(key);
           return;
         }
@@ -67,6 +71,7 @@ export function useSelectOrOpenClick<K>({
         const earlier = timer.current ? pendingKey.current : null;
         cancel();
         if (earlier !== null) latest.current.onSelect(earlier);
+        latest.current.onPress?.(key);
         pendingKey.current = key;
         timer.current = setTimeout(() => {
           timer.current = null;
