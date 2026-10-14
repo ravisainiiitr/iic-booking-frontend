@@ -10781,7 +10781,10 @@ class ApiClient {
     });
   }
 
-  /** Update user input values for a booking (only fields marked editing_required, until status is Complete). */
+  /**
+   * Update user input values for a booking (until status is Complete). Fields without editing_required can only be
+   * changed by the OIC, a Department Administrator of the equipment's department or the Main Administrator (403).
+   */
   async updateBookingInputValues(
     bookingId: number,
     inputValues: Record<string, string | number | boolean | string[]>

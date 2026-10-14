@@ -87,6 +87,12 @@ export function staffViewBookingSection(g: Gate): GuideSection {
         "IIC material can be charged only on own-material 3D print and laser bookings that are not cancelled or refunded, including completed ones, by the equipment's Officer In Charge (or temporary OIC) and the Main Administrator. Only the Main Administrator can enter a different amount."
       ),
       g.only(["dept_admin"], "Completion and exception handling stay with the Officer In Charge and Lab Operator."),
+      g.pick(
+        {
+          operator: "In Edit User Inputs you can change only the inputs marked Editing required; the others are locked and can be changed only by the Officer In Charge, a Department Administrator of the equipment's department or the Main Administrator.",
+        },
+        "After booking, inputs without Editing required can be changed only by the equipment's Officer In Charge (including an active temporary OIC), a Department Administrator of its department and the Main Administrator; the user, supervisor, Lab Operators and others see them locked.",
+      ),
       "Cancelled and refunded bookings keep their original dates.",
       g.only(["oic", "admin", "operator"], "Up to 3 reminders and 5 questions can be sent per booking in 24 hours, shared by all lab staff; sending the same text twice within 2 minutes sends it once."),
     ]),
@@ -515,6 +521,7 @@ export function oicChargesSection(): GuideSection {
     rules: [
       "You can open Calculate charges on any catalog equipment; it is view-only on equipment not assigned to you.",
       "You can also edit inputs yourself after completion.",
+      "Users can change only inputs marked Editing required in the equipment form; you, a Department Administrator of the equipment's department and the Main Administrator can change every input. Enable charge recalculation re-prices edits but no longer lets users change other inputs.",
     ],
   };
 }

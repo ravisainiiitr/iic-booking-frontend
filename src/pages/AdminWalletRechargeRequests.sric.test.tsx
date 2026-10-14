@@ -18,6 +18,7 @@ vi.mock("@/lib/api", () => ({
     adminWalletRechargeRequestDelete: (...args: unknown[]) => deleteRequest(...args),
     adminWalletRechargeSricReminderPreview: (...args: unknown[]) => reminderPreview(...args),
     adminWalletRechargeSricReminderSend: (...args: unknown[]) => reminderSend(...args),
+    getSricMailboxStatus: async () => ({ error: "skip" }),
   },
   extractAdminListItems: (d: { results?: unknown[] }) => d?.results ?? [],
 }));

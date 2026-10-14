@@ -38,6 +38,8 @@ import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
 import { clearTypedTableRowStash, readTypedTableConfig, typedTableLinkKey } from "@/lib/typedTableField";
 import { InfoTip } from "@/components/booking/InfoTip";
+import { LockedInputValue } from "@/components/LockedInputValue";
+import { LOCKED_INPUT_HINT } from "@/lib/inputEditLock";
 import {
   defaultSampleSetValues,
   MAX_SAMPLE_SETS,
@@ -82,6 +84,8 @@ type Props = {
   compact?: boolean;
   /** Prefix of the scope that keeps rows hidden by linked advanced tables apart per set (one per form). */
   tableScopePrefix?: string;
+  /** Fields the viewer cannot change after booking ("Editing required" unchecked); shown read-only in every set. */
+  lockedFieldKeys?: ReadonlySet<string>;
 };
 
 export const SAMPLE_SET_HELPER_TEXT =
@@ -151,7 +155,10 @@ export default function SampleSetsEditor({
   storedSets,
   compact = false,
   tableScopePrefix = "set",
+  lockedFieldKeys,
 }: Props) {
+  const isLocked = (key: string) => Boolean(lockedFieldKeys?.has(key));
+  const hasLockedFields = Boolean(lockedFieldKeys && lockedFieldKeys.size > 0);
   const formulaContext = { slotDurationMinutes, fallbacks: formulaFallbackValues(fields) };
   const setsRef = useRef(sets);
   setsRef.current = sets;
@@ -341,6 +348,7 @@ export default function SampleSetsEditor({
     const id = `sample-set-${index}-${key}`;
     const raw = set[key];
     const options = Array.isArray(field.options) ? field.options : [];
+    if (isLocked(key)) return <LockedInputValue field={field} values={set} id={id} />;
     switch (type) {
       case "TEXT":
         return (
@@ -527,12 +535,9 @@ export default function SampleSetsEditor({
         const isCollapsed = collapsed.has(id);
         const title = `Sample set ${index + 2}`;
         const duplicate = fitNewSampleSet(fields, primaryValues, sets, copyOf(set));
-        const fromSetOne = fitNewSampleSet(
-          fields,
-          primaryValues,
-          sets.filter((_, i) => i !== index),
-          copyOf(primaryValues),
-        );
+        const fromSetOne = hasLockedFields
+          ? null
+          : fitNewSampleSet(fields, primaryValues, sets.filter((_, i) => i !== index), copyOf(primaryValues));
         const summary = isCollapsed ? sampleSetSummary(fields, set) : "";
         return (
           <section
@@ -567,7 +572,9 @@ export default function SampleSetsEditor({
                   disabled={disabled || fromSetOne == null}
                   onClick={() => fromSetOne && onChange(sets.map((s, i) => (i === index ? fromSetOne : s)))}
                   title={
-                    fromSetOne == null
+                    hasLockedFields
+                      ? LOCKED_INPUT_HINT
+                      : fromSetOne == null
                       ? "Sample set 1's values do not fit the maximum allowed across all sample sets."
                       : "Replace this set's values with sample set 1's values"
                   }

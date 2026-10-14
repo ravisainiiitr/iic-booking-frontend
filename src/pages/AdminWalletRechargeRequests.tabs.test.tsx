@@ -17,6 +17,7 @@ vi.mock("@/lib/api", () => ({
     getCatalogDepartments: async () => ({ data: { departments: [] } }),
     adminSingletonGet: async () => ({ data: {} }),
     adminList: async () => ({ data: { results: [] } }),
+    getSricMailboxStatus: async () => ({ error: "skip" }),
   },
   extractAdminListItems: (d: { results?: unknown[] }) => d?.results ?? [],
 }));

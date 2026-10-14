@@ -124,7 +124,7 @@ export function inputsSection(): GuideSection {
       "Some equipment ask for details in a table. Either click Add row for each entry, or the table has one row per sample and follows your number of samples; lowering the number hides the extra rows until you raise it again. Each column checks its own limits, and on a phone every row is shown as a card.",
       "A higher charge from an edit must be paid within 1 minute, or the edit is cancelled and the old values return.",
       "If the new charge is lower, the difference goes back to your wallet straight away when you edit before the cancellation deadline (the same deadline as for cancelling or rescheduling; the edit form shows it). After that deadline, the refund needs the Officer In Charge's approval.",
-      "Inputs can be edited until the booking is completed.",
+      "Inputs can be edited until the booking is completed. Only the inputs the lab marked as editable can be changed; the others show a lock (Editable by the OIC, Department Administrator or Main Administrator only), also in each sample set.",
       "3D print weight and time are estimates; the lab may enter the actual weight and time after printing, and the charge then follows them. Supports in a separate material are charged at that material's rate. With Own material ticked, no material is charged for the model or the supports, but the machine time still is.",
       "The orientation you choose for each 3D print part is saved with the booking and shown to the lab. A part turned so that it no longer fits the printer cannot be booked until you choose another orientation.",
     ],

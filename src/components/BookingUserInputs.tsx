@@ -69,6 +69,8 @@ import { ViewBookingsCountedButton } from "@/components/quota/ViewBookingsCounte
 import { formatInputScalar, resolveChoiceDisplay } from "@/lib/bookingInputDisplay";
 import { TypedTableInputLazy } from "@/components/TypedTableInputLazy";
 import { TypedTableView } from "@/components/TypedTableView";
+import { LockedInputValue } from "@/components/LockedInputValue";
+import { lockedInputKeys } from "@/lib/inputEditLock";
 import {
   clearTypedTableRowStash,
   firstTypedTableProblem,
@@ -118,6 +120,8 @@ interface BookingUserInputsProps {
   slotDurationMinutes?: number | null;
   /** After booking only the equipment's OIC and main administrators may add or remove sample sets. */
   canChangeSampleSets?: boolean;
+  /** Viewer may change fields with "Editing required" unchecked (OIC, own-department Dept Admin, Main Admin). */
+  canEditLockedInputs?: boolean;
   /** The equipment's "Allow samples with different parameters" switch; when off, no set can be added. */
   allowSampleSets?: boolean;
   /** Cancellation deadline that decides whether a lower charge is refunded at once. */
@@ -151,6 +155,7 @@ export function BookingUserInputs({
   onAutoOpenEditConsumed,
   slotDurationMinutes,
   canChangeSampleSets = false,
+  canEditLockedInputs = false,
   allowSampleSets = true,
   refundWindow,
   refundViewer = "owner",
@@ -237,6 +242,9 @@ export function BookingUserInputs({
     editableInputFields && editableInputFields.length > 0 ? editableInputFields : fields;
   const hasEditableFields = canEdit && editableFields.length > 0;
   const sampleSetFields = fields.filter((f) => !isCommentsInputFieldKey(f.field_key));
+  const lockedKeys = lockedInputKeys([...fields, ...editableFields], canEditLockedInputs);
+  const isEditableKey = (key: string) =>
+    !lockedKeys.has(key) && editableFields.some((f) => f.field_key === key);
 
   const formulaFallbacks = formulaFallbackValues([...fields, ...editableFields]);
   const numericBoundsFor = (f: InputFieldDef, values: Record<string, unknown>): NumericFieldBounds =>
@@ -264,7 +272,7 @@ export function BookingUserInputs({
       const label = f.field_label || f.field_key;
       if (n < min) {
         const keptLegacyValue =
-          !editableFields.some((e) => e.field_key === f.field_key) &&
+          !isEditableKey(f.field_key) &&
           comparable(raw) === comparable(iv[f.field_key]) &&
           n >= resolveNumericFieldBounds(f, undefined, { applyMinFloor: false }).min;
         if (keptLegacyValue) continue;
@@ -282,7 +290,7 @@ export function BookingUserInputs({
   const editLimitError =
     editDialogOpen && valuesChangedFrom(editFormValues) ? numericLimitError(editFormValues) : null;
   const editLimitErrorOnReadOnlyField =
-    editLimitError != null && !editableFields.some((f) => f.field_key === editLimitError.key);
+    editLimitError != null && !isEditableKey(editLimitError.key);
   const sampleSetLimitError = editDialogOpen
     ? combinedLimitError(sampleSetFields, editFormValues, editSampleSets, {
         primary: iv as Record<string, unknown>,
@@ -338,6 +346,7 @@ export function BookingUserInputs({
   const icpmsCoverageDeps = icpmsCoverageFields
     .map((f) => `${f.field_key}:${String(f.source_element_field_key ?? "")}`)
     .join("|");
+  const periodicFieldDeps = periodicFields.map((f) => f.field_key).join("|");
 
   useEffect(() => {
     let cancelled = false;
@@ -401,7 +410,7 @@ export function BookingUserInputs({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [icpmsCoverageDeps, inputValues, periodicFields]);
+  }, [icpmsCoverageDeps, inputValues, periodicFieldDeps]);
 
   const openEditDialog = () => {
     clearTypedTableRowStash("edit");
@@ -507,6 +516,7 @@ export function BookingUserInputs({
 
       const allowedKeys = new Set<string>(["comments"]);
       editableFields.forEach((f) => {
+        if (lockedKeys.has(f.field_key)) return;
         allowedKeys.add(f.field_key);
         allowedKeys.add(`${f.field_key}_elements`);
       });
@@ -919,6 +929,19 @@ export function BookingUserInputs({
               const val = editFormValues[f.field_key];
               const type = String(f.field_type || "").toUpperCase();
               const isIncompleteOptional = incompleteOptionalEditableKeys.includes(f.field_key);
+              if (lockedKeys.has(f.field_key)) {
+                return (
+                  <div key={f.field_key} id={`edit-field-wrap-${f.field_key}`}>
+                    <DynamicFieldRow
+                      fieldType={type}
+                      label={f.field_label}
+                      labelClassName="text-sm font-semibold text-foreground"
+                    >
+                      <LockedInputValue field={f} values={iv as Record<string, unknown>} id={`edit-${f.field_key}`} />
+                    </DynamicFieldRow>
+                  </div>
+                );
+              }
               return (
                 <div
                   key={f.field_key}
@@ -1253,6 +1276,7 @@ export function BookingUserInputs({
                 addRemoveLockedNote="Only the Officer In-Charge or administrator can add sample sets after booking."
                 slotDurationMinutes={slotDurationMinutes}
                 storedSets={storedSampleSets}
+                lockedFieldKeys={lockedKeys}
                 tableScopePrefix="edit-set"
               />
             </div>

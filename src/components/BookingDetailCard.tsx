@@ -145,6 +145,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   }>;
   /** The viewer is this equipment's OIC (incl. temporary) or a main administrator; null when unknown. */
   viewer_can_change_sample_sets?: boolean | null;
+  /** The viewer may change inputs without "Editing required" (OIC, own-department Dept Admin, Main Admin). */
+  viewer_can_edit_locked_inputs?: boolean | null;
   selected_parameters: unknown;
   charge_breakdown: Array<{ amount: number; description: string }>;
   status: string;
@@ -1699,6 +1701,7 @@ export function BookingDetailCard({
     canChangeSampleSets:
       booking.viewer_can_change_sample_sets ??
       (normalizedCurrentUserType === "admin" || normalizedCurrentUserType === "manager"),
+    canEditLockedInputs: booking.viewer_can_edit_locked_inputs ?? normalizedCurrentUserType === "admin",
     allowSampleSets: booking.equipment_allow_multiple_sample_sets !== false,
     refundWindow: {
       deadline: booking.input_edit_refund_deadline,
