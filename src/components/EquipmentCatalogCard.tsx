@@ -15,7 +15,8 @@ import { useNavigate } from "react-router-dom";
 import EquipmentImage from "@/components/EquipmentImage";
 import { SuspendedActionTooltip } from "@/components/accountLifecycle/SuspendedGate";
 import CardModeAvailability from "@/components/modeAvailability/CardModeAvailability";
-import type { CardModeAvailability as CardModeAvailabilityData } from "@/lib/modeAvailability";
+import ModeInactiveNotice from "@/components/modeAvailability/ModeInactiveNotice";
+import type { CardModeAvailability as CardModeAvailabilityData, ModeInactive } from "@/lib/modeAvailability";
 import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
 import type { EquipmentDisruptionNotice as EquipmentDisruptionNoticeData } from "@/lib/disruptions";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,8 @@ export type EquipmentCatalogCardItem = {
   modeAvailability?: CardModeAvailabilityData | null;
   /** Not operational: public reason and expected recovery (catalog API ``disruption_notice``). */
   disruptionNotice?: EquipmentDisruptionNoticeData | null;
+  /** Another mode of this instrument runs on its own today: listed but not bookable (catalog API ``mode_inactive``). */
+  modeInactive?: ModeInactive | null;
 };
 
 type PublicationRow = {
@@ -124,10 +127,15 @@ export default function EquipmentCatalogCard({
 
   const status = (item.status || "").toString();
   const isOperational = status === "ACTIVE";
+  const modeInactive = item.modeInactive ?? null;
   const pubCount = Number(item.publicationCount ?? 0);
 
   const canBookHere =
-    isAuthenticated && canShowBookNow && isOperational && !isPeakBlockableUserType(user?.user_type ?? null);
+    isAuthenticated &&
+    canShowBookNow &&
+    isOperational &&
+    !modeInactive &&
+    !isPeakBlockableUserType(user?.user_type ?? null);
   const bookingPath = `/book-equipment?equipment_id=${Number(item.id)}${canBookForOtherUsers ? "&mode=book" : ""}`;
   const directToBooking = peak.active && canBookHere;
 
@@ -292,12 +300,14 @@ export default function EquipmentCatalogCard({
           <span
             className={cn(
               "absolute bottom-3 right-3 z-[2] rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide shadow-sm",
-              isOperational
+              isOperational && !modeInactive
                 ? "bg-white/95 text-primary"
                 : "bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-100"
             )}
           >
-            {item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
+            {isOperational && modeInactive
+              ? modeInactive.label
+              : item.statusDisplay || (isOperational ? "Operational" : status || "Not Operational")}
           </span>
         </div>
 
@@ -323,6 +333,7 @@ export default function EquipmentCatalogCard({
               </span>
             ) : null}
             {!isOperational ? <EquipmentDisruptionNotice notice={item.disruptionNotice} compact /> : null}
+            {isOperational && modeInactive ? <ModeInactiveNotice info={modeInactive} compact /> : null}
           </div>
 
           {metaRows.length > 0 ? (

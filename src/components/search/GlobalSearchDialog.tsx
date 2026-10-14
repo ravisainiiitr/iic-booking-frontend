@@ -27,6 +27,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserCard } from "@/components/users/UserIdCardLink";
 import { apiClient, type GlobalSearchResult } from "@/lib/api";
+import type { ModeInactive } from "@/lib/modeAvailability";
+import { ModeInactivePill } from "@/components/modeAvailability/ModeInactiveNotice";
 import { cn } from "@/lib/utils";
 import { SEARCH_SHORTCUT_LABEL } from "./GlobalSearch";
 import {
@@ -69,6 +71,11 @@ function shortDate(iso: string | null): string {
   } catch {
     return "";
   }
+}
+
+/** Base whose other mode runs on its own today: listed, not bookable (search API ``mode_inactive``). */
+function modeInactiveOf(e: GlobalSearchResult["equipment"][number]): ModeInactive | null {
+  return (e as { mode_inactive?: ModeInactive | null }).mode_inactive ?? null;
 }
 
 const SECONDARY = "truncate text-xs text-muted-foreground group-data-[selected=true]:text-current group-data-[selected=true]:opacity-90";
@@ -329,6 +336,8 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
                             {e.status === "DISPOSED" ? "Disposed" : "Under maintenance"}
                           </span>
+                        ) : modeInactiveOf(e) ? (
+                          <ModeInactivePill info={modeInactiveOf(e)!} />
                         ) : null}
                       </p>
                       <p className={SECONDARY}>
@@ -341,8 +350,9 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                           {e.hint}
                         </p>
                       ) : null}
+                      {modeInactiveOf(e) ? <p className={SECONDARY}>{modeInactiveOf(e)!.message}</p> : null}
                     </div>
-                    {isAuthenticated && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
+                    {isAuthenticated && !modeInactiveOf(e) && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
                       <button
                         type="button"
                         className="ml-2 shrink-0 rounded-md border px-2 py-1 text-xs font-medium text-primary opacity-0 transition-opacity hover:bg-primary hover:text-primary-foreground group-hover:opacity-100 group-data-[selected=true]:opacity-100"

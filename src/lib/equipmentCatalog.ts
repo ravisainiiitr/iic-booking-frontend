@@ -7,11 +7,18 @@ export type CatalogEquipmentLike = {
   /** From the catalog API: this instrument has child modes listed for the viewer (search ignored). */
   has_child_modes?: boolean;
   status?: string | null;
+  /** From the catalog API: another mode of this instrument runs on its own today, so it cannot be booked. */
+  mode_inactive?: unknown;
 };
 
-/** Operational (ACTIVE) cards first, then every other status; order within each group is kept. */
-export function sortCatalogOperationalFirst<T extends Pick<CatalogEquipmentLike, "status">>(list: T[]): T[] {
-  const isDown = (eq: T) => eq.status != null && eq.status !== "" && eq.status !== "ACTIVE";
+/**
+ * Bookable (Operational, mode active) cards first, then every other card; order within each group is kept.
+ * A base whose mode is not active counts as not bookable, like equipment under maintenance.
+ */
+export function sortCatalogOperationalFirst<T extends Pick<CatalogEquipmentLike, "status" | "mode_inactive">>(
+  list: T[],
+): T[] {
+  const isDown = (eq: T) => Boolean(eq.mode_inactive) || (eq.status != null && eq.status !== "" && eq.status !== "ACTIVE");
   return [...list.filter((eq) => !isDown(eq)), ...list.filter(isDown)];
 }
 

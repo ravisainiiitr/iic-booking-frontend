@@ -40,7 +40,11 @@ export function BookFromWorkspaceDialog({ workspaceId, folderId, folderLabel, op
       const res = await apiClient.getEquipments(query.trim() || undefined);
       if (!alive) return;
       setLoading(false);
-      setResults(res.error || !res.data ? [] : res.data.equipments.slice(0, 40));
+      // Picking leads straight to booking, so leave out a mode that is not active today.
+      const bookable = res.error || !res.data
+        ? []
+        : res.data.equipments.filter((eq) => !(eq as { mode_inactive?: unknown }).mode_inactive);
+      setResults(bookable.slice(0, 40));
     }, 300);
     return () => {
       alive = false;

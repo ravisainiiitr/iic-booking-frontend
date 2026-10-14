@@ -46,7 +46,8 @@ import { BookingTemplatesPanel } from "@/components/BookingTemplatesPanel";
 import EquipmentAvailabilityCalendar from "@/components/EquipmentAvailabilityCalendar";
 import ModeAvailabilityHeaderLine from "@/components/modeAvailability/ModeAvailabilityHeaderLine";
 import ModeAvailabilitySection from "@/components/modeAvailability/ModeAvailabilitySection";
-import { bookingPathFor, isMultiModeEquipment } from "@/lib/modeAvailability";
+import ModeInactiveNotice, { ModeInactivePill } from "@/components/modeAvailability/ModeInactiveNotice";
+import { bookingPathFor, isMultiModeEquipment, type ModeInactive } from "@/lib/modeAvailability";
 import { Badge } from "@/components/ui/badge";
 import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
@@ -180,6 +181,8 @@ interface EquipmentProfile {
   weekly_view_display?: 'TIME' | 'SLOT_ID';
   enable_multi_mode?: boolean;
   parent_equipment?: number | null;
+  /** Another mode of this instrument runs on its own today: page is read-only, booking refused. */
+  mode_inactive?: ModeInactive | null;
 }
 
 type ContentPanel =
@@ -257,7 +260,8 @@ const EquipmentProfile = () => {
   const authUserKey = isAuthenticated ? String(user?.id ?? "auth") : "anon";
 
   const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean) => {
-    if (!equipment || !id || equipmentAccessBlockedRef.current) return;
+    // A mode that is not active has no bookable slots and the server refuses them.
+    if (!equipment || !id || equipmentAccessBlockedRef.current || equipment.mode_inactive) return;
 
     const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 1 });
@@ -384,6 +388,8 @@ const EquipmentProfile = () => {
     const st = String((equipment as any)?.status || "").trim().toUpperCase();
     return st === "ACTIVE" || st === "OPERATIONAL";
   };
+
+  const modeInactive = equipment?.mode_inactive ?? null;
 
   /** Show Create Booking / Book CTA in equipment menu. */
   const showCreateOrBookCta = (): boolean => {
@@ -1151,7 +1157,7 @@ const EquipmentProfile = () => {
             panelBody = isAuthenticated ? (
               <BookingTemplatesPanel
                 equipmentId={equipment.equipment_id}
-                canBook={canManageEquipment() || isEquipmentOperational()}
+                canBook={canManageEquipment() || (isEquipmentOperational() && !modeInactive)}
               />
             ) : (
               emptyPanel("Log in to create booking templates for this equipment.")
@@ -1182,11 +1188,15 @@ const EquipmentProfile = () => {
             panelBody = modeAvailabilitySection ? (
               <div className="space-y-6">
                 {modeAvailabilitySection}
-                <EquipmentAvailabilityCalendar
-                  key={equipment.equipment_id}
-                  equipmentId={equipment.equipment_id}
-                  weeklyViewDisplay={getEffectiveWeeklyViewDisplay()}
-                />
+                {modeInactive ? (
+                  <ModeInactiveNotice info={modeInactive} />
+                ) : (
+                  <EquipmentAvailabilityCalendar
+                    key={equipment.equipment_id}
+                    equipmentId={equipment.equipment_id}
+                    weeklyViewDisplay={getEffectiveWeeklyViewDisplay()}
+                  />
+                )}
               </div>
             ) : (
               <EquipmentAvailabilityCalendar
@@ -1312,6 +1322,7 @@ const EquipmentProfile = () => {
                       >
                         {equipment.status_display}
                       </Badge>
+                      {modeInactive ? <ModeInactivePill info={modeInactive} className="text-xs" /> : null}
                       {isMultiModeEquipment(equipment) ? (
                         <div className="flex min-w-0 max-w-full">
                           <ModeAvailabilityHeaderLine
@@ -1324,6 +1335,8 @@ const EquipmentProfile = () => {
                     </div>
                     {equipment.status !== "ACTIVE" ? (
                       <EquipmentDisruptionNotice notice={equipment.disruption_notice} className="mt-3" />
+                    ) : modeInactive ? (
+                      <ModeInactiveNotice info={modeInactive} className="mt-3" />
                     ) : null}
                     <div className="mt-3">
                       <EquipmentDepartmentLabel name={equipment.internal_department_name} />
@@ -1414,7 +1427,18 @@ const EquipmentProfile = () => {
                       </p>
                     </div>
                   )}
-                  {showCreateOrBookCta() && (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
+                  {showCreateOrBookCta() && modeInactive && isEquipmentOperational() && (
+                    <div
+                      role="alert"
+                      className="flex items-start gap-2 rounded-xl border-2 border-amber-500 bg-amber-50 px-3 py-3 text-amber-950 shadow-sm dark:bg-amber-950/40 dark:text-amber-50"
+                    >
+                      <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+                      <p className="text-sm font-bold leading-snug">Booking is disabled while this mode is not active.</p>
+                    </div>
+                  )}
+                  {showCreateOrBookCta() &&
+                    !modeInactive &&
+                    (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button
                       type="button"
                       onClick={handleBookOrManageClick}

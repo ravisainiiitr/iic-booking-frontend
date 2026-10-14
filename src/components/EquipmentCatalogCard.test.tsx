@@ -231,3 +231,31 @@ describe("EquipmentCatalogCard disruption notice", () => {
     expect(screen.queryByTestId("equipment-disruption-notice")).toBeNull();
   });
 });
+
+describe("EquipmentCatalogCard mode not active", () => {
+  const modeInactive = {
+    label: "Mode not active",
+    message: "Currently running as XPS Depth; booking opens when this mode is active.",
+    active_mode: { equipment_id: 43, code: "XPS-D", name: "XPS Depth" },
+    next_active_dates: ["2030-01-10", "2030-01-11"],
+  };
+
+  it("shows the badge, the running mode and next active days, and offers no booking", () => {
+    renderCard({ item: { ...item, modeInactive } });
+    expect(screen.getByText("Mode not active")).toBeTruthy();
+    expect(screen.queryByText("Operational")).toBeNull();
+    expect(screen.getByText(modeInactive.message)).toBeTruthy();
+    expect(screen.getByText("Next active: Thu 10 Jan, Fri 11 Jan")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Book/ })).toBeNull();
+    fireEvent.click(screen.getByText("XPS"));
+    expect(where()).toBe("/equipment/42");
+  });
+
+  it("does not jump to booking during the peak window", () => {
+    state.peak = { ...state.peak, active: true };
+    renderCard({ item: { ...item, modeInactive } });
+    expect(screen.queryByRole("button", { name: "Book now" })).toBeNull();
+    fireEvent.click(screen.getByText("XPS"));
+    expect(where()).toBe("/equipment/42");
+  });
+});

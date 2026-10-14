@@ -288,6 +288,7 @@ import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOpe
 import { usePeakWindow } from "@/hooks/use-peak-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
+import { MODE_INACTIVE_LABEL, type ModeInactive } from "@/lib/modeAvailability";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
 
@@ -2975,6 +2976,15 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       }
 
       const eq = response.data;
+
+      const modeInactive = (eq as { mode_inactive?: ModeInactive | null }).mode_inactive;
+      if (modeInactive && new URLSearchParams(window.location.search).get("mode") !== "calculate") {
+        equipmentAccessBlockedRef.current = true;
+        setLoadingEquipmentDetail(false);
+        toast.info(`${MODE_INACTIVE_LABEL}. ${modeInactive.message}`, { id: "equipment-mode-inactive" });
+        navigate(`/equipment/${equipmentId}`, { replace: true });
+        return;
+      }
       
       // Store full equipment detail for slot processing.
       // Prefer viewer charge-profile type for booking UI gating (PRINT_3D / HOUR / …).

@@ -247,6 +247,28 @@ export function bookingPathFor(equipmentId: number, date?: string | null, bookOn
   return `/book-equipment?${q.toString()}`;
 }
 
+/**
+ * API ``mode_inactive``: a base instrument while another of its modes runs on its own. Still listed and
+ * searchable, but not bookable until the mode is active again (the server refuses its slots and bookings).
+ */
+export type ModeInactive = {
+  label: string;
+  /** "Currently running as <mode>; booking opens when this mode is active." */
+  message: string;
+  active_mode: { equipment_id: number; code: string; name: string };
+  /** Up to three upcoming working days (YYYY-MM-DD) when no other mode runs on its own. */
+  next_active_dates: string[];
+};
+
+export const MODE_INACTIVE_LABEL = "Mode not active";
+
+/** "Next active: Mon, 26 Oct, Tue, 27 Oct" or "" when the schedule gives no upcoming day. */
+export function modeInactiveNextLine(info: Pick<ModeInactive, "next_active_dates"> | null | undefined): string {
+  const dates = info?.next_active_dates ?? [];
+  if (dates.length === 0) return "";
+  return `Next active: ${dates.map(shortDay).join(", ")}`;
+}
+
 /** Equipment that belongs to a multi-mode family (base with modes, or a mode). */
 export function isMultiModeEquipment(eq: { parent_equipment?: unknown; enable_multi_mode?: boolean | null } | null | undefined): boolean {
   if (!eq) return false;

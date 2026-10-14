@@ -63,6 +63,7 @@ export function bookSection(g: Gate): GuideSection {
     rules: compact([
       "Next week's slots normally open every Wednesday at 9:00 PM; a countdown on the booking page shows the time left. The page also shows the window for your account, for example Current week only — new slots open ….",
       g.when(g.is("student", "project_staff", "faculty"), "During the weekly slot opening, clicking an equipment card opens its booking page directly."),
+      "An instrument marked Mode not active is running in another of its modes; its card and page show which mode and the next active days. Book the running mode instead, or come back when this mode is active.",
       g.when(g.flags.externalBooking, "External bookings follow the external booking window and any slots the lab reserves for external users."),
       g.when(g.flags.externalBooking, "To give IIT Roorkee users a fair start, external access is paused from 8:55 to 9:15 pm on Wednesdays; a notice appears beforehand."),
       "The booking page shows how much of your weekly booking quota is left. A booking that needs more time is stopped before you pick slots.",

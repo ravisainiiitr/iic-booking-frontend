@@ -103,3 +103,22 @@ describe("filterCatalogEquipmentForDisplay ordering", () => {
     expect(ids(filterCatalogEquipmentForDisplay(plain, null))).toEqual([2, 3, 1]);
   });
 });
+
+describe("mode not active ordering", () => {
+  const inactive = { label: "Mode not active" };
+  const family = [
+    { equipment_id: 7, status: "ACTIVE", enable_multi_mode: true, mode_inactive: inactive },
+    { equipment_id: 338, status: "ACTIVE", parent_equipment: 7 },
+    { equipment_id: 20, status: "ACTIVE" },
+    { equipment_id: 30, status: "REPAIR" },
+    { equipment_id: 40, status: "ACTIVE", mode_inactive: null },
+  ];
+
+  it("lists a base whose mode is not active after bookable equipment, with non-operational equipment", () => {
+    expect(ids(filterCatalogEquipmentForDisplay(family, null))).toEqual([20, 40, 7, 30]);
+  });
+
+  it("puts the running mode before the inactive base in the family view", () => {
+    expect(ids(filterCatalogEquipmentForDisplay(family, 7))).toEqual([338, 7]);
+  });
+});
