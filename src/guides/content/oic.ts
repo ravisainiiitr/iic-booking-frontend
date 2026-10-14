@@ -43,6 +43,9 @@ export const oicGuide: RoleGuide = {
             body: "Click Book on your equipment and choose Book slots for a user, then select the user. The charge goes to that user. Weekly and monthly booking limits don't apply to bookings you make or reschedule for a user; they still count toward that user's own limits.",
           },
         ]),
+        tips: [
+          "When monthly reports are on, the 1st of each month brings last month's bookings, hours, utilisation, revenue, ratings and pending work for your equipment, with an Excel file. Switch it off under Notifications → Settings → Monthly reports.",
+        ],
         rules: [
           "Booking for a user and Change slot status work only on equipment assigned to you, including equipment you cover as temporary OIC.",
           "Admin Settings appears only if Admin Panel Access is enabled for your role and department.",

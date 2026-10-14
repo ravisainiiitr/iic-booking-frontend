@@ -1,5 +1,6 @@
 import {
   AlarmClock,
+  BarChart3,
   Bell,
   CalendarCheck,
   FileCheck2,
@@ -31,6 +32,7 @@ export const NOTIFICATION_CATEGORIES: Record<string, CategoryMeta> = {
   staff: { label: "Lab operations", icon: Wrench, tone: "text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-200" },
   announcements: { label: "Announcements", icon: Megaphone, tone: "text-pink-600 bg-pink-50 dark:bg-pink-950/40 dark:text-pink-300" },
   account: { label: "Account", icon: ShieldCheck, tone: "text-teal-600 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-300" },
+  monthly_reports: { label: "Monthly reports", icon: BarChart3, tone: "text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300" },
   other: { label: "Other", icon: Bell, tone: "text-muted-foreground bg-muted" },
 };
 

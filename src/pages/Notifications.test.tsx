@@ -89,4 +89,29 @@ describe("Notifications page", () => {
     await waitFor(() => expect(api.saveNotificationPreferences).toHaveBeenCalledWith([{ key: "reminders", email: false }], undefined));
     expect(await screen.findByRole("switch", { name: "Reminders: email off" })).toBeTruthy();
   });
+
+  it("shows monthly reports as an email-only category that can be switched off", async () => {
+    const monthly = {
+      key: "monthly_reports", label: "Monthly reports", description: "d", locked: false, email: true, in_app: false,
+      digest: false, email_only: true,
+    };
+    const withMonthly = { ...prefs, categories: [...prefs.categories, monthly] };
+    api.getNotificationPreferences.mockResolvedValue({ data: withMonthly });
+    api.saveNotificationPreferences.mockResolvedValue({
+      data: { ...withMonthly, categories: [...prefs.categories, { ...monthly, email: false }] },
+    });
+    render(
+      <MemoryRouter initialEntries={["/notifications?tab=settings"]}>
+        <Notifications />
+      </MemoryRouter>,
+    );
+    const email = await screen.findByRole("switch", { name: "Monthly reports: email on" });
+    expect(screen.queryByRole("switch", { name: /Monthly reports: in-app/ })).toBeNull();
+    expect(screen.queryByRole("switch", { name: /Monthly reports: daily digest/ })).toBeNull();
+    expect(screen.getByText("Monthly")).toBeTruthy();
+    fireEvent.click(email);
+    await waitFor(() =>
+      expect(api.saveNotificationPreferences).toHaveBeenCalledWith([{ key: "monthly_reports", email: false }], undefined),
+    );
+  });
 });

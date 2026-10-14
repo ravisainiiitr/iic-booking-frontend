@@ -70,6 +70,10 @@ export const adminGuide: RoleGuide = {
             body: "In Fabrication Materials, choose any 3D printer and under Lab settings → Maximum print size (mm) enter its largest X, Y and Z, choose Allow rotation to fit (on by default, so a model that fits when turned is accepted) and click Save settings; its Officer In Charge can do the same. An empty axis has no limit. Users see the maximum at the STL upload, and larger models (each file of a ZIP, and replaced files too) are refused on upload and again when booking, with a 0.5 mm allowance. The same size is the build plate in the 3D preview (220 × 220 mm when not set). The Weight & time estimate card sets the printer type, estimate values, support materials and calibration from actual weights and times; changes apply to new estimates only.",
           },
           { title: "Communications and CMS", body: "Keep Communication templates and Home Page content accurate." },
+          {
+            title: "Monthly usage reports",
+            body: "In Admin Settings → Communication → Monthly reports, Send monthly usage reports is off until you switch it on. Choose the audiences (Faculty, Officers in Charge, Heads of Department) and whether OIC / HoD reports get an Excel file. Use Preview to see any recipient's report for a finished month; nothing is sent. Reports go out on the 1st at about 9:10 am, skip people with nothing to report and never go out during the Wednesday slot-opening window.",
+          },
           { title: "Legacy user sync", body: "Map a user to their old-portal ID, run a test sync, then sync wallet balance and legacy bookings." },
         ],
         rules: [

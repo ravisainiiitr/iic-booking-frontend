@@ -215,6 +215,46 @@ export interface NotificationPreferenceCategory {
   in_app: boolean;
   /** Collect this category's emails into one daily email. */
   digest: boolean;
+  /** Email only (no inbox notice, no digest), e.g. monthly reports. */
+  email_only?: boolean;
+}
+
+export interface MonthlyReportSettings {
+  enabled: boolean;
+  faculty_enabled: boolean;
+  oic_enabled: boolean;
+  hod_enabled: boolean;
+  attach_excel: boolean;
+  updated_at?: string;
+  schedule?: string;
+  /** "YYYY-MM": the last finished month. */
+  default_month?: string;
+  last_run?: { month: string; counts: Record<string, number> } | null;
+}
+
+export type MonthlyReportAudience = "faculty" | "oic" | "hod";
+
+export interface MonthlyReportRecipient {
+  id: number;
+  name: string;
+  email: string;
+  audiences: MonthlyReportAudience[];
+  is_test_account: boolean;
+}
+
+export interface MonthlyReportPreview {
+  month: string;
+  month_label: string;
+  subject: string;
+  html: string;
+  text: string;
+  audiences: MonthlyReportAudience[];
+  active_audiences: MonthlyReportAudience[];
+  has_activity: boolean;
+  would_send: boolean;
+  reason: string;
+  excel: boolean;
+  recipient: { id: number; name: string; is_test_account: boolean };
 }
 
 export interface NotificationDeliverySettings {
@@ -5086,6 +5126,35 @@ class ApiClient {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  }
+
+  /** Main Admin: monthly usage report switches. */
+  async getMonthlyReportSettings() {
+    return this.request<MonthlyReportSettings>('/admin/monthly-reports/settings/', { cache: 'no-store' });
+  }
+
+  async updateMonthlyReportSettings(
+    data: Partial<Pick<MonthlyReportSettings, 'enabled' | 'faculty_enabled' | 'oic_enabled' | 'hod_enabled' | 'attach_excel'>>,
+  ) {
+    return this.request<MonthlyReportSettings>('/admin/monthly-reports/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async searchMonthlyReportRecipients(q: string) {
+    return this.request<{ results: MonthlyReportRecipient[] }>(
+      `/admin/monthly-reports/recipients/?q=${encodeURIComponent(q)}`,
+      { cache: 'no-store' },
+    );
+  }
+
+  /** Renders a recipient's report in the browser; never sends. */
+  async previewMonthlyReport(userId: number, month: string) {
+    return this.request<MonthlyReportPreview>(
+      `/admin/monthly-reports/preview/?user=${userId}&month=${encodeURIComponent(month)}`,
+      { cache: 'no-store' },
+    );
   }
 
   /** Admin only: update auth settings (global and/or by_user_type). */

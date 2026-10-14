@@ -49,6 +49,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { StandaloneOnly } from "@/components/PageShell";
+import MonthlyReportsSettings from "@/components/admin/MonthlyReportsSettings";
 import { DateRangeHint, refetchingClass } from "@/components/filters/LiveFilterStatus";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import { dateRangeError, useLatestRequest } from "@/hooks/use-live-filters";
@@ -133,7 +134,7 @@ const NOTICE_TYPES = [
   { value: "urgent", label: "Urgent" },
 ];
 
-const COMMUNICATION_TABS = ["templates", "logs", "notices", "equipment-groups"];
+const COMMUNICATION_TABS = ["templates", "logs", "notices", "equipment-groups", "monthly-reports"];
 
 const AdminCommunication = () => {
   const navigate = useNavigate();
@@ -687,11 +688,12 @@ const AdminCommunication = () => {
         </div>
 
         <Tabs key={initialTab} defaultValue={initialTab} className="space-y-4">
-          <TabsList className="grid w-full max-w-3xl grid-cols-4">
+          <TabsList className={`grid w-full max-w-3xl ${isAdmin ? "grid-cols-5" : "grid-cols-4"}`}>
             <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="notices">Notices</TabsTrigger>
             <TabsTrigger value="equipment-groups">Equipment groups</TabsTrigger>
+            {isAdmin ? <TabsTrigger value="monthly-reports">Monthly reports</TabsTrigger> : null}
           </TabsList>
 
           <TabsContent value="templates" className="space-y-4">
@@ -1355,6 +1357,12 @@ const AdminCommunication = () => {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {isAdmin ? (
+            <TabsContent value="monthly-reports" className="space-y-4">
+              <MonthlyReportsSettings />
+            </TabsContent>
+          ) : null}
         </Tabs>
 
         <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>

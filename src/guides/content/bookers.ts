@@ -127,6 +127,7 @@ function studentsSection(g: Gate): GuideSection {
     ],
     tips: [
       "You get one email per student booking, matching the student's, with a Booked by row.",
+      "When monthly reports are on, the 1st of each month brings a summary of last month: your and your students' bookings, hours and spend, sub-wallet balances and recharges. Switch it off under Notifications → Settings → Monthly reports.",
       "If a student cannot book, check that they are Linked, the wallet has balance and their limit has room.",
     ],
   };

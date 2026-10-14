@@ -450,18 +450,28 @@ function SettingsPanel() {
                     </td>
                     {(["email", "in_app"] as const).map((channel) => (
                       <td key={channel} className="px-2 py-3 text-center">
-                        <Switch
-                          checked={r[channel]}
-                          disabled={r.locked || saving != null}
-                          onCheckedChange={(v) => void save([{ key: r.key, [channel]: v }], `${r.key}-${channel}`)}
-                          aria-label={`${r.label}: ${channel === "email" ? "email" : "in-app"} ${r[channel] ? "on" : "off"}`}
-                        />
+                        {channel === "in_app" && r.email_only ? (
+                          <span className="text-xs text-muted-foreground" title="Sent by email only">
+                            —
+                          </span>
+                        ) : (
+                          <Switch
+                            checked={r[channel]}
+                            disabled={r.locked || saving != null}
+                            onCheckedChange={(v) => void save([{ key: r.key, [channel]: v }], `${r.key}-${channel}`)}
+                            aria-label={`${r.label}: ${channel === "email" ? "email" : "in-app"} ${r[channel] ? "on" : "off"}`}
+                          />
+                        )}
                       </td>
                     ))}
                     <td className="px-2 py-3 text-center">
                       {r.locked ? (
                         <span className="text-xs text-muted-foreground" title="Service messages are sent straight away">
                           Instant
+                        </span>
+                      ) : r.email_only ? (
+                        <span className="text-xs text-muted-foreground" title="Sent once a month on its own">
+                          Monthly
                         </span>
                       ) : (
                         <Switch
