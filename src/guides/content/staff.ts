@@ -207,7 +207,7 @@ export function slotStatusSection(g: Gate): GuideSection {
       }),
       {
         title: "Pick the week",
-        body: "The Week view opens on the current week. One click on a date selects it and hides the Week view (drag to select several); double-click a date, or press Enter on it, to show that week's slots. Hiding the Week view clears any slots picked in it. One click on an arrow changes the week.",
+        body: "The Week view opens on the current week. After that it shows only when you double-click a date (or press Enter on it). Any other choice hides it and clears the slots picked in it: clicking a date or a month, dragging over dates, Select entire year, Select entire month, Select selected week, Clear selection, the year and month arrows, or switching equipment. Apply then works on the dates, months or year you selected. While the Week view is open, one click on Previous Week or Next Week changes the week.",
       },
       {
         title: "Select and apply",

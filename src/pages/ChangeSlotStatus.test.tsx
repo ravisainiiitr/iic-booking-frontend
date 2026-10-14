@@ -8,7 +8,7 @@ import ChangeSlotStatus from "./ChangeSlotStatus";
 const auth = vi.hoisted(() => ({ state: { user: { id: 3, user_type: "manager" } as Record<string, unknown> } }));
 const api = vi.hoisted(() => ({ getSlotStatusPicker: vi.fn() }));
 const departmentFilter = vi.hoisted(() => ({ rendered: false, value: null as unknown }));
-const bookEquipment = vi.hoisted(() => ({ mounts: 0 }));
+const bookEquipment = vi.hoisted(() => ({ mounts: 0, weekStartsHidden: [] as boolean[] }));
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.state }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
@@ -63,9 +63,11 @@ vi.mock("@/components/ui/select", async () => {
   };
 });
 vi.mock("@/pages/BookEquipment", () => ({
-  default: ({ slotStatusFilters }: { slotStatusFilters?: ReactNode }) => {
+  default: ({ slotStatusFilters, slotStatusWeekStartsHidden }: { slotStatusFilters?: ReactNode; slotStatusWeekStartsHidden?: boolean }) => {
     useEffect(() => {
       bookEquipment.mounts += 1;
+      bookEquipment.weekStartsHidden.push(Boolean(slotStatusWeekStartsHidden));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return <div data-testid="slot-status-calendar">{slotStatusFilters}</div>;
   },
@@ -119,6 +121,7 @@ beforeEach(() => {
   departmentFilter.rendered = false;
   departmentFilter.value = null;
   bookEquipment.mounts = 0;
+  bookEquipment.weekStartsHidden = [];
   api.getSlotStatusPicker.mockReset();
   api.getSlotStatusPicker.mockResolvedValue({ data: { equipment: iicRows, count: 2, filters: {} } });
 });
@@ -144,6 +147,28 @@ describe("Change slot status", () => {
     fireEvent.click(screen.getByRole("option", { name: /SEM/ }));
     await waitFor(() => expect(where()).toBe("/change-slot-status?equipment_id=12"));
     await waitFor(() => expect(bookEquipment.mounts).toBe(2));
+  });
+
+  it("opens the first equipment on the current week, and hides the week after the user switches equipment", async () => {
+    auth.state = { user: { id: 3, user_type: "manager" } };
+    renderPage();
+    await screen.findByTestId("slot-status-calendar");
+    expect(bookEquipment.weekStartsHidden).toEqual([false]);
+
+    fireEvent.click(screen.getByRole("option", { name: /SEM/ }));
+    await waitFor(() => expect(bookEquipment.mounts).toBe(2));
+    expect(bookEquipment.weekStartsHidden).toEqual([false, true]);
+  });
+
+  it("keeps the current week for the Main Administrator's IIC default, and hides it after a department switch", async () => {
+    auth.state = { user: { id: 1, user_type: "admin" } };
+    renderPage();
+    await screen.findByTestId("slot-status-calendar");
+    expect(bookEquipment.weekStartsHidden.every((hidden) => !hidden)).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "All departments" }));
+    await waitFor(() => expect(where()).toBe("/change-slot-status?dept=all&equipment_id=11"));
+    await waitFor(() => expect(bookEquipment.weekStartsHidden.at(-1)).toBe(true));
   });
 
   it("preselects the equipment from the link", async () => {

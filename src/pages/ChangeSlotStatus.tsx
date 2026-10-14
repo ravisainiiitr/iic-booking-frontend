@@ -48,6 +48,8 @@ export default function ChangeSlotStatus() {
     () => !showDepartment || urlDepartment != null || linkedEquipment == null,
   );
   const [rows, setRows] = useState<SlotStatusPickerEquipment[] | null>(null);
+  // Only the first equipment shown opens on the current week; after the user switches, the week view starts hidden.
+  const [userSwitchedEquipment, setUserSwitchedEquipment] = useState(false);
 
   useEffect(() => {
     if (!canView) navigate("/dashboard");
@@ -161,6 +163,8 @@ export default function ChangeSlotStatus() {
           <DepartmentFilter
             value={departmentId}
             onChange={(value) => {
+              // Before it resolves, onChange is the filter applying the IIC default, not the user.
+              if (departmentReady) setUserSwitchedEquipment(true);
               setDepartmentId(value);
               writeDepartment(value, true);
             }}
@@ -183,7 +187,10 @@ export default function ChangeSlotStatus() {
       ) : null}
       <Select
         value={selectedId != null ? String(selectedId) : ""}
-        onValueChange={(v) => selectEquipment(Number(v))}
+        onValueChange={(v) => {
+          setUserSwitchedEquipment(true);
+          selectEquipment(Number(v));
+        }}
         disabled={loading || rows.length === 0}
       >
         <SelectTrigger
@@ -255,7 +262,7 @@ export default function ChangeSlotStatus() {
 
   return (
     <Suspense fallback={shell(loadingCard)}>
-      <BookEquipment key={selectedId} slotStatusFilters={filterRow} />
+      <BookEquipment key={selectedId} slotStatusFilters={filterRow} slotStatusWeekStartsHidden={userSwitchedEquipment} />
     </Suspense>
   );
 }

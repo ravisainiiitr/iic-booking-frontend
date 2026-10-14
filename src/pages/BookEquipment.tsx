@@ -1031,9 +1031,11 @@ function isNonChargeAffectingInputField(field: {
 type BookEquipmentProps = {
   /** Change slot status page: Department / Equipment filters shown above the slot status calendar (opens in status mode). */
   slotStatusFilters?: ReactNode;
+  /** Change slot status page: the user switched equipment, so the week view starts hidden instead of on the current week. */
+  slotStatusWeekStartsHidden?: boolean;
 };
 
-const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
+const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }: BookEquipmentProps = {}) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const embedded = useEmbeddedMode();
@@ -2229,6 +2231,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
   // Admin status-change: select the week (Mon–Sun) that contains the given date (for date-based apply)
   const selectWeekForStatus = (date: Date) => {
+    hideStatusWeekView();
     const weekStart = startOfWeek(date, { weekStartsOn: 1 });
     const weekDates: string[] = [];
     for (let i = 0; i < 7; i++) {
@@ -2243,6 +2246,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
   // Admin status-change: select all days in the displayed month
   const selectMonthForStatus = () => {
+    hideStatusWeekView();
     const start = startOfMonth(statusChangeMonthStart);
     const end = endOfMonth(statusChangeMonthStart);
     const days = eachDayOfInterval({ start, end });
@@ -2256,6 +2260,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
   // Year view: toggle a single month in year-level selection ("yyyy-MM")
   const toggleMonthInYearView = (monthKey: string) => {
+    hideStatusWeekView();
     setStatusChangeSelectedMonths((prev) =>
       prev.includes(monthKey) ? prev.filter((m) => m !== monthKey) : [...prev, monthKey].sort()
     );
@@ -2263,6 +2268,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
   // Year view: select entire year (all 12 months)
   const selectYearForStatus = () => {
+    hideStatusWeekView();
     const y = statusChangeMonthStart.getFullYear();
     const allMonths = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(y, i, 1);
@@ -2273,7 +2279,20 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
 
   // Year view: clear year-level selection
   const clearYearSelection = () => {
+    hideStatusWeekView();
     setStatusChangeSelectedMonths([]);
+  };
+
+  const clearAllStatusSelection = () => {
+    hideStatusWeekView();
+    setSelectedDatesForStatus([]);
+    setStatusChangeSelectedMonths([]);
+  };
+
+  /** Year / month arrows and month double-click move the calendars; the week view stays hidden until a date is double-clicked. */
+  const moveStatusMonth = (next: (prev: Date) => Date) => {
+    hideStatusWeekView();
+    setStatusChangeMonthStart(next);
   };
 
   // Expand selected months to date strings for API
@@ -2384,7 +2403,8 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     }
   }, [statusChangePopupWeekStart, selectedEquipment?.id, fetchStatusChangeSlotsForWeek]);
 
-  // Change slot status opens on the current week; afterwards only a double-click / double-tap changes the week.
+  // Change slot status opens on the current week. Switching equipment hides it; afterwards only a
+  // double-click / double-tap / Enter on a date shows a week.
   const statusDefaultWeekAppliedRef = useRef<string | null>(null);
   useEffect(() => {
     if (adminManageMode !== "status" || !selectedEquipment?.id) {
@@ -2392,9 +2412,15 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
       return;
     }
     const key = String(selectedEquipment.id);
-    if (statusDefaultWeekAppliedRef.current === key) return;
+    const previousKey = statusDefaultWeekAppliedRef.current;
+    if (previousKey === key) return;
     statusDefaultWeekAppliedRef.current = key;
+    if (previousKey !== null || slotStatusWeekStartsHidden) {
+      hideStatusWeekView();
+      return;
+    }
     setStatusChangePopupWeekStart((prev) => prev ?? startOfWeek(new Date(), { weekStartsOn: 1 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminManageMode, selectedEquipment?.id]);
 
   // Admin status-change: get slot at (day, time) for calendar grid
@@ -7923,13 +7949,13 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
               {/* Year toolbar + month strip */}
               <div className={STATUS_TOOLBAR_CLASS}>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => subYears(prev, 1))} aria-label="Previous year">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveStatusMonth((prev) => subYears(prev, 1))} aria-label="Previous year">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   <span className="min-w-[56px] text-center text-base font-bold tabular-nums text-foreground">
                     {statusChangeMonthStart.getFullYear()}
                   </span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => addYears(prev, 1))} aria-label="Next year">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveStatusMonth((prev) => addYears(prev, 1))} aria-label="Next year">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -7959,7 +7985,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                       onClick={() => toggleMonthInYearView(monthKey)}
                       onDoubleClick={(e) => {
                         e.preventDefault();
-                        setStatusChangeMonthStart(startOfMonth(d));
+                        moveStatusMonth(() => startOfMonth(d));
                       }}
                       className={cn(
                         "h-8 rounded-md border px-1 text-sm font-semibold transition-colors",
@@ -7977,13 +8003,13 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
               {/* Month toolbar */}
               <div className={cn(STATUS_TOOLBAR_CLASS, "border-t border-border/50 pt-2.5")}>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => subMonths(prev, 1))} aria-label="Previous month">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveStatusMonth((prev) => subMonths(prev, 1))} aria-label="Previous month">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   <span className="min-w-[132px] text-center text-base font-bold text-foreground">
                     {format(statusChangeMonthStart, "MMMM yyyy")}
                   </span>
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setStatusChangeMonthStart(prev => addMonths(prev, 1))} aria-label="Next month">
+                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => moveStatusMonth((prev) => addMonths(prev, 1))} aria-label="Next month">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -8013,7 +8039,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     variant="outline"
                     size="sm"
                     className={STATUS_ACTION_BUTTON_CLASS}
-                    onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); }}
+                    onClick={clearAllStatusSelection}
                     disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                   >
                     Clear selection
@@ -8103,7 +8129,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                     )}
                   </ul>
                   <span className="text-xs text-muted-foreground">
-                    Open week view for slot-level selection, then choose an operation below.
+                    Double-click a date to pick single slots in its week, or choose an operation below.
                   </span>
                 </div>
               )}
@@ -9101,7 +9127,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                                   variant="outline"
                                   size="default"
                                   className="h-9 px-4 text-sm font-medium"
-                                  onClick={() => { setSelectedDatesForStatus([]); setSelectedSlotIdsForStatus([]); setStatusChangeSelectedMonths([]); }}
+                                  onClick={clearAllStatusSelection}
                                   disabled={selectedDatesForStatus.length === 0 && selectedSlotIdsForStatus.length === 0 && statusChangeSelectedMonths.length === 0}
                                 >
                                   Clear all selection
