@@ -530,6 +530,13 @@ function isExternalUserTypeSnapshot(ut: string | null | undefined): boolean {
   return isExternalBookingUserType(ut);
 }
 
+/** Same rule the server applies to Analysis Not Possible for every staff role, including the assigned Lab Operator. */
+function canFlagAnalysisNotPossible(booking: BookingDetailCardBooking): boolean {
+  if (booking.maintenance_disruption_flag) return false;
+  const status = booking.status.toUpperCase();
+  return status === "BOOKED" || status === "PENDING";
+}
+
 function canPerformAction(booking: BookingDetailCardBooking, action: ActionType, isOperator: boolean): boolean {
   if (!action) return false;
   const status = booking.status.toUpperCase();
@@ -540,6 +547,7 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
   if (isOperator) {
     if (action === "complete" && status === "BOOKED") return !traceHasAnalyzed;
     if (action === "not_utilized") return canMarkBookingNotUtilized(booking);
+    if (action === "other_disruption") return canFlagAnalysisNotPossible(booking);
     return false;
   }
   switch (action) {
@@ -554,8 +562,7 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
       if (booking.maintenance_disruption_flag) return false;
       return status === "BOOKED" || status === "PENDING";
     case "other_disruption":
-      if (booking.maintenance_disruption_flag) return false;
-      return status === "BOOKED" || status === "PENDING";
+      return canFlagAnalysisNotPossible(booking);
     case "reschedule":
       return status === "BOOKED" || status === "DISRUPTION_PENDING" || status === "PENDING";
     case "not_utilized":
