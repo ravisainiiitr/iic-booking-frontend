@@ -74,6 +74,34 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 } as unknown as typeof ResizeObserver;
 Element.prototype.scrollIntoView ??= () => undefined;
+if (typeof window.PointerEvent === "undefined") {
+  class PointerEventPolyfill extends MouseEvent {
+    pointerType: string;
+    constructor(type: string, init: PointerEventInit = {}) {
+      super(type, init);
+      this.pointerType = init.pointerType ?? "mouse";
+    }
+  }
+  window.PointerEvent = PointerEventPolyfill as unknown as typeof PointerEvent;
+}
+
+/** Presses on one month and drags across to another, as the browser reports it. */
+const dragMonths = (from: string, to: string[], pointerType: "mouse" | "touch" = "mouse") => {
+  const button = (name: string) => screen.getByRole("button", { name });
+  const strip = button(from).parentElement as HTMLElement;
+  const realElementFromPoint = document.elementFromPoint;
+  fireEvent.pointerDown(button(from), { button: 0, buttons: 1, pointerType });
+  for (const name of to) {
+    document.elementFromPoint = () => button(name);
+    fireEvent.pointerMove(strip, { buttons: 1, pointerType });
+  }
+  document.elementFromPoint = realElementFromPoint;
+  fireEvent.pointerUp(window, { pointerType });
+  // The browser then fires a click on the month the drag ended on; it must not toggle that month back.
+  fireEvent.click(button(to[to.length - 1]));
+};
+const monthPressed = (name: string) => screen.getByRole("button", { name }).getAttribute("aria-pressed") === "true";
+const daysInYear = (year: number) => (isLeapYear(new Date(year, 0, 1)) ? 366 : 365);
 
 const today = new Date();
 const thisMonth = format(today, "MMM");
@@ -208,6 +236,56 @@ describe("Change slot status week view", () => {
       fireEvent.click(screen.getByRole("button", { name: /Next Week/ }));
     });
     expect(weekLabel()?.startsWith(format(addDays(weekOf, 7), "MMM dd"))).toBe(true);
+  });
+
+  it("selects a range of months by dragging across the month strip, hiding the week", async () => {
+    await renderPage();
+    await pickFirstSlot();
+    dragMonths("Mar", ["Apr", "Jun"]);
+    expectHiddenWithoutSlots();
+    expect(["Mar", "Apr", "May", "Jun"].every(monthPressed)).toBe(true);
+    expect(["Feb", "Jul"].some(monthPressed)).toBe(false);
+    expect(applyLabel()).toBe("Apply to 122 date(s)");
+    expect(screen.getByText(/month\(s\) selected at year level/).parentElement?.textContent).toMatch(/4 month\(s\)/);
+  });
+
+  it("drags right to left and with touch too", async () => {
+    await renderPage();
+    dragMonths("Feb", ["Jan"], "touch");
+    expect(monthPressed("Jan") && monthPressed("Feb")).toBe(true);
+    expect(weekShown()).toBe(false);
+    expect(applyLabel()).toBe(`Apply to ${31 + getDaysInMonth(new Date(today.getFullYear(), 1, 1))} date(s)`);
+  });
+
+  it("unselects the dragged range when the drag starts on a selected month", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Select entire year" }));
+    dragMonths("Mar", ["Apr"]);
+    expect(monthPressed("Mar") || monthPressed("Apr")).toBe(false);
+    expect(monthPressed("Feb") && monthPressed("May")).toBe(true);
+    expect(applyLabel()).toBe(`Apply to ${daysInYear(today.getFullYear()) - 61} date(s)`);
+  });
+
+  it("keeps the single-click and double-click behaviour of a month", async () => {
+    await renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Mar" }));
+    expect(monthPressed("Mar")).toBe(true);
+    expect(applyLabel()).toBe("Apply to 31 date(s)");
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Mar" }));
+    expect(screen.getByText(`March ${today.getFullYear()}`)).toBeTruthy();
+    expect(weekShown()).toBe(false);
+  });
+
+  it("selects the whole shown year after the year was changed, keeping months already selected", async () => {
+    await renderPage();
+    await pickFirstSlot();
+    fireEvent.click(screen.getByRole("button", { name: thisMonth }));
+    fireEvent.click(screen.getByRole("button", { name: "Next year" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select entire year" }));
+    expectHiddenWithoutSlots();
+    expect(applyLabel()).toBe(`Apply to ${getDaysInMonth(today) + daysInYear(today.getFullYear() + 1)} date(s)`);
+    fireEvent.click(screen.getByRole("button", { name: "Select entire year" }));
+    expect(applyLabel()).toBe(`Apply to ${getDaysInMonth(today) + daysInYear(today.getFullYear() + 1)} date(s)`);
   });
 
   it("starts with the week hidden after the user switched equipment", async () => {

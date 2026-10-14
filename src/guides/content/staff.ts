@@ -206,8 +206,12 @@ export function slotStatusSection(g: Gate): GuideSection {
         body: "In the dashboard menu, choose Change slot status: the slot calendar of your first equipment opens straight away. Switch to another of your equipment (including equipment you cover as temporary OIC) with the Equipment filter at the top. The equipment page menu has it too.",
       }),
       {
+        title: "Pick months or dates",
+        body: "Click a month to select all its dates, or press on a month and drag across others to select several (start on a selected month to unselect them). Double-click a month to show it in the Month view. Select entire year adds every month of the year shown.",
+      },
+      {
         title: "Pick the week",
-        body: "The Week view opens on the current week. After that it shows only when you double-click a date (or press Enter on it). Any other choice hides it and clears the slots picked in it: clicking a date or a month, dragging over dates, Select entire year, Select entire month, Select selected week, Clear selection, the year and month arrows, or switching equipment. Apply then works on the dates, months or year you selected. While the Week view is open, one click on Previous Week or Next Week changes the week.",
+        body: "The Week view opens on the current week. After that it shows only when you double-click a date (or press Enter on it). Any other choice hides it and clears the slots picked in it: clicking a date or a month, dragging over dates or months, Select entire year, Select entire month, Select selected week, Clear selection, the year and month arrows, or switching equipment. Apply then works on the dates, months or year you selected. While the Week view is open, one click on Previous Week or Next Week changes the week.",
       },
       {
         title: "Select and apply",

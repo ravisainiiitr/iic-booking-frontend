@@ -289,7 +289,7 @@ import { usePeakWindow } from "@/hooks/use-peak-window";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 import { MODE_INACTIVE_LABEL, type ModeInactive } from "@/lib/modeAvailability";
-import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, eachMonthOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
 
 interface Equipment extends EquipmentData {}
@@ -2274,7 +2274,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       const d = new Date(y, i, 1);
       return format(d, "yyyy-MM");
     });
-    setStatusChangeSelectedMonths(allMonths);
+    setStatusChangeSelectedMonths((prev) => Array.from(new Set([...prev, ...allMonths])).sort());
   };
 
   // Year view: clear year-level selection
@@ -2639,6 +2639,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
   type StatusDragState =
     | { kind: "date"; anchor: string; mode: "add" | "remove"; base: string[]; moved: boolean }
+    | { kind: "month"; anchor: string; mode: "add" | "remove"; base: string[]; moved: boolean }
     | { kind: "slot"; anchorDay: number; anchorRow: number; mode: "add" | "remove"; base: number[]; moved: boolean };
   const statusDragRef = useRef<StatusDragState | null>(null);
   /** Swallows the click that the browser fires after a drag ends, so it does not toggle the last cell back. */
@@ -2703,6 +2704,37 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     });
     setSelectedDatesForStatus(Array.from(next).sort());
     setSelectedSlotIdsForStatus([]);
+  };
+
+  /** Month strip: press on a month and drag across others to select (or, from a selected month, unselect) the range. Touch too. */
+  const beginStatusMonthDrag = (e: React.PointerEvent, monthKey: string) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    statusDragRef.current = {
+      kind: "month",
+      anchor: monthKey,
+      mode: statusChangeSelectedMonths.includes(monthKey) ? "remove" : "add",
+      base: statusChangeSelectedMonths,
+      moved: false,
+    };
+  };
+
+  const extendStatusMonthDrag = (e: React.PointerEvent) => {
+    const drag = statusDragRef.current;
+    if (!drag || drag.kind !== "month" || (e.buttons & 1) === 0) return;
+    const target = statusDragTargetAt(e, "[data-status-month]")?.dataset.statusMonth;
+    if (!target || (!drag.moved && target === drag.anchor)) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      hideStatusWeekView();
+    }
+    const [from, to] = drag.anchor <= target ? [drag.anchor, target] : [target, drag.anchor];
+    const next = new Set(drag.base);
+    eachMonthOfInterval({ start: parseISO(`${from}-01`), end: parseISO(`${to}-01`) }).forEach((d) => {
+      const key = format(d, "yyyy-MM");
+      if (drag.mode === "add") next.add(key);
+      else next.delete(key);
+    });
+    setStatusChangeSelectedMonths(Array.from(next).sort());
   };
 
   const beginStatusSlotDrag = (e: React.PointerEvent, dayOffset: number, rowIndex: number, slot?: DailySlot) => {
@@ -7961,7 +7993,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                 </div>
                 <span className={STATUS_TIP_CHIP_CLASS}>
                   <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  Double-click a month to open Month view below
+                  Click a month to select it · drag across months to select several · double-click to open Month view below
                 </span>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button variant="outline" size="sm" className={cn(STATUS_ACTION_BUTTON_CLASS, STATUS_PRIMARY_ACTION_CLASS)} onClick={selectYearForStatus}>
@@ -7972,7 +8004,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-6 gap-1 md:grid-cols-12">
+              <div
+                className="grid grid-cols-6 gap-1 select-none touch-pan-y md:grid-cols-12"
+                onPointerMove={extendStatusMonthDrag}
+              >
                 {Array.from({ length: 12 }, (_, i) => {
                   const d = new Date(statusChangeMonthStart.getFullYear(), i, 1);
                   const monthKey = format(d, "yyyy-MM");
@@ -7982,7 +8017,13 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                     <button
                       key={monthKey}
                       type="button"
-                      onClick={() => toggleMonthInYearView(monthKey)}
+                      data-status-month={monthKey}
+                      aria-pressed={isSelected}
+                      onPointerDown={(e) => beginStatusMonthDrag(e, monthKey)}
+                      onClick={() => {
+                        if (statusDragSuppressClickRef.current) return;
+                        toggleMonthInYearView(monthKey);
+                      }}
                       onDoubleClick={(e) => {
                         e.preventDefault();
                         moveStatusMonth(() => startOfMonth(d));
