@@ -9,9 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Check, Loader2, Plus, RefreshCw, Save, Search, Settings2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Loader2, Plus, RefreshCw, Save, Search, Settings2, X } from "lucide-react";
 import { toast } from "sonner";
 import { StandaloneOnly } from "@/components/PageShell";
+import {
+  describeSelectedSoftware,
+  pickDefaultCatalogId,
+  type UnavailableCatalog,
+} from "@/lib/softwareMappingSelection";
 
 type CatalogCol = {
   id: string;
@@ -36,6 +41,7 @@ type EquipmentRow = {
   department_name?: string | null;
   catalog_ids: string[];
   default_catalog_id?: string | null;
+  unavailable_catalogs?: UnavailableCatalog[];
 };
 
 function formatUpdated(iso?: string | null) {
@@ -183,6 +189,11 @@ export default function EquipmentSoftwareMapping() {
 
   const selectedEquipment = equipment.find((e) => String(e.id) === equipmentId) || null;
 
+  const selectedEntries = useMemo(
+    () => describeSelectedSoftware(selected, catalogs, selectedEquipment?.unavailable_catalogs),
+    [selected, catalogs, selectedEquipment]
+  );
+
   const addSoftware = (id: string) => {
     setSelected((prev) => new Set(prev).add(id));
   };
@@ -202,7 +213,7 @@ export default function EquipmentSoftwareMapping() {
       const res = await apiClient.putEquipmentSoftwareMatrix({
         equipment_id: selectedEquipment.id,
         catalog_ids: catalogIds,
-        default_catalog_id: catalogIds[0] || null,
+        default_catalog_id: pickDefaultCatalogId(catalogIds, catalogs, selectedEquipment.default_catalog_id),
       });
       if (res.error) {
         toast.error(res.error);
@@ -454,15 +465,33 @@ export default function EquipmentSoftwareMapping() {
                   </p>
                 ) : (
                   <ul className="space-y-2">
-                    {Array.from(selected).map((id) => {
-                      const c = catalogs.find((x) => x.id === id);
-                      return (
-                        <li key={id} className="flex items-center gap-2 text-sm">
-                          <Check className="h-4 w-4 text-emerald-600" />
-                          <span className="font-medium">{c?.name || id}</span>
-                        </li>
-                      );
-                    })}
+                    {selectedEntries.map((entry) => (
+                      <li key={entry.id} className="flex items-center gap-2 text-sm">
+                        {entry.unavailable ? (
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                        ) : (
+                          <Check className="h-4 w-4 shrink-0 text-emerald-600" />
+                        )}
+                        <span className="min-w-0">
+                          <span className="font-medium">{entry.label}</span>
+                          {entry.note ? (
+                            <span className="ml-2 text-xs text-muted-foreground">({entry.note})</span>
+                          ) : null}
+                        </span>
+                        {canManage ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-auto h-7 px-2"
+                            aria-label={`Remove ${entry.label}`}
+                            title="Remove from this equipment (click Save Mapping to apply)"
+                            onClick={() => removeSoftware(entry.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                      </li>
+                    ))}
                   </ul>
                 )}
                 {canManage ? (
