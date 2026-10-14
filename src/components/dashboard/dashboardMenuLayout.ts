@@ -3,8 +3,14 @@ import type { DashboardMenuGroup, DashboardMenuLayout } from "@/lib/api";
 export const EMPTY_DASHBOARD_MENU_LAYOUT: DashboardMenuLayout = { groups: [], order: [] };
 
 /**
+ * Notification settings is a medium-priority entry: after Reports & Statistics (after the day-to-day
+ * tools of short menus), ahead of feedback, help and support entries.
+ */
+export const NOTIFICATION_SETTINGS_MENU_ID = "notification_settings";
+
+/**
  * IITR Faculty menu order below the Dashboard button. "Shared with me" takes My Research's place
- * while My Research is switched off. Other visible items go after Reports & Statistics.
+ * while My Research is switched off. Other visible items go after Notification settings.
  */
 const FACULTY_DASHBOARD_MENU_HEAD = [
   "browse_equipment",
@@ -19,6 +25,7 @@ const FACULTY_DASHBOARD_MENU_HEAD = [
   "view_results",
   "proforma_invoice",
   "reports_statistics",
+  NOTIFICATION_SETTINGS_MENU_ID,
 ];
 const FACULTY_DASHBOARD_MENU_TAIL = ["user_guide", "support_tickets", "rate_your_experience"];
 export const FACULTY_DASHBOARD_MENU_ORDER = [...FACULTY_DASHBOARD_MENU_HEAD, ...FACULTY_DASHBOARD_MENU_TAIL];
@@ -32,8 +39,33 @@ export function facultyDashboardMenuOrder(ids: string[]): string[] {
   ];
 }
 
+/** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
+export const OIC_DASHBOARD_MENU_ORDER = [
+  "browse_equipment",
+  "booking_management",
+  "urgent_requests",
+  "multi_mode_equipment",
+  "change_slot_status",
+  "equipment_waitlist",
+  "equipment_settings",
+  "booking_attempt_log",
+  "reports_statistics",
+  NOTIFICATION_SETTINGS_MENU_ID,
+  "accessories",
+  "publication_claims",
+  "ta_duty_assignments",
+  "notice_board_requests",
+  "rate_your_experience",
+  "support_tickets",
+];
+
 /** Lab Operator menu order below the Dashboard button; other visible items follow in their original order. */
-export const LAB_OPERATOR_DASHBOARD_MENU_ORDER = ["booking_management", "operator_availability", "support_tickets"];
+export const LAB_OPERATOR_DASHBOARD_MENU_ORDER = [
+  "booking_management",
+  "operator_availability",
+  NOTIFICATION_SETTINGS_MENU_ID,
+  "support_tickets",
+];
 
 /** Visible ids in menu order: `defaultOrder` first, then the remaining ids in their original order. */
 export function orderMenuIds(ids: string[], defaultOrder: string[]): string[] {

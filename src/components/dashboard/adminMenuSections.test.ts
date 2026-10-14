@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_MENU_SECTIONS } from "./adminMenuSections";
-import { buildMenuTree, sectionMenuOrder } from "./dashboardMenuLayout";
+import { NOTIFICATION_SETTINGS_MENU_ID, buildMenuTree, sectionMenuOrder } from "./dashboardMenuLayout";
 
 describe("ADMIN_MENU_SECTIONS", () => {
   it("lists every menu item in at most one section", () => {
@@ -27,6 +27,11 @@ describe("ADMIN_MENU_SECTIONS", () => {
     const shown = tree.flatMap((n) => (n.kind === "item" ? [n.id] : n.items));
     expect(shown.sort()).toEqual([...deptAdminVisible].sort());
     expect(tree.map((n) => (n.kind === "group" ? n.group.name : n.id))).toEqual(["Bookings", "Finance", "Support & feedback"]);
+  });
+
+  it("lists Notification settings in Support & feedback, after the support tickets", () => {
+    const support = ADMIN_MENU_SECTIONS.find((s) => s.id === "sec_support");
+    expect(support?.items.slice(0, 3)).toEqual(["support_tickets_2", "support_tickets", NOTIFICATION_SETTINGS_MENU_ID]);
   });
 
   it("puts menu entries added later into the catch-all section", () => {

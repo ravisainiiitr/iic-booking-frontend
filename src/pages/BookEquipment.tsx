@@ -105,6 +105,7 @@ import {
   SlotWeekNav,
   slotCellStyle,
 } from "@/components/slot-calendar/SlotWeekGrid";
+import { useSelectOrOpenClick } from "@/components/slot-calendar/useSelectOrOpenClick";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
@@ -2203,6 +2204,14 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
     // Always load slots immediately (covers same-week reopen where useEffect may not re-fire).
     void fetchStatusChangeSlotsForWeekRef.current(weekStart);
   };
+
+  /** Month calendar dates: one click selects, double click / double tap / Enter opens that week. */
+  const statusDateClickHandlers = useSelectOrOpenClick<string>({
+    onSelect: toggleDateForStatus,
+    onOpen: (dateStr) => openWeekSlotPopup(parseISO(dateStr)),
+    shouldIgnoreClick: () => statusDragSuppressClickRef.current,
+    timerRef: statusChangeDateClickTimerRef,
+  });
 
   // Admin status-change: select the week (Mon–Sun) that contains the given date (for date-based apply)
   const selectWeekForStatus = (date: Date) => {
@@ -7956,7 +7965,7 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                 </div>
                 <span className={STATUS_TIP_CHIP_CLASS}>
                   <MousePointerClick className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  Tip: double-click a date to open Week view · drag to select several dates
+                  Click a date to select it · double-click a date to open its week · drag to select several dates
                 </span>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
                   <Button
@@ -8014,39 +8023,14 @@ const BookEquipment = ({ slotStatusFilters }: BookEquipmentProps = {}) => {
                           key={dateStr}
                           type="button"
                           data-status-date={inMonth ? dateStr : undefined}
+                          tabIndex={inMonth ? undefined : -1}
+                          aria-pressed={inMonth ? isSelected : undefined}
+                          aria-label={format(day, "EEEE d MMMM yyyy")}
+                          title={inMonth ? "Click to select · double-click or press Enter to open this week" : undefined}
                           onPointerDown={(e) => {
                             if (inMonth) beginStatusDateDrag(e, dateStr);
                           }}
-                          onClick={(e) => {
-                            if (!inMonth) return;
-                            if (statusDragSuppressClickRef.current) return;
-                            // Second click of a double-click: do not schedule single-click (avoids racing week open).
-                            if (e.detail >= 2) {
-                              if (statusChangeDateClickTimerRef.current) {
-                                clearTimeout(statusChangeDateClickTimerRef.current);
-                                statusChangeDateClickTimerRef.current = null;
-                              }
-                              return;
-                            }
-                            if (statusChangeDateClickTimerRef.current) {
-                              clearTimeout(statusChangeDateClickTimerRef.current);
-                            }
-                            statusChangeDateClickTimerRef.current = setTimeout(() => {
-                              statusChangeDateClickTimerRef.current = null;
-                              toggleDateForStatus(dateStr);
-                              // Do not close the week grid when toggling date selection — week view is independent.
-                            }, 280);
-                          }}
-                          onDoubleClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            if (!inMonth) return;
-                            if (statusChangeDateClickTimerRef.current) {
-                              clearTimeout(statusChangeDateClickTimerRef.current);
-                              statusChangeDateClickTimerRef.current = null;
-                            }
-                            openWeekSlotPopup(day);
-                          }}
+                          {...(inMonth ? statusDateClickHandlers(dateStr) : {})}
                           className={cn(
                             "h-8 border-b border-r border-border/40 text-sm font-semibold tabular-nums transition-colors [&:nth-child(7n)]:border-r-0",
                             inMonth ? "bg-background hover:bg-primary/10" : "bg-muted/30 text-muted-foreground/60",

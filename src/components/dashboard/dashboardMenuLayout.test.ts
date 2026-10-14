@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   LAB_OPERATOR_DASHBOARD_MENU_ORDER,
+  NOTIFICATION_SETTINGS_MENU_ID,
+  OIC_DASHBOARD_MENU_ORDER,
   addMenuGroup,
   buildMenuTree,
   dedupeMenuEntriesByPath,
@@ -157,6 +159,42 @@ describe("facultyDashboardMenuOrder", () => {
     const ids = facultyMenu.map((id) => (id === "my_research" ? "shared_with_me" : id));
     const ordered = orderMenuIds(ids, facultyDashboardMenuOrder(ids));
     expect(ordered.slice(3, 6)).toEqual(["wallet_management", "shared_with_me", "booking_templates"]);
+  });
+});
+
+describe("Notification settings menu entry (medium priority)", () => {
+  it("sits right after Reports & Statistics for the OIC, before the side tools and support", () => {
+    const ids = ["support_tickets", "accessories", NOTIFICATION_SETTINGS_MENU_ID, "reports_statistics", "browse_equipment"];
+    expect(orderMenuIds(ids, OIC_DASHBOARD_MENU_ORDER)).toEqual([
+      "browse_equipment",
+      "reports_statistics",
+      NOTIFICATION_SETTINGS_MENU_ID,
+      "accessories",
+      "support_tickets",
+    ]);
+  });
+
+  it("sits right after Reports & Statistics for IITR Faculty, ahead of other items and help", () => {
+    const ids = ["browse_equipment", "reports_statistics", "my_publications", NOTIFICATION_SETTINGS_MENU_ID, "user_guide", "support_tickets"];
+    expect(orderMenuIds(ids, facultyDashboardMenuOrder(ids))).toEqual([
+      "browse_equipment",
+      "reports_statistics",
+      NOTIFICATION_SETTINGS_MENU_ID,
+      "my_publications",
+      "user_guide",
+      "support_tickets",
+    ]);
+  });
+
+  it("sits after the Lab Operator's day-to-day tools and before Support tickets", () => {
+    const ids = ["support_tickets", NOTIFICATION_SETTINGS_MENU_ID, "operator_availability", "booking_management", "user_guide"];
+    expect(orderMenuIds(ids, LAB_OPERATOR_DASHBOARD_MENU_ORDER)).toEqual([
+      "booking_management",
+      "operator_availability",
+      NOTIFICATION_SETTINGS_MENU_ID,
+      "support_tickets",
+      "user_guide",
+    ]);
   });
 });
 

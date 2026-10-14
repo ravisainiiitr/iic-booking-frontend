@@ -12,7 +12,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import type { DashboardMenuSection } from "./dashboardMenuLayout";
+import { NOTIFICATION_SETTINGS_MENU_ID, type DashboardMenuSection } from "./dashboardMenuLayout";
 
 export interface AdminMenuSection extends DashboardMenuSection {
   icon: LucideIcon;
@@ -143,7 +143,14 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     id: "sec_support",
     name: "Support & feedback",
     icon: LifeBuoy,
-    items: ["support_tickets_2", "support_tickets", "experience_ratings", "rate_your_experience", "user_guide"],
+    items: [
+      "support_tickets_2",
+      "support_tickets",
+      NOTIFICATION_SETTINGS_MENU_ID,
+      "experience_ratings",
+      "rate_your_experience",
+      "user_guide",
+    ],
   },
   {
     id: "sec_system",

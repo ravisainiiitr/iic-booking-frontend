@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { CalendarClock, Lock, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -7,22 +7,24 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { ACCOUNT_SUSPENDED_EVENT, bannerKind } from "@/lib/accountLifecycle";
 import { formatDay } from "@/components/registrationApprovals/shared";
+import { cn } from "@/lib/utils";
 
 const DISMISS_KEY = "iic.lifecycleBannerDismissed";
 const TOAST_GAP_MS = 8000;
 
-/** Site-wide notice for accounts past (or near) their programme / employment end date. */
+function isDashboardPath(pathname: string): boolean {
+  return pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+}
+
+/**
+ * Site-wide notice for accounts past (or near) their programme / employment end date.
+ * The dashboard shows the same notice under its search bar instead (see AccountLifecycleNotice).
+ */
 export default function AccountLifecycleBanner() {
-  const { user, isAuthenticated, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const lastToast = useRef(0);
-  const [dismissed, setDismissed] = useState<string | null>(() => {
-    try {
-      return sessionStorage.getItem(DISMISS_KEY);
-    } catch {
-      return null;
-    }
-  });
 
   useEffect(() => {
     const onSuspended = (e: Event) => {
@@ -38,6 +40,22 @@ export default function AccountLifecycleBanner() {
     window.addEventListener(ACCOUNT_SUSPENDED_EVENT, onSuspended);
     return () => window.removeEventListener(ACCOUNT_SUSPENDED_EVENT, onSuspended);
   }, [navigate, refreshUser]);
+
+  if (isDashboardPath(pathname)) return null;
+  return <AccountLifecycleNotice />;
+}
+
+/** The end-date notice itself: a sticky strip by default, or a rounded card inside a page with ``inline``. */
+export function AccountLifecycleNotice({ inline = false, className }: { inline?: boolean; className?: string }) {
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [dismissed, setDismissed] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(DISMISS_KEY);
+    } catch {
+      return null;
+    }
+  });
 
   const status = isAuthenticated ? user?.account_lifecycle ?? null : null;
   const kind = bannerKind(status);
@@ -57,11 +75,14 @@ export default function AccountLifecycleBanner() {
   return (
     <div
       role={suspended ? "alert" : "status"}
-      className={
+      className={cn(
+        "flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm",
+        inline ? "rounded-xl border" : "sticky top-0 z-[60] border-b",
         suspended
-          ? "sticky top-0 z-[60] flex flex-wrap items-center gap-3 border-b border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-950 dark:border-red-800 dark:bg-red-950/80 dark:text-red-100"
-          : "sticky top-0 z-[60] flex flex-wrap items-center gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-100"
-      }
+          ? "border-red-300 bg-red-50 text-red-950 dark:border-red-800 dark:bg-red-950/80 dark:text-red-100"
+          : "border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-100",
+        className,
+      )}
     >
       {suspended ? <Lock className="h-4 w-4 shrink-0" aria-hidden /> : <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />}
       <p className="min-w-0 flex-1">{text}</p>

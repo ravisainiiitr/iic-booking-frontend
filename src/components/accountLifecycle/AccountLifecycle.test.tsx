@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import AccountLifecycleBanner from "./AccountLifecycleBanner";
+import AccountLifecycleBanner, { AccountLifecycleNotice } from "./AccountLifecycleBanner";
 import { SuspendedBookingGate } from "./SuspendedGate";
 import type { AccountLifecycleCompact } from "@/lib/accountLifecycle";
 
@@ -55,6 +55,26 @@ describe("Account lifecycle banner", () => {
     expect(screen.getByRole("button", { name: "Add end date" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss notice" }));
     expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("leaves the dashboard to show the notice under its search bar", () => {
+    signIn(status({ suspended: true, state: "suspended", days_left: -3 }));
+    const { container } = render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AccountLifecycleBanner />
+      </MemoryRouter>,
+    );
+    expect(container.textContent).toBe("");
+    cleanup();
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <AccountLifecycleNotice inline />
+      </MemoryRouter>,
+    );
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toMatch(/Your account is suspended/);
+    expect(alert.className).not.toMatch(/sticky/);
+    expect(alert.className).toMatch(/rounded-xl/);
   });
 
   it("stays hidden while enforcement is off and the account is in good standing", () => {

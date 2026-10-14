@@ -207,7 +207,7 @@ export function slotStatusSection(g: Gate): GuideSection {
       }),
       {
         title: "Pick the week",
-        body: "Double-click a date (or drag across several) to open the Week view; it starts on the current week. One click on an arrow changes the week; double-clicking a date jumps to it.",
+        body: "The Week view opens on the current week. One click on a date only selects it (drag to select several); double-click a date, or press Enter on it, to open its week. One click on an arrow changes the week.",
       },
       {
         title: "Select and apply",

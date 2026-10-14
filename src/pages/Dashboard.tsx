@@ -35,6 +35,7 @@ import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceip
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
+import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
@@ -108,6 +109,8 @@ import { DashboardMenuTree, type DashboardMenuEntry } from "@/components/dashboa
 import { activateOnEnterOrSpace } from "@/components/dashboard/menuItemA11y";
 import {
   LAB_OPERATOR_DASHBOARD_MENU_ORDER,
+  NOTIFICATION_SETTINGS_MENU_ID,
+  OIC_DASHBOARD_MENU_ORDER,
   facultyDashboardMenuOrder,
   normalizeMenuLayout,
   sectionMenuOrder,
@@ -124,28 +127,11 @@ import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 const ADMIN_MENU_SECTION_ORDER = sectionMenuOrder(ADMIN_MENU_SECTIONS);
 const AdminOverview = lazy(() => import("@/components/dashboard/AdminOverview"));
 
+const NOTIFICATION_SETTINGS_PATH = "/notifications?tab=settings";
+
 function normalizeMenuPath(path: string): string {
   return path.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
 }
-
-/** OIC menu order below the Dashboard button; other visible items follow, Admin settings last. */
-const OIC_DASHBOARD_MENU_ORDER = [
-  "browse_equipment",
-  "booking_management",
-  "urgent_requests",
-  "multi_mode_equipment",
-  "change_slot_status",
-  "equipment_waitlist",
-  "equipment_settings",
-  "booking_attempt_log",
-  "reports_statistics",
-  "accessories",
-  "publication_claims",
-  "ta_duty_assignments",
-  "notice_board_requests",
-  "rate_your_experience",
-  "support_tickets",
-];
 
 /** Workspace header copy; pages hide their own hero when embedded, so this is the only title shown. */
 const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string }> = {
@@ -1726,6 +1712,40 @@ const Dashboard = () => {
   /** Admins see every urgent request; OICs keep "Urgent booking" for their Type B decisions. */
   const urgentRequestsLabel = usesAdminMenuSections ? "Urgent Requests" : "Urgent booking";
 
+  const notificationSettingsCard = (
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-current={activeMenuPath?.startsWith("/notifications") ? "page" : undefined}
+      className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40 h-full"
+      onClick={() => openWorkspace(NOTIFICATION_SETTINGS_PATH, "Notification settings")}
+      onKeyDown={activateOnEnterOrSpace}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-center gap-4 mb-1">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
+            <BellRing className="h-6 w-6" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg">Notification settings</CardTitle>
+            <CardDescription className="text-sm mt-0.5">
+              Choose which emails and alerts you receive
+            </CardDescription>
+          </div>
+        </div>
+        <div className="h-1 w-16 rounded-full bg-gradient-to-r from-primary to-accent mt-3" />
+      </CardHeader>
+      <CardContent>
+        <span
+          data-dashboard-card-action
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-4 py-2 w-full bg-brand hover:bg-brand/90 text-white ring-offset-background transition-colors"
+        >
+          Open settings
+        </span>
+      </CardContent>
+    </Card>
+  );
+
   const dashboardMenuEntries: DashboardMenuEntry[] = [
     {
       id: "browse_equipment",
@@ -2690,6 +2710,13 @@ const Dashboard = () => {
             </CardContent>
           </Card>
       ),
+    },
+    {
+      id: NOTIFICATION_SETTINGS_MENU_ID,
+      label: "Notification settings",
+      path: NOTIFICATION_SETTINGS_PATH,
+      visible: true,
+      render: () => notificationSettingsCard,
     },
     {
       id: "user_guide",
@@ -4280,6 +4307,7 @@ const Dashboard = () => {
               </span>
             </CardContent>
           </Card>
+          {notificationSettingsCard}
         </div>
         {downloadBrochureButton}
         </>
@@ -4307,54 +4335,6 @@ const Dashboard = () => {
         tabIndex={-1}
         className="dashboard-main-wide mx-auto w-full max-w-none px-4 py-5 focus:outline-none sm:px-6 lg:px-8"
       >
-        {isAdmin || isAccountsInChargeUser ? (
-          <WalletFundReceiptFollowUpAlert
-            onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
-          />
-        ) : null}
-        {externalProfileNeedsAddress && (
-          <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-primary/70 bg-primary/5 dark:bg-primary/10">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-primary dark:text-sky-300" />
-                Complete billing & shipping details
-              </CardTitle>
-              <CardDescription>
-                To generate invoices and shipping labels for external bookings, please complete your Billing Address (GSTIN) and Shipping Address in your profile.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Button
-                onClick={() => navigate("/profile#external-billing")}
-                className="bg-brand hover:bg-brand/90 text-white"
-              >
-                Go to Profile
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-        {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
-        {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
-        {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <DashboardSearchBar
-            className="sm:flex-1"
-            placeholder={
-              ["admin", "dept_admin", "manager", "operator"].includes(userTypeStr)
-                ? "Search booking ID, equipment, user name or email…"
-                : undefined
-            }
-          />
-          <Button
-            variant="outline"
-            className="h-12 shrink-0 gap-2 rounded-xl"
-            onClick={() => navigate("/notifications?tab=settings")}
-          >
-            <BellRing className="h-4 w-4" aria-hidden />
-            Notification settings
-          </Button>
-        </div>
         {/* Profile hero — compact for standard users; Lab Operator & OIC keep richer instrument layout */}
         <div
           className={cn(
@@ -4473,6 +4453,45 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+        <DashboardSearchBar
+          className="mb-4"
+          placeholder={
+            ["admin", "dept_admin", "manager", "operator"].includes(userTypeStr)
+              ? "Search booking ID, equipment, user name or email…"
+              : undefined
+          }
+        />
+        <AccountLifecycleNotice inline className="mb-4" />
+        {isAdmin || isAccountsInChargeUser ? (
+          <WalletFundReceiptFollowUpAlert
+            onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
+          />
+        ) : null}
+        {externalProfileNeedsAddress && (
+          <Card className="dashboard-notice-card dashboard-notice-info mb-6 border-primary/70 bg-primary/5 dark:bg-primary/10">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-primary dark:text-sky-300" />
+                Complete billing & shipping details
+              </CardTitle>
+              <CardDescription>
+                To generate invoices and shipping labels for external bookings, please complete your Billing Address (GSTIN) and Shipping Address in your profile.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Button
+                onClick={() => navigate("/profile#external-billing")}
+                className="bg-brand hover:bg-brand/90 text-white"
+              >
+                Go to Profile
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
+        {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
+        {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
+        {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
