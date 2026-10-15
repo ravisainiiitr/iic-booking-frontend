@@ -20,6 +20,10 @@ export function bookSection(g: Gate): GuideSection {
         screenshotSrc: "/guides/equipment-catalog-search-filters.jpg",
       },
       {
+        title: "Not sure which instrument?",
+        body: "Click Instrument finder on the Equipments page and describe your sample and what you want to learn, for example crystal structure of my thin film or band gap of nanoparticles. You get the techniques that fit, the instruments you can book ranked best first, and why each one fits; click Book or View details.",
+      },
+      {
         title: "Check which mode runs when",
         body: "Some instruments run in several modes that share them. A one-line summary at the top left of the card photo (where other cards show the category) and beside the name on the equipment page gives each mode's days and next free date, for example Mon–Fri · next Wed 21 Oct; hover it for the full text and the category. Click it, or open Availability calendar, to see Availability by mode for the next four weeks: free slots, Fully booked, Holiday, or for weeks not open yet the date booking opens. Select a day and click Book to open that mode's booking page at that week.",
       },
@@ -38,6 +42,10 @@ export function bookSection(g: Gate): GuideSection {
         body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked; hover a slot marked Under Maintenance, Operator Absent, Scheduled Maintenance or Other Reasons for the reason and the expected recovery. When the equipment itself is not operational, its card and page show the expected recovery, for example Expected back: Mon 13 Oct, 10:00. Saturday/Sunday and Holiday labels mark closed days, and a free slot whose time has passed shows No booking.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
+      },
+      {
+        title: "Best times for you",
+        body: "With I'll pick, Best times for you lists up to five free runs of the slots you need in the next two weeks: the earliest one and ones that match the times you usually book. Click one to select it on the calendar. When nothing is free soon, it also suggests similar instruments with an earlier free time.",
       },
       g.when(!g.is("startup", "external"), {
         title: "If your slots are taken",

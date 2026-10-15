@@ -1,4 +1,14 @@
 import { type BookingRef } from "@/lib/bookingRef";
+import type {
+  AutomationLogRow,
+  AutomationSettings,
+  InstrumentFinderResponse,
+  NoShowPreview,
+  OicAlertPreview,
+  SlotSuggestionsResponse,
+  TicketTriagePreview,
+  TicketTriageResponse,
+} from "@/lib/automationTypes";
 import { postFormWithProgress, type UploadProgress } from "@/lib/uploadWithProgress";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
@@ -17356,6 +17366,67 @@ class ApiClient {
 
   async getDepartmentSyncOperationsDiagnostics() {
     return this.request<Record<string, unknown>>('/v1/sync/operations/diagnostics/', { method: 'GET' });
+  }
+
+  // ---- AI & automation
+  async automationFeatures() {
+    return this.request<{ instrument_finder: boolean; smart_slots: boolean }>('/v1/automation/features/');
+  }
+
+  async instrumentFinder(q: string) {
+    return this.request<InstrumentFinderResponse>(`/v1/automation/instrument-finder/?q=${encodeURIComponent(q)}`);
+  }
+
+  async slotSuggestions(equipmentId: number, slotCount: number, alternatives = true) {
+    const qs = new URLSearchParams({
+      equipment_id: String(equipmentId),
+      slot_count: String(slotCount),
+      alternatives: alternatives ? '1' : '0',
+    });
+    return this.request<SlotSuggestionsResponse>(`/v1/automation/slot-suggestions/?${qs}`);
+  }
+
+  async automationSettings() {
+    return this.request<AutomationSettings>('/v1/automation/settings/');
+  }
+
+  async updateAutomationSettings(patch: Partial<AutomationSettings>) {
+    return this.request<AutomationSettings>('/v1/automation/settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    });
+  }
+
+  async automationPreviewOicAlerts() {
+    return this.request<OicAlertPreview>('/v1/automation/preview/oic-alerts/');
+  }
+
+  async automationPreviewNoShow() {
+    return this.request<NoShowPreview>('/v1/automation/preview/no-show/');
+  }
+
+  async automationPreviewTicketTriage(limit = 20) {
+    return this.request<TicketTriagePreview>(`/v1/automation/preview/ticket-triage/?limit=${limit}`);
+  }
+
+  async automationLog(kind = '', limit = 100) {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (kind) qs.set('kind', kind);
+    return this.request<{ count: number; results: AutomationLogRow[] }>(`/v1/automation/log/?${qs}`);
+  }
+
+  async ticketTriage(ticketId: number) {
+    return this.request<TicketTriageResponse>(`/v1/automation/tickets/${ticketId}/triage/`);
+  }
+
+  async ticketTriageDecision(
+    ticketId: number,
+    body: { accept: boolean; apply_type?: boolean; apply_priority?: boolean; assign?: boolean },
+  ) {
+    return this.request<TicketTriageResponse>(`/v1/automation/tickets/${ticketId}/triage/decision/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 }
 

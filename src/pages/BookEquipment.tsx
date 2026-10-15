@@ -266,6 +266,7 @@ import {
 import { shortSlotReason, slotAccessibleLabel, unavailableBookingSlotReason } from "@/lib/slotReason";
 import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator";
 import { SimilarInstrumentsCard } from "@/components/booking/SimilarInstrumentsCard";
+import BestSlotsPanel from "@/components/automation/BestSlotsPanel";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
 import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
@@ -10982,6 +10983,19 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                     Slots marked <span className="font-semibold">"Just taken"</span> were booked by someone else while you were confirming. Pick other slots and confirm again — your details are kept.
                   </p>
                 )}
+                {isRegularBookingFlow &&
+                  !bookingForAnotherUser &&
+                  !repeatSourceBooking &&
+                  bookingSlotChoice === "manual" &&
+                  selectedEquipment && (
+                    <BestSlotsPanel
+                      className="mb-2"
+                      equipmentId={Number(selectedEquipment.id)}
+                      slotCount={slotsRequiredForMinutes(calculatedCharge?.total_time_minutes, equipmentDetail)}
+                      selectedSlotIds={selectedSlots.map((s) => s.slotId).filter((id): id is number => typeof id === "number")}
+                      onPick={(s) => setPendingPreselect({ date: s.date, slotIds: s.slot_ids })}
+                    />
+                  )}
                 {isRegularBookingFlow &&
                   !bookingForAnotherUser &&
                   !repeatSourceBooking &&

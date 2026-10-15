@@ -550,6 +550,10 @@ export function ticketsSection(g: Gate): GuideSection {
         title: "Tickets marked to me",
         body: "Lists tickets assigned to you or raised for equipment you look after. Reply and resolve them here.",
       }),
+      g.only(["oic", "operator"], {
+        title: "Suggested handling",
+        body: "When the admin has switched ticket triage on, an open ticket can show Suggested handling: a type, priority, handler and reply draft with the reasons. Use draft copies it into the reply box for you to edit and send; Accept applies the type, priority and handler; Dismiss hides it.",
+      }),
       { title: "My Tickets", body: "Lists the tickets you raised; raise a new one with a clear description and booking ID. Export downloads the tickets on the tab you are viewing as Excel (.xlsx), CSV or PDF." },
     ]),
   };

@@ -25,6 +25,7 @@ const SelfVerify = lazyPage(() => import("@/pages/SelfVerify"));
 const Dashboard = lazyPage(() => import("@/pages/Dashboard"));
 const ProformaInvoice = lazyPage(() => import("@/pages/ProformaInvoice"));
 const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
+const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
 const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
@@ -155,6 +156,7 @@ const OrganizationUsersManagement = lazyPage(() => import("@/pages/OrganizationU
 const ExternalDepartmentAdditionVerification = lazyPage(() => import("@/pages/ExternalDepartmentAdditionVerification"));
 const UserGuidePreview = lazyPage(() => import("@/pages/UserGuidePreview"));
 const AdminSettingsKnowledge = lazyPage(() => import("@/pages/AdminSettingsKnowledge"));
+const AdminSettingsAutomation = lazyPage(() => import("@/pages/AdminSettingsAutomation"));
 const AdminSettingsCopilotAnswers = lazyPage(() => import("@/pages/AdminSettingsCopilotAnswers"));
 const UserGuidePage = lazyPage(() => import("@/pages/UserGuidePage"));
 const ViewResults = lazyPage(() => import("@/pages/ViewResults"));
@@ -243,6 +245,7 @@ export default function AppRoutes() {
           <Route path="/extension-decision" element={<ExtensionDecision />} />
           <Route path="/dashboard" element={<DashboardEntry />} />
           <Route path="/equipments" element={<EquipmentList />} />
+          <Route path="/find-instrument" element={<InstrumentFinder />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
@@ -342,6 +345,7 @@ export default function AppRoutes() {
           <Route path="/content-management" element={<ContentManagement />} />
           <Route path="/admin-settings" element={<AdminSettings />} />
           <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />
+          <Route path="/admin-settings/automation" element={<AdminSettingsAutomation />} />
           <Route path="/admin-settings/copilot-answers" element={<AdminSettingsCopilotAnswers />} />
           <Route
             path="/admin-settings/admin-panel-access"

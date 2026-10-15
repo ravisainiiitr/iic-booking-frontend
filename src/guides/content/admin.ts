@@ -221,6 +221,24 @@ export const adminGuide: RoleGuide = {
           { title: "Experience ratings", body: "Read Rate your experience responses, sort by any column and use Export CSV." },
         ],
       },
+      {
+        id: "automation-admin",
+        title: "AI and automation",
+        icon: "bot",
+        group: ADMIN,
+        intro: [
+          "Admin Settings → AI and automation holds the switches for the instrument finder, best times, ticket triage and the scheduled staff emails. Everything that sends email or changes a ticket starts switched off.",
+        ],
+        steps: [
+          { title: "Preview first", body: "Each automation has Preview (dry run): it shows what would happen now, such as which equipment would be flagged or which tickets would go to whom, without sending or changing anything." },
+          { title: "Ticket triage", body: "When on, each new ticket gets a suggested type, priority, handler and reply draft. Staff see it on the ticket and choose Accept or Dismiss; the draft is only copied into the reply box, never sent by itself. Auto-assign is a separate switch." },
+          { title: "Weekly alerts and no-show prompts", body: "Weekly anomaly alerts email each Officer in Charge on Monday morning about a drop in booked hours, a cancellation spike or repeated disruptions. Likely no-show prompts email Lab operators at 5:30 pm about bookings that ended with no sample recorded; nothing is changed automatically. Both use the Lab operations email category, so quiet hours, digests and unsubscribe apply." },
+          { title: "Activity log", body: "Every email sent, suggestion, assignment, AI model call and settings change is listed under Activity log." },
+        ],
+        rules: [
+          "The AI model is only asked when the instrument finder's rules find nothing, only if that switch is on, within the daily call limit, and only with the request text.",
+        ],
+      },
       g.when(g.flags.assistant, {
         id: "assistant-admin",
         title: "Booking Assistant administration",

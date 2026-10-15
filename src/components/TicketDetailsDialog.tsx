@@ -35,6 +35,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import TicketTriageCard from "@/components/automation/TicketTriageCard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -421,6 +422,21 @@ export default function TicketDetailsDialog({
                   </a>
                 )}
               </section>
+
+              {isStaff && !isResolved && detail.ticket_id ? (
+                <TicketTriageCard
+                  ticketId={detail.ticket_id}
+                  onUseDraft={(text) => {
+                    setCommentText(text);
+                    setInternalNote(false);
+                    document.getElementById("ticket-reply")?.focus();
+                  }}
+                  onApplied={() => {
+                    void loadAll();
+                    onUpdated?.();
+                  }}
+                />
+              ) : null}
 
               {/* Conversation */}
               <section className="space-y-3">

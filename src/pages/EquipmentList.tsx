@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Package, Loader2, Search } from "lucide-react";
+import { Package, Loader2, Search, Sparkles } from "lucide-react";
+import { useAutomationFeatures } from "@/components/automation/useAutomationFeatures";
 import DashboardHeader from "@/components/DashboardHeader";
 import DepartmentFilter, { type DepartmentFilterValue } from "@/components/DepartmentFilter";
 import { toast } from "sonner";
@@ -121,6 +122,7 @@ const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
 
 const EquipmentList = () => {
   const navigate = useNavigate();
+  const automationFeatures = useAutomationFeatures();
   const embedded = useEmbeddedMode();
   const { user } = useAuth();
   // The open family and department live in the URL so Back from an equipment page returns to them.
@@ -470,7 +472,7 @@ const EquipmentList = () => {
       <main className={embedded ? "container mx-auto px-3 py-4" : "container mx-auto px-4 py-8"}>
         {!embedded && (
           <div className="mb-5 rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-5 text-white shadow-lg">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
                 <Package className="h-5 w-5" />
               </div>
@@ -478,6 +480,19 @@ const EquipmentList = () => {
                 <h1 className="text-2xl font-bold">Browse and Book Equipment</h1>
                 <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
               </div>
+              {automationFeatures?.instrument_finder ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="ml-auto"
+                  onClick={() => navigate("/find-instrument")}
+                  title="Describe your sample and goal to get suggested instruments"
+                >
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                  Instrument finder
+                </Button>
+              ) : null}
             </div>
           </div>
         )}

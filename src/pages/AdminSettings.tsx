@@ -19,6 +19,7 @@ import {
   GraduationCap,
   ToggleRight,
   UsersRound,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { canAccessModule, hasAdminPanelAccess } from "@/lib/adminPanelAccess";
@@ -194,6 +195,14 @@ const AdminSettings = () => {
               title="Booking Assistant Knowledge"
               description="Manage SOPs, FAQs, indexing, gaps, and Booking Assistant usage"
               onClick={() => navigate("/admin-settings/knowledge")}
+            />
+          )}
+          {isAdmin && (
+            <SettingsTile
+              icon={<Sparkles className="h-5 w-5" />}
+              title="AI and automation"
+              description="Instrument finder, best times, ticket triage, weekly OIC alerts and no-show prompts: switches, dry-run previews and activity log"
+              onClick={() => navigate("/admin-settings/automation")}
             />
           )}
           {(isAdmin || userTypeStr === "dept_admin" || userTypeStr === "manager") && (
