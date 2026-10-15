@@ -380,7 +380,8 @@ export default function AdminSettingsAutomation() {
                     {cfg.updated_by ? ` Settings last changed by ${cfg.updated_by}.` : ""}
                   </CardDescription>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => void loadLog()} disabled={logLoading}>
+                <Button size="sm" variant="ghost" onClick={() => void loadLog()} disabled={logLoading} aria-label="Refresh activity log" title="Refresh">
+
                   <RefreshCw className={`h-4 w-4 ${logLoading ? "animate-spin" : ""}`} />
                 </Button>
               </CardHeader>
