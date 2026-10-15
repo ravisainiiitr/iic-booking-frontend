@@ -63,6 +63,16 @@ afterEach(() => {
   state.prefetch.mockClear();
 });
 
+describe("EquipmentCatalogCard training badge", () => {
+  it("shows Training required only when the booking gate applies", () => {
+    renderCard();
+    expect(screen.queryByText("Training required")).toBeNull();
+    cleanup();
+    renderCard({ item: { ...item, trainingRequired: true } });
+    expect(screen.getByText("Training required")).toBeTruthy();
+  });
+});
+
 describe("EquipmentCatalogCard routing", () => {
   it("opens the detail page off-peak and offers a separate Book button", () => {
     renderCard();

@@ -9,9 +9,14 @@ const EMPTY = new Set<number>();
 let gatedCache: { token: string; ids: Set<number>; at: number } | null = null;
 let gatedInflight: Promise<Set<number>> | null = null;
 
+function currentToken(): string | null {
+  const token = apiClient.getToken?.();
+  return typeof token === "string" && token ? token : null;
+}
+
 /** Equipment where booking needs authorisation, cached per sign-in for a few minutes. Empty when signed out or off. */
 export async function loadGatedEquipmentIds(force = false): Promise<Set<number>> {
-  const token = apiClient.getToken();
+  const token = currentToken();
   if (!token) return EMPTY;
   if (!force && gatedCache && gatedCache.token === token && Date.now() - gatedCache.at < GATED_TTL_MS) return gatedCache.ids;
   if (!gatedInflight) {
@@ -35,7 +40,7 @@ export function resetGatedEquipment(): void {
 
 /** IDs of equipment showing the "Training required" badge. */
 export function useGatedEquipmentIds(enabled = true): Set<number> {
-  const token = apiClient.getToken();
+  const token = currentToken();
   const [ids, setIds] = useState<Set<number>>(() =>
     gatedCache && gatedCache.token === token ? gatedCache.ids : EMPTY,
   );
@@ -64,7 +69,7 @@ export function useAuthorisationStatus(equipmentId: number | null | undefined, o
 
   useEffect(() => {
     const id = Number(equipmentId);
-    if (!equipmentId || !Number.isFinite(id) || !apiClient.getToken()) {
+    if (!equipmentId || !Number.isFinite(id) || !currentToken()) {
       setStatus(null);
       return;
     }
