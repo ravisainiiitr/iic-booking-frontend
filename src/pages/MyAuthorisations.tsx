@@ -208,8 +208,10 @@ export default function MyAuthorisations() {
             title="Equipment that needs authorisation"
             description={
               blocked
-                ? `${blocked} piece${blocked === 1 ? "" : "s"} of equipment need training before you can book.`
-                : "Book these once you are authorised; renew before the expiry date."
+                ? `You need training before you can book ${blocked} of these.`
+                : data?.equipment?.length
+                  ? "You may book all of these; renew before the expiry date."
+                  : "Equipment that needs a training certificate appears here."
             }
             icon={<ShieldCheck className="h-4 w-4" />}
             bodyClassName="p-0"

@@ -841,7 +841,7 @@ export function GrandfatherPanel({
                         {c.already_authorised ? (
                           <StatusChip kind="authorisation" status="AUTHORISED" />
                         ) : (
-                          <StatusChip kind="authorisation" status="NOT_AUTHORISED" label="Would be authorised" />
+                          <StatusChip kind="authorisation" status="GRACE" label="Would be authorised" />
                         )}
                       </TableCell>
                     </TableRow>

@@ -118,7 +118,7 @@ describe("MyAuthorisations", () => {
     expect(screen.getByText("Not authorised")).toBeTruthy();
     expect(screen.getAllByText("Authorised").length).toBeGreaterThan(0);
     expect(screen.getByText(/valid until/)).toBeTruthy();
-    expect(screen.getByText(/1 piece of equipment need training/)).toBeTruthy();
+    expect(screen.getByText("You need training before you can book 1 of these.")).toBeTruthy();
   });
 
   it("requests training from the list", async () => {
