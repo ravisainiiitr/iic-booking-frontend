@@ -5,7 +5,9 @@ export type TrainingMenuKey =
   | "training_attendance"
   | "training_policy_settings"
   | "operator_duty"
-  | "my_duty";
+  | "my_duty"
+  | "my_authorisations"
+  | "training_authorisations";
 
 export interface TrainingRoles {
   admin: boolean;

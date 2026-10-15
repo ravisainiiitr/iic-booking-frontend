@@ -29,6 +29,8 @@ import { useUserCard } from "@/components/users/UserIdCardLink";
 import { apiClient, type GlobalSearchResult } from "@/lib/api";
 import type { ModeInactive } from "@/lib/modeAvailability";
 import { ModeInactivePill } from "@/components/modeAvailability/ModeInactiveNotice";
+import { TrainingRequiredBadge } from "@/components/training/AuthorisationGateCard";
+import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 import { cn } from "@/lib/utils";
 import { SEARCH_SHORTCUT_LABEL } from "./GlobalSearch";
 import {
@@ -95,6 +97,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { openUserCard } = useUserCard();
+  const gatedIds = useGatedEquipmentIds(isAuthenticated && open);
   const [query, setQuery] = useState(initialQuery);
   const [result, setResult] = useState<GlobalSearchResult>(EMPTY);
   const [loading, setLoading] = useState(false);
@@ -339,6 +342,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         ) : modeInactiveOf(e) ? (
                           <ModeInactivePill info={modeInactiveOf(e)!} />
                         ) : null}
+                        {gatedIds.has(Number(e.id)) ? <TrainingRequiredBadge /> : null}
                       </p>
                       <p className={SECONDARY}>
                         {e.code}

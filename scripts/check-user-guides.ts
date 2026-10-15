@@ -89,7 +89,7 @@ const NEEDS_FLAG: Array<[RegExp, keyof GuideFeatureFlags]> = [
   [/Recharge Wallet, choose Direct Cash/, "studentRecharge"],
   [/Transfer wallet balance to bank/, "externalBooking"],
   [/Temporary OIC \/ Leave Management/, "oicLeaveManagement"],
-  [/Training & Certification|Training & Demos|My Trainings|Training workspace|Training attendance|Training Policy|Trained badge/i, "training"],
+  [/Training & Certification|Training & Demos|My Trainings|Training workspace|Training attendance|Training Policy|Trained badge|Training authorisations|My authorisations/i, "training"],
 ];
 
 const failures: string[] = [];

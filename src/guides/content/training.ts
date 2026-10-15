@@ -11,6 +11,10 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
         body: "Open Training & Demos, choose the department (only departments with demonstration equipment are listed; IIC by default) and the equipment, and request a demonstration for your class or group. The form shows the estimated charge.",
       },
       { title: "Nominate students", body: "When a training call is open, nominate your students for hands-on training before the deadline." },
+      {
+        title: "Your students' authorisations",
+        body: "Open My authorisations to see, for each equipment that needs training before booking, whether each of your students is authorised, expired or has a training request open. You also get a copy of their training request updates.",
+      },
     ],
     rules: [
       "Demonstrations are charged at the equipment's internal IITR rate and deducted from your wallet when the OIC approves, unless the OIC waives the charge (you see who waived it and why). Cancel early for a full or half refund; a rejected request costs nothing.",
@@ -20,6 +24,10 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
   student: {
     steps: [
       { title: "Follow your trainings", body: "Open My Trainings to see your applications, selection results and upcoming sessions." },
+      {
+        title: "Authorisation to book",
+        body: "Some equipment can be booked only after training. Its card shows Training required, and its page shows your status: Authorised until a date, Expired or Not authorised. Click Request training; the OIC or Lab Operator schedules a session or replies, and once they mark you trained you can book. Follow everything on My authorisations.",
+      },
       {
         title: "Get certified",
         body: "After the sessions the OIC assesses you (theory score and a practical checklist). Open the certification in My Trainings → Certifications to download the PDF certificate or share its verification link.",
@@ -33,6 +41,7 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
       "Answer duty requests before the deadline shown; unanswered duty is released to the next operator. Declining with a reason does not count against you.",
       "Your hours are counted from check-in/out, from completed bookings during your shift, or from the OIC's record, and appear in your monthly statement.",
       "Certificates have a validity period; you get a reminder before expiry so you can recertify.",
+      "Authorisations get reminders 30 and 7 days before they expire. Request refresher training in time; after expiry the equipment cannot be booked until you are authorised again.",
     ],
   },
   oic: {
@@ -53,6 +62,18 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
         title: "Track hours live",
         body: "Live shows who is on duty now and shifts waiting for hours. Hours gives allocated, confirmed and operated hours by operator, equipment, department, faculty group or month, with CSV export and per-operator statements.",
       },
+      {
+        title: "Training authorisations",
+        body: "Open Training authorisations and pick the equipment. Requests: schedule a training session, Mark trained (issues the certificate with its expiry) or Reject with a reason. Authorised users: Authorise people (one or many), Renew, Revoke and Export CSV.",
+      },
+      {
+        title: "Booking gate",
+        body: "On the Booking gate tab switch on Authorisation required to book, choose who needs it (internal users only or everyone), the minimum level, certificate validity, and an optional grace for users with past completed bookings. It is off by default.",
+      },
+      {
+        title: "Grandfathering",
+        body: "Before switching the gate on, use Grandfathering: Preview lists users with at least N completed bookings in the last X months without changing anything; tick who to include, type GRANDFATHER and apply.",
+      },
     ],
     rules: [
       "Hands-on seats are allotted fairly among the nominated students.",
@@ -60,10 +81,17 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
       "Choosing someone other than the first in the rotation, or someone over the weekly/semester cap or inside the cooling period, needs a reason that is recorded with the allocation.",
       "Clashes with the operator's other duty or their own bookings cannot be overridden; maintenance and training clashes are shown as warnings.",
       "Suspending, revoking or renewing a certificate needs a reason and is kept in the certificate history.",
+      "Your own bookings and bookings you make for a user are never blocked by the booking gate; a booking for a user who is not authorised is recorded in the training audit log.",
     ],
   },
   operator: {
-    steps: [{ title: "Mark attendance", body: "Open Training attendance and mark who attended each session or demonstration on your equipment." }],
+    steps: [
+      { title: "Mark attendance", body: "Open Training attendance and mark who attended each session or demonstration on your equipment." },
+      {
+        title: "Training authorisations",
+        body: "Open Training authorisations to answer training requests for your equipment: schedule a session, Mark trained or Reject with a reason. You can also authorise, renew or revoke users (with a reason) and export the list.",
+      },
+    ],
   },
   admin: {
     steps: [
@@ -72,6 +100,10 @@ const STEPS: Partial<Record<Gate["audience"], { steps: GuideStep[]; rules?: stri
         body: "In Admin Settings → Training Policy, switch the module on, choose Test accounts only or Everyone eligible, and turn Training on for each equipment.",
       },
       { title: "Training Policy", body: "Set the training rules on the same page, including whether course demonstrations are free." },
+      {
+        title: "Authorisation to book",
+        body: "Per equipment, Training authorisations → Booking gate makes booking need a valid authorisation. It applies only while the module is on, Training is on for that equipment and the user is in the audience, so with Test accounts only it is a safe pilot.",
+      },
       {
         title: "Operator & fair-use rules",
         body: "On the same page set the selection cooling period, faculty-group repeat penalty, duty caps per week and semester, cooling days between duty blocks, confirmation deadline, rotation weights and the indicative honorarium rate. Department administrators can set rules for their department and OICs for their own equipment; the most specific rules apply.",

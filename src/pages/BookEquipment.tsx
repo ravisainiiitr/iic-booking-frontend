@@ -284,6 +284,9 @@ import { URGENT_REASON_MIN_LENGTH, UrgentTypeBRequestPanel } from "@/components/
 import { InfoTip } from "@/components/booking/InfoTip";
 import { useDisruptionPrompt } from "@/components/disruptions/useDisruptionPrompt";
 import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
+import { AuthorisationGateCard } from "@/components/training/AuthorisationGateCard";
+import { useAuthorisationStatus } from "@/components/training/useAuthorisation";
+import { AUTHORISATION_GATE_CODE } from "@/lib/trainingAuthTypes";
 import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOperations";
 import { usePeakWindow } from "@/hooks/use-peak-window";
@@ -6107,6 +6110,14 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     return canBookForOtherUsers() || canChangeSlotStatus();
   };
 
+  const authGateSelf =
+    isEndUserBookingType(userType) && !canAccessManageEquipmentModes() && !isCalculateChargesFlow && !isProformaFlow;
+  const authGateForUserId = canBookForOtherUsers() && adminBookForUserId ? Number(adminBookForUserId) : null;
+  const authGate = useAuthorisationStatus(
+    authGateSelf || authGateForUserId ? (equipmentDetail?.equipment_id ?? null) : null,
+    { userId: authGateForUserId },
+  );
+
   /** Institute Admin, OIC and Department Administrator must pick "Book slots for a user" before the booking form. */
   const requiresBookModeBeforeForm = (): boolean => {
     if (!userType) return false;
@@ -7347,6 +7358,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           return;
         }
         if (res.error) {
+          if (res.errorCode === AUTHORISATION_GATE_CODE) authGate.reload();
           const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string; waitlist_full?: boolean };
           const failedBody = res.data as unknown as { slot_alternatives?: TemplateSlotAlternative[] } | undefined;
           await reportUnsuccessfulBooking(errRes, {
@@ -7834,6 +7846,28 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     );
   }
 
+  if (authGateSelf && authGate.blocked && authGate.status) {
+    return (
+      <div className={isEmbedFlow ? "relative" : "page-shell"}>
+        {!isEmbedFlow && <DashboardHeader />}
+        <main className={isEmbedFlow ? "w-full px-2 py-2" : "w-full max-w-3xl mx-auto px-4 md:px-6 py-8"}>
+          <h1 className="mb-3 text-2xl font-semibold tracking-tight md:text-3xl">{selectedEquipment.name}</h1>
+          <AuthorisationGateCard
+            status={authGate.status}
+            equipmentId={equipmentDetail.equipment_id}
+            equipmentName={selectedEquipment.name}
+            onChanged={authGate.reload}
+          />
+          {!isEmbedFlow && (
+            <Button variant="outline" className="mt-4" onClick={() => navigate(`/equipment/${equipmentDetail.equipment_id}`)}>
+              Back to equipment
+            </Button>
+          )}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className={isEmbedFlow ? "relative" : "page-shell relative"}>
       {(loadingEquipmentDetail || repeatSourceLoading) && (
@@ -7852,6 +7886,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           messages={(equipmentDetail as { flash_messages?: PublicFlashMessage[] }).flash_messages}
           fallbackClassName={isEmbedFlow ? "mb-2 px-2 sm:px-3" : "max-w-6xl mx-auto mb-3"}
         />
+        {authGate.status && !isCalculateChargesFlow ? (
+          <div className={isEmbedFlow ? "mb-2 px-2 sm:px-3" : "max-w-6xl mx-auto mb-3"}>
+            <AuthorisationGateCard
+              status={authGate.status}
+              equipmentId={equipmentDetail.equipment_id}
+              equipmentName={selectedEquipment.name}
+              onChanged={authGate.reload}
+              subjectName={authGateForUserId ? adminBookForUserInfo?.email || "This user" : undefined}
+            />
+          </div>
+        ) : null}
         {!isEmbedFlow && (
         <div className="max-w-6xl mx-auto mb-3 md:mb-4">
           <div className="flex flex-wrap items-center justify-between gap-4">

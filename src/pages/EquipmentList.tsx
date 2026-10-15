@@ -16,6 +16,7 @@ import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
+import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
 import type { CardModeAvailability, ModeInactive } from "@/lib/modeAvailability";
 import type { EquipmentDisruptionNotice } from "@/lib/disruptions";
@@ -193,6 +194,7 @@ const EquipmentList = () => {
   const [departmentReady, setDepartmentReady] = useState(() => initialDepartment != null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const disruptionPrompt = useDisruptionPrompt();
+  const gatedIds = useGatedEquipmentIds(Boolean(user));
   const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
     noticeId: number;
     equipmentName: string;
@@ -622,7 +624,7 @@ const EquipmentList = () => {
             {equipment.map((item, index) => (
               <EquipmentCatalogCard
                 key={item.id}
-                item={item}
+                item={{ ...item, trainingRequired: gatedIds.has(Number(item.id)) }}
                 imagePriority={index < 3}
                 accent={accentForEquipmentId(item.id)}
                 canChangeSlotStatus={canChangeEquipmentStatus && !(isOic && oicCatalogScope === "all")}

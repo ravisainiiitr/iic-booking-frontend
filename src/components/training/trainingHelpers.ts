@@ -30,7 +30,9 @@ export type StatusKind =
   | "assessment"
   | "roster"
   | "duty"
-  | "shift";
+  | "shift"
+  | "authorisation"
+  | "authRequest";
 
 const STATUS_META: Record<StatusKind, Record<string, { label: string; tone: StatusTone }>> = {
   demo: {
@@ -129,6 +131,23 @@ const STATUS_META: Record<StatusKind, Record<string, { label: string; tone: Stat
     MISSED: { label: "Missed", tone: "danger" },
     RELEASED: { label: "Released", tone: "muted" },
     CANCELLED: { label: "Cancelled", tone: "muted" },
+  },
+  authorisation: {
+    NOT_REQUIRED: { label: "No authorisation needed", tone: "muted" },
+    AUTHORISED: { label: "Authorised", tone: "success" },
+    EXPIRING: { label: "Authorised (expiring soon)", tone: "warning" },
+    GRACE: { label: "Allowed (past bookings)", tone: "info" },
+    EXPIRED: { label: "Expired", tone: "danger" },
+    SUSPENDED: { label: "Suspended", tone: "danger" },
+    REVOKED: { label: "Revoked", tone: "danger" },
+    NOT_AUTHORISED: { label: "Not authorised", tone: "danger" },
+  },
+  authRequest: {
+    PENDING: { label: "Pending", tone: "warning" },
+    SCHEDULED: { label: "Training scheduled", tone: "accent" },
+    APPROVED: { label: "Authorised", tone: "success" },
+    REJECTED: { label: "Not accepted", tone: "danger" },
+    WITHDRAWN: { label: "Withdrawn", tone: "muted" },
   },
 };
 

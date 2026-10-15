@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
+import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 
 // Staff-only dialog with date pickers; keep it out of the home page's first download.
 const NoticeExpiryDialog = lazy(() =>
@@ -75,6 +76,7 @@ const EquipmentGrid = () => {
   const [loading, setLoading] = useState(true);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const disruptionPrompt = useDisruptionPrompt();
+  const gatedIds = useGatedEquipmentIds(Boolean(user));
   const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
     noticeId: number;
     equipmentName: string;
@@ -411,7 +413,7 @@ const EquipmentGrid = () => {
           {displayEquipment.map((equipmentItem) => (
             <EquipmentCatalogCard
               key={equipmentItem.id}
-              item={equipmentItem as any}
+              item={{ ...(equipmentItem as any), trainingRequired: gatedIds.has(Number(equipmentItem.id)) }}
               accent={accentForEquipmentId(equipmentItem.id)}
               canChangeSlotStatus={canChangeEquipmentStatus && !(isOic && oicCatalogScope === "all")}
               canBookForOtherUsers={canBookForOtherUsers}

@@ -168,6 +168,8 @@ const EquipmentAvailability = lazyPage(() => import("@/pages/EquipmentAvailabili
 const TrainingDemoRequests = lazyPage(() => import("@/pages/TrainingDemoRequests"));
 const TrainingNominations = lazyPage(() => import("@/pages/TrainingNominations"));
 const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
+const MyAuthorisations = lazyPage(() => import("@/pages/MyAuthorisations"));
+const TrainingAuthorisations = lazyPage(() => import("@/pages/TrainingAuthorisations"));
 const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
 const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
 const OperatorDuty = lazyPage(() => import("@/pages/OperatorDuty"));
@@ -264,6 +266,8 @@ export default function AppRoutes() {
           <Route path="/training/attendance" element={<TrainingAttendance />} />
           <Route path="/training/duty" element={<OperatorDuty />} />
           <Route path="/my-trainings" element={<MyTrainings />} />
+          <Route path="/my-authorisations" element={<MyAuthorisations />} />
+          <Route path="/training/authorisations" element={<TrainingAuthorisations />} />
           <Route path="/my-duty" element={<MyDuty />} />
           <Route path="/duty/respond" element={<DutyRespond />} />
           <Route path="/verify/certificate/:token" element={<VerifyCertificate />} />

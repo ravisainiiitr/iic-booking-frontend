@@ -75,6 +75,8 @@ import { exportEquipmentBrochurePdf, partitionSpecifications } from "@/lib/equip
 import { DEFAULT_DEPARTMENT_NAME } from "@/lib/pdfLetterhead";
 import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
+import { AuthorisationGateCard, TrainingRequiredBadge } from "@/components/training/AuthorisationGateCard";
+import { useAuthorisationStatus, useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 
 // Only needed for the in-panel charge calculator, so it is not part of the profile page chunk.
 const BookEquipment = lazy(() => import("@/pages/BookEquipment"));
@@ -390,6 +392,11 @@ const EquipmentProfile = () => {
   };
 
   const modeInactive = equipment?.mode_inactive ?? null;
+
+  const selfBooker =
+    isAuthenticated && !catalogOnlyView && !canManageEquipment() && !isLabInchargeUser() && canBookEquipment();
+  const authGate = useAuthorisationStatus(selfBooker ? equipment?.equipment_id : null);
+  const gatedIds = useGatedEquipmentIds(isAuthenticated);
 
   /** Show Create Booking / Book CTA in equipment menu. */
   const showCreateOrBookCta = (): boolean => {
@@ -1323,6 +1330,7 @@ const EquipmentProfile = () => {
                         {equipment.status_display}
                       </Badge>
                       {modeInactive ? <ModeInactivePill info={modeInactive} className="text-xs" /> : null}
+                      {gatedIds.has(equipment.equipment_id) ? <TrainingRequiredBadge className="text-xs" /> : null}
                       {isMultiModeEquipment(equipment) ? (
                         <div className="flex min-w-0 max-w-full">
                           <ModeAvailabilityHeaderLine
@@ -1436,8 +1444,17 @@ const EquipmentProfile = () => {
                       <p className="text-sm font-bold leading-snug">Booking is disabled while this mode is not active.</p>
                     </div>
                   )}
+                  {authGate.status ? (
+                    <AuthorisationGateCard
+                      status={authGate.status}
+                      equipmentId={equipment.equipment_id}
+                      equipmentName={equipment.name}
+                      onChanged={authGate.reload}
+                    />
+                  ) : null}
                   {showCreateOrBookCta() &&
                     !modeInactive &&
+                    !authGate.blocked &&
                     (canManageEquipment() || isOicUser() || isEquipmentOperational()) && (
                     <button
                       type="button"

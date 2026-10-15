@@ -65,6 +65,18 @@ import type {
   RosterEntry,
   ShiftAction,
 } from "@/lib/trainingOpsTypes";
+import type {
+  AuthorisationRequest,
+  AuthorisationRequestAction,
+  AuthorisationSetting,
+  AuthorisationSettingInput,
+  AuthorisationStatus,
+  AuthorisedUser,
+  BulkGrantResult,
+  GrandfatherResult,
+  ManagedAuthorisationEquipment,
+  MyAuthorisations,
+} from "@/lib/trainingAuthTypes";
 
 const BASE = "/v1/training/";
 
@@ -317,4 +329,42 @@ export const trainingApi = {
   operatorPolicy: (equipmentId?: number) => get<OperatorPolicyOverview>("operator-policy/", { equipment_id: equipmentId }),
   publishOperatorPolicy: (input: OperatorPolicyInput) => post<OperatorPolicy>("operator-policy/", input),
   operatorPolicyHistory: () => get<Results<OperatorPolicy>>("operator-policy/history/"),
+
+  gatedEquipment: () => get<{ equipment_ids: number[] }>("authorisation/gated-equipment/"),
+  authorisationStatus: (equipmentIds: number[], userId?: number) =>
+    get<{ results: Record<string, AuthorisationStatus> }>("authorisation/status/", {
+      equipment_ids: equipmentIds.join(","),
+      user_id: userId,
+    }),
+  myAuthorisations: () => get<MyAuthorisations>("authorisation/me/"),
+  authorisationRequests: (query: { scope?: "mine" | "inbox"; status?: string; equipment_id?: number } = {}) =>
+    get<Results<AuthorisationRequest>>("authorisation/requests/", query),
+  requestTraining: (equipmentId: number, message: string) =>
+    post<AuthorisationRequest>("authorisation/requests/", { equipment_id: equipmentId, message }),
+  authorisationRequestAction: (
+    id: number,
+    action: AuthorisationRequestAction,
+    input: { start_at?: string; end_at?: string; location?: string; note?: string; months?: number; reason?: string } = {},
+  ) => post<AuthorisationRequest>(`authorisation/requests/${id}/${action}/`, input),
+  authorisationEquipment: (q?: string) =>
+    get<{ results: ManagedAuthorisationEquipment[]; total: number }>("authorisation/equipment/", { q }),
+  authorisationSetting: (equipmentId: number) => get<AuthorisationSetting>(`authorisation/equipment/${equipmentId}/`),
+  saveAuthorisationSetting: (equipmentId: number, input: AuthorisationSettingInput) =>
+    put<AuthorisationSetting>(`authorisation/equipment/${equipmentId}/`, input),
+  authorisedUsers: (equipmentId: number, includeClosed = false) =>
+    get<Results<AuthorisedUser>>(`authorisation/equipment/${equipmentId}/users/`, { include_closed: includeClosed }),
+  grantAuthorisation: (equipmentId: number, input: { user_ids: number[]; reason: string; months?: number }) =>
+    post<BulkGrantResult>(`authorisation/equipment/${equipmentId}/users/`, input),
+  exportAuthorisedUsers: (equipmentId: number, code?: string) =>
+    downloadFile(`authorisation/equipment/${equipmentId}/users/export/`, `authorised-users-${code || equipmentId}.csv`),
+  authorisationPeople: (equipmentId: number, q: string) =>
+    get<Results<TrainingUserRef>>(`authorisation/equipment/${equipmentId}/people/`, { q }),
+  grandfatherPreview: (equipmentId: number, query: { min_bookings: number; months: number }) =>
+    get<GrandfatherResult>(`authorisation/equipment/${equipmentId}/grandfather/`, query),
+  grandfatherApply: (
+    equipmentId: number,
+    input: { min_bookings: number; months: number; confirm: string; user_ids?: number[]; validity_months?: number },
+  ) => post<GrandfatherResult>(`authorisation/equipment/${equipmentId}/grandfather/`, input),
+  authorisationAwardAction: (id: number, action: "revoke" | "renew", input: { reason: string; months?: number }) =>
+    post<TrainingAward>(`authorisation/awards/${id}/${action}/`, input),
 };

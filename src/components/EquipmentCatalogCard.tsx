@@ -18,6 +18,7 @@ import CardModeAvailability from "@/components/modeAvailability/CardModeAvailabi
 import ModeInactiveNotice from "@/components/modeAvailability/ModeInactiveNotice";
 import type { CardModeAvailability as CardModeAvailabilityData, ModeInactive } from "@/lib/modeAvailability";
 import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
+import { TrainingRequiredBadge } from "@/components/training/AuthorisationGateCard";
 import type { EquipmentDisruptionNotice as EquipmentDisruptionNoticeData } from "@/lib/disruptions";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePeakWindow } from "@/hooks/use-peak-window";
@@ -63,6 +64,8 @@ export type EquipmentCatalogCardItem = {
   disruptionNotice?: EquipmentDisruptionNoticeData | null;
   /** Another mode of this instrument runs on its own today: listed but not bookable (catalog API ``mode_inactive``). */
   modeInactive?: ModeInactive | null;
+  /** Booking needs authorisation (training) and the gate applies to the viewer. */
+  trainingRequired?: boolean;
 };
 
 type PublicationRow = {
@@ -332,6 +335,7 @@ export default function EquipmentCatalogCard({
                 <span className="text-muted-foreground">({count})</span>
               </span>
             ) : null}
+            {item.trainingRequired ? <TrainingRequiredBadge className="w-fit" /> : null}
             {!isOperational ? <EquipmentDisruptionNotice notice={item.disruptionNotice} compact /> : null}
             {isOperational && modeInactive ? <ModeInactiveNotice info={modeInactive} compact /> : null}
           </div>

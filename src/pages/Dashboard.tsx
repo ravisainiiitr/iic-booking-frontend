@@ -222,6 +222,11 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/training/oic": { title: "Training Workspace", description: "Demonstration requests, nomination calls, sessions, attendance and certifications." },
   "/training/attendance": { title: "Training Attendance", description: "Mark attendance for training sessions and demonstrations." },
   "/my-trainings": { title: "My Trainings", description: "Your training applications, sessions and certifications." },
+  "/my-authorisations": { title: "My authorisations", description: "Equipment that needs training before booking, your status and requests." },
+  "/training/authorisations": {
+    title: "Training authorisations",
+    description: "Training requests, authorised users, the booking gate and grandfathering per equipment.",
+  },
   "/training/duty": { title: "Operator Duty", description: "Allocate certified operators fairly, track confirmations and hours operated." },
   "/my-duty": { title: "My Operator Duty", description: "Confirm duty, check in and out, and see your hours." },
   "/admin-settings/training": { title: "Training Policy" },
@@ -2339,6 +2344,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "my_authorisations",
+      label: "My authorisations",
+      path: "/my-authorisations",
+      visible: trainingMenu("my_authorisations"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/my-authorisations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">My authorisations</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Equipment that needs training before booking, your status and training requests
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open My authorisations</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "my_duty",
       label: "My operator duty",
       path: "/my-duty",
@@ -2690,6 +2725,36 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Mark attendance</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "training_authorisations",
+      label: "Training authorisations",
+      path: "/training/authorisations",
+      visible: trainingMenu("training_authorisations"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-teal-200 dark:hover:border-teal-800"
+              onClick={() => openWorkspace("/training/authorisations")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-lg">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Training authorisations</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Training requests, authorised users, the booking gate and grandfathering per equipment
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-teal-500 to-cyan-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open authorisations</Button>
               </CardContent>
             </Card>
       ),
