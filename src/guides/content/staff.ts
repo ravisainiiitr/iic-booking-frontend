@@ -27,6 +27,14 @@ export function staffViewBookingSection(g: Gate): GuideSection {
           " The file includes the amount and its charge breakdown."
         )}`,
       },
+      g.only(["oic", "operator"], {
+        title: "Set your equipment order on the dashboard",
+        body: "With more than one equipment, the Lab dashboard opens on your top-priority equipment. To set the priority, click the up-down arrows button beside the equipment list (or choose Set order… at the bottom of the list), drag the equipment or use the up and down arrows (1 is the top), and click Save order; Reset to default goes back to the standard order. The order is saved to your account, so it applies on any device. Equipment assigned to you later, including equipment you cover as temporary OIC, is added at the end. Picking another equipment in the list only changes the current view; the next time the dashboard opens it starts on your top equipment again.",
+      }),
+      g.only(["oic", "operator"], {
+        title: "Results overdue on the dashboard",
+        body: "When bookings of your equipment are past their results overdue time, a Results overdue line with the number of bookings appears at the top of the dashboard. It is collapsed by default; click it to show the list (Booking ID, equipment, user, when the results were due and Overdue by) and click it again to hide it. Your choice is remembered on this browser.",
+      }),
       {
         title: "Check who booked",
         body: "Hover over a booked slot in the week calendar to see the user's name, department, email, mobile and booking ID.",

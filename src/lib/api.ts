@@ -2277,6 +2277,11 @@ export interface DashboardMenuLayout {
   order?: string[];
 }
 
+/** Lab dashboard equipment priority (Lab Operator / OIC); top priority first, empty = default order. */
+export interface DashboardEquipmentOrder {
+  equipment_ids: number[];
+}
+
 /** GET /api/admin/dashboard-summary/ */
 export interface AdminDashboardSummary {
   scope: "institute" | "department";
@@ -12264,6 +12269,17 @@ class ApiClient {
     return this.request<DashboardMenuLayout>("/profiles/me/dashboard-menu-layout/", {
       method: "PUT",
       body: JSON.stringify(layout),
+    });
+  }
+
+  async getDashboardEquipmentOrder() {
+    return this.request<DashboardEquipmentOrder>("/profiles/me/dashboard-equipment-order/");
+  }
+
+  async saveDashboardEquipmentOrder(equipmentIds: number[]) {
+    return this.request<DashboardEquipmentOrder>("/profiles/me/dashboard-equipment-order/", {
+      method: "PUT",
+      body: JSON.stringify({ equipment_ids: equipmentIds }),
     });
   }
 

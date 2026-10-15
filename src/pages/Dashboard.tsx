@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing } from "lucide-react";
+import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
@@ -93,6 +93,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -121,6 +122,8 @@ import { INSIGHT_MENU } from "@/components/admin-insights/insightMenu";
 import { useWorkspaceTitleOverride } from "@/lib/workspaceTitle";
 import { useWorkspaceResume } from "@/lib/workspaceResume";
 import { useRememberedOpen } from "@/lib/rememberedOpen";
+import { orderByPriority } from "@/lib/equipmentPriority";
+import EquipmentOrderDialog, { type EquipmentOrderItem } from "@/components/dashboard/EquipmentOrderDialog";
 import { WorkspaceChromeProvider } from "@/components/WorkspaceHeaderActions";
 import { prefetchEquipmentCatalog } from "@/lib/catalogCache";
 
@@ -128,6 +131,7 @@ const ADMIN_MENU_SECTION_ORDER = sectionMenuOrder(ADMIN_MENU_SECTIONS);
 const AdminOverview = lazy(() => import("@/components/dashboard/AdminOverview"));
 
 const NOTIFICATION_SETTINGS_PATH = "/notifications?tab=settings";
+const LAB_EQUIPMENT_SET_ORDER_VALUE = "__set_order__";
 
 function normalizeMenuPath(path: string): string {
   return path.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
@@ -536,6 +540,10 @@ const Dashboard = () => {
   const [labDashDetailLoading, setLabDashDetailLoading] = useState(false);
   /** Lab dashboard metrics scope: all assigned equipment or one instrument. */
   const [labDashEquipmentFilter, setLabDashEquipmentFilter] = useState<number | "all">("all");
+  /** Lab dashboard equipment priority saved on the server; the top one is loaded by default. */
+  const [labEquipmentPriority, setLabEquipmentPriority] = useState<number[]>([]);
+  const [labEquipmentPriorityLoaded, setLabEquipmentPriorityLoaded] = useState(false);
+  const [labEquipmentOrderOpen, setLabEquipmentOrderOpen] = useState(false);
 
   // Check if user is operator, manager, or admin (for booking management)
   const userType: any = user?.user_type;
@@ -638,11 +646,56 @@ const Dashboard = () => {
 
   const canAccessAdminTools = apiClient.isAdminPanelUser(user?.user_type) || canAccessBookingAttemptLog;
 
+  useEffect(() => {
+    if (!showsLabStyleDashboard || !user?.id) return;
+    let cancelled = false;
+    setLabEquipmentPriorityLoaded(false);
+    apiClient
+      .getDashboardEquipmentOrder()
+      .then((res) => {
+        if (!cancelled) setLabEquipmentPriority(res.data?.equipment_ids ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setLabEquipmentPriority([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLabEquipmentPriorityLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showsLabStyleDashboard, user?.id]);
+
+  const labEquipmentSummariesOrdered = useMemo(
+    () => orderByPriority(labOperatorDash?.equipment_summaries ?? [], (e) => e.equipment_id, labEquipmentPriority),
+    [labOperatorDash?.equipment_summaries, labEquipmentPriority],
+  );
+
+  const labEquipmentOrderItems = useMemo<EquipmentOrderItem[]>(
+    () => labEquipmentSummariesOrdered.map((e) => ({ id: e.equipment_id, label: e.equipment_name || e.equipment_code })),
+    [labEquipmentSummariesOrdered],
+  );
+  const labEquipmentDefaultOrderItems = useMemo<EquipmentOrderItem[]>(
+    () =>
+      (labOperatorDash?.equipment_summaries ?? []).map((e) => ({
+        id: e.equipment_id,
+        label: e.equipment_name || e.equipment_code,
+      })),
+    [labOperatorDash?.equipment_summaries],
+  );
+
+  const saveLabEquipmentOrder = useCallback(async (equipmentIds: number[]) => {
+    const res = await apiClient.saveDashboardEquipmentOrder(equipmentIds);
+    if (res.error || !res.data) return res.error || "Could not save the equipment order.";
+    setLabEquipmentPriority(res.data.equipment_ids ?? []);
+    toast.success("Equipment order saved");
+    return null;
+  }, []);
+
   const labEquipmentSummariesForScope = useMemo(() => {
-    const list = labOperatorDash?.equipment_summaries ?? [];
-    if (labDashEquipmentFilter === "all") return list;
-    return list.filter((e) => e.equipment_id === labDashEquipmentFilter);
-  }, [labOperatorDash?.equipment_summaries, labDashEquipmentFilter]);
+    if (labDashEquipmentFilter === "all") return labEquipmentSummariesOrdered;
+    return labEquipmentSummariesOrdered.filter((e) => e.equipment_id === labDashEquipmentFilter);
+  }, [labEquipmentSummariesOrdered, labDashEquipmentFilter]);
 
 
   /** Stable key for assigned equipment list; when it changes, re-apply default first instrument for multi-assign. */
@@ -653,8 +706,8 @@ const Dashboard = () => {
 
   const labEquipmentSummariesKeyRef = useRef("");
   useEffect(() => {
-    const sums = labOperatorDash?.equipment_summaries ?? [];
-    if (sums.length < 2 || !labEquipmentSummariesKey) return;
+    const sums = labEquipmentSummariesOrdered;
+    if (!labEquipmentPriorityLoaded || sums.length < 2 || !labEquipmentSummariesKey) return;
 
     if (labEquipmentSummariesKeyRef.current !== labEquipmentSummariesKey) {
       labEquipmentSummariesKeyRef.current = labEquipmentSummariesKey;
@@ -669,7 +722,7 @@ const Dashboard = () => {
     ) {
       setLabDashEquipmentFilter(sums[0].equipment_id);
     }
-  }, [labEquipmentSummariesKey, labDashEquipmentFilter, labOperatorDash?.equipment_summaries]);
+  }, [labEquipmentSummariesKey, labDashEquipmentFilter, labEquipmentSummariesOrdered, labEquipmentPriorityLoaded]);
 
   useEffect(() => {
     if (!user?.id || postLoginBusy) return;
@@ -4713,30 +4766,58 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                  {labOperatorDash && (labOperatorDash.equipment_summaries ?? []).length > 1 && (
-                    <div className="w-full sm:w-auto sm:min-w-[15rem]">
-                      <Label htmlFor="lab-dash-equipment-scope" className="sr-only">
-                        Instrument
-                      </Label>
-                      <Select
-                        value={labDashEquipmentFilter === "all" ? "all" : String(labDashEquipmentFilter)}
-                        onValueChange={(v) => {
-                          if (v === "all") setLabDashEquipmentFilter("all");
-                          else setLabDashEquipmentFilter(Number(v));
-                        }}
-                      >
-                        <SelectTrigger id="lab-dash-equipment-scope" className="h-9 w-full bg-background/80">
-                          <SelectValue placeholder="Scope" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All assigned instruments</SelectItem>
-                          {(labOperatorDash.equipment_summaries ?? []).map((eq) => (
-                            <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
-                              {eq.equipment_name || eq.equipment_code}
+                  {labOperatorDash && labEquipmentSummariesOrdered.length > 1 && (
+                    <div className="flex w-full items-center gap-1.5 sm:w-auto">
+                      <div className="min-w-0 flex-1 sm:min-w-[15rem]">
+                        <Label htmlFor="lab-dash-equipment-scope" className="sr-only">
+                          Instrument
+                        </Label>
+                        <Select
+                          value={labDashEquipmentFilter === "all" ? "all" : String(labDashEquipmentFilter)}
+                          onValueChange={(v) => {
+                            if (v === LAB_EQUIPMENT_SET_ORDER_VALUE) setLabEquipmentOrderOpen(true);
+                            else if (v === "all") setLabDashEquipmentFilter("all");
+                            else setLabDashEquipmentFilter(Number(v));
+                          }}
+                        >
+                          <SelectTrigger id="lab-dash-equipment-scope" className="h-9 w-full bg-background/80">
+                            <SelectValue placeholder="Scope" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All assigned instruments</SelectItem>
+                            {labEquipmentSummariesOrdered.map((eq) => (
+                              <SelectItem key={eq.equipment_id} value={String(eq.equipment_id)}>
+                                {eq.equipment_name || eq.equipment_code}
+                              </SelectItem>
+                            ))}
+                            <SelectSeparator />
+                            <SelectItem value={LAB_EQUIPMENT_SET_ORDER_VALUE} className="text-primary">
+                              <span className="inline-flex items-center gap-1.5">
+                                <ArrowUpDown className="h-3.5 w-3.5" aria-hidden />
+                                Set order…
+                              </span>
                             </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 bg-background/80"
+                        aria-label="Set equipment order"
+                        title="Set equipment order (the top one opens by default)"
+                        onClick={() => setLabEquipmentOrderOpen(true)}
+                      >
+                        <ArrowUpDown className="h-4 w-4" aria-hidden />
+                      </Button>
+                      <EquipmentOrderDialog
+                        open={labEquipmentOrderOpen}
+                        onOpenChange={setLabEquipmentOrderOpen}
+                        items={labEquipmentOrderItems}
+                        defaultItems={labEquipmentDefaultOrderItems}
+                        onSave={saveLabEquipmentOrder}
+                      />
                     </div>
                   )}
                   <Button
