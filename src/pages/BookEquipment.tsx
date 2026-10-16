@@ -11031,7 +11031,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                         />
                       </div>
                       {(() => {
-                        const guidance = isRegularBookingFlow
+                        const nothingToPick = selectedSlots.length === 0 && !isSlotsWeekViewLoading && !hasBookableSlotInSelectedWeek;
+                        const guidance = isRegularBookingFlow && !nothingToPick
                           ? slotStepGuidance({
                               slotCount: slotsRequiredForMinutes(calculatedCharge?.total_time_minutes, equipmentDetail),
                               requiredMinutes: calculatedCharge?.total_time_minutes,

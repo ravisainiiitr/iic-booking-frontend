@@ -39,7 +39,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Select slots",
-        body: "Under Choose slots, pick I'll pick to tap consecutive free slots on the weekly calendar yourself, or Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. Tap a greyed-out slot to see why it cannot be booked; hover a slot marked Under Maintenance, Operator Absent, Scheduled Maintenance or Other Reasons for the reason and the expected recovery. When the equipment itself is not operational, its card and page show the expected recovery, for example Expected back: Mon 13 Oct, 10:00. Saturday/Sunday and Holiday labels mark closed days, and a free slot whose time has passed shows No booking.",
+        body: "The line under Step 3 says how many slots you need, for example You need 3 slots (1 h 30 min). Under Choose slots, pick I'll pick and click one green Available slot: the portal selects all the back-to-back slots you need from there. Or pick Auto-select to have them chosen (My preferred slot appears when your template has one). It works on phones too. The key above the calendar explains the colours: Available, Selected, Booked / not available, Past (the time has gone) and Closed (weekend or holiday). Tap a slot you cannot select to see why; hover a slot marked Under Maintenance, Operator Absent, Scheduled Maintenance or Other Reasons for the reason and the expected recovery. When the equipment itself is not operational, its card and page show the expected recovery, for example Expected back: Mon 13 Oct, 10:00. The bar at the bottom shows what you selected, for example 3 slots selected · Thu 22 Oct, 10:00–11:30 · Total ₹900.",
         screenshotCaption: "Weekly booking calendar",
         screenshotSrc: "/guides/booking-weekly-calendar.png",
       },
@@ -48,8 +48,8 @@ export function bookSection(g: Gate): GuideSection {
         body: "With I'll pick, Best times for you lists up to five free runs of the slots you need in the next two weeks: the earliest one and ones that match the times you usually book. Click one to select it on the calendar. When nothing is free soon, it also suggests similar instruments with an earlier free time.",
       },
       g.when(!g.is("startup", "external"), {
-        title: "If your slots are taken",
-        body: "Choose one answer: Let me choose again (nothing is booked), Any free slots this week (other free slots, possibly not back-to-back), or Any free slots, or just one (books one slot with fewer samples if that is all that is free). The i buttons explain each choice.",
+        title: "If someone books your slots first",
+        body: "After you select slots, the page asks: If someone books your selected slots before you confirm, what should we do? This matters mostly right after next week's slots open. Let me choose again (the default): nothing is booked or charged, the taken slots are marked Just taken and you pick others. Book other free slots this week: the earliest free slots in the week shown are booked instead, possibly on different days or with gaps; if not enough time is free, nothing is booked. Other free slots, or one slot with fewer samples: the same, but if not enough time is free, one slot is booked and your samples are reduced to 1 (charged for one slot). Each answer shows an example.",
       }),
       g.only(WALLET_MEMBERS, {
         title: "Confirm",
@@ -70,6 +70,7 @@ export function bookSection(g: Gate): GuideSection {
     ]),
     rules: compact([
       "Next week's slots normally open every Wednesday at 9:00 PM; a countdown on the booking page shows the time left. The page also shows the window for your account, for example Current week only — new slots open ….",
+      "The calendar opens on the first week that still has a slot you can book. When nothing is left this week and next week is open, it shows next week with the note Showing next week (Back to this week returns). Before next week opens, it says No slots left this week and when next week's slots open, with the waitlist and similar instruments where offered.",
       g.when(g.is("student", "project_staff", "faculty"), "During the weekly slot opening, clicking an equipment card opens its booking page directly."),
       "An instrument marked Mode not active is running in another of its modes; its card and page show which mode and the next active days. Book the running mode instead, or come back when this mode is active.",
       g.when(g.flags.externalBooking, "External bookings follow the external booking window and any slots the lab reserves for external users."),
@@ -160,7 +161,7 @@ export function templatesSection(): GuideSection {
       },
       {
         title: "Choose what happens if they are taken",
-        body: "Under If your slots are taken, pick one: Let me choose again, Any free slots this week or Any free slots, or just one. With a preferred slot you can also pick Next free time, same day or Next free time, any day and tick the consent. Join the waitlist if nothing is booked is a separate tick box.",
+        body: "Under If someone books your selected slots before you confirm, what should we do?, pick one: Let me choose again, Book other free slots this week or Other free slots, or one slot with fewer samples. With a preferred slot you can also pick Next free time, same day or Next free time, any day and tick the consent. Join the waitlist, under If nothing can be booked, is a separate tick box.",
       },
       {
         title: "Book with it",
