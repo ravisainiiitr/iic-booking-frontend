@@ -17,7 +17,6 @@ import {
 import { Command as CommandPrimitive } from "cmdk";
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
   CommandList,
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAutomationFeatures } from "@/components/automation/useAutomationFeatures";
 import { useUserCard } from "@/components/users/UserIdCardLink";
 import { apiClient, type GlobalSearchResult } from "@/lib/api";
 import type { ModeInactive } from "@/lib/modeAvailability";
@@ -98,6 +98,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const { user, isAuthenticated } = useAuth();
   const { openUserCard } = useUserCard();
   const gatedIds = useGatedEquipmentIds(isAuthenticated && open);
+  const finderOn = Boolean(useAutomationFeatures(isAuthenticated && open)?.instrument_finder);
   const [query, setQuery] = useState(initialQuery);
   const [result, setResult] = useState<GlobalSearchResult>(EMPTY);
   const [loading, setLoading] = useState(false);
@@ -242,6 +243,13 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                       {p.title}
                     </CommandItem>
                   ))}
+                  {finderOn ? (
+                    <CommandItem value="page-instrument-finder" onSelect={() => go("/find-instrument")}>
+                      <Sparkles className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
+                      Instrument finder
+                      <span className="ml-2 truncate text-xs text-muted-foreground">describe your sample and goal</span>
+                    </CommandItem>
+                  ) : null}
                 </CommandGroup>
                 <p className="px-4 pb-4 pt-1 text-xs text-muted-foreground">
                   {!isAuthenticated
@@ -254,7 +262,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
             ) : null}
 
             {searching && !loading && !hasHits ? (
-              <CommandEmpty className="px-6 py-10 text-center text-sm text-muted-foreground">
+              <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                 {failed ? (
                   "Search is unavailable right now. Please try again in a moment."
                 ) : (
@@ -264,7 +272,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                     Try another word for the technique, or search by booking ID or equipment code.
                   </>
                 )}
-              </CommandEmpty>
+              </div>
             ) : null}
 
             {searching && pageHits.length > 0 ? (
@@ -374,6 +382,21 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                   <FileSearch className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
                   Search the equipment catalogue
                   <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
+
+            {finderOn && searching && !loading && trimmed.length >= 3 ? (
+              <CommandGroup heading="Not sure which instrument?">
+                <CommandItem
+                  value="instrument-finder"
+                  onSelect={() => go(`/find-instrument?q=${encodeURIComponent(trimmed)}`)}
+                >
+                  <Sparkles className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
+                  <span className="truncate">
+                    Ask the Instrument finder about <span className="font-medium">“{trimmed}”</span>
+                  </span>
+                  <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </CommandItem>
               </CommandGroup>
             ) : null}

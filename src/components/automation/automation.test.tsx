@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter } from "react-router-dom";
 
 import BestSlotsPanel from "./BestSlotsPanel";
 import TicketTriageCard from "./TicketTriageCard";
@@ -173,6 +173,21 @@ describe("InstrumentFinder page", () => {
     wrap(<InstrumentFinder />, "/find-instrument?q=band%20gap");
     expect(await screen.findByText(/instrument finder is switched off/i)).toBeTruthy();
     expect(api.instrumentFinder).toHaveBeenCalledWith("band gap");
+  });
+
+  it("runs a new query that arrives while the page is open", async () => {
+    api.instrumentFinder.mockResolvedValue({ data: { enabled: false, techniques: [], results: [] } });
+    render(
+      <MemoryRouter initialEntries={["/find-instrument?q=band%20gap"]}>
+        <Link to="/find-instrument?q=surface%20area">new query</Link>
+        <InstrumentFinder />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(api.instrumentFinder).toHaveBeenCalledWith("band gap"));
+    fireEvent.click(screen.getByText("new query"));
+    await waitFor(() => expect(api.instrumentFinder).toHaveBeenLastCalledWith("surface area"));
+    expect(api.instrumentFinder).toHaveBeenCalledTimes(2);
+    expect((screen.getByLabelText(/What do you want to learn/) as HTMLTextAreaElement).value).toBe("surface area");
   });
 });
 

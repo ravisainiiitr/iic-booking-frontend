@@ -21,7 +21,7 @@ export function bookSection(g: Gate): GuideSection {
       },
       {
         title: "Not sure which instrument?",
-        body: "Click Instrument finder on the Equipments page and describe your sample and what you want to learn, for example crystal structure of my thin film or band gap of nanoparticles. You get the techniques that fit, the instruments you can book ranked best first, and why each one fits; click Book or View details.",
+        body: "Click Instrument finder beside the search box on the Equipments page (it is also in the header search and next to the Booking Assistant's message box) and describe your sample and what you want to learn, for example crystal structure of my thin film or band gap of nanoparticles. You get the techniques that fit, the instruments you can book ranked best first, and why each one fits; click Book or View details.",
       },
       {
         title: "Check which mode runs when",

@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { prepareBookingAssistantHandoff } from "@/lib/bookingAssistantPrefill";
+import { useAutomationFeatures } from "@/components/automation/useAutomationFeatures";
 import { helpAction, helpUtterance, type AssistantHelpDetail } from "@/lib/assistantHelp";
 import { ASSISTANT_CARD_TYPES, AssistantCard, type AssistantActionHandler } from "./AssistantCards";
 import { AssistantFeedback } from "./AssistantFeedback";
@@ -749,6 +750,7 @@ export default function ResearchCopilot({
   const isEmbed = new URLSearchParams(location.search).get("embed") === "1";
   const fab = useAssistantFabPosition();
   const [open, setOpen] = useState(initialOpen);
+  const finderOn = Boolean(useAutomationFeatures(isAuthenticated && open)?.instrument_finder);
   const [loading, setLoading] = useState(false);
   const [slowReply, setSlowReply] = useState(false);
   useEffect(() => {
@@ -1713,6 +1715,22 @@ export default function ResearchCopilot({
                     disabled={loading}
                     className="flex-1"
                   />
+                  {finderOn ? (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label="Instrument finder"
+                      title="Instrument finder: describe your sample and goal"
+                      onClick={() => {
+                        const q = input.trim();
+                        setOpen(false);
+                        navigate(q.length >= 3 ? `/find-instrument?q=${encodeURIComponent(q)}` : "/find-instrument");
+                      }}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                    </Button>
+                  ) : null}
                   <Button type="button" size="icon" onClick={() => void send()} disabled={loading || !input.trim()} aria-label="Send">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>

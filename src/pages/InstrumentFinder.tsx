@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, Info, Loader2, Search, Sparkles } from "lucide-react";
 import { apiClient } from "@/lib/api";
@@ -25,11 +25,13 @@ export default function InstrumentFinder() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<InstrumentFinderResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const lastQuery = useRef<string | null>(null);
 
   const search = useCallback(
     async (q: string) => {
       const query = q.trim();
       if (query.length < 3) return;
+      lastQuery.current = query;
       setLoading(true);
       setError(null);
       const res = await apiClient.instrumentFinder(query);
@@ -44,12 +46,14 @@ export default function InstrumentFinder() {
     [setParams],
   );
 
+  // A shared link, or a new ?q= from the header search or Booking Assistant while this page is open.
+  const qParam = (params.get("q") ?? "").trim();
   useEffect(() => {
-    const q = params.get("q");
-    if (q && !data) void search(q);
-    // run once for a shared link
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (qParam && qParam !== lastQuery.current) {
+      setText(qParam);
+      void search(qParam);
+    }
+  }, [qParam, search]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 const api = vi.hoisted(() => ({
   researchCopilotBootstrap: vi.fn(),
@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   researchCopilotSendMessage: vi.fn(),
   researchCopilotFeedback: vi.fn(),
   researchCopilotEscalate: vi.fn(),
+  automationFeatures: vi.fn(),
 }));
 
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -25,6 +26,12 @@ vi.mock("@/contexts/AuthContext", () => ({
 import ResearchCopilot from "./index";
 import ResearchCopilotLauncher from "./ResearchCopilotLauncher";
 import { offerAssistantHelp } from "@/lib/assistantHelp";
+import { resetAutomationFeaturesCache } from "@/components/automation/useAutomationFeatures";
+
+function Where() {
+  const loc = useLocation();
+  return <output data-testid="where">{`${loc.pathname}${loc.search}`}</output>;
+}
 
 const CONV = "11111111-1111-4111-8111-111111111111";
 const REPLY_ID = "22222222-2222-4222-8222-222222222222";
@@ -77,6 +84,8 @@ beforeEach(() => {
     },
   });
   api.researchCopilotFeedback.mockResolvedValue({ data: { id: FEEDBACK_ID, rating: "down" } });
+  api.automationFeatures.mockResolvedValue({ data: { instrument_finder: false, smart_slots: false } });
+  resetAutomationFeaturesCache();
 });
 
 afterEach(cleanup);
@@ -122,6 +131,38 @@ describe("welcome starter chips", () => {
       comment: "My XRD booking on Friday",
       feedback_id: FEEDBACK_ID,
     });
+  });
+});
+
+describe("Instrument finder beside the message box", () => {
+  it("stays available after the conversation starts and carries the typed text", async () => {
+    api.automationFeatures.mockResolvedValue({ data: { instrument_finder: true, smart_slots: false } });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ResearchCopilot initialOpen initialBackendEnabled />
+        <Where />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "My upcoming bookings" }));
+    expect(await screen.findByRole("button", { name: "Join the waitlist" })).toBeTruthy();
+
+    await user.type(screen.getByLabelText("Message Booking Assistant"), "band gap of my powder");
+    await user.click(screen.getByRole("button", { name: "Instrument finder" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("where").textContent).toBe("/find-instrument?q=band%20gap%20of%20my%20powder"),
+    );
+  });
+
+  it("is not shown when the finder is switched off", async () => {
+    render(
+      <MemoryRouter>
+        <ResearchCopilot initialOpen initialBackendEnabled />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("button", { name: "My upcoming bookings" });
+    await waitFor(() => expect(api.automationFeatures).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Instrument finder" })).toBeNull();
   });
 });
 

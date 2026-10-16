@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
+import { resetAutomationFeaturesCache } from "@/components/automation/useAutomationFeatures";
 import { GlobalSearchHost, openGlobalSearch } from "./GlobalSearch";
 import { bookingHref, editDistance, matchPages, pagesFor, rememberSearch, loadRecentSearches } from "./searchCatalog";
 
@@ -12,7 +13,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
 const openUserCard = vi.hoisted(() => vi.fn());
 vi.mock("@/components/users/UserIdCardLink", () => ({ useUserCard: () => ({ openUserCard, drawer: null }) }));
 
-const api = vi.hoisted(() => ({ globalSearch: vi.fn() }));
+const api = vi.hoisted(() => ({ globalSearch: vi.fn(), automationFeatures: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiClient: api }));
 
 globalThis.ResizeObserver ??= class {
@@ -44,6 +45,9 @@ beforeAll(async () => {
 beforeEach(() => {
   localStorage.clear();
   api.globalSearch.mockReset();
+  api.automationFeatures.mockReset();
+  api.automationFeatures.mockResolvedValue({ data: { instrument_finder: false, smart_slots: false } });
+  resetAutomationFeaturesCache();
 });
 
 afterEach(() => cleanup());
@@ -224,5 +228,44 @@ describe("GlobalSearchHost", () => {
     renderHost();
     act(() => openGlobalSearch("zzz"));
     expect(await screen.findByText(/No matches for/)).toBeTruthy();
+  });
+
+  it("offers the Instrument finder every time it opens, and passes the query on", async () => {
+    auth.value = { user: { id: 1, user_type: "student" }, isAuthenticated: true };
+    api.automationFeatures.mockResolvedValue({ data: { instrument_finder: true, smart_slots: false } });
+    api.globalSearch.mockResolvedValue({
+      data: { query: "band gap", equipment: [], bookings: [], people: [], people_enabled: false },
+    });
+    renderHost();
+
+    for (let i = 0; i < 2; i += 1) {
+      act(() => openGlobalSearch(""));
+      fireEvent.click(await screen.findByText("Instrument finder"));
+      await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/find-instrument"));
+    }
+
+    act(() => openGlobalSearch("band gap"));
+    expect(await screen.findByText(/No matches for/)).toBeTruthy();
+    fireEvent.click(await screen.findByText(/Ask the Instrument finder about/));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/find-instrument?q=band%20gap"));
+  });
+
+  it("leaves the Instrument finder out when it is switched off or signed out", async () => {
+    auth.value = { user: { id: 1, user_type: "student" }, isAuthenticated: true };
+    renderHost();
+    act(() => openGlobalSearch(""));
+    await screen.findByText("Go to");
+    await waitFor(() => expect(api.automationFeatures).toHaveBeenCalled());
+    expect(screen.queryByText("Instrument finder")).toBeNull();
+    cleanup();
+
+    resetAutomationFeaturesCache();
+    api.automationFeatures.mockClear();
+    auth.value = { user: null, isAuthenticated: false };
+    renderHost();
+    act(() => openGlobalSearch(""));
+    await screen.findByText("Go to");
+    expect(screen.queryByText("Instrument finder")).toBeNull();
+    expect(api.automationFeatures).not.toHaveBeenCalled();
   });
 });

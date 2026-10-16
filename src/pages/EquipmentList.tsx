@@ -123,9 +123,9 @@ const cachedDefaultDepartment = (): DepartmentFilterValue | null => {
 
 const EquipmentList = () => {
   const navigate = useNavigate();
-  const automationFeatures = useAutomationFeatures();
   const embedded = useEmbeddedMode();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const automationFeatures = useAutomationFeatures(isAuthenticated);
   // The open family and department live in the URL so Back from an equipment page returns to them.
   const [searchParams, setSearchParams] = useSearchParams();
   const familyParam = Number(searchParams.get("family"));
@@ -482,19 +482,6 @@ const EquipmentList = () => {
                 <h1 className="text-2xl font-bold">Browse and Book Equipment</h1>
                 <p className="text-white/90 text-sm">Explore and book laboratory equipment</p>
               </div>
-              {automationFeatures?.instrument_finder ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="ml-auto"
-                  onClick={() => navigate("/find-instrument")}
-                  title="Describe your sample and goal to get suggested instruments"
-                >
-                  <Sparkles className="mr-1.5 h-4 w-4" />
-                  Instrument finder
-                </Button>
-              ) : null}
             </div>
           </div>
         )}
@@ -584,6 +571,18 @@ const EquipmentList = () => {
               <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
             )}
           </div>
+          {automationFeatures?.instrument_finder ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl shadow-sm md:w-auto md:shrink-0"
+              onClick={() => navigate("/find-instrument")}
+              title="Describe your sample and goal to get suggested instruments"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              Instrument finder
+            </Button>
+          ) : null}
         </div>
 
         {showCatalogLoading ? (

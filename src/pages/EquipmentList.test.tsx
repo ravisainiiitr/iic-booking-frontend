@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { resetAutomationFeaturesCache } from "@/components/automation/useAutomationFeatures";
 import EquipmentList from "./EquipmentList";
 
 const row = (id: number, name: string, category: string, from_price: string | null, unit: string | null) => ({
@@ -30,15 +31,18 @@ const CATALOG = [
 
 const mocks = vi.hoisted(() => ({
   getEquipments: vi.fn(),
+  automationFeatures: vi.fn(),
+  embedded: false,
+  auth: { user: { id: 1, user_type: "student" } as unknown, isAuthenticated: true },
 }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({ user: { id: 1, user_type: "student" }, isAuthenticated: true }),
+  useAuth: () => mocks.auth,
 }));
 vi.mock("@/hooks/use-peak-window", () => ({
   usePeakWindow: () => ({ loaded: true, active: false, externalPaused: false, externalNotice: false, window: null, message: "" }),
 }));
-vi.mock("@/contexts/EmbeddedModeContext", () => ({ useEmbeddedMode: () => false }));
+vi.mock("@/contexts/EmbeddedModeContext", () => ({ useEmbeddedMode: () => mocks.embedded }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/DepartmentFilter", () => ({ default: () => null }));
 vi.mock("@/components/NoticeExpiryDialog", () => ({ NoticeExpiryDialog: () => null }));
@@ -57,6 +61,7 @@ vi.mock("@/lib/api", () => ({
     getToken: () => "tok",
     getCurrentUser: vi.fn(async () => ({ data: { id: 1 } })),
     getEquipments: mocks.getEquipments,
+    automationFeatures: mocks.automationFeatures,
     getEquipmentImageProxyPath: (id: number) => `/img/${id}`,
   },
 }));
@@ -68,6 +73,14 @@ beforeAll(() => {
   mocks.getEquipments.mockImplementation(async (search?: string) => ({
     data: { equipments: CATALOG.filter((r) => !search || r.name.toLowerCase().includes(search.toLowerCase())) },
   }));
+});
+
+beforeEach(() => {
+  resetAutomationFeaturesCache();
+  mocks.embedded = false;
+  mocks.auth = { user: { id: 1, user_type: "student" }, isAuthenticated: true };
+  mocks.automationFeatures.mockReset();
+  mocks.automationFeatures.mockResolvedValue({ data: { instrument_finder: false, smart_slots: false } });
 });
 
 afterEach(() => cleanup());
@@ -150,5 +163,44 @@ describe("Equipment catalog page", () => {
     const search = (await screen.findByPlaceholderText("Search by name or code...")) as HTMLInputElement;
     expect(search.value).toBe("xps");
     expect(screen.getByTestId("where").textContent).toContain("q=xps");
+  });
+});
+
+describe("Instrument finder entry on the catalog", () => {
+  const finderButtons = () => screen.queryAllByRole("button", { name: /Instrument finder/ });
+
+  it("shows exactly one button on the full page and keeps it after Back from an equipment page", async () => {
+    mocks.automationFeatures.mockResolvedValue({ data: { instrument_finder: true, smart_slots: false } });
+    renderList("/equipment?dept=all");
+    await waitFor(() => expect(finderButtons()).toHaveLength(1));
+
+    fireEvent.click(await screen.findByText("XPS"));
+    fireEvent.click(await screen.findByRole("button", { name: "Go back" }));
+    await screen.findByText("XPS");
+    expect(finderButtons()).toHaveLength(1);
+  });
+
+  it("shows the button when the catalog is opened in the dashboard panel", async () => {
+    mocks.embedded = true;
+    mocks.automationFeatures.mockResolvedValue({ data: { instrument_finder: true, smart_slots: false } });
+    renderList("/equipment?dept=all");
+    await waitFor(() => expect(finderButtons()).toHaveLength(1));
+    expect(screen.queryByText("Browse and Book Equipment")).toBeNull();
+  });
+
+  it("hides the button when the finder is off or the visitor is signed out", async () => {
+    renderList("/equipment?dept=all");
+    await screen.findByText("XPS");
+    expect(finderButtons()).toHaveLength(0);
+    cleanup();
+
+    resetAutomationFeaturesCache();
+    mocks.automationFeatures.mockClear();
+    mocks.auth = { user: null, isAuthenticated: false };
+    mocks.automationFeatures.mockResolvedValue({ data: { instrument_finder: true, smart_slots: false } });
+    renderList("/equipment?dept=all");
+    await screen.findByText("XPS");
+    expect(finderButtons()).toHaveLength(0);
+    expect(mocks.automationFeatures).not.toHaveBeenCalled();
   });
 });

@@ -24,10 +24,14 @@ function load(): Promise<AutomationFeatures | null> {
   return pending;
 }
 
-/** Read-only AI features the admin has switched on (null while loading or when the server is older). */
-export function useAutomationFeatures(): AutomationFeatures | null {
+/**
+ * Read-only AI features the admin has switched on (null while loading, when signed out — the endpoint needs a
+ * session — or when the server is older).
+ */
+export function useAutomationFeatures(enabled = true): AutomationFeatures | null {
   const [features, setFeatures] = useState<AutomationFeatures | null>(cached);
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     void load().then((f) => {
       if (alive) setFeatures(f);
@@ -35,8 +39,8 @@ export function useAutomationFeatures(): AutomationFeatures | null {
     return () => {
       alive = false;
     };
-  }, []);
-  return features;
+  }, [enabled]);
+  return enabled ? features : null;
 }
 
 export function resetAutomationFeaturesCache() {
