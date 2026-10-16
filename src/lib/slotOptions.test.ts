@@ -71,7 +71,7 @@ describe("slotOptions", () => {
         if_slot_taken_consented_at: "2026-10-01T10:00:00+05:30",
       }),
     ).toMatchObject({ choice: null, fallback: "same_day", autoBooks: true });
-    expect(slotFallbackSummary("any_slots")).toBe("If taken: any free slots this week");
+    expect(slotFallbackSummary("any_slots")).toBe("If taken: book other free slots this week");
     expect(slotFallbackSummary("none")).toBe("If taken: you choose again");
   });
 });

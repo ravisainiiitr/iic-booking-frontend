@@ -3,7 +3,14 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ALTERNATE_ASK_HELP, ALTERNATE_AUTO_HELP, BookingFallbackOptions } from "./BookingFallbackOptions";
-import { SLOT_FALLBACK_LABELS, flagsForFallback, slotFallbackFrom, type SlotFallback } from "@/lib/slotOptions";
+import {
+  SLOT_FALLBACK_LABELS,
+  SLOT_FALLBACK_QUESTION,
+  SLOT_FALLBACK_QUESTION_HELP,
+  flagsForFallback,
+  slotFallbackFrom,
+  type SlotFallback,
+} from "@/lib/slotOptions";
 
 afterEach(cleanup);
 
@@ -61,15 +68,18 @@ describe("BookingFallbackOptions", () => {
   it("asks one question with mutually exclusive choices, defaulting to 'Let me choose again'", () => {
     const onSubmit = vi.fn();
     render(<Harness onSubmit={onSubmit} />);
-    const group = screen.getByRole("radiogroup", { name: "If your slots are taken:" });
+    const group = screen.getByRole("radiogroup", { name: SLOT_FALLBACK_QUESTION });
     expect(group).toBeTruthy();
     expect(screen.getAllByRole("radio")).toHaveLength(3);
     expect(radio("Let me choose again").getAttribute("aria-checked")).toBe("true");
-    expect(radio("Any free slots this week").id).toBe("slot-fallback-any_slots");
-    // The old overlapping labels are gone, and explanations sit behind the info buttons.
+    expect(radio("Book other free slots this week").id).toBe("slot-fallback-any_slots");
+    expect(screen.getAllByText("Default")).toHaveLength(1);
+    // The old overlapping labels are gone; each answer explains itself with an example.
     expect(screen.queryByText("Pick any free slots in this window")).toBeNull();
     expect(screen.queryByText("Accept a single slot")).toBeNull();
-    expect(screen.queryByText(SLOT_FALLBACK_LABELS.any_slots.help)).toBeNull();
+    expect(radio("Book other free slots this week").getAttribute("aria-describedby")).toBe("slot-fallback-any_slots-desc");
+    expect(screen.getByText(SLOT_FALLBACK_LABELS.any_slots.help)).toBeTruthy();
+    expect(screen.getByText(`Example: ${SLOT_FALLBACK_LABELS.any_slots_or_one.example}`)).toBeTruthy();
     expect(screen.queryByText(ALTERNATE_ASK_HELP)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmit).toHaveBeenLastCalledWith({
@@ -85,15 +95,15 @@ describe("BookingFallbackOptions", () => {
     render(<Harness onSubmit={onSubmit} />);
     const confirm = () => fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
-    fireEvent.click(radio("Any free slots, or just one"));
-    expect(radio("Any free slots, or just one").getAttribute("aria-checked")).toBe("true");
-    expect(radio("Any free slots this week").getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(radio("Other free slots, or one slot with fewer samples"));
+    expect(radio("Other free slots, or one slot with fewer samples").getAttribute("aria-checked")).toBe("true");
+    expect(radio("Book other free slots this week").getAttribute("aria-checked")).toBe("false");
     confirm();
     expect(onSubmit).toHaveBeenLastCalledWith(
       expect.objectContaining({ book_any_available_slots: true, book_even_if_single_slot_available: true }),
     );
 
-    fireEvent.click(radio("Any free slots this week"));
+    fireEvent.click(radio("Book other free slots this week"));
     confirm();
     expect(onSubmit).toHaveBeenLastCalledWith(
       expect.objectContaining({ book_any_available_slots: true, book_even_if_single_slot_available: false }),
@@ -110,7 +120,7 @@ describe("BookingFallbackOptions", () => {
     const onSubmit = vi.fn();
     render(<Harness onSubmit={onSubmit} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Try alternate equipment" }));
-    fireEvent.click(radio("Any free slots this week"));
+    fireEvent.click(radio("Book other free slots this week"));
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(onSubmit).toHaveBeenLastCalledWith({
       auto_allocate_alternative: true,
@@ -135,7 +145,23 @@ describe("BookingFallbackOptions", () => {
     render(<Harness choices={["none", "same_day", "any_slots"]} onSubmit={vi.fn()} />);
     expect(radio("Next free time, same day")).toBeTruthy();
     expect(screen.queryByRole("radio", { name: "Next free time, any day" })).toBeNull();
-    expect(screen.queryByRole("radio", { name: "Any free slots, or just one" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Other free slots, or one slot with fewer samples" })).toBeNull();
+  });
+
+  it("selects an answer when its card is clicked, and explains the question behind the info button", () => {
+    const onSubmit = vi.fn();
+    render(<Harness onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByText(SLOT_FALLBACK_LABELS.any_slots_or_one.help));
+    expect(radio("Other free slots, or one slot with fewer samples").getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "About this question" }));
+    expect(screen.getByText(SLOT_FALLBACK_QUESTION_HELP)).toBeTruthy();
+  });
+
+  it("labels the extras as what happens when nothing can be booked", () => {
+    render(<Harness waitlist onSubmit={vi.fn()} />);
+    const extras = screen.getByRole("group", { name: "If nothing can be booked:" });
+    expect(extras.textContent).toContain("Try alternate equipment");
+    expect(extras.textContent).toContain("Join the waitlist");
   });
 
   it("opens the explanation from the info button, matching the alternate-equipment setting", () => {

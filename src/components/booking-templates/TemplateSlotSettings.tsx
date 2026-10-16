@@ -85,7 +85,7 @@ export function TemplateSlotSettings({
         value={fallback}
         onChange={changeFallback}
         alternate={alternate}
-        waitlist={{ ...waitlist, label: "Join the waitlist if nothing is booked" }}
+        waitlist={waitlist}
         footer={
           isTemplateFallback(fallback) ? (
             <label

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { TemplateSlotSettings } from "./TemplateSlotSettings";
+import { SLOT_FALLBACK_QUESTION } from "@/lib/slotOptions";
 import { draftToBody, emptyPreferredSlotDraft, type PreferredSlotDraft } from "@/lib/templatePreferredSlot";
 
 afterEach(cleanup);
@@ -72,12 +73,12 @@ describe("TemplateSlotSettings", () => {
   it("shows each question once: how slots are chosen, and what happens if they are taken", () => {
     render(<Harness onSave={vi.fn()} />);
     expect(screen.getByRole("radiogroup", { name: "Choose slots:" })).toBeTruthy();
-    expect(screen.getByRole("radiogroup", { name: "If your slots are taken:" })).toBeTruthy();
-    expect(screen.getAllByText("If your slots are taken:")).toHaveLength(1);
+    expect(screen.getByRole("radiogroup", { name: SLOT_FALLBACK_QUESTION })).toBeTruthy();
+    expect(screen.getAllByText(SLOT_FALLBACK_QUESTION)).toHaveLength(1);
     expect(screen.queryByText("If this slot is already taken when I click Book")).toBeNull();
     expect(screen.queryByText("Auto-select all required slots")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
-    expect(screen.getByRole("checkbox", { name: "Join the waitlist if nothing is booked" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Join the waitlist" })).toBeTruthy();
   });
 
   it("makes auto-select and the preferred slot mutually exclusive", () => {
@@ -118,7 +119,7 @@ describe("TemplateSlotSettings", () => {
     );
 
     // Switching to "any free slots" replaces the preferred-slot fallback (never both).
-    fireEvent.click(radio("Any free slots this week"));
+    fireEvent.click(radio("Book other free slots this week"));
     expect(checked("Next free time, same day")).toBe(false);
     expect(screen.queryByRole("checkbox", { name: /I agree/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -135,9 +136,9 @@ describe("TemplateSlotSettings", () => {
 
   it("hides 'any free slots' where it does not apply (external users)", () => {
     render(<Harness allowAnySlots={false} onSave={vi.fn()} />);
-    expect(screen.queryByRole("radiogroup", { name: "If your slots are taken:" })).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: SLOT_FALLBACK_QUESTION })).toBeNull();
     fireEvent.click(radio("My preferred slot"));
     expect(screen.getAllByRole("radio", { name: /Next free time|Let me choose again/ })).toHaveLength(3);
-    expect(screen.queryByRole("radio", { name: /Any free slots/ })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /other free slots/i })).toBeNull();
   });
 });

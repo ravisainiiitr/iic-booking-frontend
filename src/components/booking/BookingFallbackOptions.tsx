@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { SLOT_FALLBACK_LABELS, type SlotFallback } from "@/lib/slotOptions";
+import {
+  DEFAULT_SLOT_FALLBACK,
+  SLOT_FALLBACK_LABELS,
+  SLOT_FALLBACK_QUESTION,
+  SLOT_FALLBACK_QUESTION_HELP,
+  type SlotFallback,
+} from "@/lib/slotOptions";
 import { cn } from "@/lib/utils";
 import { InfoTip } from "./InfoTip";
 
@@ -93,6 +99,51 @@ type Props = {
   className?: string;
 };
 
+/** One answer as a card: the label, what happens in plain words, and an example. */
+function FallbackCard({
+  id,
+  value,
+  checked,
+  isDefault,
+  onSelect,
+}: {
+  id: string;
+  value: SlotFallback;
+  checked: boolean;
+  isDefault: boolean;
+  onSelect: (value: SlotFallback) => void;
+}) {
+  const { label, help, example } = SLOT_FALLBACK_LABELS[value];
+  const descId = `${id}-desc`;
+  return (
+    <div
+      onClick={() => onSelect(value)}
+      className={cn(
+        "flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm transition-colors",
+        checked
+          ? "border-primary/70 bg-primary/10 ring-1 ring-primary/40"
+          : "border-border bg-background hover:border-primary/40",
+      )}
+    >
+      <RadioGroupItem id={id} value={value} aria-describedby={descId} className="mt-0.5 h-4 w-4 shrink-0" />
+      <div className="min-w-0 space-y-0.5">
+        <div className="flex flex-wrap items-center gap-x-1.5">
+          <label htmlFor={id} className="cursor-pointer font-medium leading-snug text-foreground">
+            {label}
+          </label>
+          {isDefault ? (
+            <span className="rounded bg-muted px-1.5 py-px text-[11px] font-medium text-muted-foreground">Default</span>
+          ) : null}
+        </div>
+        <p id={descId} className="text-xs leading-snug text-muted-foreground">
+          {help}
+        </p>
+        <p className="text-xs italic leading-snug text-muted-foreground/90">Example: {example}</p>
+      </div>
+    </div>
+  );
+}
+
 /** "If your slots are taken" as one choice, plus the independent alternate-equipment and waitlist extras. */
 export function BookingFallbackOptions({
   idPrefix = "",
@@ -108,43 +159,51 @@ export function BookingFallbackOptions({
   const showChoice = choices.length > 1;
   if (!showChoice && !alternate.show && !waitlist.show) return null;
   const headingId = `${idPrefix}booking-fallback-heading`;
-  const current = choices.includes(value) ? value : "none";
+  const current = choices.includes(value) ? value : DEFAULT_SLOT_FALLBACK;
   return (
     <div
       data-testid="booking-fallback-options"
-      className={cn("rounded-lg border border-border/70 bg-muted/30 px-3 py-2 dark:bg-muted/20", className)}
+      className={cn("rounded-lg border border-border/70 bg-muted/30 px-3 py-2.5 dark:bg-muted/20", className)}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        {showChoice && (
-          <>
-            <span id={headingId} className="mr-1 text-sm font-medium text-muted-foreground">
-              If your slots are taken:
+      {showChoice && (
+        <div className="mb-2">
+          <div className="flex items-start gap-1">
+            <span id={headingId} className="pt-0.5 text-sm font-semibold text-foreground">
+              {SLOT_FALLBACK_QUESTION}
             </span>
-            <RadioGroup
-              aria-labelledby={headingId}
-              value={current}
-              onValueChange={(v) => onChange(v as SlotFallback)}
-              className="flex flex-wrap items-center gap-x-2 gap-y-1.5"
-            >
-              {choices.map((c) => (
-                <RadioPill
-                  key={c}
-                  id={`${idPrefix}slot-fallback-${c}`}
-                  value={c}
-                  label={SLOT_FALLBACK_LABELS[c].label}
-                  checked={current === c}
-                  help={SLOT_FALLBACK_LABELS[c].help}
-                />
-              ))}
-            </RadioGroup>
-          </>
-        )}
+            <InfoTip label="About this question">{SLOT_FALLBACK_QUESTION_HELP}</InfoTip>
+          </div>
+          <RadioGroup
+            aria-labelledby={headingId}
+            value={current}
+            onValueChange={(v) => onChange(v as SlotFallback)}
+            className={cn("mt-2 grid gap-2", choices.length > 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-3")}
+          >
+            {choices.map((c) => (
+              <FallbackCard
+                key={c}
+                id={`${idPrefix}slot-fallback-${c}`}
+                value={c}
+                checked={current === c}
+                isDefault={c === DEFAULT_SLOT_FALLBACK}
+                onSelect={(v) => {
+                  if (v !== current) onChange(v);
+                }}
+              />
+            ))}
+          </RadioGroup>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         {(alternate.show || waitlist.show) && (
           <div
             role="group"
-            aria-label={showChoice ? "Also" : "If nothing can be booked"}
-            className={cn("flex flex-wrap items-center gap-x-2 gap-y-1.5", showChoice && "sm:border-l sm:border-border/70 sm:pl-2")}
+            aria-labelledby={`${idPrefix}booking-fallback-extras`}
+            className="flex flex-wrap items-center gap-x-2 gap-y-1.5"
           >
+            <span id={`${idPrefix}booking-fallback-extras`} className="mr-1 text-sm font-medium text-muted-foreground">
+              If nothing can be booked:
+            </span>
             {alternate.show && (
               <CheckPill
                 id={`${idPrefix}auto-allocate-alternative`}

@@ -22,26 +22,40 @@ export const SLOT_CHOICE_LABELS: Record<SlotChoice, { label: string; help?: stri
   },
 };
 
-export const SLOT_FALLBACK_LABELS: Record<SlotFallback, { label: string; help: string }> = {
+/** The question these choices answer, on the booking page and in the template editor. */
+export const SLOT_FALLBACK_QUESTION = "If someone books your selected slots before you confirm, what should we do?";
+
+export const SLOT_FALLBACK_QUESTION_HELP =
+  "This only matters if another user books one of your slots between selecting it and Confirm — most often in the first minutes after next week's slots open (Wednesday 9:00 PM). The usual checks (wallet, quota) still apply, and no slot is ever booked twice.";
+
+/** The answer used when the user changes nothing. */
+export const DEFAULT_SLOT_FALLBACK: SlotFallback = "none";
+
+export const SLOT_FALLBACK_LABELS: Record<SlotFallback, { label: string; help: string; example: string }> = {
   none: {
     label: "Let me choose again",
-    help: "Nothing is booked. Your details stay filled in and you pick other slots; with a template, the nearest free slots of the same length are suggested.",
+    help: "Nothing is booked or charged. Your details stay filled in, the taken slots are marked “Just taken” and you pick other slots; with a template, the nearest free slots of the same length are suggested.",
+    example: "You picked Thu 10:00–11:30 and someone books 10:30 first: you choose another time.",
   },
   same_day: {
     label: "Next free time, same day",
     help: "Books the next free slots of the same length after your preferred time, on the same date, and charges your wallet.",
+    example: "Thu 10:00–11:00 is taken: Thu 14:00–15:00 is booked if it is free.",
   },
   any_day: {
     label: "Next free time, any day",
     help: "Books the next free slots of the same length after your preferred time, on any date you can currently book, and charges your wallet.",
+    example: "Thu 10:00–11:00 is taken and Thursday is full: Fri 09:30–10:30 is booked.",
   },
   any_slots: {
-    label: "Any free slots this week",
-    help: "Books other free slots in the week shown, in time order (they may not be back-to-back), until your required time is covered.",
+    label: "Book other free slots this week",
+    help: "Books the earliest free slots in the week shown until your time is covered; they may be on different days or have gaps between them. If not enough time is free that week, nothing is booked.",
+    example: "You need 1 hour and Thu 10:00–11:00 is taken: Thu 15:00–15:30 and Fri 09:30–10:00 are booked.",
   },
   any_slots_or_one: {
-    label: "Any free slots, or just one",
-    help: "Like “Any free slots this week”; if not enough are free, books one free slot and reduces your samples to fit (charged for one slot).",
+    label: "Other free slots, or one slot with fewer samples",
+    help: "Like “Book other free slots this week”; if not enough time is free, books the first free slot and reduces your samples to 1 so the job fits it (charged for one slot).",
+    example: "You need 3 slots for 6 samples but only one slot is free: that slot is booked for 1 sample.",
   },
 };
 
@@ -89,6 +103,6 @@ export function normaliseTemplateSlotOptions(t: {
   return { options, ifSlotTaken };
 }
 
-/** Short summary for template cards, e.g. "If taken: any free slots this week". */
+/** Short summary for template cards, e.g. "If taken: book other free slots this week". */
 export const slotFallbackSummary = (f: SlotFallback) =>
   f === "none" ? "If taken: you choose again" : `If taken: ${SLOT_FALLBACK_LABELS[f].label.toLowerCase()}`;
