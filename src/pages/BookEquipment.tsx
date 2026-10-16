@@ -268,6 +268,10 @@ import { BookingStepIndicator } from "@/components/booking/BookingStepIndicator"
 import { SimilarInstrumentsCard } from "@/components/booking/SimilarInstrumentsCard";
 import BestSlotsPanel from "@/components/automation/BestSlotsPanel";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
+import { AutoAdvancedWeekNote, NoSlotsLeftNotice } from "@/components/booking/WeekAvailabilityNotice";
+import { useServerClockOffset } from "@/lib/useServerClockOffset";
+import { nextAutoWeekStep } from "@/lib/slotWeekAutoAdvance";
+import { slotStepGuidance } from "@/lib/slotStepGuidance";
 import { WalletLinkBanner } from "@/components/booking/WalletLinkBanner";
 import { QuotaRemainingNotice } from "@/components/booking/QuotaRemainingNotice";
 import { ViewBookingsCountedButton } from "@/components/quota/ViewBookingsCountedButton";
@@ -761,11 +765,35 @@ function slotWallStartLocalDate(slot: DailySlot): Date | null {
   return slot.start_datetime ? parseISO(slot.start_datetime) : null;
 }
 
-function isSlotWallStartInPast(slot: DailySlot): boolean {
+function isSlotWallStartInPast(slot: DailySlot, nowMs: number = Date.now()): boolean {
   const t = slotWallStartLocalDate(slot);
   if (!t) return true;
-  return t.getTime() < Date.now();
+  return t.getTime() < nowMs;
 }
+
+/** "Thu 22 Oct, 10:00–11:30" for the selected slots, in time order; null when none has a start time. */
+function selectedSlotsSpan<T extends { slotData?: { start_datetime?: string; end_datetime?: string } | null }>(
+  slots: T[],
+): { ordered: T[]; when: string } | null {
+  const ordered = slots
+    .filter((s) => s.slotData?.start_datetime)
+    .sort((a, b) => a.slotData!.start_datetime!.localeCompare(b.slotData!.start_datetime!));
+  if (ordered.length === 0) return null;
+  const start = parseISO(ordered[0].slotData!.start_datetime!);
+  const lastEndIso = ordered[ordered.length - 1].slotData!.end_datetime;
+  const end = lastEndIso ? parseISO(lastEndIso) : null;
+  const endsAtMidnight = !!end && format(end, "HH:mm") === "00:00" && isSameDay(start, addDays(end, -1));
+  const when = !end
+    ? format(start, "EEE d MMM, HH:mm")
+    : isSameDay(start, end) || endsAtMidnight
+    ? `${format(start, "EEE d MMM, HH:mm")}–${endsAtMidnight ? "24:00" : format(end, "HH:mm")}`
+    : `${format(start, "EEE d MMM HH:mm")} – ${format(end, "EEE d MMM HH:mm")}`;
+  return { ordered, when };
+}
+
+/** Booking grid (users): slots whose time has passed. */
+const PAST_SLOT_BG = "#f1f5f9";
+const PAST_SLOT_FG = "#94a3b8";
 
 const SLOT_STATUS_LABELS: Record<string, string> = {
   AVAILABLE: "Available",
@@ -1470,16 +1498,18 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     userDepartmentId,
   ]);
 
+  const serverClock = useServerClockOffset();
   const hasBookableSlotInSelectedWeek = useMemo(() => {
     if (!equipmentDetail?.daily_slots?.length) return false;
     const weekStart = startOfWeek(currentWeekStart, { weekStartsOn: 1 });
     const weekEnd = addDays(weekStart, 6);
     const weekStartMs = startOfDay(weekStart).getTime();
     const weekEndMs = startOfDay(weekEnd).getTime();
+    const nowMs = Date.now() + serverClock.offsetMs;
 
     return equipmentDetail.daily_slots.some((slot) => {
-      // Past dates/times (local wall clock) do not count as “available” for waitlist UI — same as grid.
-      if (isSlotWallStartInPast(slot)) return false;
+      // Past dates/times (server clock) do not count as “available” for waitlist UI — same as grid.
+      if (isSlotWallStartInPast(slot, nowMs)) return false;
       const dStr = calendarDateStrFromSlot(slot);
       if (!dStr) return false;
       const dayMs = startOfDay(parseISO(`${dStr.slice(0, 10)}T12:00:00`)).getTime();
@@ -1490,6 +1520,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     equipmentDetail?.daily_slots,
     currentWeekStart,
     isDailySlotSelectableForUserBooking,
+    serverClock.offsetMs,
   ]);
 
   const [applyProgressPercent, setApplyProgressPercent] = useState(0);
@@ -1682,8 +1713,15 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
   const fetchingSlotsRef = useRef<boolean>(false);
   /** Stop equipment_id URL fetch retries after access denied / not found. */
   const equipmentAccessBlockedRef = useRef(false);
-  const hasCheckedEmptyCurrentWeekRef = useRef<boolean>(false);
-  const lastEquipmentIdRef = useRef<number | null>(null);
+  /** Opening week check: walk from the current week to the first one with a slot this user can book. */
+  const autoWeekRef = useRef<{ equipmentId: number | null; startIndex: number | null; index: number | null; done: boolean }>({
+    equipmentId: null,
+    startIndex: null,
+    index: null,
+    done: false,
+  });
+  /** Set when the calendar opened on a later week; cleared once the user navigates. */
+  const [autoAdvancedWeek, setAutoAdvancedWeek] = useState<{ from: Date; to: Date } | null>(null);
   const prevShowSlotsRef = useRef<boolean>(false);
   /** Tracks last applied `?mode=` per equipment so URL can switch status ↔ book on the same equipment. */
   const appliedModeUrlKeyRef = useRef<string | null>(null);
@@ -4916,6 +4954,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
   // Next week's slots just opened: reload the window. Small random delay so open tabs don't all hit the API in the same second.
   const handleSlotsOpened = useCallback(() => {
+    // Look again for the first week with a free slot (e.g. move on from a fully booked current week).
+    const s = autoWeekRef.current;
+    if (s.done && s.startIndex != null) autoWeekRef.current = { ...s, startIndex: null, index: null, done: false };
     window.setTimeout(() => {
       void fetchSlotsForWeek(true);
     }, 500 + Math.floor(Math.random() * 3500));
@@ -5083,50 +5124,6 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [showSlots, chargeCalculated, selectedEquipment, fetchSlotsForWeek]);
-
-  // When current week has no available slots, switch to next week by default (once per flow)
-  useEffect(() => {
-    if (hasCheckedEmptyCurrentWeekRef.current || !userType || !equipmentDetail?.daily_slots || !lastFetchedWeek) {
-      return;
-    }
-    // Internal users: always show current week first; do not auto-switch to next week
-    const nType = normalizeUserType(userType);
-    if (nType === 'student' || nType === 'faculty') {
-      return;
-    }
-    const allowedWeeks = getAllowedWeeks();
-    if (allowedWeeks.length < 2) return;
-
-    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 1 });
-    const firstWeekEnd = addDays(firstWeekStart, 6);
-    const firstWeekKey = `${format(firstWeekStart, "yyyy-MM-dd")}_${format(firstWeekEnd, "yyyy-MM-dd")}`;
-    if (lastFetchedWeek !== firstWeekKey) return;
-
-    const now = new Date();
-    const weekStartTime = firstWeekStart.getTime();
-    const weekEndTime = firstWeekEnd.getTime();
-    const hasAnyAvailableSlot = equipmentDetail.daily_slots.some(slot => {
-      if (isAdminOrOIC()) {
-        if (slot.status !== "AVAILABLE") return false;
-      } else if (!isDailySlotSelectableForUserBooking(slot)) {
-        return false;
-      }
-      const slotDate = typeof slot.date === "string"
-        ? (slot.date.includes("T") ? parseISO(slot.date) : new Date(slot.date + "T00:00:00"))
-        : null;
-      if (!slotDate || !slot.start_datetime) return false;
-      const slotDayTime = startOfDay(slotDate).getTime();
-      if (slotDayTime < weekStartTime || slotDayTime >= weekEndTime) return false;
-      const slotStart = parseISO(slot.start_datetime);
-      return slotStart.getTime() >= now.getTime();
-    });
-
-    if (!hasAnyAvailableSlot) {
-      hasCheckedEmptyCurrentWeekRef.current = true;
-      setCurrentWeekStart(allowedWeeks[1]);
-      setSelectedSlots([]);
-    }
-  }, [equipmentDetail?.daily_slots, lastFetchedWeek, userType, bookingAsExternalTarget, adminManageMode, adminBookForUserId]);
 
   // Auto-select slots when charge is calculated and auto slot selection is enabled
   useEffect(() => {
@@ -6314,50 +6311,74 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     }
   }, [selectedEquipment?.id, userType]);
 
-  // When current week has no available slots, switch to next week by default (once per flow per equipment)
+  // Open on the first week (from the current one) that still has a slot this user can book; once per equipment.
+  // Staff keep the current week (they can book any slot), and so do urgent requests.
   useEffect(() => {
-    const equipmentId = selectedEquipment?.id ?? null;
-    const idNum = equipmentId != null ? Number(equipmentId) : null;
-    if (idNum !== lastEquipmentIdRef.current) {
-      lastEquipmentIdRef.current = idNum;
-      hasCheckedEmptyCurrentWeekRef.current = false;
+    const idNum = selectedEquipment?.id != null ? Number(selectedEquipment.id) : null;
+    if (autoWeekRef.current.equipmentId !== idNum) {
+      autoWeekRef.current = { equipmentId: idNum, startIndex: null, index: null, done: false };
+      setAutoAdvancedWeek(null);
     }
-    if (hasCheckedEmptyCurrentWeekRef.current || !userType || !equipmentDetail?.daily_slots || !lastFetchedWeek) {
+    const s = autoWeekRef.current;
+    if (s.done || idNum == null || !userType || !equipmentDetail?.daily_slots) return;
+    if (isSlotsWeekViewLoading) return;
+    if (isAdminOrOIC() || allowUrgentWeekExtension || isUrgentHoldMode) {
+      s.done = true;
       return;
     }
-    const allowedWeeks = getAllowedWeeks();
-    if (allowedWeeks.length < 2) return;
-
-    const firstWeekStart = startOfWeek(allowedWeeks[0], { weekStartsOn: 1 });
-    const firstWeekEnd = addDays(firstWeekStart, 6);
-    const firstWeekKey = `${format(firstWeekStart, "yyyy-MM-dd")}_${format(firstWeekEnd, "yyyy-MM-dd")}`;
-    if (lastFetchedWeek !== firstWeekKey) return;
-
-    const now = new Date();
-    const weekStartTime = firstWeekStart.getTime();
-    const weekEndTime = firstWeekEnd.getTime();
-    const hasAnyAvailableSlot = equipmentDetail.daily_slots.some(slot => {
-      if (isAdminOrOIC()) {
-        if (slot.status !== "AVAILABLE") return false;
-      } else if (!isDailySlotSelectableForUserBooking(slot)) {
-        return false;
+    const weeks = getAllowedWeeks().map((w) => startOfWeek(w, { weekStartsOn: 1 }));
+    const shownMs = startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime();
+    const index = weeks.findIndex((w) => w.getTime() === shownMs);
+    if (s.startIndex == null) {
+      const serverWeekMs = startOfWeek(new Date(Date.now() + serverClock.offsetMs), { weekStartsOn: 1 }).getTime();
+      const opensOnDefaultWeek = index === 0 || shownMs === serverWeekMs;
+      if (index < 0 || !opensOnDefaultWeek || pendingPreselect || selectedSlots.length > 0) {
+        s.done = true;
+        return;
       }
-      const slotDate = typeof slot.date === "string"
-        ? (slot.date.includes("T") ? parseISO(slot.date) : new Date(slot.date + "T00:00:00"))
-        : null;
-      if (!slotDate || !slot.start_datetime) return false;
-      const slotDayTime = startOfDay(slotDate).getTime();
-      if (slotDayTime < weekStartTime || slotDayTime >= weekEndTime) return false;
-      const slotStart = parseISO(slot.start_datetime);
-      return slotStart.getTime() >= now.getTime();
+      s.startIndex = index;
+      s.index = index;
+    } else if (index !== s.index) {
+      // The user (or a suggestion) changed the week meanwhile.
+      s.done = true;
+      return;
+    }
+    const step = nextAutoWeekStep({
+      index,
+      startIndex: s.startIndex,
+      weekCount: weeks.length,
+      hasBookableSlot: hasBookableSlotInSelectedWeek,
     });
-
-    if (!hasAnyAvailableSlot) {
-      hasCheckedEmptyCurrentWeekRef.current = true;
-      setCurrentWeekStart(allowedWeeks[1]);
+    if (step.done) s.done = true;
+    else s.index = step.showIndex;
+    if (step.done && step.advanced) {
+      setAutoAdvancedWeek({ from: weeks[s.startIndex], to: weeks[step.showIndex] });
+    }
+    if (step.showIndex !== index) {
+      setCurrentWeekStart(weeks[step.showIndex]);
       setSelectedSlots([]);
     }
-  }, [equipmentDetail?.daily_slots, lastFetchedWeek, userType, selectedEquipment?.id, bookingAsExternalTarget, adminManageMode, adminBookForUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedEquipment?.id,
+    userType,
+    equipmentDetail?.daily_slots,
+    equipmentDetail?.slot_window_min_date,
+    equipmentDetail?.slot_window_max_date,
+    isSlotsWeekViewLoading,
+    hasBookableSlotInSelectedWeek,
+    currentWeekStart,
+    allowUrgentWeekExtension,
+    isUrgentHoldMode,
+  ]);
+
+  // The note only describes the week it moved to.
+  useEffect(() => {
+    if (!autoAdvancedWeek) return;
+    if (startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime() !== autoAdvancedWeek.to.getTime()) {
+      setAutoAdvancedWeek(null);
+    }
+  }, [currentWeekStart, autoAdvancedWeek]);
 
   // Handle input field changes - charge will auto-calculate via useEffect
   const handleInputFieldChange = (fieldKey: string, value: string | boolean | string[] | number) => {
@@ -11009,6 +11030,21 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                           }}
                         />
                       </div>
+                      {(() => {
+                        const guidance = isRegularBookingFlow
+                          ? slotStepGuidance({
+                              slotCount: slotsRequiredForMinutes(calculatedCharge?.total_time_minutes, equipmentDetail),
+                              requiredMinutes: calculatedCharge?.total_time_minutes,
+                              choice: bookingSlotChoice,
+                              selectedCount: selectedSlots.length,
+                            })
+                          : null;
+                        return guidance ? (
+                          <p className="mt-1 text-sm text-muted-foreground" data-testid="slot-step-guidance" aria-live="polite">
+                            {guidance}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
 
                 {quotaBlock && (
@@ -11032,6 +11068,57 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                     Slots marked <span className="font-semibold">"Just taken"</span> were booked by someone else while you were confirming. Pick other slots and confirm again — your details are kept.
                   </p>
                 )}
+                {!isAdminOrOIC() && !isSlotsWeekViewLoading && autoAdvancedWeek && (
+                  <AutoAdvancedWeekNote
+                    className="mb-2"
+                    fromWeekStart={autoAdvancedWeek.from}
+                    weeksAhead={Math.round((autoAdvancedWeek.to.getTime() - autoAdvancedWeek.from.getTime()) / (7 * 24 * 60 * 60 * 1000))}
+                    onBack={() => {
+                      setCurrentWeekStart(autoAdvancedWeek.from);
+                      setSelectedSlots([]);
+                    }}
+                  />
+                )}
+                {isRegularBookingFlow &&
+                  !bookingForAnotherUser &&
+                  !isAdminOrOIC() &&
+                  !isSlotsWeekViewLoading &&
+                  !hasBookableSlotInSelectedWeek &&
+                  (equipmentDetail?.daily_slots?.length ?? 0) > 0 &&
+                  selectedEquipment && (
+                    <NoSlotsLeftNotice
+                      className="mb-2"
+                      isCurrentWeek={
+                        startOfWeek(currentWeekStart, { weekStartsOn: 1 }).getTime() ===
+                        startOfWeek(new Date(Date.now() + serverClock.offsetMs), { weekStartsOn: 1 }).getTime()
+                      }
+                      nextWeekOpen={canGoToNextWeek()}
+                      onShowNextWeek={goToNextWeek}
+                      refWeekday={equipmentDetail?.slot_window_reference_weekday}
+                      refTime={equipmentDetail?.slot_window_reference_time}
+                    >
+                      {Number(equipmentDetail?.waitlist_queue_depth || 0) > 0 &&
+                      !bookingAsExternalTarget &&
+                      !waitlistUnavailableForProfile ? (
+                        equipmentDetail?.waitlist_has_room ? (
+                          <>
+                            <span>Join the waitlist and we'll book a slot for you if one frees up.</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={waitlistIntentMode ? "secondary" : "default"}
+                              onClick={() => setWaitlistIntentMode(true)}
+                              disabled={waitlistIntentMode}
+                            >
+                              {waitlistIntentMode ? "Waitlist selected" : "Join the waitlist"}
+                            </Button>
+                          </>
+                        ) : (
+                          <span>{waitlistFullMessage(workspaceEquipmentTitle)}</span>
+                        )
+                      ) : null}
+                    </NoSlotsLeftNotice>
+                  )}
                 {isRegularBookingFlow &&
                   !bookingForAnotherUser &&
                   !repeatSourceBooking &&
@@ -11191,6 +11278,20 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                   onOpen={handleSlotsOpened}
                   className="mx-auto mb-3 flex w-fit"
                 />
+
+                {!isAdminOrOIC() && (
+                  <SlotCalendarLegend
+                    className="mb-3 border-t-0 pt-0"
+                    items={[
+                      { label: "Available — click to select", color: equipmentDetail?.calendar_colors?.slot_colors?.AVAILABLE || "#22c55e" },
+                      { label: "Selected", color: "hsl(var(--primary))" },
+                      { label: "Booked / not available", color: equipmentDetail?.calendar_colors?.slot_colors?.BOOKED || "#ef4444" },
+                      { label: "Past", color: PAST_SLOT_BG },
+                      { label: "Closed (weekend / holiday)", color: equipmentDetail?.calendar_colors?.saturday_color || "#c7d2fe" },
+                    ]}
+                    trailing={<span>Tap a slot you can't select to see why.</span>}
+                  />
+                )}
 
                 {isAdminOrOIC() &&
                   (Boolean(equipmentDetail?.weekly_view_time_from || equipmentDetail?.weekly_view_time_to) ||
@@ -11712,6 +11813,22 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                             cellStyle = { backgroundColor: naBg, color: getContrastTextColor(naBg) };
                           }
 
+                          // Users: a passed slot is just "Past" (not who booked it); closed days are "Closed", not "Not Available".
+                          const pastForUser =
+                            !isAdminOrOIC() &&
+                            slotExists &&
+                            isPast &&
+                            !isSelected &&
+                            !justTaken &&
+                            !(holidayName && slotStatusUpper === "NOT_AVAILABLE");
+                          if (pastForUser) {
+                            displayStatus = "Past";
+                            cellStyle = { backgroundColor: PAST_SLOT_BG, color: PAST_SLOT_FG };
+                          } else if (isClosedCalendarDay && !holidayName && !externalCalendarDayOverlay) {
+                            if (!isAdminOrOIC()) displayStatus = "Closed";
+                            else if (displayStatus === "Available") displayStatus = "Closed · staff can book";
+                          }
+
                           const restrictedToStaff = slotExists && isAdminOrOIC() && isOutsideVisibilityWindow(slotData);
                           if (restrictedToStaff) {
                             cellStyle = restrictedSlotStyle(cellStyle);
@@ -11816,6 +11933,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                 ${considerBooked ? 'cursor-help' : ''}
                                 ${justTaken ? 'ring-2 ring-amber-500 ring-offset-1' : ''}
                                 ${isPast && !considerBooked && slotExists && !isAdminOrOIC() ? 'cursor-help' : ''}
+                                ${pastForUser ? 'border-dashed border-slate-300 shadow-none font-normal dark:border-slate-600' : ''}
                                 ${isSelected ? 'bg-primary text-primary-foreground' : ''}
                                 ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && !isDisabled ? 'cursor-pointer hover:opacity-90' : ''}
                                 ${(isAvailable || (isAdminOrOIC() && slotExists && !considerBooked)) && !isSelected && isDisabled ? (overQuotaCell ? 'cursor-help' : 'cursor-help opacity-60') : ''}
@@ -11892,11 +12010,44 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                       </div>
                     )}
 
-                    {/* Waitlist and "any free slots" are internal only; external users only see alternate equipment and a template's own fallback. */}
+                    {!bookingForAnotherUser && (
+                      <ResearchWorkspacePicker
+                        className="mt-3"
+                        value={researchWorkspaceId}
+                        onChange={setResearchWorkspaceId}
+                        folderLabel={researchFolderLabel}
+                        rememberLast
+                        collapsible={peakCompact}
+                      />
+                    )}
+
+                    {isRegularBookingFlow && selectedSlots.length > 0 && (() => {
+                      const span = selectedSlotsSpan(selectedSlots);
+                      if (!span) return null;
+                      const { ordered, when } = span;
+                      const minutes = calculatedCharge ? getEffectiveSelectedMinutes() : null;
+                      const charge = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
+                      return (
+                        <p className="mt-3 text-sm text-foreground" data-testid="booking-review-line">
+                          <span className="font-medium">Review: </span>
+                          {[
+                            workspaceEquipmentTitle || null,
+                            `${ordered.length} slot${ordered.length !== 1 ? "s" : ""}, ${when}`,
+                            minutes != null ? `${minutes} min` : null,
+                            charge != null && Number.isFinite(charge) ? formatINRAmount(charge) : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      );
+                    })()}
+
+                    {/* Waitlist and "any free slots" are internal only; external users only see alternate equipment and a template's own fallback.
+                        The "if taken" question only matters once slots are selected; the choice is kept while it is hidden. */}
                     {(!bookingAsExternalTarget || groupAlternativeOption || templateFallbackMode) && (
                       <BookingFallbackOptions
                         className="mt-3"
-                        choices={bookingFallbackChoices}
+                        choices={selectedSlots.length > 0 ? bookingFallbackChoices : ["none"]}
                         value={bookingSlotFallback}
                         onChange={changeBookingSlotFallback}
                         alternate={{
@@ -11915,48 +12066,6 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                         hint={groupAlternativeSearchWithoutSlots ? NO_SLOT_ALTERNATE_HINT : undefined}
                       />
                     )}
-
-                    {!bookingForAnotherUser && (
-                      <ResearchWorkspacePicker
-                        className="mt-3"
-                        value={researchWorkspaceId}
-                        onChange={setResearchWorkspaceId}
-                        folderLabel={researchFolderLabel}
-                        rememberLast
-                        collapsible={peakCompact}
-                      />
-                    )}
-
-                    {isRegularBookingFlow && selectedSlots.length > 0 && (() => {
-                      const ordered = [...selectedSlots]
-                        .filter((s) => s.slotData?.start_datetime)
-                        .sort((a, b) => a.slotData!.start_datetime.localeCompare(b.slotData!.start_datetime));
-                      if (ordered.length === 0) return null;
-                      const start = parseISO(ordered[0].slotData!.start_datetime);
-                      const lastEndIso = ordered[ordered.length - 1].slotData!.end_datetime;
-                      const end = lastEndIso ? parseISO(lastEndIso) : null;
-                      const endsAtMidnight = !!end && format(end, "HH:mm") === "00:00" && isSameDay(start, addDays(end, -1));
-                      const when = !end
-                        ? format(start, "EEE d MMM, HH:mm")
-                        : isSameDay(start, end) || endsAtMidnight
-                        ? `${format(start, "EEE d MMM, HH:mm")}–${endsAtMidnight ? "24:00" : format(end, "HH:mm")}`
-                        : `${format(start, "EEE d MMM HH:mm")} – ${format(end, "EEE d MMM HH:mm")}`;
-                      const minutes = calculatedCharge ? getEffectiveSelectedMinutes() : null;
-                      const charge = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
-                      return (
-                        <p className="mt-3 text-sm text-foreground" data-testid="booking-review-line">
-                          <span className="font-medium">Review: </span>
-                          {[
-                            workspaceEquipmentTitle || null,
-                            `${ordered.length} slot${ordered.length !== 1 ? "s" : ""}, ${when}`,
-                            minutes != null ? `${minutes} min` : null,
-                            charge != null && Number.isFinite(charge) ? formatINRAmount(charge) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      );
-                    })()}
 
                     {walletLinkRequired && !bookingForAnotherUser && (
                       <p role="status" className="mt-4 text-sm text-amber-900 dark:text-amber-100">
@@ -12021,11 +12130,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                     <BookingActionBar
                       summary={(() => {
                         const total = bookingDebitAmount ?? (calculatedCharge ? null : calculateTotalCost());
+                        if (selectedSlots.length === 0 && !waitlistIntentEffective) {
+                          return <span className="text-muted-foreground">No slots selected yet — click a green Available slot.</span>;
+                        }
+                        const span = selectedSlots.length > 0 ? selectedSlotsSpan(selectedSlots) : null;
                         return (
                           <>
                             <span className="font-semibold">
                               {selectedSlots.length} slot{selectedSlots.length !== 1 ? "s" : ""} selected
                             </span>
+                            {span ? <span className="text-muted-foreground"> · {span.when}</span> : null}
                             {total != null && Number.isFinite(total) ? (
                               <>
                                 <span className="text-muted-foreground"> · Total </span>
