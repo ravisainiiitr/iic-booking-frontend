@@ -31,6 +31,8 @@ export interface LabCalendarSlot {
   booking_sample_status_display?: string | null;
   /** Staff calendars: the lab accepted the sample; the open booking shows the Pending colour. */
   booking_sample_accepted?: boolean | null;
+  /** Staff only: "Auto-rescheduled after maintenance — originally …; sample deadline extended to …". */
+  booking_auto_reschedule_note?: string | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
 }

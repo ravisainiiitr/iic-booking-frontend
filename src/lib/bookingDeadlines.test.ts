@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEADLINE_PASSED_TEXT,
+  MAINTENANCE_HOLD_TEXT,
   SAMPLE_ACCEPTED_LOCKED_TEXT,
   cancelRescheduleDeadline,
   formatDeadlineText,
@@ -303,6 +304,37 @@ describe("cancelRescheduleDeadline", () => {
     );
     expect(result.kind).toBe("disruption_waiting");
     expect(formatDeadlineText(result)).toMatch(/^Reschedule opens when the equipment is working again/);
+  });
+
+  it("maintenance hold: no reschedule, cancel anytime for a full refund, no automatic-refund deadline", () => {
+    const result = cancelRescheduleDeadline(
+      booking({
+        status: "DISRUPTION_PENDING",
+        maintenance_disruption_flag: true,
+        maintenance_auto_reschedule_pending: true,
+        equipment_is_operational: false,
+        start_time: at(1, 9).toISOString(),
+      }),
+      NOW,
+    );
+    expect(result).toMatchObject({ kind: "maintenance_hold", deadline: null, rescheduleOnly: false });
+    expect(result.autoRefundAt).toBeUndefined();
+    expect(formatDeadlineText(result)).toBe(MAINTENANCE_HOLD_TEXT);
+  });
+
+  it("auto-rescheduled booking: the full-refund cutoff is the later of the normal cutoff and the grace period", () => {
+    const start = at(13, 9);
+    const grace = at(12, 21);
+    const result = cancelRescheduleDeadline(
+      booking({ start_time: start.toISOString(), auto_reschedule: { cancel_full_refund_until: grace.toISOString() } }),
+      NOW,
+    );
+    expect(result).toMatchObject({ kind: "open", deadline: grace });
+    const normal = cancelRescheduleDeadline(
+      booking({ start_time: at(20, 9).toISOString(), auto_reschedule: { cancel_full_refund_until: grace.toISOString() } }),
+      NOW,
+    );
+    expect(normal.deadline?.getTime()).toBe(at(20, 9).getTime() - 48 * 3_600_000);
   });
 
   it("tells waitlisted users they can leave anytime", () => {

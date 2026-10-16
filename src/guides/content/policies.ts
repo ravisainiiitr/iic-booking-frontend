@@ -86,13 +86,18 @@ export function disruptionsSection(): GuideSection {
       "If the lab cannot run your booking, you are emailed and the booking waits for your choice: cancel for a full refund or reschedule, at any time and regardless of the usual cancel/reschedule cut-off.",
     ],
     glossary: [
-      { term: "Under Maintenance", meaning: "Instrument down. Cancel with refund now, or reschedule once it is Operational." },
+      {
+        term: "Under Maintenance",
+        meaning:
+          "Instrument down. Your booking is on hold and moved automatically to the earliest free slot once it is Operational; cancel anytime before that for a full refund.",
+      },
       { term: "Operator Absent / Operator Unavailable", meaning: "No operator. Cancel with refund or reschedule; a full closure is refunded." },
       { term: "Analysis Not Possible", meaning: "Power, network, safety or other failure. The email gives the reason and your options." },
       { term: "Booking Not Utilized", meaning: "You did not attend or the sample never arrived. Usually not refunded." },
     ],
     rules: [
-      "Choose within 5 days of the disruption; otherwise the booking is marked Refunded and the full amount is refunded automatically.",
+      "Under Maintenance: no choice is needed. Bookings on hold are rescheduled in booking order, you are emailed the new time, and the sample deadline is extended. After the move, cancelling before the new slot's cut-off (or within a day of the email, if later) is fully refunded.",
+      "Other disruptions: choose within 5 days; otherwise the booking is marked Refunded and the full amount is refunded automatically.",
       "Facility-side disruptions are refunded or rescheduled. Not Utilized is user-side.",
     ],
     tips: ["Cancel unused bookings early to avoid Not Utilized."],

@@ -360,6 +360,8 @@ interface DailySlot {
   /** Staff-only contact fields from slots API. */
   booking_user_email?: string | null;
   booking_user_phone?: string | null;
+  /** Staff only: "Auto-rescheduled after maintenance — originally …; sample deadline extended to …". */
+  booking_auto_reschedule_note?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -520,6 +522,8 @@ function bookedSlotUserDetailLines(slot: DailySlot): string[] {
   if (slot.booking_id != null && String(slot.booking_id).trim() !== "") {
     lines.push(`Booking ID: ${slot.booking_id}`);
   }
+  const autoRescheduleNote = String(slot.booking_auto_reschedule_note || "").trim();
+  if (autoRescheduleNote) lines.push(autoRescheduleNote);
   return lines;
 }
 

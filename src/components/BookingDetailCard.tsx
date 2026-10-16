@@ -88,8 +88,10 @@ import {
   lifecycleCountdownVisible,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
+  type AutoReschedulePayload,
   type CountdownViewer,
 } from "@/lib/bookingDeadlines";
+import { AutoRescheduledNote } from "@/components/booking/AutoRescheduledNote";
 import { bookingBadgeStatus, bookingStatusBadgeClass } from "@/lib/bookingStatusLegend";
 import { BookingDeadlineNote } from "@/components/booking/BookingDeadlineNote";
 import {
@@ -282,6 +284,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   maintenance_disruption_flag?: boolean;
   disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
+  maintenance_auto_reschedule_pending?: boolean | null;
+  auto_reschedule?: AutoReschedulePayload | null;
   /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
   reschedule_block_reason?: string | null;
@@ -1679,7 +1683,9 @@ export function BookingDetailCard({
   const ownerRescheduleBlocked =
     !isOperator &&
     !isManagerOrAdmin &&
-    (ownerDeadlinePassed || ownerDeadline?.kind === "disruption_waiting");
+    (ownerDeadlinePassed ||
+      ownerDeadline?.kind === "disruption_waiting" ||
+      ownerDeadline?.kind === "maintenance_hold");
   /** Lab Operators get a job sheet: what to run and for whom, without charges, billing or contact cards. */
   const isJobSheetView =
     isOperator &&
@@ -1974,6 +1980,9 @@ export function BookingDetailCard({
             />
           )}
 
+          {!isJobSheetView && booking.auto_reschedule && (
+            <AutoRescheduledNote payload={booking.auto_reschedule} staffView={isOperatorOrManager} />
+          )}
           {showResultsDeadlineNotice && booking.results_paused?.paused && (
             <ResultsPausedNotice paused={booking.results_paused} staffView={isOperatorOrManager} />
           )}
@@ -4138,7 +4147,7 @@ export function BookingDetailCard({
               />
               {actionDialog.type === "under_maintenance" && (
                 <p className="text-sm text-muted-foreground">
-                  This does not refund the booking. The user receives an email with options to cancel (refund) or reschedule. After the equipment is operational again, extended week navigation applies for their reschedule.
+                  This does not refund the booking. It goes on hold and the user is emailed; they can cancel for a full refund until it is moved. When the equipment is Operational again, the booking is rescheduled automatically to the earliest free slot (in booking order) and the user is emailed the new time.
                 </p>
               )}
               {actionDialog.type === "other_disruption" && (

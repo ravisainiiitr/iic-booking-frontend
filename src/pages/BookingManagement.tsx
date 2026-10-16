@@ -56,6 +56,8 @@ import { useRowsPerPage } from "@/hooks/use-rows-per-page";
 import { SortableTableHead } from "@/components/SortableTableHead";
 import { formatBookingDateTimeShort } from "@/lib/bookingDates";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
+import { autoRescheduleNoteText } from "@/components/booking/AutoRescheduledNote";
+import type { AutoReschedulePayload } from "@/lib/bookingDeadlines";
 import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwaitingCard";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import {
@@ -104,6 +106,7 @@ interface Booking extends BookingRef {
   status_display: string;
   /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
   list_status?: string;
+  auto_reschedule?: AutoReschedulePayload | null;
   notes: string;
   start_time: string;
   end_time: string;
@@ -698,6 +701,18 @@ const BookingManagement = () => {
                             </span>
                           )}
                           <LabQuestionBadge count={booking.lab_questions_open} variant="staff" />
+                          {booking.auto_reschedule && (
+                            <span
+                              className="mt-0.5 block w-fit rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[11px] font-medium text-sky-900 dark:border-sky-500/40 dark:bg-sky-500/10 dark:text-sky-100"
+                              title={autoRescheduleNoteText(booking.auto_reschedule) ?? undefined}
+                              data-testid="auto-rescheduled-badge"
+                            >
+                              Auto-rescheduled after maintenance
+                              {booking.auto_reschedule.original_display
+                                ? ` — originally ${booking.auto_reschedule.original_display}`
+                                : ""}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className={CELL_CLASS}>
                           <Badge

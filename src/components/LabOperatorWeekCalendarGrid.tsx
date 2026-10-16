@@ -362,6 +362,7 @@ export function LabOperatorWeekCalendarGrid({
         slotTimeText ? `Slot: ${slotTimeText}` : null,
         sampleStatusText ? `Sample: ${sampleStatusText}` : null,
         equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
+        String(slotData.booking_auto_reschedule_note || "").trim() || null,
       ].filter((line): line is string => Boolean(line));
       return (
         <SlotHoverCard lines={tooltipLines}>

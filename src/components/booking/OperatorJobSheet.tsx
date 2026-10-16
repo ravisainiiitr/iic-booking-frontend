@@ -11,6 +11,8 @@ import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/Sam
 import { resultsDeadlineApplies, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { isFabricationProfile } from "@/lib/fabricationProfiles";
 import type { BookingResultsDeadline, BookingResultsOverdue, BookingResultsPaused } from "@/lib/api";
+import type { AutoReschedulePayload } from "@/lib/bookingDeadlines";
+import { autoRescheduleNoteText } from "@/components/booking/AutoRescheduledNote";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
 export type JobSheetBooking = {
@@ -42,6 +44,7 @@ export type JobSheetBooking = {
   results_deadline?: BookingResultsDeadline | null;
   results_overdue?: BookingResultsOverdue | null;
   results_paused?: BookingResultsPaused | null;
+  auto_reschedule?: AutoReschedulePayload | null;
   equipment_profile_type?: string | null;
 };
 
@@ -89,6 +92,14 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const resultsDue = isFabrication ? null : booking.results_overdue;
   const resultsPaused = isFabrication || !booking.results_paused?.paused ? null : booking.results_paused;
   const flags: Array<{ key: string; icon: ReactNode; text: string }> = [];
+  const autoRescheduleNote = autoRescheduleNoteText(booking.auto_reschedule);
+  if (autoRescheduleNote) {
+    flags.push({
+      key: "auto-rescheduled",
+      icon: <CalendarClock className="h-4 w-4 shrink-0" aria-hidden />,
+      text: autoRescheduleNote,
+    });
+  }
   if (booking.atmosphere_sensitive_sample && !isFabrication) {
     flags.push({
       key: "atmosphere",

@@ -23,9 +23,32 @@ export interface DeadlineBookingFields {
   reschedule_block_reason?: string | null;
   can_cancel?: boolean | null;
   cancel_block_reason?: string | null;
+  /** On hold for equipment maintenance: moved automatically to the earliest free slot once the equipment is back. */
+  maintenance_auto_reschedule_pending?: boolean | null;
+  auto_reschedule?: AutoReschedulePayload | null;
 }
 
-export type DeadlineKind = "open" | "passed" | "disruption" | "disruption_waiting" | "waitlist" | "none";
+/** Backend `auto_reschedule_payload`: set once the booking was moved automatically after maintenance. */
+export interface AutoReschedulePayload {
+  rescheduled_at?: string | null;
+  original_start?: string | null;
+  original_display?: string | null;
+  sample_deadline?: string | null;
+  sample_deadline_display?: string | null;
+  extension_hours?: number | null;
+  /** Full refund on cancel until this time (the new slot's cutoff, or a grace period after the move). */
+  cancel_full_refund_until?: string | null;
+  note?: string | null;
+}
+
+export type DeadlineKind =
+  | "open"
+  | "passed"
+  | "disruption"
+  | "disruption_waiting"
+  | "maintenance_hold"
+  | "waitlist"
+  | "none";
 
 export interface CancelRescheduleDeadline {
   kind: DeadlineKind;
@@ -81,6 +104,18 @@ export function isLabDisruption(booking: DeadlineBookingFields): boolean {
   return !!booking.maintenance_disruption_flag || String(booking.status || "").toUpperCase() === "DISRUPTION_PENDING";
 }
 
+export const MAINTENANCE_HOLD_TEXT =
+  "On hold — will be rescheduled automatically when the equipment is back; cancel anytime for a full refund";
+export const RESCHEDULE_MAINTENANCE_AUTO = "reschedule_maintenance_auto";
+
+/** Maintenance hold under the automatic-reschedule policy: no user decision, cancel for a full refund until moved. */
+export function isMaintenanceHold(booking: DeadlineBookingFields): boolean {
+  return (
+    !!booking.maintenance_auto_reschedule_pending &&
+    String(booking.status || "").toUpperCase() === "DISRUPTION_PENDING"
+  );
+}
+
 /** Only an equipment-maintenance disruption waits for the equipment to work again before rescheduling. */
 export function disruptionNeedsOperationalEquipment(booking: DeadlineBookingFields): boolean {
   const kind = String(booking.disruption_kind || "").toUpperCase();
@@ -112,6 +147,9 @@ function timeWindow(booking: DeadlineBookingFields, now: Date): CancelReschedule
   if (!OWNER_ACTIONABLE_STATUSES.has(String(booking.status || "").toUpperCase())) {
     return { kind: "none", deadline: null, rescheduleOnly };
   }
+  if (isMaintenanceHold(booking)) {
+    return { kind: "maintenance_hold", deadline: null, rescheduleOnly: false };
+  }
   if (isLabDisruption(booking)) {
     const waiting = booking.equipment_is_operational === false && disruptionNeedsOperationalEquipment(booking);
     return {
@@ -124,7 +162,9 @@ function timeWindow(booking: DeadlineBookingFields, now: Date): CancelReschedule
   const start = parseDate(booking.start_time);
   if (!start) return { kind: "none", deadline: null, rescheduleOnly };
   const threshold = booking.equipment_reschedule_hours_threshold ?? DEFAULT_RESCHEDULE_HOURS_THRESHOLD;
-  const deadline = new Date(start.getTime() - threshold * 60 * 60 * 1000);
+  const normal = new Date(start.getTime() - threshold * 60 * 60 * 1000);
+  const autoCutoff = parseDate(booking.auto_reschedule?.cancel_full_refund_until);
+  const deadline = autoCutoff && autoCutoff.getTime() > normal.getTime() ? autoCutoff : normal;
   const open = start.getTime() > now.getTime() && now.getTime() <= deadline.getTime();
   return { kind: open ? "open" : "passed", deadline, rescheduleOnly };
 }
@@ -220,6 +260,8 @@ export function formatDeadlineText(result: CancelRescheduleDeadline): string | n
       return result.rescheduleOnly
         ? "Reschedule anytime (lab disruption)"
         : "Reschedule or cancel for a full refund anytime (lab disruption)";
+    case "maintenance_hold":
+      return MAINTENANCE_HOLD_TEXT;
     case "disruption_waiting":
       return result.rescheduleOnly
         ? "Reschedule opens when the equipment is working again"

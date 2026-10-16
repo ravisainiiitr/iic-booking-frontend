@@ -351,8 +351,8 @@ export function useDisruptionPrompt() {
             { label: "New status", value: resume ? "Operational" : "Under Maintenance" },
           ],
           notice: resume
-            ? "Users with remaining bookings are told their booking stands; slots set Under Maintenance by the daily check become bookable again, and paused results deadlines are extended by the paused time."
-            : "Non-operational equipment is not available for booking. Today's remaining slots become Under Maintenance and today's bookings are put on hold for the users' choice (refund or reschedule); users with later bookings are emailed now. Each morning at 08:30, while it stays under maintenance, that day's slots and bookings are handled the same way. Results-overdue is paused for its past bookings.",
+            ? "Bookings on hold are first rescheduled automatically, in booking order, to the earliest free slots (users are emailed the new time, with extended sample deadlines); then slots set Under Maintenance by the daily check become bookable again, and paused results deadlines are extended by the paused time."
+            : "Non-operational equipment is not available for booking. Today's remaining slots become Under Maintenance and today's bookings are put on hold; they are rescheduled automatically when the equipment is back, and users can cancel for a full refund until then. Users with later bookings are emailed now. Each morning at 08:30, while it stays under maintenance, that day's slots and bookings are handled the same way. Results-overdue is paused for its past bookings.",
           canAttachReport: args.canAttachReport,
           askRecovery: !resume,
           procurement,

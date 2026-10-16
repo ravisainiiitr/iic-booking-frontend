@@ -65,8 +65,10 @@ import {
   cancelRescheduleDeadline,
   disruptionNeedsOperationalEquipment,
   isLabDisruption,
+  isMaintenanceHold,
   serverAllowsOwnerCancel,
   serverAllowsReschedule,
+  type AutoReschedulePayload,
 } from "@/lib/bookingDeadlines";
 import {
   RESULT_OVERDUE_STATUS,
@@ -196,6 +198,8 @@ interface Booking extends BookingRef {
   maintenance_disruption_flag?: boolean;
   disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
+  maintenance_auto_reschedule_pending?: boolean | null;
+  auto_reschedule?: AutoReschedulePayload | null;
   maintenance_reschedule_extra_week?: boolean;
   /** When equipment became operational again; used server-side for extra reschedule weeks */
   maintenance_operational_marked_at?: string | null;
@@ -972,6 +976,8 @@ const MyBookings = () => {
       const startTime = new Date(booking.start_time);
       const now = new Date();
       if (startTime <= now) return false;
+      const autoCutoff = booking.auto_reschedule?.cancel_full_refund_until;
+      if (autoCutoff && now.getTime() <= new Date(autoCutoff).getTime()) return true;
       const hoursUntilStart = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
       const threshold = booking.equipment_reschedule_hours_threshold ?? 48;
       // Allow actions at the exact cutoff moment; disallow only when strictly inside the threshold window.
@@ -1028,7 +1034,7 @@ const MyBookings = () => {
   };
 
   const canReschedule = (booking: Booking) => {
-    if (!canCancelOrReschedule(booking.status) || !serverAllowsReschedule(booking)) {
+    if (!canCancelOrReschedule(booking.status) || !serverAllowsReschedule(booking) || isMaintenanceHold(booking)) {
       return false;
     }
 

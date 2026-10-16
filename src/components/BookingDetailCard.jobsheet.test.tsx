@@ -278,6 +278,23 @@ describe("BookingDetailCard job sheet", () => {
       expect(paused).not.toContain("job-sheet-results-overdue");
     });
 
+    it("notes an automatic reschedule after maintenance on the job sheet", () => {
+      const html = render(
+        withDeadlines({
+          auto_reschedule: {
+            original_display: "Mon 05 Oct 2099, 09:00 AM",
+            sample_deadline_display: "Wed 07 Oct 2099, 09:00 AM",
+            extension_hours: 24,
+            note: "Auto-rescheduled after maintenance — originally Mon 05 Oct 2099, 09:00 AM; sample deadline extended to Wed 07 Oct 2099, 09:00 AM",
+          },
+        }),
+        operator,
+      );
+      expect(html).toContain(
+        "Auto-rescheduled after maintenance — originally Mon 05 Oct 2099, 09:00 AM; sample deadline extended to Wed 07 Oct 2099, 09:00 AM",
+      );
+    });
+
     it("still shows the countdown to the booking user, not to the Officer In Charge", () => {
       expect(render(withDeadlines(), { isOperator: false, currentUserType: "faculty", currentUserId: 7 })).toContain(
         "Time remaining to submit sample",
