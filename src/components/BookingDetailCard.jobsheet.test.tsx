@@ -259,6 +259,23 @@ describe("BookingDetailCard job sheet", () => {
       );
       expect(late).toContain("Results overdue");
       expect(late).toContain("by 13 h (due by Wed 07 Oct 2099, 06:31 PM)");
+
+      const paused = render(
+        withDeadlines({
+          sample_trace: accepted,
+          results_overdue: resultsOverdue,
+          results_paused: {
+            paused: true,
+            paused_at: "2099-10-06T07:00:00Z",
+            paused_display: "Tue 06 Oct 2099, 12:30 PM",
+            reason: "Paused – equipment under maintenance",
+          },
+        }),
+        operator,
+      );
+      expect(paused).toContain("job-sheet-results-paused");
+      expect(paused).toContain("Paused – equipment under maintenance (since Tue 06 Oct 2099, 12:30 PM)");
+      expect(paused).not.toContain("job-sheet-results-overdue");
     });
 
     it("still shows the countdown to the booking user, not to the Officer In Charge", () => {

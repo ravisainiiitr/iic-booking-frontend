@@ -74,4 +74,44 @@ describe("ResultsOverdueCard", () => {
     await Promise.resolve();
     expect(container.textContent).toBe("");
   });
+
+  it("lists bookings paused for equipment maintenance separately, not counted as overdue", async () => {
+    api.getResultsOverdueBookings.mockResolvedValue({
+      data: {
+        bookings: [booking(1)],
+        paused: [
+          {
+            ...booking(7),
+            status: "PROCESSING",
+            paused_at: "2026-10-13T07:09:00Z",
+            paused_display: "Tue 13 Oct 2026, 12:39 PM",
+            reason: "Paused – equipment under maintenance",
+          },
+        ],
+      },
+    });
+    renderCard();
+    const toggle = await screen.findByTestId("results-overdue-toggle");
+    expect(screen.getByTestId("results-paused-count").textContent).toBe("1 paused");
+    await userEvent.click(toggle);
+    const section = screen.getByTestId("results-paused-section");
+    expect(section.textContent).toContain("IICXPS202600007");
+    expect(section.textContent).toContain("Paused – equipment under maintenance");
+    expect(section.textContent).toContain("Tue 13 Oct 2026, 12:39 PM");
+    expect(section.textContent).not.toContain("5 days 15 h");
+  });
+
+  it("still shows the card when every booking is paused", async () => {
+    api.getResultsOverdueBookings.mockResolvedValue({
+      data: {
+        bookings: [],
+        paused: [{ ...booking(8), status: "PROCESSING", paused_at: null, paused_display: "today", reason: "" }],
+      },
+    });
+    renderCard();
+    await userEvent.click(await screen.findByTestId("results-overdue-toggle"));
+    expect(screen.getByText("No results are overdue.")).toBeTruthy();
+    expect(screen.getByTestId("results-paused-section").textContent).toContain("Paused – equipment under maintenance");
+    expect(screen.queryByRole("button", { name: /View all in View Booking/ })).toBeNull();
+  });
 });

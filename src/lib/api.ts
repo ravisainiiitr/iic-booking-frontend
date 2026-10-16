@@ -2500,6 +2500,45 @@ export interface ResultsOverdueBooking {
   link: string;
 }
 
+/** Booking `results_paused`: the results clock is paused while the equipment is Under Maintenance. */
+export interface BookingResultsPaused {
+  paused: true;
+  paused_at: string;
+  paused_display: string;
+  reason: string;
+}
+
+/** Results overdue card: a booking whose results clock is paused (equipment Under Maintenance). */
+export interface ResultsPausedBooking {
+  booking_id: number;
+  booking_ref: string;
+  equipment_id: number;
+  equipment_name: string;
+  equipment_code: string;
+  user_name: string;
+  status: string;
+  paused_at: string | null;
+  paused_display: string;
+  reason: string;
+  link: string;
+}
+
+/** Dashboard banner: one equipment currently Under Maintenance and handled day by day. */
+export interface EquipmentMaintenanceStatus {
+  period_id: number;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  since: string;
+  since_display: string;
+  last_checked_on: string | null;
+  bookings_affected: number;
+  bookings_on_hold: number;
+  users_notified: number;
+  results_paused: number;
+  adopted: boolean;
+}
+
 export interface OicEquipmentSettingsRow {
   equipment_id: number;
   equipment_code: string;
@@ -7617,7 +7656,13 @@ class ApiClient {
     return this.sharedGet<{
       count: number;
       bookings: ResultsOverdueBooking[];
+      paused?: ResultsPausedBooking[];
     }>('/bookings/results-overdue/');
+  }
+
+  /** Staff: equipment currently Under Maintenance (scoped to the user's equipment; all for Admin). */
+  async getMaintenanceStatus() {
+    return this.sharedGet<{ periods: EquipmentMaintenanceStatus[] }>('/equipments/maintenance-status/');
   }
 
   /** List IMAP folders with message counts (staff only). */

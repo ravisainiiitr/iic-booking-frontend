@@ -374,6 +374,7 @@ export function disruptionHistorySection(g: Gate): GuideSection {
     rules: [
       "Under Maintenance, Scheduled Maintenance, Operator Absent and Other Reasons count as disruptions. Not Available, Reserved for External, Booking Not Utilized, holidays and closed days do not.",
       "Neighbouring slots marked together form one disruption; equipment Under Maintenance is one disruption until it is made Operational again.",
+      "Equipment marked Under Maintenance is handled day by day: at once, today's remaining slots become Under Maintenance, today's bookings are put on hold for the user's choice (refund or reschedule) and users with later bookings are emailed; every morning at 08:30 the same is done for that day while it stays under maintenance. Results overdue is paused for its past bookings (shown as Paused – equipment under maintenance) and the deadline is extended by the paused time when it is Operational again; users with remaining bookings are then told their booking stands.",
       "Disruption hours in Reports are downtime (under maintenance, scheduled maintenance and operator absent) plus slots marked for other reasons.",
       "Deleting a disruption that is still ongoing leaves its slots (or the equipment) in their current status; make them available again as usual when ready.",
       "Users see only the disruption type, the reason you recorded (or a standard sentence if none) and the expected recovery — never staff names, action notes or service reports.",

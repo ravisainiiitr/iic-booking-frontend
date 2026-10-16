@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Hourglass } from "lucide-react";
-import type { BookingResultsDeadline, BookingResultsOverdue } from "@/lib/api";
+import { AlertTriangle, Hourglass, PauseCircle } from "lucide-react";
+import type { BookingResultsDeadline, BookingResultsOverdue, BookingResultsPaused } from "@/lib/api";
 import { resultsDeadlineApplies } from "@/components/booking/ResultsDeadlineNotice";
 
 /** Same wording as the backend `overdue_label`: "less than 1 h", "5 h", "2 days", "2 days 3 h". */
@@ -32,6 +32,30 @@ function useMinuteClock(initial?: Date): Date {
     return () => window.clearInterval(id);
   }, [initial]);
   return initial ?? now;
+}
+
+/**
+ * Booking details: the results clock is paused while the equipment is Under Maintenance. Shown instead of the
+ * overdue / deadline notices; the deadline is extended by the paused time when the equipment is Operational again.
+ */
+export function ResultsPausedNotice({ paused, staffView }: { paused?: BookingResultsPaused | null; staffView: boolean }) {
+  if (!paused?.paused) return null;
+  return (
+    <div
+      className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100"
+      data-testid="results-paused-notice"
+    >
+      <PauseCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <div className="min-w-0">
+        <p className="font-semibold">{paused.reason}</p>
+        <p className="text-xs">
+          {staffView
+            ? `The results clock is paused since ${paused.paused_display}: this booking is not counted as overdue and no overdue notices are sent. When the equipment is Operational again, the results deadline is extended by the paused time.`
+            : `The equipment has been under maintenance since ${paused.paused_display}, so the time for your results is paused. It resumes when the equipment is working again.`}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /**

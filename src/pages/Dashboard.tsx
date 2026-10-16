@@ -46,6 +46,7 @@ import {
   showsBookingsAwaitingCompletion,
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
+import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -4607,6 +4608,7 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
+        {showsLabStyleDashboard || isAdmin ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}

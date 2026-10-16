@@ -5,6 +5,7 @@ import {
   type BookingLabMessageThread,
   type BookingResultsDeadline,
   type BookingResultsOverdue,
+  type BookingResultsPaused,
   type FabricationFileChange,
   type FabricationPart,
   type FabricationWorkflow,
@@ -97,7 +98,7 @@ import {
   FabricationRejectedNotice,
 } from "@/components/booking/FabricationRejection";
 import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
-import { ResultsOverdueNotice } from "@/components/booking/ResultsOverdueNotice";
+import { ResultsOverdueNotice, ResultsPausedNotice } from "@/components/booking/ResultsOverdueNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
@@ -160,6 +161,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   results_deadline?: BookingResultsDeadline | null;
   /** When results become overdue: always for staff; for the booking user only when the equipment shows the countdown. */
   results_overdue?: BookingResultsOverdue | null;
+  /** Results clock paused while the equipment is Under Maintenance. */
+  results_paused?: BookingResultsPaused | null;
   atmosphere_sensitive_sample?: boolean;
   /** When false, atmosphere-sensitive option is not offered for this equipment. */
   equipment_atmosphere_sensitive_sample_enabled?: boolean;
@@ -1971,7 +1974,10 @@ export function BookingDetailCard({
             />
           )}
 
-          {showResultsDeadlineNotice && (
+          {showResultsDeadlineNotice && booking.results_paused?.paused && (
+            <ResultsPausedNotice paused={booking.results_paused} staffView={isOperatorOrManager} />
+          )}
+          {showResultsDeadlineNotice && !booking.results_paused?.paused && (
             <ResultsOverdueNotice
               results={booking.results_overdue}
               status={booking.status}
@@ -1979,7 +1985,9 @@ export function BookingDetailCard({
               userDeadline={booking.results_deadline}
             />
           )}
-          {showResultsDeadlineNotice && (isOperatorOrManager || !booking.results_overdue?.visible_to_user) && (
+          {showResultsDeadlineNotice &&
+            !booking.results_paused?.paused &&
+            (isOperatorOrManager || !booking.results_overdue?.visible_to_user) && (
             <ResultsDeadlineNotice
               deadline={booking.results_deadline}
               status={booking.status}

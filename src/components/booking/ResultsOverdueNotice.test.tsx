@@ -2,9 +2,36 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { BookingResultsDeadline, BookingResultsOverdue } from "@/lib/api";
-import { formatOverdueBy, ResultsOverdueNotice, resultsOverdueState } from "./ResultsOverdueNotice";
+import { formatOverdueBy, ResultsOverdueNotice, ResultsPausedNotice, resultsOverdueState } from "./ResultsOverdueNotice";
 
 afterEach(cleanup);
+
+describe("ResultsPausedNotice", () => {
+  const paused = {
+    paused: true as const,
+    paused_at: "2026-10-13T07:09:00Z",
+    paused_display: "Tue 13 Oct 2026, 12:39 PM",
+    reason: "Paused – equipment under maintenance",
+  };
+
+  it("tells staff the clock is paused and the deadline will be extended", () => {
+    render(<ResultsPausedNotice paused={paused} staffView />);
+    const box = screen.getByTestId("results-paused-notice");
+    expect(box.textContent).toContain("Paused – equipment under maintenance");
+    expect(box.textContent).toContain("since Tue 13 Oct 2026, 12:39 PM");
+    expect(box.textContent).toContain("extended by the paused time");
+  });
+
+  it("explains the pause to the booking user in plain words", () => {
+    render(<ResultsPausedNotice paused={paused} staffView={false} />);
+    expect(screen.getByTestId("results-paused-notice").textContent).toContain("the time for your results is paused");
+  });
+
+  it("renders nothing when not paused", () => {
+    const { container } = render(<ResultsPausedNotice paused={null} staffView />);
+    expect(container.textContent).toBe("");
+  });
+});
 
 const results = (over: Partial<BookingResultsOverdue> = {}): BookingResultsOverdue => ({
   hours: 24,

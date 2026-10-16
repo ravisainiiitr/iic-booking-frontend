@@ -10,7 +10,7 @@ import { formatDurationMinutes, groupSlotsByDay, latestSampleStage, telHref, typ
 import { SampleRequirementsTable, TextWithLinks } from "@/components/booking/SampleRequirementsTable";
 import { resultsDeadlineApplies, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { isFabricationProfile } from "@/lib/fabricationProfiles";
-import type { BookingResultsDeadline, BookingResultsOverdue } from "@/lib/api";
+import type { BookingResultsDeadline, BookingResultsOverdue, BookingResultsPaused } from "@/lib/api";
 
 /** The booking fields the job sheet reads (a subset of the booking details payload). */
 export type JobSheetBooking = {
@@ -41,6 +41,7 @@ export type JobSheetBooking = {
   source_booking_id?: number | null;
   results_deadline?: BookingResultsDeadline | null;
   results_overdue?: BookingResultsOverdue | null;
+  results_paused?: BookingResultsPaused | null;
   equipment_profile_type?: string | null;
 };
 
@@ -86,6 +87,7 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
   const notes = String(booking.notes || "").trim();
   const results = isFabrication ? null : booking.results_deadline;
   const resultsDue = isFabrication ? null : booking.results_overdue;
+  const resultsPaused = isFabrication || !booking.results_paused?.paused ? null : booking.results_paused;
   const flags: Array<{ key: string; icon: ReactNode; text: string }> = [];
   if (booking.atmosphere_sensitive_sample && !isFabrication) {
     flags.push({
@@ -176,7 +178,13 @@ export const OperatorJobSheet = forwardRef<HTMLDivElement, OperatorJobSheetProps
             )}
           </Fact>
         )}
-        {resultsDue && resultsDeadlineApplies(booking.status) ? (
+        {resultsPaused && resultsDeadlineApplies(booking.status) ? (
+          <Fact label="Results">
+            <span data-testid="job-sheet-results-paused">
+              {resultsPaused.reason} (since {resultsPaused.paused_display})
+            </span>
+          </Fact>
+        ) : resultsDue && resultsDeadlineApplies(booking.status) ? (
           <Fact label={resultsDue.overdue ? "Results overdue" : "Results due by"}>
             <span
               className={resultsDue.overdue ? "text-red-700 dark:text-red-300" : undefined}
