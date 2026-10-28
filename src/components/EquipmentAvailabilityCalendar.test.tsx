@@ -73,7 +73,7 @@ describe("EquipmentAvailabilityCalendar", () => {
     expect(screen.queryByText("Past")).toBeNull();
   });
 
-  it("shows another user's Booking Not Utilized slot as plain Booked, with no booking details or link", async () => {
+  it("shows a Booking Not Utilized slot as plain Booked, naming the booker only when the server sends one", async () => {
     const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
     getEquipmentSlots.mockResolvedValue({
       data: {
@@ -93,12 +93,11 @@ describe("EquipmentAvailabilityCalendar", () => {
 
     render(<EquipmentAvailabilityCalendar equipmentId={5} />);
 
-    // The cell plus the legend entry.
+    // The cell plus the legend entry; the status stays plain Booked.
     await waitFor(() => expect(screen.getAllByText("Booked")).toHaveLength(2));
-    expect(screen.queryByText(/NU-41/)).toBeNull();
-    expect(screen.queryByText(/Other Person/)).toBeNull();
     expect(screen.queryByText(/Not Utilized/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: /NU-41|Booking ID/ })).toBeNull();
+    // The server sent the booker (it does so only for viewers allowed to see them), so the cell names them.
+    expect(screen.getByText("Other Person")).toBeTruthy();
   });
 
   it("explains a disrupted slot on hover with the public reason and expected recovery only", async () => {

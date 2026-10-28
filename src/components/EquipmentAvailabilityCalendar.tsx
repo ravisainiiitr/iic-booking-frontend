@@ -14,6 +14,7 @@ import {
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { apiClient } from "@/lib/api";
 import { isInternalRateUserType } from "@/lib/userTypes";
+import { bookerHoverLines, slotHoldsBooking } from "@/lib/slotBooker";
 import { useOptionalAuth } from "@/contexts/AuthContext";
 import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
 import { publicDisruptionLines } from "@/lib/disruptions";
@@ -258,24 +259,18 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     const display = resolveSlotCell({ slot, day, holiday: holidays[dateStr], palette, now });
     const restrictedToStaff = isOutsideVisibilityWindow(slot);
     const disruptionLines = publicDisruptionLines(slot?.disruption_public);
-    // Internal users see who booked a slot (internal bookers only; the server sends the name only then).
+    // Who booked the slot, whenever the server sends it (staff of the equipment; internal users for internal
+    // bookers; the owner). Internal users can also click it to request a slot exchange.
     const bookerName = String(slot?.booking_user_name || "").trim();
-    if (slot && viewerInternal && bookerName && display.kind === "booked") {
-      const dept = String(slot.booking_user_department_name || slot.booking_user_department_code || "").trim();
-      const lines = [
-        `Booked by ${bookerName}`,
-        dept ? `Department: ${dept}` : null,
-        slot.booking_user_email ? `Email: ${slot.booking_user_email}` : null,
-        slot.booking_user_phone ? `Mobile: ${slot.booking_user_phone}` : null,
-        "Click for details or to request a slot exchange",
-      ].filter((l): l is string => Boolean(l));
+    if (slot && bookerName && slotHoldsBooking(slot)) {
+      const lines = bookerHoverLines(slot, viewerInternal ? "Click for details or to request a slot exchange" : null);
       return (
         <SlotHoverCard lines={lines} boldFirst>
           <button
             type="button"
-            className={`${SLOT_CELL_CLASS} cursor-pointer transition-all hover:shadow-md hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            className={`${SLOT_CELL_CLASS} transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${viewerInternal ? "cursor-pointer hover:shadow-md hover:ring-2 hover:ring-primary/35" : "cursor-help"}`}
             style={slotCellStyle(display)}
-            onClick={() => setOpenSlotId(slot.id)}
+            onClick={() => viewerInternal && setOpenSlotId(slot.id)}
             aria-label={lines.join(". ")}
           >
             <span className="flex w-full min-w-0 flex-col items-center leading-tight">

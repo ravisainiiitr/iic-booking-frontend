@@ -112,6 +112,7 @@ import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
 import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
+import { bookerHoverLines, slotHoldsBooking } from "@/lib/slotBooker";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -11895,22 +11896,19 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                   isWeekend: isSaturdayCol || isSundayCol,
                                 })
                               : [];
-                          // Internal user looking at another internal user's booked slot: the server sends the booker.
-                          const peerBookerName =
-                            viewerInternal && !isAdminOrOIC() && considerBooked && slotData?.id != null
-                              ? String(slotData?.booking_user_name || "").trim()
-                              : "";
-                          const peerLines = peerBookerName
-                            ? [
-                                `Booked by ${peerBookerName}`,
-                                ...(slotData?.booking_user_department_name
-                                  ? [`Department: ${slotData.booking_user_department_name}`]
-                                  : []),
-                                ...(slotData?.booking_user_email ? [`Email: ${slotData.booking_user_email}`] : []),
-                                ...(slotData?.booking_user_phone ? [`Mobile: ${slotData.booking_user_phone}`] : []),
-                                "Click for details or to request a slot exchange",
-                              ]
+                          // Booked slot whose booker the server lets this viewer see (staff of the equipment, internal
+                          // users for internal bookers, the owner): hover shows who booked it. Internal users can
+                          // click it to open the details and request a slot exchange.
+                          const showsBooker = considerBooked && slotData?.id != null && slotHoldsBooking(slotData);
+                          const peerBookerName = showsBooker && viewerInternal && !isAdminOrOIC()
+                            ? String(slotData?.booking_user_name || "").trim()
+                            : "";
+                          const bookerLines = showsBooker && slotData
+                            ? bookerHoverLines(slotData, peerBookerName ? "Click for details or to request a slot exchange" : null)
                             : [];
+                          const peerLines = bookerLines.length > 0 && staffStatusLines.length > 0
+                            ? [...bookerLines, ...staffStatusLines.filter((l) => !/^(Name|Email|Mobile|Department|Booking ID):/.test(l))]
+                            : bookerLines;
                           const hoverLines = peerLines.length > 0
                             ? peerLines
                             : staffStatusLines.length > 0
