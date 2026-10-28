@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, addWeeks, format, parseISO, startOfWeek } from "date-fns";
 import { Loader2, Lock, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import {
   SLOT_CELL_CLASS,
@@ -15,7 +15,12 @@ import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { apiClient } from "@/lib/api";
 import { publicDisruptionLines } from "@/lib/disruptions";
 import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette, type HolidayEntry } from "@/lib/slotCalendarDisplay";
-import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import {
+  isOutsideVisibilityWindow,
+  restrictedSlotHint,
+  restrictedSlotStyle,
+  useSlotVisibilityScope,
+} from "@/lib/slotVisibilityWindow";
 
 type SlotsPayload = NonNullable<Awaited<ReturnType<typeof apiClient.getEquipmentSlots>>["data"]>;
 type CalendarSlot = SlotsPayload["slots"][number] & {
@@ -206,16 +211,34 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     return () => window.clearInterval(timer);
   }, [seeking, weekStart, loadWeek]);
 
+  // Only OIC / administrators receive slots outside the user visibility window; by default they see what users see.
+  const [visibilityScope, setVisibilityScope] = useSlotVisibilityScope();
+  const hasStaffOnlySlots = ((payload?.slots ?? []) as CalendarSlot[]).some((s) => isOutsideVisibilityWindow(s));
+  const shownSlots = useMemo(() => {
+    const all = (payload?.slots ?? []) as CalendarSlot[];
+    return visibilityScope === "user" ? all.filter((s) => !isOutsideVisibilityWindow(s)) : all;
+  }, [payload, visibilityScope]);
+
   const slotIndex = useMemo(() => {
     const m = new Map<string, CalendarSlot>();
-    for (const slot of (payload?.slots ?? []) as CalendarSlot[]) {
+    for (const slot of shownSlots) {
       const key = `${slotDateKey(slot)}|${slotTimeKey(slot)}`;
       if (!key.startsWith("|") && !key.endsWith("|")) m.set(key, slot);
     }
     return m;
-  }, [payload]);
+  }, [shownSlots]);
 
-  const rowKeys = useMemo(() => (payload ? buildRowKeys(payload) : []), [payload]);
+  const rowKeys = useMemo(() => {
+    if (!payload) return [];
+    const keys = buildRowKeys(payload);
+    if (!hasStaffOnlySlots || visibilityScope === "all") return keys;
+    // Drop rows whose every slot is staff-only, so the grid has the rows users see.
+    const all = payload.slots as CalendarSlot[];
+    return keys.filter((k) => {
+      const inRow = all.filter((s) => slotTimeKey(s) === k);
+      return inRow.length === 0 || inRow.some((s) => !isOutsideVisibilityWindow(s));
+    });
+  }, [payload, hasStaffOnlySlots, visibilityScope]);
   const slotDuration = payload?.slot_duration_minutes || 60;
   const palette = slotCalendarPalette(payload?.calendar_colors);
   const holidays = (payload?.holidays ?? {}) as Record<string, HolidayEntry>;
@@ -296,7 +319,12 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
         className="mx-auto flex w-fit"
       />
 
-      {!error && ((payload?.slots ?? []) as CalendarSlot[]).some((s) => isOutsideVisibilityWindow(s)) ? (
+      {!error && hasStaffOnlySlots ? (
+        <div className="flex justify-end">
+          <SlotVisibilityScopeToggle value={visibilityScope} onChange={setVisibilityScope} />
+        </div>
+      ) : null}
+      {!error && shownSlots.some((s) => isOutsideVisibilityWindow(s)) ? (
         <RestrictedSlotLegend from={payload?.weekly_view_time_from} to={payload?.weekly_view_time_to} />
       ) : null}
 

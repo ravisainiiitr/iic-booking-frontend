@@ -85,11 +85,13 @@ import {
 import { NumericFieldInput } from "@/components/NumericFieldInput";
 import { formatINRAmount } from "@/lib/money";
 import { holidayCellLabel, holidayHoverText } from "@/lib/holidayDisplay";
-import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle, useSlotVisibilityScope } from "@/lib/slotVisibilityWindow";
 import {
+  DISRUPTION_PENDING_LABEL,
   NO_BOOKING_COLOR,
   NO_BOOKING_LABEL,
   holidayEntryInfo,
+  isAwaitingDisruptionChoice,
   resolveSlotCell,
   slotCalendarLegend,
   slotCalendarPalette,
@@ -108,7 +110,7 @@ import {
 import { useSelectOrOpenClick } from "@/components/slot-calendar/useSelectOrOpenClick";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
-import RestrictedSlotLegend, { SlotVisibilityScopeToggle, type SlotVisibilityScope } from "@/components/RestrictedSlotLegend";
+import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -1324,7 +1326,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
   const [statusChangeSlotMasterTimes, setStatusChangeSlotMasterTimes] = useState<string[]>([]);
   const [statusChangeHolidays, setStatusChangeHolidays] = useState<Record<string, string | { label: string; color?: string }>>({});
   /** OIC / admin: show every slot, or only the slots regular users can see (booking + change slot status grids). */
-  const [slotVisibilityScope, setSlotVisibilityScope] = useState<SlotVisibilityScope>("all");
+  const [slotVisibilityScope, setSlotVisibilityScope] = useSlotVisibilityScope();
   const [loadingStatusSlots, setLoadingStatusSlots] = useState(false);
   const [selectedSlotIdsForStatus, setSelectedSlotIdsForStatus] = useState<number[]>([]);
   /** Last focused time row / day column for week-view bulk scope dropdowns */
@@ -11527,9 +11529,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                             ? (rawHoliday as { color: string }).color
                             : undefined;
                           const holidayName = holidayLabel;
-                          const hasBookedStatus = slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED";
+                          // A slot marked e.g. Operator Absent whose booking waits for the user's choice still holds that booking.
+                          const awaitingChoice = isAwaitingDisruptionChoice(slotData);
+                          const hasBookedStatus =
+                            slotStatus === "BOOKED" || slotStatus === "BOOKING_NOT_UTILIZED" || awaitingChoice;
                           // Use booking metadata only for genuinely booked slot statuses.
-                          const bookingStatusDisplay = hasBookedStatus ? (slotData?.booking_status_display ?? null) : null;
+                          const bookingStatusDisplay = !hasBookedStatus
+                            ? null
+                            : awaitingChoice && (isAdminOrOIC() || canChangeSlotStatus())
+                              ? DISRUPTION_PENDING_LABEL
+                              : (slotData?.booking_status_display ?? null);
                           const bookingId = hasBookedStatus ? (slotData?.booking_id ?? null) : null;
                           // Admin: only BOOKED slots are non-selectable; other statuses (BLOCKED, weekend/holiday) are bookable
                           const isActuallyBooked = hasBookedStatus;

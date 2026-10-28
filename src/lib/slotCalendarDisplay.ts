@@ -43,6 +43,13 @@ const STATUS_LABELS: Record<string, string> = {
   RESERVED_EXTERNAL: "Reserved (External)",
 };
 
+export const DISRUPTION_PENDING_LABEL = "Disruption pending";
+
+/** A slot that still belongs to a booking which is waiting for its user to pick reschedule or refund. */
+export function isAwaitingDisruptionChoice(slot: SlotStatusFields | null | undefined): boolean {
+  return String(slot?.booking_status || "").toUpperCase() === "DISRUPTION_PENDING";
+}
+
 export interface CalendarColorsInput {
   slot_colors?: Record<string, string> | null;
   holiday_default?: string | null;
@@ -169,6 +176,20 @@ export function resolveSlotCell({ slot, day, holiday, palette, now = new Date(),
 
   const status = String(slot.status || "").toUpperCase();
   if (isCompletedSlot(slot)) return cell("completed", "Completed", colors.COMPLETED);
+  // The booking still holds the slot while its user chooses reschedule or refund. The slot itself may have been
+  // marked (e.g. Operator Absent) or left Booked; staff calendars show the booking's state either way, so it is
+  // not mistaken for a plain absence.
+  if (staffView && status !== "AVAILABLE" && isAwaitingDisruptionChoice(slot)) {
+    const cause = status === "BOOKED" ? "" : slot.status_display || STATUS_LABELS[status] || status;
+    return cell(
+      "booked",
+      DISRUPTION_PENDING_LABEL,
+      colors.DISRUPTION_PENDING || (status === "BOOKED" ? colors.BOOKED : colors[status]) || colors.BOOKED,
+      cause
+        ? `Booking awaiting the user's choice after the slot was marked ${cause}.`
+        : "Booking awaiting the user's choice (reschedule or refund).",
+    );
+  }
   if (status === "BOOKED") {
     const bookingStatus = String(slot.booking_status || "").toUpperCase();
     const bg = (bookingStatus && colors[bookingStatus]) || colors.BOOKED;

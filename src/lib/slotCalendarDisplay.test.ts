@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DISRUPTION_PENDING_LABEL,
   NO_BOOKING_COLOR,
   NO_BOOKING_LABEL,
   contrastTextColor,
@@ -104,5 +105,33 @@ describe("slot calendar legend and colours", () => {
     expect(contrastTextColor("#ffffff")).toBe("#1f2937");
     expect(contrastTextColor("#000")).toBe("#ffffff");
     expect(contrastTextColor("not-a-colour")).toBe("#1f2937");
+  });
+});
+
+describe("slots held by a booking awaiting a disruption choice", () => {
+  const palette = slotCalendarPalette(null);
+  const day = new Date("2026-10-21T00:00:00+05:30");
+  const slot = {
+    status: "OPERATOR_ABSENT",
+    status_display: "Operator Absent",
+    booking_status: "DISRUPTION_PENDING",
+    booking_status_display: "Awaiting your choice (disruption)",
+    start_datetime: "2026-10-21T10:00:00+05:30",
+  };
+
+  it("staff see the booking state, not the absence", () => {
+    const display = resolveSlotCell({ slot, day, palette, now: NOW, staffView: true });
+    expect(display.kind).toBe("booked");
+    expect(display.label).toBe(DISRUPTION_PENDING_LABEL);
+    expect(display.hover).toContain("Operator Absent");
+  });
+
+  it("users still see the slot status", () => {
+    expect(resolveSlotCell({ slot, day, palette, now: NOW }).label).toBe("Operator Absent");
+  });
+
+  it("a slot left Booked reads the same for staff", () => {
+    const booked = { ...slot, status: "BOOKED", status_display: "Booked" };
+    expect(resolveSlotCell({ slot: booked, day, palette, now: NOW, staffView: true }).label).toBe(DISRUPTION_PENDING_LABEL);
   });
 });

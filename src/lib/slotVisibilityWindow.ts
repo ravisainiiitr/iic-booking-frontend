@@ -1,4 +1,33 @@
-import type { CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
+
+export type SlotVisibilityScope = "all" | "user";
+
+const SCOPE_STORAGE_KEY = "iic.slotVisibilityScope";
+
+function readStoredScope(): SlotVisibilityScope {
+  try {
+    return window.localStorage.getItem(SCOPE_STORAGE_KEY) === "all" ? "all" : "user";
+  } catch {
+    return "user";
+  }
+}
+
+/**
+ * Which slots OIC / administrators see on a weekly calendar. Defaults to what regular users see; the choice is
+ * remembered in this browser so every calendar opens the same way.
+ */
+export function useSlotVisibilityScope(): [SlotVisibilityScope, (scope: SlotVisibilityScope) => void] {
+  const [scope, setScope] = useState<SlotVisibilityScope>(readStoredScope);
+  const update = useCallback((next: SlotVisibilityScope) => {
+    setScope(next);
+    try {
+      window.localStorage.setItem(SCOPE_STORAGE_KEY, next);
+    } catch {
+      /* storage unavailable: keep the choice for this page only */
+    }
+  }, []);
+  return [scope, update];
+}
 
 /** Diagonal hatch layered over the status colour, so staff still see the slot status. */
 export const RESTRICTED_SLOT_HATCH =

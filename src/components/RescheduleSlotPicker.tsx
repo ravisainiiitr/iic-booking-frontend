@@ -2,7 +2,13 @@ import { useEffect, useState, useCallback, type CSSProperties } from "react";
 import { format, addDays, startOfWeek, addWeeks, subWeeks, parseISO, startOfDay } from "date-fns";
 import { apiClient, type RescheduleEquipmentOption } from "@/lib/api";
 import { isExternalBookingUserType, normalizeUserTypeCode } from "@/lib/userTypes";
-import { isOutsideVisibilityWindow, restrictedSlotHint, restrictedSlotStyle } from "@/lib/slotVisibilityWindow";
+import {
+  isOutsideVisibilityWindow,
+  restrictedSlotHint,
+  restrictedSlotStyle,
+  useSlotVisibilityScope,
+} from "@/lib/slotVisibilityWindow";
+import { wallDate, wallTime, wallWindowLabel } from "@/lib/slotWallClock";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
   resolveSlotCell,
@@ -11,7 +17,7 @@ import {
   type CalendarColorsInput,
 } from "@/lib/slotCalendarDisplay";
 import { cn } from "@/lib/utils";
-import RestrictedSlotLegend from "@/components/RestrictedSlotLegend";
+import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import {
   SLOT_CELL_CLASS,
@@ -33,6 +39,8 @@ import {
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { toast } from "sonner";
 import { Lock } from "lucide-react";
+import { consecutiveRunFrom, continuesOnNextDay } from "@/lib/rescheduleSelection";
+import { Switch } from "@/components/ui/switch";
 
 /** Monday-start weeks that overlap [minDateStr, maxDateStr] (from slots API slot_window bounds). */
 function getAllowedWeeksFromSlotWindowBounds(minDateStr: string, maxDateStr: string): Date[] {
@@ -102,19 +110,6 @@ export interface RescheduleBooking {
   holder?: RescheduleBookingHolder;
 }
 
-function formatBookingWindow(startIso: string, endIso: string): string {
-  try {
-    const s = parseISO(startIso);
-    const e = parseISO(endIso);
-    const sameDay = format(s, "yyyy-MM-dd") === format(e, "yyyy-MM-dd");
-    return sameDay
-      ? `${format(s, "EEE, d MMM yyyy, HH:mm")} – ${format(e, "HH:mm")}`
-      : `${format(s, "EEE, d MMM yyyy, HH:mm")} – ${format(e, "EEE, d MMM yyyy, HH:mm")}`;
-  } catch {
-    return "";
-  }
-}
-
 export function currentBookingDetailLines(booking: RescheduleBooking, slots: RescheduleSlot[]): string[] {
   const own = new Set((booking.daily_slots ?? []).map((s) => s.id));
   const slotInfo = slots.find((s) => own.has(s.id) && (s.booking_user_name || s.booking_user_email));
@@ -138,7 +133,7 @@ export function currentBookingDetailLines(booking: RescheduleBooking, slots: Res
   if (clean(h.user_type)) lines.push(`User type: ${clean(h.user_type)}`);
   if (clean(h.supervisor_name)) lines.push(`Supervisor: ${clean(h.supervisor_name)}`);
   if (clean(h.status)) lines.push(`Status: ${clean(h.status)}`);
-  const when = formatBookingWindow(booking.start_time, booking.end_time);
+  const when = wallWindowLabel(booking.start_time, booking.end_time);
   if (when) lines.push(`Booked: ${when}`);
   const count = booking.daily_slots?.length ?? 0;
   if (count > 0) lines.push(`Slots: ${count}`);
@@ -206,6 +201,9 @@ export default function RescheduleSlotPicker({
   const [viewWindow, setViewWindow] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedSlots, setSelectedSlots] = useState<RescheduleSlot[]>([]);
+  const [visibilityScope, setVisibilityScope] = useSlotVisibilityScope();
+  /** Clicking the first slot selects the whole run of required consecutive slots from there. */
+  const [autoSelect, setAutoSelect] = useState(true);
 
   // Fetch user type on mount
   useEffect(() => {
@@ -424,29 +422,36 @@ export default function RescheduleSlotPicker({
     }
   }, [slotWindowMinDate, slotWindowMaxDate, userType, weekStart, useExtendedDisruptionWeekNav, maintenanceExtraWeekBookingId]);
 
+  // Staff see every slot only when they switch to "All slots"; by default the grid matches what users see.
+  const gridSlots =
+    isUnrestrictedStaff() && visibilityScope === "user"
+      ? slots.filter((s) => !isOutsideVisibilityWindow(s) || currentBookingSlotIds.has(s.id))
+      : slots;
+
+  // Rows and days are keyed by lab wall-clock time, so the grid is right whatever the viewer's time zone.
   const getUniqueTimes = (): string[] => {
     const set = new Set<string>();
-    slots.forEach((s) => {
-      try {
-        set.add(format(parseISO(s.start_datetime), "HH:mm"));
-      } catch (_) {}
+    gridSlots.forEach((s) => {
+      const t = wallTime(s.start_datetime);
+      if (t) set.add(t);
     });
     return Array.from(set).sort();
   };
 
   const getSlotAt = (day: Date, timeStr: string): RescheduleSlot | undefined => {
     const dateStr = format(startOfDay(day), "yyyy-MM-dd");
-    return slots.find((s) => {
-      const slotDate = format(startOfDay(parseISO(s.date)), "yyyy-MM-dd");
-      const slotTime = format(parseISO(s.start_datetime), "HH:mm");
-      return slotDate === dateStr && slotTime === timeStr;
-    });
+    return gridSlots.find(
+      (s) => (wallDate(s.date) || wallDate(s.start_datetime)) === dateStr && wallTime(s.start_datetime) === timeStr
+    );
   };
 
   const isAvailable = (slot: RescheduleSlot): boolean => {
     if (currentBookingSlotIds.has(slot.id)) return true;
-    // Staff (Admin/OIC/Operator): can select any slot that is not booked by someone else
-    if (isUnrestrictedStaff()) return slot.status !== "BOOKED";
+    // Staff (Admin/OIC/Operator): free slots, plus blocked weekend/holiday slots — exactly what the server accepts.
+    if (isUnrestrictedStaff()) {
+      if (slot.booking_id != null) return false;
+      return slot.status === "AVAILABLE" || (slot.status === "BLOCKED" && Boolean(holidays[wallDate(slot.date)]));
+    }
     // External users: AVAILABLE slots (or available_for_external) are selectable
     const ut = String(userType ?? "").toLowerCase();
     const isExternal = isExternalBookingUserType(ut);
@@ -476,16 +481,13 @@ export default function RescheduleSlotPicker({
 
   const timeSlots = getUniqueTimes();
   const rowEndTimes = slotRowEndTimes(
-    slots,
-    (s) => format(parseISO(s.start_datetime), "HH:mm"),
-    (s) => (s.end_datetime ? format(parseISO(s.end_datetime), "HH:mm") : "")
+    gridSlots,
+    (s) => wallTime(s.start_datetime),
+    (s) => wallTime(s.end_datetime)
   );
 
-  // Normalize to local (date + minute) so timezone/sub-second differences don't break consecutive check
-  const toMinuteKey = (iso: string): string => {
-    const d = parseISO(iso);
-    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}-${d.getMinutes()}`;
-  };
+  // Lab wall-clock date + minute, so sub-second differences don't break the consecutive check
+  const toMinuteKey = (iso: string): string => `${wallDate(iso)} ${wallTime(iso)}`;
 
   const isConsecutive = (newSlot: RescheduleSlot, current: RescheduleSlot[]): boolean => {
     if (current.length === 0) return true;
@@ -504,24 +506,55 @@ export default function RescheduleSlotPicker({
     const newSlotAfterLast = newStartKey === lastEndKey;
     if (newSlotBeforeFirst || newSlotAfterLast) return true;
     // 2) Grid-adjacent: same day and new slot is the very next row in the weekly grid (so 16:00 + 17:45 count when there's no 17:30 row)
-    const lastStartHHMM = format(parseISO(last.start_datetime), "HH:mm");
-    const newStartHHMM = format(parseISO(newSlot.start_datetime), "HH:mm");
-    const lastDateStr = format(parseISO(last.start_datetime), "yyyy-MM-dd");
-    const newDateStr = format(parseISO(newSlot.start_datetime), "yyyy-MM-dd");
+    const lastStartHHMM = wallTime(last.start_datetime);
+    const newStartHHMM = wallTime(newSlot.start_datetime);
+    const lastDateStr = wallDate(last.start_datetime);
+    const newDateStr = wallDate(newSlot.start_datetime);
     const lastIdx = timeSlots.indexOf(lastStartHHMM);
     const newIdx = timeSlots.indexOf(newStartHHMM);
     const gridAdjacentSameDay =
       lastDateStr === newDateStr && lastIdx >= 0 && newIdx === lastIdx + 1;
-    return gridAdjacentSameDay;
+    if (gridAdjacentSameDay) return true;
+    // 3) Across days: a booking longer than a day's slots continues from the last slot of a day to the first slot
+    //    of the next working day (either direction).
+    //    Every loaded slot counts, including any hidden in "Visible to users": the server would take a free one.
+    const breaks = (s: RescheduleSlot) => breaksRun(s);
+    return (
+      continuesOnNextDay(last, newSlot, slots, (s) => breaks(s as RescheduleSlot)) ||
+      continuesOnNextDay(newSlot, first, slots, (s) => breaks(s as RescheduleSlot))
+    );
+  };
+
+  const selectable = (s: RescheduleSlot): boolean => isAvailable(s) && !isPast(s) && !isCurrentBooking(s);
+
+  /** A slot between two chosen slots that the move cannot skip: free (the server would take it) or booked. */
+  const breaksRun = (s: RescheduleSlot): boolean => {
+    const status = String(s.status || "").toUpperCase();
+    return (
+      selectable(s) ||
+      isCurrentBooking(s) ||
+      s.booking_id != null ||
+      status === "BOOKED" ||
+      status === "BOOKING_NOT_UTILIZED"
+    );
   };
 
   const toggleSlot = (slot: RescheduleSlot) => {
-    if (!isAvailable(slot) || isPast(slot) || isCurrentBooking(slot)) return;
+    if (!selectable(slot)) return;
 
     setSelectedSlots((prev) => {
       const already = prev.find((s) => s.id === slot.id);
       if (already) {
         return prev.filter((s) => s.id !== slot.id);
+      }
+      if (prev.length === 0 && autoSelect && requiredSlotCount > 1) {
+        const run = consecutiveRunFrom(slot, requiredSlotCount, gridSlots, selectable, (c, r) => isConsecutive(c, r));
+        if (run.length === requiredSlotCount) return run;
+        toast.warning(
+          `Only ${run.length} consecutive free slot${run.length === 1 ? "" : "s"} from here this week; ` +
+            `${requiredSlotCount} are needed. Pick another start, or select the rest by hand.`
+        );
+        return [slot];
       }
       if (prev.length >= requiredSlotCount) {
         toast.error(`Select exactly ${requiredSlotCount} consecutive slot(s).`);
@@ -616,21 +649,32 @@ export default function RescheduleSlotPicker({
       )}
       <div className="rounded-md bg-muted/50 p-3 text-sm">
         <p className="font-medium text-muted-foreground mb-1">Current slot window</p>
-        <p className="font-mono">
-          {new Date(booking.start_time).toLocaleString(undefined, {
-            dateStyle: "short",
-            timeStyle: "short",
-          })}{" "}
-          →{" "}
-          {new Date(booking.end_time).toLocaleString(undefined, {
-            dateStyle: "short",
-            timeStyle: "short",
-          })}
-        </p>
+        <p className="font-mono">{wallWindowLabel(booking.start_time, booking.end_time)}</p>
         <p className="mt-1 text-muted-foreground">
           Select exactly <strong>{requiredSlotCount}</strong> consecutive slot
-          {requiredSlotCount !== 1 ? "s" : ""} in the grid below.
+          {requiredSlotCount !== 1 ? "s" : ""} in the grid below. A selection that fills the last slot of a day can
+          continue from the first slot of the next working day.
         </p>
+        {requiredSlotCount > 1 && (
+          <div className="mt-2 flex items-center gap-2">
+            <Switch
+              id="reschedule-auto-select"
+              checked={autoSelect}
+              onCheckedChange={(on) => {
+                setAutoSelect(on);
+                setSelectedSlots([]);
+              }}
+            />
+            <Label htmlFor="reschedule-auto-select" className="cursor-pointer text-sm font-normal">
+              Auto-select {requiredSlotCount} consecutive slots from the first slot I click
+            </Label>
+          </div>
+        )}
+        {selectedSlots.length > 0 && (
+          <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => setSelectedSlots([])}>
+            Clear selection
+          </Button>
+        )}
       </div>
 
       <SlotWeekNav
@@ -673,7 +717,12 @@ export default function RescheduleSlotPicker({
 
       <NextWeekOpeningCountdown equipmentId={targetEquipmentId} className="mx-auto flex w-fit" />
 
-      {!loadingSlots && slots.some((s) => isOutsideVisibilityWindow(s)) && (
+      {!loadingSlots && staffPicker && slots.some((s) => isOutsideVisibilityWindow(s)) && (
+        <div className="flex justify-end">
+          <SlotVisibilityScopeToggle value={visibilityScope} onChange={setVisibilityScope} />
+        </div>
+      )}
+      {!loadingSlots && gridSlots.some((s) => isOutsideVisibilityWindow(s)) && (
         <RestrictedSlotLegend from={viewWindow.from} to={viewWindow.to} />
       )}
 

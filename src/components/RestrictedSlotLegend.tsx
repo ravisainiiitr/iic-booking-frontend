@@ -1,6 +1,8 @@
 import { Eye, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { RESTRICTED_SLOT_HATCH, visibilityWindowRange } from "@/lib/slotVisibilityWindow";
+import { RESTRICTED_SLOT_HATCH, visibilityWindowRange, type SlotVisibilityScope } from "@/lib/slotVisibilityWindow";
+
+export type { SlotVisibilityScope };
 
 interface Props {
   from?: string | null;
@@ -69,8 +71,6 @@ export default function RestrictedSlotLegend({
     </div>
   );
 }
-
-export type SlotVisibilityScope = "all" | "user";
 
 interface ToggleProps {
   value: SlotVisibilityScope;

@@ -4,7 +4,13 @@ import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
-import { contrastTextColor, isSlotInPast, resolveSlotCell, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
+import {
+  contrastTextColor,
+  isAwaitingDisruptionChoice,
+  isSlotInPast,
+  resolveSlotCell,
+  slotCalendarPalette,
+} from "@/lib/slotCalendarDisplay";
 import { cn } from "@/lib/utils";
 import {
   SLOT_CELL_CLASS,
@@ -108,9 +114,14 @@ function resolveSlotBookingPk(slot: LabCalendarSlot | undefined): number | null 
 
 const DEFAULT_TIME_SLOTS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
-/** Slot statuses that still belong to a booking staff can open (Booked, Completed, Booking Not Utilized). */
-function isBookingSlotStatus(status: string): boolean {
-  return status === "BOOKED" || status === "BOOKING_NOT_UTILIZED";
+/**
+ * Slots that still belong to a booking staff can open: Booked, Completed, Booking Not Utilized, and slots marked
+ * (e.g. Operator Absent) whose booking is waiting for the user's choice.
+ */
+function holdsBooking(slot: LabCalendarSlot | null | undefined): boolean {
+  if (!slot) return false;
+  const status = String(slot.status ?? "").toUpperCase();
+  return status === "BOOKED" || status === "BOOKING_NOT_UTILIZED" || isAwaitingDisruptionChoice(slot);
 }
 
 /** External bookings keep their own colour on staff calendars; labs can change it under Calendar colours. */
@@ -229,7 +240,7 @@ export function LabOperatorWeekCalendarGrid({
       for (let d = 0; d < 7; d++) {
         const day = addDays(currentWeekStart, d);
         const s = getSlotData(day, row.key);
-        if (s && isBookingSlotStatus(String(s.status).toUpperCase())) return true;
+        if (s && holdsBooking(s)) return true;
       }
       return false;
     });
@@ -242,7 +253,7 @@ export function LabOperatorWeekCalendarGrid({
       for (let d = 0; d < 7; d++) {
         const day = addDays(currentWeekStart, d);
         const s = getSlotData(day, row.key);
-        if (s && isBookingSlotStatus(String(s.status).toUpperCase())) set.add(d);
+        if (s && holdsBooking(s)) set.add(d);
       }
     }
     return [0, 1, 2, 3, 4, 5, 6].filter((i) => set.has(i));
@@ -284,7 +295,7 @@ export function LabOperatorWeekCalendarGrid({
     const slotStatusUpper = String(slotData?.status ?? "").toUpperCase();
     const dateStr = format(day, "yyyy-MM-dd");
 
-    if (bookedSlotsOnly && !isBookingSlotStatus(slotStatusUpper)) {
+    if (bookedSlotsOnly && !holdsBooking(slotData)) {
       return (
         <div
           className="flex min-h-[48px] items-center justify-center rounded-md border-2 border-transparent bg-muted/20 p-2 text-sm font-medium text-muted-foreground/35"
@@ -309,18 +320,19 @@ export function LabOperatorWeekCalendarGrid({
 
     let background = display.background;
     let content: ReactNode = display.label;
-    if (isNotUtilized && (displayRef || userName)) {
+    const awaitingChoice = isAwaitingDisruptionChoice(slotData);
+    if ((isNotUtilized || awaitingChoice) && (displayRef || userName)) {
       content = (
         <span className="flex w-full min-w-0 flex-col items-center justify-center gap-0.5 px-0.5 text-center leading-tight">
           {displayRef ? (
             <span className="w-full truncate text-[11px] font-extrabold tracking-tight sm:text-xs">{displayRef}</span>
           ) : null}
           {userName ? <span className="w-full truncate text-[10px] font-medium opacity-95 sm:text-[11px]">{userName}</span> : null}
-          <span className="w-full truncate text-[10px] opacity-90">Not utilized</span>
+          <span className="w-full truncate text-[10px] opacity-90">{awaitingChoice ? display.label : "Not utilized"}</span>
         </span>
       );
     }
-    if (isOpenBooking && slotData) {
+    if (isOpenBooking && slotData && !awaitingChoice) {
       const bookingSt = String(slotData.booking_status || "").toUpperCase();
       if (bookingSt !== "CANCELLED" && bookingSt !== "REFUNDED") {
         const isExternal = slotData.booking_is_external === true || isExternalBookingUserType(slotData.booking_user_type);
@@ -344,7 +356,7 @@ export function LabOperatorWeekCalendarGrid({
     }
     const style = slotCellStyle({ background, color: contrastTextColor(background) });
 
-    const canOpenBooking = isBookingSlotStatus(slotStatusUpper) && bookingPk != null;
+    const canOpenBooking = holdsBooking(slotData) && bookingPk != null;
     if (canOpenBooking && slotData) {
       const deptName = String(slotData.booking_user_department_name || slotData.booking_user_department_code || "").trim();
       const bookingStatusText = isNotUtilized
@@ -361,6 +373,7 @@ export function LabOperatorWeekCalendarGrid({
         bookingStatusText ? `Status: ${bookingStatusText}` : null,
         slotTimeText ? `Slot: ${slotTimeText}` : null,
         sampleStatusText ? `Sample: ${sampleStatusText}` : null,
+        awaitingChoice && display.hover ? display.hover : null,
         equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
         String(slotData.booking_auto_reschedule_note || "").trim() || null,
       ].filter((line): line is string => Boolean(line));
