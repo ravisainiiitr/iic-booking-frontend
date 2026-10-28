@@ -135,3 +135,27 @@ describe("slots held by a booking awaiting a disruption choice", () => {
     expect(resolveSlotCell({ slot: booked, day, palette, now: NOW, staffView: true }).label).toBe(DISRUPTION_PENDING_LABEL);
   });
 });
+
+describe("slots users cannot book (multi-mode)", () => {
+  const palette = slotCalendarPalette(null);
+  const day = new Date("2026-11-04T00:00:00+05:30");
+  const slot = {
+    status: "AVAILABLE",
+    start_datetime: "2026-11-04T10:00:00+05:30",
+    users_blocked_label: "Mode closed",
+    users_blocked_reason: "Another mode of this instrument runs on its own at this time, so users cannot book this mode.",
+    users_blocked_color: "#94a3b8",
+  };
+
+  it("staff calendars show the status users see, with the reason", () => {
+    const display = resolveSlotCell({ slot, day, palette, now: NOW, staffView: true });
+    expect(display.label).toBe("Mode closed");
+    expect(display.background).toBe("#94a3b8");
+    expect(display.hover).toContain("runs on its own");
+  });
+
+  it("a plain Available slot stays Available", () => {
+    const plain = { status: "AVAILABLE", start_datetime: slot.start_datetime };
+    expect(resolveSlotCell({ slot: plain, day, palette, now: NOW, staffView: true }).label).toBe("Available");
+  });
+});

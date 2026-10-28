@@ -15,7 +15,8 @@ import {
 } from "@/lib/api";
 import { FabricationBookingParts } from "@/components/FabricationBookingParts";
 import { isFabricationProfile } from "@/lib/fabricationProfiles";
-import { isExternalBookingUserType } from "@/lib/userTypes";
+import { isExternalBookingUserType, isInternalRateUserType } from "@/lib/userTypes";
+import SlotExchangeForBookingDialog from "@/components/slot-exchange/SlotExchangeForBookingDialog";
 import { formatINR } from "@/lib/money";
 import { inputEditSavedMessage, type InputEditRefundViewer } from "@/lib/inputEditRefund";
 import { useVisibilityPolling } from "@/hooks/use-visibility-polling";
@@ -75,7 +76,7 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2 } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
@@ -118,6 +119,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   equipment: number;
   equipment_code: string;
   equipment_name: string;
+  /** The Main Admin enabled Slot Exchange on this equipment. */
+  equipment_slot_exchange_enabled?: boolean;
   wallet_owner_name?: string | null;
   /** Owner cancel/reschedule window in hours before start (default 48). */
   equipment_reschedule_hours_threshold?: number | null;
@@ -682,6 +685,7 @@ export function BookingDetailCard({
     }
     return null;
   })();
+  const [slotExchangeOpen, setSlotExchangeOpen] = useState(false);
   const [actionDialog, setActionDialog] = useState<{ open: boolean; type: ActionType; booking: BookingDetailCardBooking | null }>({
     open: false,
     type: null,
@@ -1664,6 +1668,15 @@ export function BookingDetailCard({
     !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
   const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
   const isOwnBooking = currentUserId != null && Number(booking.user) === Number(currentUserId);
+  /** Internal owner of an upcoming Booked booking on equipment with Slot Exchange (server re-checks every rule). */
+  const canOfferSlotExchange =
+    isOwnBooking &&
+    Boolean(booking.equipment_slot_exchange_enabled) &&
+    isInternalRateUserType(booking.user_type_snapshot || currentUserType) &&
+    String(booking.status || "").toUpperCase() === "BOOKED" &&
+    !isHold &&
+    Boolean(booking.start_time) &&
+    new Date(booking.start_time as string).getTime() - Date.now() > 5 * 60 * 1000;
   const countdownViewer: CountdownViewer = {
     isOwner: isOwnBooking,
     isOicOrAdmin: Boolean(isManagerOrAdmin),
@@ -2797,6 +2810,21 @@ export function BookingDetailCard({
                   <Calendar className="h-4 w-4 mr-2" />
                   Reschedule
                 </Button>
+              )}
+              {canOfferSlotExchange && (
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setSlotExchangeOpen(true)}>
+                    <ArrowLeftRight className="h-4 w-4 mr-2" />
+                    Slot exchange
+                  </Button>
+                  <SlotExchangeForBookingDialog
+                    open={slotExchangeOpen}
+                    onOpenChange={setSlotExchangeOpen}
+                    equipmentId={booking.equipment}
+                    equipmentName={booking.equipment_name}
+                    bookingRef={booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
+                  />
+                </>
               )}
               {!isHold && !isFabrication && isOperatorOrManager && booking.status.toUpperCase() === "BOOKED" && !isExternalSelfView && (
                 <div className="space-y-1">

@@ -347,6 +347,12 @@ export function UrgentRequestDetailDialog({
                 {detail.requester_category ? <span className="text-muted-foreground">{detail.requester_category}</span> : null}
                 <span className="text-muted-foreground">Requested {fmtDate(detail.requested_at)}</span>
               </div>
+              {detail.supervisor_name || detail.wallet_approved_by_name ? (
+                <p className="text-base sm:text-lg" data-testid="urgent-supervisor-name">
+                  <span className="text-muted-foreground">Supervisor: </span>
+                  <span className="font-bold text-foreground">{detail.supervisor_name || detail.wallet_approved_by_name}</span>
+                </p>
+              ) : null}
               {description ? <DialogDescription className="text-left">{description}</DialogDescription> : null}
             </DialogHeader>
 

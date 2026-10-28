@@ -11977,7 +11977,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                               style={cellStyle}
                             >
                               {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
-                              {displayStatus}
+                              {showsBooker && !isSelected ? (
+                                // Booked slot whose booker this viewer may see: status and name, as on the other calendars.
+                                <span className="flex w-full min-w-0 flex-col items-center leading-tight">
+                                  <span className="w-full truncate">{displayStatus}</span>
+                                  <span className="w-full truncate text-[11px] font-medium opacity-90">
+                                    {String(slotData?.booking_user_name || "").trim()}
+                                  </span>
+                                </span>
+                              ) : (
+                                displayStatus
+                              )}
                             </button>
                           );
 

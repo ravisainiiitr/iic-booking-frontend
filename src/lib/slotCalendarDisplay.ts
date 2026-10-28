@@ -104,6 +104,10 @@ export interface SlotDisplayFields extends SlotStatusFields {
   start_datetime?: string | null;
   home_department_only?: boolean | null;
   mode_overlay_color?: string | null;
+  /** Staff payloads: an Available slot users cannot book (multi-mode schedule) — what users see, and why. */
+  users_blocked_label?: string | null;
+  users_blocked_reason?: string | null;
+  users_blocked_color?: string | null;
 }
 
 export type SlotCellKind =
@@ -203,6 +207,16 @@ export function resolveSlotCell({ slot, day, holiday, palette, now = new Date(),
   if (status === "NOT_AVAILABLE" && closedDay) return cell("closed-day", closedLabel, closedBg, closedHover);
   if (status === "AVAILABLE") {
     if (isSlotInPast(slot, now)) return cell("no-booking", NO_BOOKING_LABEL, NO_BOOKING_COLOR);
+    // Staff see the status users see (e.g. a multi-mode schedule closes the slot to users); staff can still act on it.
+    const usersSee = String(slot.users_blocked_label || "").trim();
+    if (usersSee) {
+      return cell(
+        "blocked",
+        usersSee,
+        slot.users_blocked_color || colors.BLOCKED,
+        String(slot.users_blocked_reason || "").trim() || undefined,
+      );
+    }
     const display = slot.status_display || "";
     if (display === "Reserved for other departments" || (slot.home_department_only && !display)) {
       return cell("reserved", display || "Reserved", colors.NON_HOME_RESERVED);

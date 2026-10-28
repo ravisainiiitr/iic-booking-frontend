@@ -86,6 +86,10 @@ describe("Urgent request detail dialog", () => {
     expect(sup.textContent).toContain("Approved");
     expect(screen.getByTestId("urgent-supervisor-comment").textContent).toContain("deadline is genuine");
     expect(sup.textContent).toContain("Demo Supervisor");
+    // The supervisor is named prominently in the header, in bold.
+    const header = screen.getByTestId("urgent-supervisor-name");
+    expect(header.textContent).toContain("Demo Supervisor");
+    expect(within(header).getByText("Demo Supervisor").className).toContain("font-bold");
     expect(screen.getByText("Any weekday morning")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Approve & allocate/ })).toBeTruthy();
     expect(screen.getByLabelText("Decision notes")).toBeTruthy();
