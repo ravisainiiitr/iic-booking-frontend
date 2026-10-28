@@ -14,7 +14,7 @@ vi.mock("@/lib/api", () => ({
     }),
   },
 }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }), useOptionalAuth: () => ({ user: null }) }));
 
 import EquipmentAvailabilityCalendar from "./EquipmentAvailabilityCalendar";
 import { __resetSlotWindowScheduleCache } from "@/lib/slotWindowSchedule";

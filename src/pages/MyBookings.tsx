@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient, type BookingListFilters } from "@/lib/api";
-import { isCalendarSyncUserType, isExternalBookingUserType } from "@/lib/userTypes";
+import { isCalendarSyncUserType, isExternalBookingUserType, isInternalRateUserType } from "@/lib/userTypes";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
@@ -41,7 +41,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus, History } from "lucide-react";
+import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus, History, ArrowLeftRight } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
@@ -1099,6 +1099,8 @@ const MyBookings = () => {
 
   const restrictedExternalUserType =
     currentUserType && isExternalBookingUserType(currentUserType);
+  /** Internal IITR users may exchange booked slots with each other (Slot Exchange). */
+  const isInternalBookingUser = isInternalRateUserType(currentUserType);
 
   /** Table Cancel: waitlisted users may cancel queue entry even when external; normal bookings keep existing external restriction. */
   const canShowTableCancelButton = (booking: Booking) =>
@@ -1660,6 +1662,20 @@ const MyBookings = () => {
             <History className="h-4 w-4" aria-hidden />
             <span className="hidden sm:inline">Unsuccessful attempts</span>
           </Button>
+          {isInternalBookingUser ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              onClick={() => navigate("/slot-exchanges")}
+              aria-label="Slot exchanges"
+              title="Requests to swap booked slots with other internal users"
+            >
+              <ArrowLeftRight className="h-4 w-4" aria-hidden />
+              <span className="hidden sm:inline">Slot exchanges</span>
+            </Button>
+          ) : null}
         </WorkspaceHeaderActions>
         {canSyncCalendar && <CalendarSyncDialog open={calendarSyncOpen} onOpenChange={setCalendarSyncOpen} />}
 

@@ -13,6 +13,9 @@ import {
 } from "@/components/slot-calendar/SlotWeekGrid";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { apiClient } from "@/lib/api";
+import { isInternalRateUserType } from "@/lib/userTypes";
+import { useOptionalAuth } from "@/contexts/AuthContext";
+import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
 import { publicDisruptionLines } from "@/lib/disruptions";
 import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette, type HolidayEntry } from "@/lib/slotCalendarDisplay";
 import {
@@ -211,6 +214,10 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     return () => window.clearInterval(timer);
   }, [seeking, weekStart, loadWeek]);
 
+  const user = useOptionalAuth()?.user;
+  const viewerInternal = isInternalRateUserType(user?.user_type);
+  const [openSlotId, setOpenSlotId] = useState<number | null>(null);
+
   // Only OIC / administrators receive slots outside the user visibility window; by default they see what users see.
   const [visibilityScope, setVisibilityScope] = useSlotVisibilityScope();
   const hasStaffOnlySlots = ((payload?.slots ?? []) as CalendarSlot[]).some((s) => isOutsideVisibilityWindow(s));
@@ -251,6 +258,34 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
     const display = resolveSlotCell({ slot, day, holiday: holidays[dateStr], palette, now });
     const restrictedToStaff = isOutsideVisibilityWindow(slot);
     const disruptionLines = publicDisruptionLines(slot?.disruption_public);
+    // Internal users see who booked a slot (internal bookers only; the server sends the name only then).
+    const bookerName = String(slot?.booking_user_name || "").trim();
+    if (slot && viewerInternal && bookerName && display.kind === "booked") {
+      const dept = String(slot.booking_user_department_name || slot.booking_user_department_code || "").trim();
+      const lines = [
+        `Booked by ${bookerName}`,
+        dept ? `Department: ${dept}` : null,
+        slot.booking_user_email ? `Email: ${slot.booking_user_email}` : null,
+        slot.booking_user_phone ? `Mobile: ${slot.booking_user_phone}` : null,
+        "Click for details or to request a slot exchange",
+      ].filter((l): l is string => Boolean(l));
+      return (
+        <SlotHoverCard lines={lines} boldFirst>
+          <button
+            type="button"
+            className={`${SLOT_CELL_CLASS} cursor-pointer transition-all hover:shadow-md hover:ring-2 hover:ring-primary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+            style={slotCellStyle(display)}
+            onClick={() => setOpenSlotId(slot.id)}
+            aria-label={lines.join(". ")}
+          >
+            <span className="flex w-full min-w-0 flex-col items-center leading-tight">
+              <span className="w-full truncate">{display.label}</span>
+              <span className="w-full truncate text-[10px] font-medium opacity-90">{bookerName}</span>
+            </span>
+          </button>
+        </SlotHoverCard>
+      );
+    }
     const cellEl = (
       <div
         className={SLOT_CELL_CLASS}
@@ -370,6 +405,12 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
             <span className="ml-auto whitespace-nowrap">Updated {format(updatedAt, "hh:mm a")} · refreshes every minute</span>
           ) : null
         }
+      />
+
+      <BookedSlotDialog
+        slotId={openSlotId}
+        onOpenChange={(open) => !open && setOpenSlotId(null)}
+        onRequested={() => void loadWeek(weekStart, true)}
       />
     </div>
   );

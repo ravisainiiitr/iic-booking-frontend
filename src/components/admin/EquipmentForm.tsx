@@ -203,6 +203,7 @@ export type EquipmentFormData = {
   reschedule_hours_threshold?: number;
   results_base_location?: string | null;
   split_booking_enabled?: boolean;
+  slot_exchange_enabled?: boolean;
   /** Nullable override: null = use user's preference on booking page. */
   auto_slot_selection_default?: boolean | null;
   /** Initial state of the booking page's "auto-allocate alternate equipment" option. Off = ask the user first. */
@@ -572,6 +573,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     reschedule_hours_threshold: 48,
     results_base_location: "D:\\Results",
     split_booking_enabled: false,
+    slot_exchange_enabled: false,
     auto_slot_selection_default: null,
     auto_allocate_alternative_default: false,
     weekly_view_display: 'TIME',
@@ -870,6 +872,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         reschedule_hours_threshold: (d.reschedule_hours_threshold as number) ?? 48,
         results_base_location: (d.results_base_location as string) ?? "D:\\Results",
         split_booking_enabled: (d.split_booking_enabled as boolean) ?? false,
+        slot_exchange_enabled: (d.slot_exchange_enabled as boolean) ?? false,
         auto_slot_selection_default:
           (d.auto_slot_selection_default === true ? true : d.auto_slot_selection_default === false ? false : null) as boolean | null,
         auto_allocate_alternative_default: d.auto_allocate_alternative_default === true,
@@ -1137,6 +1140,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           ? formData.results_base_location.trim()
           : "D:\\Results",
       split_booking_enabled: formData.split_booking_enabled,
+      ...(isMainAdmin ? { slot_exchange_enabled: formData.slot_exchange_enabled ?? false } : {}),
       auto_slot_selection_default:
         formData.auto_slot_selection_default === true ? true : formData.auto_slot_selection_default === false ? false : null,
       auto_allocate_alternative_default: formData.auto_allocate_alternative_default === true,
@@ -3284,6 +3288,23 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           onCheckedChange={(checked) => setFormData((p) => ({ ...p, split_booking_enabled: !!checked }))}
         />
         <Label htmlFor="split-booking">Split booking enabled</Label>
+      </div>
+
+      <div className="flex items-start space-x-2">
+        <Checkbox
+          id="slot-exchange"
+          className="mt-0.5"
+          checked={formData.slot_exchange_enabled ?? false}
+          disabled={!isMainAdmin}
+          onCheckedChange={(checked) => setFormData((p) => ({ ...p, slot_exchange_enabled: !!checked }))}
+        />
+        <div className="space-y-0.5">
+          <Label htmlFor="slot-exchange">Slot Exchange enabled</Label>
+          <p className="text-xs text-muted-foreground">
+            Internal users may agree to swap booked slots of the same charge on this equipment, up to 5 minutes
+            before the slots start.{isMainAdmin ? "" : " Only the Main Admin can change this."}
+          </p>
+        </div>
       </div>
 
       <div className="space-y-2 max-w-sm">

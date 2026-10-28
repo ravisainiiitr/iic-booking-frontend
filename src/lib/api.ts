@@ -2186,6 +2186,72 @@ export interface GroupAllocatedAlternative {
   end: string;
 }
 
+/** One slot in a Slot Exchange (times in lab time, label ready to show). */
+export interface SlotExchangeSlot {
+  id: number;
+  start: string;
+  end: string;
+  label: string;
+}
+
+/** What one internal user may see about another internal user who booked a slot. */
+export interface SlotBookerDetails {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  user_type: string | null;
+  user_type_display: string | null;
+  department: string | null;
+  department_code: string | null;
+}
+
+export type SlotExchangeStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED" | "EXPIRED" | "FAILED";
+
+export interface SlotExchangeRequestRow {
+  id: number;
+  status: SlotExchangeStatus;
+  status_display: string;
+  direction: "incoming" | "outgoing";
+  equipment_name: string;
+  equipment_code: string;
+  other_user: SlotBookerDetails;
+  requester_booking_id: number;
+  requester_booking_ref: string;
+  responder_booking_id: number;
+  responder_booking_ref: string;
+  you_give: SlotExchangeSlot[];
+  you_get: SlotExchangeSlot[];
+  message: string;
+  response_note: string;
+  failure_reason: string;
+  expires_at: string | null;
+  created_at: string | null;
+  responded_at: string | null;
+  can_respond: boolean;
+  can_cancel: boolean;
+}
+
+export interface SlotExchangeOptions {
+  slot_id: number;
+  booking_id: number;
+  booking_ref: string;
+  booker: SlotBookerDetails;
+  is_own_booking: boolean;
+  equipment: { id: number; name: string; code: string; slot_exchange_enabled: boolean };
+  their_slots: SlotExchangeSlot[];
+  their_per_slot_charge: string;
+  exchange_available: boolean;
+  exchange_unavailable_reason: string | null;
+  my_bookings: Array<{
+    booking_id: number;
+    booking_ref: string;
+    equipment_name: string;
+    same_equipment: boolean;
+    per_slot_charge: string;
+    slots: SlotExchangeSlot[];
+  }>;
+}
+
 export interface RescheduleEquipmentOption extends GroupEquipmentSummary {
   is_original: boolean;
   required_slots: number;
@@ -9532,6 +9598,30 @@ class ApiClient {
         end_time: endTime,
         ...(targetEquipmentId != null ? { target_equipment_id: targetEquipmentId } : {}),
       }),
+    });
+  }
+
+  /** Slot Exchange: the viewer's incoming and outgoing requests. */
+  async getSlotExchanges() {
+    return this.request<{ results: SlotExchangeRequestRow[]; pending_incoming: number }>(`/slot-exchanges/`);
+  }
+
+  /** Slot Exchange: who booked a slot, and which of the viewer's slots could be offered for it. */
+  async getSlotExchangeOptions(slotId: number) {
+    return this.request<SlotExchangeOptions>(`/slot-exchanges/options/?slot_id=${encodeURIComponent(String(slotId))}`);
+  }
+
+  async createSlotExchange(offeredSlotIds: number[], requestedSlotIds: number[], message?: string) {
+    return this.request<SlotExchangeRequestRow>(`/slot-exchanges/`, {
+      method: 'POST',
+      body: JSON.stringify({ offered_slot_ids: offeredSlotIds, requested_slot_ids: requestedSlotIds, message: message ?? "" }),
+    });
+  }
+
+  async respondSlotExchange(requestId: number, action: "accept" | "decline" | "cancel", note?: string) {
+    return this.request<SlotExchangeRequestRow>(`/slot-exchanges/${requestId}/${action}/`, {
+      method: 'POST',
+      body: JSON.stringify(note ? { note } : {}),
     });
   }
 

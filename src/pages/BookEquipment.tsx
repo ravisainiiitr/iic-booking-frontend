@@ -111,6 +111,7 @@ import { useSelectOrOpenClick } from "@/components/slot-calendar/useSelectOrOpen
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
+import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
 import { buildChargeCategoryPresentation } from "@/lib/chargeCategoryPresentation";
 import { buildChargeCategorySummaryRows } from "@/lib/chargeCategorySummary";
 import {
@@ -127,6 +128,7 @@ import {
   getChargeEstimateUserTypeLabel,
   isEndUserBookingType,
   isExternalBookingUserType,
+  isInternalRateUserType,
   normalizeUserTypeCode,
   getUserTypeDisplayName,
 } from "@/lib/userTypes";
@@ -1357,6 +1359,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     holder?: RescheduleBookingHolder;
   } | null>(null);
   /** True when current user is external (Educational Institute, RND, Industry, Other). */
+  /** Internal IITR users see internal bookers of other slots and may request a Slot Exchange. */
+  const viewerInternal = isInternalRateUserType(userType);
+  const [peerSlotId, setPeerSlotId] = useState<number | null>(null);
+
   const isExternalUser = useMemo(() => {
     const ut = String(userType ?? "").toLowerCase();
     return isExternalBookingUserType(ut);
@@ -11889,7 +11895,25 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                   isWeekend: isSaturdayCol || isSundayCol,
                                 })
                               : [];
-                          const hoverLines = staffStatusLines.length > 0
+                          // Internal user looking at another internal user's booked slot: the server sends the booker.
+                          const peerBookerName =
+                            viewerInternal && !isAdminOrOIC() && considerBooked && slotData?.id != null
+                              ? String(slotData?.booking_user_name || "").trim()
+                              : "";
+                          const peerLines = peerBookerName
+                            ? [
+                                `Booked by ${peerBookerName}`,
+                                ...(slotData?.booking_user_department_name
+                                  ? [`Department: ${slotData.booking_user_department_name}`]
+                                  : []),
+                                ...(slotData?.booking_user_email ? [`Email: ${slotData.booking_user_email}`] : []),
+                                ...(slotData?.booking_user_phone ? [`Mobile: ${slotData.booking_user_phone}`] : []),
+                                "Click for details or to request a slot exchange",
+                              ]
+                            : [];
+                          const hoverLines = peerLines.length > 0
+                            ? peerLines
+                            : staffStatusLines.length > 0
                             ? [
                                 ...staffStatusLines,
                                 ...(restrictedToStaff
@@ -11904,7 +11928,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                               : unavailableReason
                                 ? [unavailableReason]
                                 : [];
-                          const showHoverCard = staffStatusLines.length > 0 || publicLines.length > 0;
+                          const showHoverCard = peerLines.length > 0 || staffStatusLines.length > 0 || publicLines.length > 0;
 
                           const slotStartLabel = slotData?.start_datetime ? format(parseISO(slotData.start_datetime), "HH:mm") : rowLabel;
                           const slotSpan = slotData?.start_datetime && slotData?.end_datetime
@@ -11923,6 +11947,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                             <button
                               type="button"
                               onClick={(e) => {
+                                if (peerBookerName && slotData?.id != null) {
+                                  setPeerSlotId(Number(slotData.id));
+                                  return;
+                                }
                                 if (isDisabled) {
                                   setSlotReasonTarget({
                                     anchor: e.currentTarget,
@@ -11985,6 +12013,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                 </div>
                 </TooltipProvider>
                 <SlotReasonPopover target={slotReasonTarget} onClose={() => setSlotReasonTarget(null)} />
+                <BookedSlotDialog slotId={peerSlotId} onOpenChange={(open) => !open && setPeerSlotId(null)} />
 
                     {/* Booking Summary */}
                     {selectedSlots.length > 0 && (

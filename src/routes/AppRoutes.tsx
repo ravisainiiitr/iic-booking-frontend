@@ -30,6 +30,7 @@ const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
 const MyBookings = lazyPage(() => import("@/pages/MyBookings"));
+const SlotExchanges = lazyPage(() => import("@/pages/SlotExchanges"));
 const MyBookingAttempts = lazyPage(() => import("@/pages/MyBookingAttempts"));
 const BookingTemplates = lazyPage(() => import("@/pages/BookingTemplates"));
 const BookingManagement = lazyPage(() => import("@/pages/BookingManagement"));
@@ -253,6 +254,7 @@ export default function AppRoutes() {
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
           <Route path="/equipment/:id" element={<EquipmentProfile />} />
           <Route path="/my-bookings" element={<MyBookings />} />
+          <Route path="/slot-exchanges" element={<SlotExchanges />} />
           <Route path="/my-booking-attempts" element={<MyBookingAttempts />} />
           <Route path="/booking-templates" element={<BookingTemplates />} />
           <Route path="/my-results" element={<ViewResults />} />
