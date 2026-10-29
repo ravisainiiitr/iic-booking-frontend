@@ -2287,7 +2287,7 @@ export interface ResultsInboxItem extends ResultsBookingCard {
   results_available_at: string | null;
   viewed_at: string | null;
   is_new: boolean;
-  locked_code: "not_completed" | "rating_required" | null;
+  locked_code: "not_completed" | "rating_required" | "istem_fbr_not_executed" | null;
   locked_reason: string | null;
   active_share_count: number;
 }
@@ -2757,7 +2757,7 @@ interface ApiResponse<T> {
   waitlist_full?: boolean;
   /** JSON from X-Booking-Perf (server phase timings) when backend exposes it. */
   bookingPerf?: string;
-  /** Machine-readable error code from JSON body (e.g. rating_required). */
+  /** Machine-readable error code from JSON body (e.g. istem_fbr_not_executed). */
   errorCode?: string;
   /** HTTP status when the request failed. */
   status?: number;
@@ -3924,6 +3924,8 @@ export type BookingListFilters = {
   user_type_filter?: string;
   /** Filter by rating: "unrated", "2_and_below", "3_and_below", "4_and_below", or "5" (admin/OIC/lab only) */
   rating?: string;
+  /** Filter I-STEM FBR seal: "verified" or "unverified" (admin/OIC only) */
+  istem_fbr?: string;
   ordering?: string;
   /** Staff only: open bookings past the equipment's results deadline */
   results_overdue?: boolean;
@@ -3981,6 +3983,9 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.rating && (params.rating === 'unrated' || ['2_and_below', '3_and_below', '4_and_below', '5'].includes(params.rating))) {
     queryParams.append('rating', params.rating);
+  }
+  if (params?.istem_fbr && ['verified', 'unverified'].includes(params.istem_fbr)) {
+    queryParams.append('istem_fbr', params.istem_fbr);
   }
   if (params?.ordering) {
     queryParams.append('ordering', params.ordering);
@@ -9891,6 +9896,20 @@ class ApiClient {
     } catch (error: any) {
       return { error: error?.message || "Download failed" };
     }
+  }
+
+  async updateBookingIstemFbr(bookingId: number, istem_fbr_number: string) {
+    return this.request<{ message: string; booking: unknown }>(`/bookings/${bookingId}/istem-fbr/`, {
+      method: "PATCH",
+      body: JSON.stringify({ istem_fbr_number }),
+    });
+  }
+
+  async reviewBookingIstemFbr(bookingId: number, action: "execute" | "invalidate", reason?: string) {
+    return this.request<{ message: string; booking: unknown }>(`/bookings/${bookingId}/istem-fbr/review/`, {
+      method: "POST",
+      body: JSON.stringify({ action, ...(reason != null && reason !== "" ? { reason } : {}) }),
+    });
   }
 
   /**

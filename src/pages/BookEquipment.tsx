@@ -1123,6 +1123,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     [userType, userDepartmentType],
   );
   const [userDepartmentId, setUserDepartmentId] = useState<number | null>(null);
+  const [istemPortalAcknowledged, setIstemPortalAcknowledged] = useState(false);
+  const [adminTargetIstemAcknowledged, setAdminTargetIstemAcknowledged] = useState<boolean | null>(null);
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedSlots, setSelectedSlots] = useState<TimeSlot[]>([]);
   const [inputFieldValues, setInputFieldValues] = useState<Record<string, string | boolean | string[] | number>>({});
@@ -1938,6 +1940,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                 ? Number(user.department_id)
                 : null
         );
+        setIstemPortalAcknowledged(Boolean(user.istem_portal_acknowledged));
         // Initialize auto slot selection from user preference, default to true if not set
         const pref = user.auto_slot_selection !== undefined ? user.auto_slot_selection : true;
         setUserAutoSlotSelectionPref(pref);
@@ -2215,6 +2218,30 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equipmentDetail?.equipment_id, selectedEquipment?.id, quotaWeekKey, userType, adminManageMode, adminBookForUserId, isCalculateChargesFlow, isTemplateFlow, isProformaFlow, !!repeatSourceBooking, quotaRefreshTick]);
+
+  useEffect(() => {
+    const actor = String(userType ?? "").toLowerCase();
+    if (
+      (actor !== "admin" && actor !== "manager" && actor !== "dept_admin") ||
+      !adminBookForUserId
+    ) {
+      setAdminTargetIstemAcknowledged(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const res = await apiClient.getProfile(adminBookForUserId);
+      if (cancelled) return;
+      if (res.data) {
+        setAdminTargetIstemAcknowledged(Boolean((res.data as { istem_portal_acknowledged?: boolean }).istem_portal_acknowledged));
+      } else {
+        setAdminTargetIstemAcknowledged(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adminBookForUserId, userType]);
 
   // Admin status-change: toggle a single date in selection (month calendar)
   const toggleDateForStatus = (dateStr: string) => {
@@ -5352,6 +5379,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     setUserId(String(userResponse.data.id));
     setUserType(userResponse.data.user_type || null);
     setUserDepartmentType((userResponse.data as { department_type?: string | null }).department_type ?? null);
+    setIstemPortalAcknowledged(Boolean((userResponse.data as { istem_portal_acknowledged?: boolean }).istem_portal_acknowledged));
     // Initialize auto slot selection from user preference, default to true if not set
     const pref = userResponse.data.auto_slot_selection !== undefined ? userResponse.data.auto_slot_selection : true;
     setUserAutoSlotSelectionPref(pref);
@@ -7047,6 +7075,27 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       return;
     }
 
+    if (bookingAsExternalTarget) {
+      if (isExternalUser && !istemPortalAcknowledged) {
+        toast.error(
+          "Confirm I-STEM portal registration in your Profile before booking (Profile → I-STEM confirmation → Save)."
+        );
+        return;
+      }
+      if (
+        String(userType ?? "").toLowerCase() === "admin" &&
+        adminManageMode === "book" &&
+        adminBookForUserId &&
+        !repeatSourceBooking &&
+        adminTargetIstemAcknowledged !== true
+      ) {
+        toast.error(
+          "The selected user has not confirmed I-STEM portal registration on their profile. They must update Profile before you can book for them."
+        );
+        return;
+      }
+    }
+
     // Repeat-sample flow: create repeat booking with user-selected slots (no charge, excluded from quota)
     if (repeatSourceBooking) {
       const slotIds = selectedSlots
@@ -7250,6 +7299,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           booking_id?: string | number;
           payment_required?: boolean;
           amount_due?: string;
+          require_istem_fbr?: boolean;
+          istem_fbr_status?: string | null;
           allocated_alternative?: GroupAllocatedAlternative;
         } | undefined;
         const allocatedRealId =
@@ -7261,6 +7312,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         if (allocatedData?.payment_required && allocatedRealId != null) {
           navigate(`/bookings/${allocatedRealId}/payment`);
           toast.info(`Booking reserved on ${allocatedName}. Please pay ${formatINRAmount(allocatedData.amount_due || 0)} to confirm.`);
+          return;
+        }
+        if (allocatedRealId != null && (allocatedData?.require_istem_fbr === true || allocatedData?.istem_fbr_status != null)) {
+          navigate(`/bookings/${allocatedRealId}/next-steps`);
+          toast.success(`Booking confirmed on ${allocatedName}. Complete I-STEM steps on the next page.`);
           return;
         }
         const allocatedView =
@@ -7374,6 +7430,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
             amount_due?: string;
             input_values_adjusted?: boolean;
             input_values?: Record<string, string | boolean | string[] | number>;
+            require_istem_fbr?: boolean;
+            istem_portal_url?: string;
+            istem_fbr_status?: string | null;
             reward?: {
               points_used?: string;
               discount_amount?: string;
@@ -7410,6 +7469,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         if (resData?.input_values_adjusted && resData?.input_values && typeof resData.input_values === "object") {
           setInputFieldValues((prev) => ({ ...prev, ...resData.input_values }));
           toast.info("Booking created with reduced parameters (1 slot) as requested. Input values have been updated.");
+        }
+        if (realId != null && !resData?.payment_required) {
+          const needsIstemNextSteps =
+            resData?.require_istem_fbr === true ||
+            resData?.istem_fbr_status != null;
+          if (needsIstemNextSteps) {
+            resetBookingPageToDefaults();
+            navigate(`/bookings/${realId}/next-steps`);
+            toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
+            return;
+          }
         }
         resetBookingPageToDefaults();
         setBookingResultDialog({
@@ -7637,6 +7707,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         booking_id?: string | number;
         payment_required?: boolean;
         amount_due?: string;
+        require_istem_fbr?: boolean;
+        istem_fbr_status?: string | null;
       } | undefined;
       setGroupAlternatives(null);
       const realId = resData?.real_booking_id ?? (typeof resData?.id === "number" ? resData.id : undefined);
@@ -7649,6 +7721,12 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         resetBookingPageToDefaults();
         navigate(`/bookings/${realId}/payment`);
         toast.info(`Booking reserved on ${alt.name}. Please pay ${formatINRAmount(resData.amount_due || 0)} to confirm.`);
+        return;
+      }
+      if (realId != null && (resData?.require_istem_fbr === true || resData?.istem_fbr_status != null)) {
+        resetBookingPageToDefaults();
+        navigate(`/bookings/${realId}/next-steps`);
+        toast.success(`Booking confirmed on ${alt.name}. Complete I-STEM steps on the next page.`);
         return;
       }
       resetBookingPageToDefaults();
@@ -12096,6 +12174,28 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
                     {/* Action Buttons */}
                     <div className="mt-3 space-y-2 empty:hidden">
+                      {bookingAsExternalTarget &&
+                        ((isExternalUser && !istemPortalAcknowledged) ||
+                          (isAdminOrOIC() &&
+                            adminManageMode === "book" &&
+                            Boolean(adminBookForUserId) &&
+                            adminTargetIstemAcknowledged !== true)) && (
+                        <div className="w-full rounded-lg border border-amber-300/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-950 dark:text-amber-100 space-y-2">
+                          <p className="font-medium">I-STEM portal registration required</p>
+                          <p>
+                            External bookings must be aligned with the national I-STEM portal (
+                            <a
+                              href="https://www.istem.gov.in/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline font-medium text-primary"
+                            >
+                              https://www.istem.gov.in/
+                            </a>
+                            ). The booking user must open <strong>Profile</strong>, confirm they are registered on I-STEM, and save — then booking can proceed.
+                          </p>
+                        </div>
+                      )}
                       {!selectedEquipmentIsOperational && selectedEquipment ? (
                         <div role="alert" className="w-full rounded-lg border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm font-bold text-amber-950 dark:text-amber-50">
                           Booking is disabled while equipment is{" "}
