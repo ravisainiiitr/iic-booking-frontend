@@ -25,7 +25,7 @@ function availability(available: boolean): DepartmentModulesAvailability {
     department_id: 33,
     is_test_account: false,
     can_configure: false,
-    modules: { dsa: entry, remote_analysis: entry, training: entry, procurement: entry },
+    modules: { dsa: entry, remote_analysis: entry, training: entry, courier_tracking: entry, procurement: entry },
   };
 }
 

@@ -54,7 +54,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
-import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
 import { BookingExportMenu } from "@/components/BookingExportMenu";
 import { RowsPerPageSelect } from "@/components/RowsPerPageSelect";
@@ -410,14 +409,7 @@ const MyBookings = () => {
     progress: zipDownloadProgress,
     busy: zipDownloadInProgress,
     start: startZipDownload,
-  } = useResultsZipDownload((res) => {
-    if (res.errorCode === "istem_fbr_not_executed") {
-      setResultsFbrBlock({ message: res.error ?? "", portalUrl: res.istem_portal_url });
-      setResultsFbrInfoOpen(true);
-    }
-  });
-  const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
-  const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
+  } = useResultsZipDownload();
   const [resultsDialogBooking, setResultsDialogBooking] = useState<Booking | null>(null);
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [ratingLoadingId, setRatingLoadingId] = useState<string | number | null>(null);
@@ -618,12 +610,6 @@ const MyBookings = () => {
     const res = await apiClient.getBookingResults(backendId);
     setResultsLoadingId(null);
     if (res.error) {
-      if (res.errorCode === "istem_fbr_not_executed") {
-        setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
-        setResultsDialogBooking(booking);
-        setResultsFbrInfoOpen(true);
-        return;
-      }
       toast.error(res.error);
       return;
     }
@@ -1479,10 +1465,6 @@ const MyBookings = () => {
         }`}
       >
         {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
-        <IstemFbrSeal
-          requireIstemFbr={booking.require_istem_fbr}
-          istemFbrStatus={booking.istem_fbr_status}
-        />
         <ExternalLink className="h-3.5 w-3.5 opacity-70" />
       </button>
     );
@@ -1937,48 +1919,6 @@ const MyBookings = () => {
               );
             })()}
         </>
-
-        <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Results not available yet</DialogTitle>
-              <DialogDescription className="text-left space-y-3 pt-2">
-                <span className="block text-foreground">{resultsFbrBlock?.message}</span>
-                {resultsFbrBlock?.portalUrl ? (
-                  <a
-                    href={resultsFbrBlock.portalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-primary font-medium underline"
-                  >
-                    Open I-STEM portal
-                  </a>
-                ) : null}
-                <span className="block text-sm font-medium text-foreground pt-2">Officer in Charge (contact)</span>
-                {(resultsDialogBooking?.oic_contacts?.length ?? 0) > 0 ? (
-                  <ul className="text-sm space-y-2 list-none pl-0">
-                    {resultsDialogBooking!.oic_contacts!.map((c) => (
-                      <li key={c.user_id} className="border rounded-md p-2">
-                        <div className="font-medium">{c.name}</div>
-                        {c.phone ? <div>Mobile: {c.phone}</div> : null}
-                        {c.email ? <div>Email: {c.email}</div> : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No OIC contact listed for this equipment. Please use institute helpdesk.
-                  </p>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button type="button" onClick={() => setResultsFbrInfoOpen(false)}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* Results download dialog */}
         <Dialog

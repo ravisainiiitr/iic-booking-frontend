@@ -46,7 +46,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import { UserIdCardLink } from "@/components/users/UserIdCardLink";
 import { BookingListFilterBar } from "@/components/BookingListFilterBar";
@@ -207,7 +206,6 @@ const BookingManagement = () => {
   const [userNameFilter, setUserNameFilter] = useState("");
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
-  const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
   const [ordering, setOrdering] = useState<string>("");
   const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
@@ -335,7 +333,6 @@ const BookingManagement = () => {
     if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
     if (!isLabInchargeUser && supervisorNameTerm) params.supervisor_name = supervisorNameTerm;
     if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
-    if (isManagerOrAdmin && istemFbrFilter && istemFbrFilter !== "all") params.istem_fbr = istemFbrFilter;
     return params;
   };
 
@@ -396,7 +393,6 @@ const BookingManagement = () => {
     userNameTerm,
     supervisorNameTerm,
     userTypeFilter,
-    istemFbrFilter,
     ordering,
     clearNonce,
     pageSize,
@@ -433,7 +429,6 @@ const BookingManagement = () => {
     setSupervisorNameFilter("");
     setSupervisorNameTerm("");
     setUserTypeFilter("all");
-    setIstemFbrFilter("all");
     setOrdering("");
     closeDetail();
     setClearNonce((n) => n + 1);
@@ -460,8 +455,7 @@ const BookingManagement = () => {
   const moreFiltersActiveCount =
     (!isLabInchargeUser && userNameFilter.trim() ? 1 : 0) +
     (!isLabInchargeUser && supervisorNameFilter.trim() ? 1 : 0) +
-    (!isLabInchargeUser && userTypeFilter !== "all" ? 1 : 0) +
-    (isManagerOrAdmin && istemFbrFilter !== "all" ? 1 : 0);
+    (!isLabInchargeUser && userTypeFilter !== "all" ? 1 : 0);
 
   const moreFilters =
     isLabInchargeUser && !isManagerOrAdmin ? null : (
@@ -501,21 +495,6 @@ const BookingManagement = () => {
                 <SelectItem value="all">All users</SelectItem>
                 <SelectItem value="internal">Internal (students / faculty)</SelectItem>
                 <SelectItem value="external">External</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {isManagerOrAdmin && (
-          <div className="space-y-1.5">
-            <Label>I-STEM FBR</Label>
-            <Select value={istemFbrFilter} onValueChange={withCloseDetail(setIstemFbrFilter)}>
-              <SelectTrigger aria-label="I-STEM FBR">
-                <SelectValue placeholder="All I-STEM" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All I-STEM</SelectItem>
-                <SelectItem value="verified">Verified</SelectItem>
-                <SelectItem value="unverified">Unverified</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -689,10 +668,6 @@ const BookingManagement = () => {
                             }`}
                           >
                             {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
-                            <IstemFbrSeal
-                              requireIstemFbr={booking.require_istem_fbr}
-                              istemFbrStatus={booking.istem_fbr_status}
-                            />
                             <ExternalLink className="h-3.5 w-3.5 opacity-70" />
                           </button>
                           {isOperator && formatSampleSummary(booking.sample_summary) && (
