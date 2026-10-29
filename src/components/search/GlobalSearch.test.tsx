@@ -153,6 +153,29 @@ describe("GlobalSearchHost", () => {
     expect(openUserCard).toHaveBeenCalledWith(9);
   });
 
+  it("lets users find the Officer in Charge and Lab In-charge and opens their instrument", async () => {
+    auth.value = { user: { id: 2, user_type: "student" }, isAuthenticated: true };
+    api.globalSearch.mockResolvedValue({
+      data: {
+        query: "mee",
+        equipment: [],
+        bookings: [],
+        people: [],
+        people_enabled: false,
+        lab_staff: [
+          { id: 5, name: "Dr. Meera Sharma", role: "Officer in Charge", email: "meera@iitr.ac.in",
+            equipment: [{ id: 10, name: "FESEM-APREO", code: "APREO" }] },
+        ],
+      },
+    });
+    renderHost();
+    act(() => openGlobalSearch("mee"));
+    expect(await screen.findByText("Officer in Charge and Lab In-charge")).toBeTruthy();
+    expect(screen.getByText("Officer in Charge · meera@iitr.ac.in")).toBeTruthy();
+    fireEvent.click(screen.getByText("Dr. Meera Sharma"));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/equipment/10"));
+  });
+
   it("shows technique hints and a did-you-mean suggestion that refines the query", async () => {
     auth.value = { user: null, isAuthenticated: false };
     api.globalSearch.mockImplementation(async (q: string) => ({

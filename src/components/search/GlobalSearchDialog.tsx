@@ -9,6 +9,7 @@ import {
   FlaskConical,
   IdCard,
   LayoutGrid,
+  UserRound,
   Loader2,
   Search,
   Sparkles,
@@ -159,15 +160,17 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
     openUserCard(id);
   };
 
-  const hasHits =
-    pageHits.length + result.equipment.length + result.bookings.length + result.people.length > 0;
   const searching = trimmed.length >= 2;
   const isStaffUser =
     isAuthenticated && (staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase()));
+  // Staff already find every user under People; other users find lab staff here.
+  const labStaff = isStaffUser ? [] : result.lab_staff ?? [];
+  const hasHits =
+    pageHits.length + result.equipment.length + result.bookings.length + result.people.length + labStaff.length > 0;
   const placeholder = isAuthenticated
     ? isStaffUser
       ? "Search booking ID, equipment, user name or email…"
-      : "Search your bookings, equipment or pages…"
+      : "Search equipment, your bookings, Officer in Charge or Lab In-charge…"
     : "Search equipment and pages…";
 
   return (
@@ -398,6 +401,28 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                   </span>
                   <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </CommandItem>
+              </CommandGroup>
+            ) : null}
+
+            {searching && labStaff.length > 0 ? (
+              <CommandGroup heading="Officer in Charge and Lab In-charge">
+                {labStaff.map((s) => (
+                  <CommandItem
+                    key={`s-${s.role}-${s.id}`}
+                    value={`staff-${s.role}-${s.id}`}
+                    onSelect={() => (s.equipment[0] ? go(`/equipment/${s.equipment[0].id}`) : undefined)}
+                    className="group items-start"
+                  >
+                    <UserRound className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{s.name}</p>
+                      <p className={SECONDARY}>{[s.role, s.email].filter(Boolean).join(" · ")}</p>
+                      {s.equipment.length > 0 ? (
+                        <p className={SECONDARY}>{s.equipment.map((e) => e.name).join(", ")}</p>
+                      ) : null}
+                    </div>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             ) : null}
 

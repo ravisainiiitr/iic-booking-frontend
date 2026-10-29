@@ -342,6 +342,14 @@ export interface GlobalSearchResult {
   people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
   people_enabled: boolean;
   staff_view?: boolean;
+  /** Officers in Charge and Lab In-charges matching by name, with the instruments they look after (signed-in users). */
+  lab_staff?: Array<{
+    id: number;
+    name: string;
+    role: string;
+    email: string;
+    equipment: Array<{ id: number; name: string; code: string }>;
+  }>;
 }
 
 export interface SearchSynonym {
