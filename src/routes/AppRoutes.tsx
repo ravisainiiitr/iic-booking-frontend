@@ -28,6 +28,8 @@ const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
 const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
 const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
+const ExternalCheckout = lazyPage(() => import("@/pages/ExternalCheckout"));
+const ExternalCheckoutConfirmation = lazyPage(() => import("@/pages/ExternalCheckoutConfirmation"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
 const MyBookings = lazyPage(() => import("@/pages/MyBookings"));
 const SlotExchanges = lazyPage(() => import("@/pages/SlotExchanges"));
@@ -179,6 +181,13 @@ const DutyRespond = lazyPage(() => import("@/pages/DutyRespond"));
 const VerifyCertificate = lazyPage(() => import("@/pages/VerifyCertificate"));
 const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
 const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
+const AdminCourierTracking = lazyPage(() => import("@/pages/AdminCourierTracking"));
+const CourierTracking = lazyPage(() => import("@/pages/CourierTracking"));
+const AdminExternalBooking = lazyPage(() => import("@/pages/AdminExternalBooking"));
+const ExternalSpecialRequests = lazyPage(() => import("@/pages/ExternalSpecialRequests"));
+const ExternalSpecialRequestsManage = lazyPage(() => import("@/pages/ExternalSpecialRequestsManage"));
+const AccountsExternalInvoices = lazyPage(() => import("@/pages/AccountsExternalInvoices"));
+const StaffSampleReceipt = lazyPage(() => import("@/pages/StaffSampleReceipt"));
 const AdminUserGroups = lazyPage(() => import("@/pages/AdminUserGroups"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
@@ -251,10 +260,13 @@ export default function AppRoutes() {
           <Route path="/find-instrument" element={<InstrumentFinder />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
+          <Route path="/external-checkout/:checkoutId" element={<ExternalCheckout />} />
+          <Route path="/external-checkout/:checkoutId/confirmation" element={<ExternalCheckoutConfirmation />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
           <Route path="/equipment/:id" element={<EquipmentProfile />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/slot-exchanges" element={<SlotExchanges />} />
+          <Route path="/courier-tracking" element={<ErrorBoundary fallbackTitle="Courier tracking" backPath="/dashboard"><CourierTracking /></ErrorBoundary>} />
           <Route path="/my-booking-attempts" element={<MyBookingAttempts />} />
           <Route path="/booking-templates" element={<BookingTemplates />} />
           <Route path="/my-results" element={<ViewResults />} />
@@ -420,6 +432,14 @@ export default function AppRoutes() {
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
           <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
+          <Route path="/admin/courier-tracking" element={<ErrorBoundary fallbackTitle="Courier Tracking" backPath="/admin-settings"><AdminCourierTracking /></ErrorBoundary>} />
+          <Route path="/admin/external-booking" element={<ErrorBoundary fallbackTitle="External booking" backPath="/dashboard"><AdminExternalBooking /></ErrorBoundary>} />
+          <Route path="/external-special-requests" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
+          <Route path="/external-special-requests/new" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
+          <Route path="/external-special-requests/manage" element={<ErrorBoundary fallbackTitle="External special requests" backPath="/dashboard"><ExternalSpecialRequestsManage /></ErrorBoundary>} />
+          <Route path="/accounts/invoice-requests" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />
+          <Route path="/accounts/invoice-dispatch" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />
+          <Route path="/staff/sample-receipt" element={<ErrorBoundary fallbackTitle="Sample receipt" backPath="/dashboard"><StaffSampleReceipt /></ErrorBoundary>} />
           <Route path="/admin-settings/user-groups" element={<ErrorBoundary fallbackTitle="User Groups" backPath="/admin-settings"><AdminUserGroups /></ErrorBoundary>} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="Fabrication Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />

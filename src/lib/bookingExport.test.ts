@@ -16,7 +16,6 @@ describe("booking list export", () => {
       end_date: "",
       equipment_id: "12",
       user_type_filter: "everyone",
-      istem_fbr: "verified",
       ordering: "-start_time",
       results_overdue: false,
     });
@@ -25,7 +24,6 @@ describe("booking list export", () => {
       search: "xrd",
       start_date: "2026-10-01",
       equipment_id: "12",
-      istem_fbr: "verified",
       ordering: "-start_time",
     });
   });

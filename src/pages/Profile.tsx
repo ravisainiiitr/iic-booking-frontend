@@ -101,7 +101,6 @@ const Profile = () => {
     auto_slot_selection: false,
     wallet_low_balance_alert_enabled: false,
     wallet_low_balance_alert_threshold: null as number | string | null,
-    istem_portal_acknowledged: false,
   });
 
   // Right after a reload the auth check is still running: wait for it, then load the profile once.
@@ -127,11 +126,6 @@ const Profile = () => {
     if (window.location.hash === "#external-billing") {
       setTimeout(() => {
         document.getElementById("external-billing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 150);
-    }
-    if (window.location.hash === "#istem-portal-ack") {
-      setTimeout(() => {
-        document.getElementById("istem-portal-ack")?.scrollIntoView({ behavior: "smooth", block: "start" });
       }, 150);
     }
     if (window.location.hash === "#projects") {
@@ -217,7 +211,6 @@ const Profile = () => {
           response.data.wallet_low_balance_alert_threshold != null
             ? Number(response.data.wallet_low_balance_alert_threshold)
             : null,
-        istem_portal_acknowledged: Boolean(response.data.istem_portal_acknowledged),
       });
 
       // External users: prefill billing/shipping profile (invoice / shipping label)
@@ -489,9 +482,6 @@ const Profile = () => {
             ? Number(profileData.wallet_low_balance_alert_threshold)
             : null)
           : null;
-      }
-      if (isExternal) {
-        payload.istem_portal_acknowledged = profileData.istem_portal_acknowledged;
       }
       const response = await apiClient.updateProfile(payload);
 
@@ -847,41 +837,6 @@ const Profile = () => {
               if (!isExternal) return null;
               return (
                 <>
-                  <div id="istem-portal-ack" className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4 scroll-mt-24">
-                    <div>
-                      <h3 className="text-lg font-semibold">I-STEM national portal</h3>
-                      <p className="text-sm text-muted-foreground">
-                        External bookings are aligned with the Government of India I-STEM facility map. Register or log in at{" "}
-                        <a
-                          href="https://www.istem.gov.in/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-primary underline"
-                        >
-                          https://www.istem.gov.in/
-                        </a>
-                        , raise your facility booking there, then enter the FBR number on your booking in this portal after you confirm a slot here.
-                      </p>
-                    </div>
-                    <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border/50 bg-background/80 p-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="istem-portal-ack-switch" className="text-sm font-medium">
-                          I confirm I have an I-STEM portal account
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Required before you can confirm equipment bookings as an external user.
-                        </p>
-                      </div>
-                      <Switch
-                        id="istem-portal-ack-switch"
-                        checked={profileData.istem_portal_acknowledged}
-                        onCheckedChange={(v) =>
-                          setProfileData((p) => ({ ...p, istem_portal_acknowledged: v === true }))
-                        }
-                      />
-                    </div>
-                  </div>
-
                   <div id="external-billing" className="space-y-4 scroll-mt-24">
                     <div>
                       <h3 className="text-lg font-semibold">Billing & shipping (External users)</h3>

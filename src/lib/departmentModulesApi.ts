@@ -8,9 +8,9 @@ import { API_BASE_URL, apiClient } from "@/lib/api";
 export const DM_ADMIN_BASE = `${API_BASE_URL}/v1/admin/department-modules`;
 export const DM_BASE = `${API_BASE_URL}/v1/department-modules`;
 
-export type ModuleKey = "dsa" | "remote_analysis" | "training" | "procurement";
+export type ModuleKey = "dsa" | "remote_analysis" | "training" | "courier_tracking" | "procurement";
 
-export const MODULE_KEYS: ModuleKey[] = ["dsa", "remote_analysis", "training", "procurement"];
+export const MODULE_KEYS: ModuleKey[] = ["dsa", "remote_analysis", "training", "courier_tracking", "procurement"];
 
 export interface ModuleMeta {
   key: ModuleKey;

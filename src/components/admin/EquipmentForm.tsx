@@ -2467,7 +2467,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       </div>
       </FormSection>
 
-      <FormSection title="I-STEM portal" description="Configure separate links for booking users and for OIC/Admin FBR verification.">
+      <FormSection title="I-STEM portal" description="Links to this equipment on I-STEM for booking users and for OIC/Admin.">
       <div className="space-y-4 max-w-2xl">
         <div className="space-y-2">
           <Label htmlFor="istem-portal-url">I-STEM booking page URL (for users)</Label>
@@ -2497,7 +2497,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         Select a <strong>Profile type</strong> for each user type — time and amount use that row’s type.
         Configure <strong>Dynamic input fields</strong> under each standard user type (PI rates share the matching user type’s fields).
         Add <strong>PI IIT Faculty</strong> for PI facility rates (applied when the wallet owner is an equipment PI).
-        Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
+        Enable <strong>Require I-STEM FBR</strong> when that user type’s bookings are recorded on I-STEM (the portal creates the I-STEM booking; users do nothing on I-STEM).
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
       <div className="rounded border divide-y">

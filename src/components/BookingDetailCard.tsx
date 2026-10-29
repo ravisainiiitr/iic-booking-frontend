@@ -80,6 +80,10 @@ import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderD
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
+import { InvoiceAction } from "@/components/external/InvoiceAction";
+import { SampleLabelDialog } from "@/components/external/SampleLabelDialog";
+import { SampleArrivalPanel } from "@/components/courier/SampleArrivalPanel";
+import { SampleDispatchAction } from "@/components/courier/SampleDispatchAction";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
@@ -759,23 +763,12 @@ export function BookingDetailCard({
   } | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsRatingBlocked, setResultsRatingBlocked] = useState(false);
-  const [resultsFbrBlock, setResultsFbrBlock] = useState<{ message: string; portalUrl?: string } | null>(null);
-  const [resultsFbrInfoOpen, setResultsFbrInfoOpen] = useState(false);
-  const [fbrInput, setFbrInput] = useState("");
-  const [fbrSaving, setFbrSaving] = useState(false);
-  const [fbrInvalidateReason, setFbrInvalidateReason] = useState("");
-  const [fbrReviewLoading, setFbrReviewLoading] = useState<null | "execute" | "invalidate">(null);
   const [resultsDialogOpen, setResultsDialogOpen] = useState(false);
   const {
     progress: zipDownloadProgress,
     busy: zipDownloadInProgress,
     start: startZipDownload,
-  } = useResultsZipDownload((res) => {
-    if (res.errorCode === "istem_fbr_not_executed") {
-      setResultsFbrBlock({ message: res.error ?? "", portalUrl: res.istem_portal_url });
-      setResultsFbrInfoOpen(true);
-    }
-  });
+  } = useResultsZipDownload();
   const [ratingRequiredPopupOpen, setRatingRequiredPopupOpen] = useState(false);
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const chargeRecalcPayingRef = useRef(false);
@@ -787,6 +780,8 @@ export function BookingDetailCard({
   const [extendHoldLoading, setExtendHoldLoading] = useState(false);
   const [atmosphereSaving, setAtmosphereSaving] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [shipmentRefreshKey, setShipmentRefreshKey] = useState(0);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
     laboratory_cleanliness_organization: boolean | null;
@@ -918,7 +913,6 @@ export function BookingDetailCard({
   // Keep local booking in sync when parent passes a newer object.
   useEffect(() => {
     setBooking(initialBooking);
-    setFbrInput((initialBooking.istem_fbr_number || "").trim());
   }, [initialBooking]);
 
   useEffect(() => {
@@ -969,16 +963,13 @@ export function BookingDetailCard({
     let cancelled = false;
     const loadResults = () => {
       setResultsLoading(true);
-      setResultsFbrBlock(null);
       setResultsRatingBlocked(false);
       return apiClient
         .getBookingResults(bookingPk)
         .then((res) => {
           if (cancelled) return;
           if (res.error) {
-            if (res.errorCode === "istem_fbr_not_executed") {
-              setResultsFbrBlock({ message: res.error, portalUrl: res.istem_portal_url });
-            } else if (
+            if (
               res.status === 403 &&
               typeof res.error === "string" &&
               res.error.toLowerCase().includes("rating")
@@ -1432,68 +1423,6 @@ export function BookingDetailCard({
     }
   };
 
-  const submitIstemFbr = async () => {
-    if (bookingPk == null) return;
-    const v = fbrInput.trim();
-    if (!v) {
-      toast.error("Enter your FBR number from the I-STEM portal.");
-      return;
-    }
-    setFbrSaving(true);
-    try {
-      const res = await apiClient.updateBookingIstemFbr(bookingPk, v);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("FBR submitted for Officer in Charge verification.");
-      await refreshBookingDetail();
-      onUpdated();
-    } finally {
-      setFbrSaving(false);
-    }
-  };
-
-  const executeIstemFbrReview = async () => {
-    if (bookingPk == null) return;
-    setFbrReviewLoading("execute");
-    try {
-      const res = await apiClient.reviewBookingIstemFbr(bookingPk, "execute");
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("FBR marked as verified.");
-      setFbrInvalidateReason("");
-      await refreshBookingDetail();
-      onUpdated();
-    } finally {
-      setFbrReviewLoading(null);
-    }
-  };
-
-  const invalidateIstemFbrReview = async () => {
-    if (bookingPk == null) return;
-    const reason = fbrInvalidateReason.trim();
-    if (!reason) {
-      toast.error("Enter a short reason so the user can correct the FBR.");
-      return;
-    }
-    setFbrReviewLoading("invalidate");
-    try {
-      const res = await apiClient.reviewBookingIstemFbr(bookingPk, "invalidate", reason);
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success("User will be notified to update the FBR.");
-      setFbrInvalidateReason("");
-      await refreshBookingDetail();
-      onUpdated();
-    } finally {
-      setFbrReviewLoading(null);
-    }
-  };
 
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
   const inputEditRefundViewer: InputEditRefundViewer = isManagerOrAdmin
@@ -1607,7 +1536,7 @@ export function BookingDetailCard({
   const showRawOrResultsAction =
     sampleLifecycleAllowsRawOrResults &&
     (hasDownloadableResults ||
-      (remoteAnalysisEnabled && rawReadyFromAnalysis && !resultsFbrBlock) ||
+      (remoteAnalysisEnabled && rawReadyFromAnalysis) ||
       (remoteAnalysisEnabled && resultsRatingBlocked && rawReadyFromAnalysis));
   const analyzedDataAvailable = Boolean(
     (analysisSummary as any)?.experience?.results?.available ||
@@ -1654,16 +1583,8 @@ export function BookingDetailCard({
   const isAnalysisBookingActor =
     currentUserId != null &&
     (Number(booking.user) === Number(currentUserId) || Boolean(isManagerOrAdmin) || isOperator);
-  const showIstemWorkflow =
-    !isWaitlistedEntry &&
-    !isFinanceUser &&
-    (Boolean(booking.require_istem_fbr) || booking.istem_fbr_status != null);
-  const istemPortalUrl = (booking.istem_portal_url || "https://www.istem.gov.in/").trim();
-  const istemFbrStatusUrl = (booking.istem_fbr_status_url || "").trim();
-  const canSubmitIstemFbr =
-    booking.istem_fbr_status === "PENDING_FBR" ||
-    booking.istem_fbr_status === "INVALID" ||
-    (Boolean(booking.require_istem_fbr) && !booking.istem_fbr_status);
+  // I-STEM bookings are created by the portal; a stored FBR number (I-STEM's or an earlier manual one) is shown read-only.
+  const istemFbrNumber = (booking.istem_fbr_number || "").trim();
   const isBookingOwnerView =
     !isOperatorOrManager && currentUserId != null && booking.user === currentUserId;
   const oicContacts = Array.isArray(booking.oic_contacts) ? booking.oic_contacts : [];
@@ -1807,12 +1728,6 @@ export function BookingDetailCard({
               </CardTitle>
               <p className="text-lg sm:text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
                 <span className="break-all">Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
-                <IstemFbrSeal
-                  requireIstemFbr={booking.require_istem_fbr}
-                  istemFbrStatus={booking.istem_fbr_status}
-                  size="md"
-                  showLabel
-                />
               </p>
               <div className="mt-2">
                 <UserProfile
@@ -2072,191 +1987,11 @@ export function BookingDetailCard({
             </div>
           ) : null}
 
-          {showIstemWorkflow && !isJobSheetView && (
-            <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
-              <p className="font-semibold text-foreground">I-STEM (national portal)</p>
-              {isManagerOrAdmin ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Verify the user&apos;s FBR number on I-STEM before marking it verified or rejected.
-                  </p>
-                  {istemFbrStatusUrl ? (
-                    <>
-                      <Button variant="outline" size="sm" asChild>
-                        <a href={istemFbrStatusUrl} target="_blank" rel="noopener noreferrer">
-                          Check FBR Status
-                        </a>
-                      </Button>
-                      <p className="text-xs text-muted-foreground break-all">{istemFbrStatusUrl}</p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-amber-800 dark:text-amber-300">
-                      FBR status check URL is not configured for this equipment. Add it under equipment settings
-                      (I-STEM FBR status check URL).
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Parallel booking on the Government of India portal is required. Create your booking on I-STEM using
-                    the link below, then enter your Facility Booking Record (FBR) number for verification by the
-                    Officer in Charge.
-                  </p>
-                  <Button variant="outline" size="sm" asChild>
-                    <a href={istemPortalUrl} target="_blank" rel="noopener noreferrer">
-                      Open I-STEM booking page
-                    </a>
-                  </Button>
-                  <p className="text-xs text-muted-foreground break-all">{istemPortalUrl}</p>
-                </>
-              )}
-              <div className="text-sm space-y-1">
-                <p>
-                  <span className="text-muted-foreground">Status: </span>
-                  <span className="font-medium">{booking.istem_fbr_status_display || booking.istem_fbr_status || "—"}</span>
-                </p>
-                {booking.istem_fbr_number ? (
-                  <p>
-                    <span className="text-muted-foreground">FBR number: </span>
-                    <span className="font-mono">{booking.istem_fbr_number}</span>
-                  </p>
-                ) : null}
-                {booking.istem_fbr_invalid_reason ? (
-                  <p className="text-destructive whitespace-pre-wrap">{booking.istem_fbr_invalid_reason}</p>
-                ) : null}
-              </div>
-              {isBookingOwnerView && canSubmitIstemFbr && (
-                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
-                    <div className="flex-1 space-y-1">
-                      <Label htmlFor="istem-fbr-input">I-STEM FBR number</Label>
-                      <Input
-                        id="istem-fbr-input"
-                        value={fbrInput}
-                        onChange={(e) => setFbrInput(e.target.value)}
-                        placeholder="From your I-STEM booking"
-                        className="font-mono"
-                      />
-                    </div>
-                    <Button type="button" onClick={() => void submitIstemFbr()} disabled={fbrSaving}>
-                      {fbrSaving ? "Saving…" : "Submit FBR"}
-                    </Button>
-                  </div>
-                )}
-              {isManagerOrAdmin && booking.istem_fbr_status === "PENDING_OIC" && (
-                <div className="space-y-3 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
-                  <p className="text-sm font-medium">
-                    OIC: use Check FBR Status on I-STEM to verify, then mark below.
-                  </p>
-                  {istemFbrStatusUrl ? (
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={istemFbrStatusUrl} target="_blank" rel="noopener noreferrer">
-                        Check FBR Status
-                      </a>
-                    </Button>
-                  ) : null}
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700"
-                      disabled={fbrReviewLoading !== null}
-                      onClick={() => void executeIstemFbrReview()}
-                    >
-                      {fbrReviewLoading === "execute" ? "Working…" : "Mark FBR Verified"}
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="istem-fbr-invalidate">Reject FBR (reason to user)</Label>
-                    <Textarea
-                      id="istem-fbr-invalidate"
-                      value={fbrInvalidateReason}
-                      onChange={(e) => setFbrInvalidateReason(e.target.value)}
-                      rows={2}
-                      placeholder="e.g. FBR not found — please copy the exact number from I-STEM."
-                      className="resize-none"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      disabled={fbrReviewLoading !== null}
-                      onClick={() => void invalidateIstemFbrReview()}
-                    >
-                      {fbrReviewLoading === "invalidate" ? "Working…" : "Mark FBR invalid"}
-                    </Button>
-                  </div>
-                </div>
-              )}
+          {istemFbrNumber && !isWaitlistedEntry && !isFinanceUser && !isJobSheetView && (
+            <div className="rounded-lg border p-3 mb-4 text-sm">
+              <span className="text-muted-foreground">I-STEM FBR number: </span>
+              <span className="font-mono">{istemFbrNumber}</span>
             </div>
-          )}
-
-          {/* Invoice + technical contacts: every viewer except the Lab in-charge, who is one of these contacts. */}
-          {!(isLabInchargeUser || normalizedCurrentUserType === "operator") && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {!isWaitlistedEntry && (
-                <div className="border rounded-md p-4 min-w-0">
-                  <p className="text-base font-semibold text-foreground mb-2">
-                    For Invoice Related Query Please Contact the Undersigned
-                  </p>
-                  {booking.accounts_in_charge ? (
-                    <div className="text-sm sm:text-base text-muted-foreground space-y-1 break-words">
-                      <div>
-                        <span className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</span>
-                      </div>
-                      {booking.accounts_in_charge.phone ? <div>Contact Number: {booking.accounts_in_charge.phone}</div> : null}
-                      {booking.accounts_in_charge.email ? <div>Email: {booking.accounts_in_charge.email}</div> : null}
-                    </div>
-                  ) : (
-                    <div className="text-sm sm:text-base text-muted-foreground">Not available.</div>
-                  )}
-                </div>
-              )}
-
-              <div className="border rounded-md p-4 min-w-0">
-                <p className="text-base font-semibold text-foreground mb-2">
-                  For Any Other Technical Query Please Contact the Undersigned-
-                </p>
-
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm sm:text-base font-medium text-foreground">Level 1: Lab Operator</p>
-                    {booking.lab_in_charge ? (
-                      <div className="text-sm sm:text-base text-muted-foreground space-y-1 mt-1 break-words">
-                        <div>
-                          <span className="font-medium text-emerald-700 dark:text-emerald-300">{booking.lab_in_charge.name}</span>
-                        </div>
-                        {booking.lab_in_charge.phone ? <div>Contact Number: {booking.lab_in_charge.phone}</div> : null}
-                        {booking.lab_in_charge.email ? <div>Email: {booking.lab_in_charge.email}</div> : null}
-                      </div>
-                    ) : (
-                      <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-sm sm:text-base font-medium text-foreground">Level 2: Officer In-Charge</p>
-                    {oicContacts.length > 0 ? (
-                      <div className="space-y-2 mt-1">
-                        {oicContacts.map((c) => (
-                          <div key={c.user_id} className="text-sm sm:text-base text-muted-foreground space-y-1 break-words">
-                            <div>
-                              <span className="font-medium text-violet-700 dark:text-violet-300">{c.name}</span>
-                            </div>
-                            {c.phone ? <div>Contact Number: {c.phone}</div> : null}
-                            {c.email ? <div>Email: {c.email}</div> : null}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
           )}
 
           {!isJobSheetView && (booking.rating != null || booking.rating_feedback != null) && (
@@ -2435,31 +2170,46 @@ export function BookingDetailCard({
             )}
             <BookingDeadlineNote deadline={ownerDeadline} className="mb-2 text-sm" />
             <div data-actions-buttons className="flex flex-wrap gap-2">
-              {!isWaitlistedEntry && !isFabrication && (
-                <SampleSubmittedAction
-                  bookingId={bookingPk ?? 0}
-                  sampleTrace={booking.sample_trace ?? []}
-                  canSetSampleSent={
-                    !isHold &&
-                    !isRefunded &&
-                    !isOperatorUnavailable &&
-                    !isBookingNotUtilized &&
-                    currentUserId != null &&
-                    booking.user === currentUserId
-                  }
-                  onTraceUpdated={(trace) => {
-                    setBooking((prev) => ({ ...prev, sample_trace: trace }));
-                  }}
-                  onUpdated={() => {
-                    void refreshBookingDetail({ silent: true });
-                    onUpdated();
-                  }}
-                  bookingComplete={booking.status.toUpperCase() === "COMPLETED"}
-                  bookingNotUtilized={isBookingNotUtilized}
-                  bookingRefunded={isRefunded}
-                  bookingOperatorUnavailable={isOperatorUnavailable}
-                />
-              )}
+              {!isWaitlistedEntry && !isFabrication && (() => {
+                const canSetSampleSent =
+                  !isHold &&
+                  !isRefunded &&
+                  !isOperatorUnavailable &&
+                  !isBookingNotUtilized &&
+                  currentUserId != null &&
+                  booking.user === currentUserId;
+                const previousAction = (
+                  <SampleSubmittedAction
+                    bookingId={bookingPk ?? 0}
+                    sampleTrace={booking.sample_trace ?? []}
+                    canSetSampleSent={canSetSampleSent}
+                    onTraceUpdated={(trace) => {
+                      setBooking((prev) => ({ ...prev, sample_trace: trace }));
+                    }}
+                    onUpdated={() => {
+                      void refreshBookingDetail({ silent: true });
+                      onUpdated();
+                    }}
+                    bookingComplete={booking.status.toUpperCase() === "COMPLETED"}
+                    bookingNotUtilized={isBookingNotUtilized}
+                    bookingRefunded={isRefunded}
+                    bookingOperatorUnavailable={isOperatorUnavailable}
+                  />
+                );
+                // External users register the courier + AWB for live tracking; everyone else keeps the previous action.
+                if (!canSetSampleSent || booking.status.toUpperCase() === "COMPLETED" || bookingPk == null) return previousAction;
+                return (
+                  <SampleDispatchAction
+                    bookingId={bookingPk}
+                    fallback={previousAction}
+                    onSaved={() => {
+                      setShipmentRefreshKey((k) => k + 1);
+                      void refreshBookingDetail({ silent: true });
+                      onUpdated();
+                    }}
+                  />
+                );
+              })()}
               {isFinanceUser &&
                 isExternalBookingType &&
                 booking.sample_return_after_analysis === true &&
@@ -2636,16 +2386,14 @@ export function BookingDetailCard({
                       <Download className="h-4 w-4 mr-2" />
                       Equipment requisition form
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={
-                        isRefunded ||
-                        downloadingDoc !== null ||
-                        !(Array.isArray(booking.sample_trace) &&
-                          booking.sample_trace.some((e: any) => e.status === "COMPLETED"))
+                    <InvoiceAction
+                      bookingId={Number(bookingPk ?? 0)}
+                      disabled={isRefunded || bookingPk == null}
+                      legacyAvailable={
+                        Array.isArray(booking.sample_trace) && booking.sample_trace.some((e: any) => e.status === "COMPLETED")
                       }
-                      onClick={async () => {
+                      legacyBusy={downloadingDoc === "invoice"}
+                      legacy={async () => {
                         setDownloadingDoc("invoice");
                         try {
                           if (bookingPk == null) {
@@ -2669,42 +2417,45 @@ export function BookingDetailCard({
                           setDownloadingDoc(null);
                         }
                       }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      {downloadingDoc === "invoice" ? "Preparing…" : "Invoice (PDF)"}
-                    </Button>
+                    />
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={isRefunded || downloadingDoc !== null}
-                      onClick={async () => {
-                        setDownloadingDoc("label");
-                        try {
-                          if (bookingPk == null) {
-                            toast.error("Shipping label is unavailable for this booking.");
-                            return;
-                          }
-                          const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
-                          if (res.error) {
-                            toast.error(res.error);
-                            return;
-                          }
-                          if (res.blob) {
-                            const url = URL.createObjectURL(res.blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `shipping_label_${booking.virtual_booking_id || booking.booking_id}.pdf`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                          }
-                        } finally {
-                          setDownloadingDoc(null);
-                        }
-                      }}
+                      disabled={isRefunded || downloadingDoc !== null || bookingPk == null}
+                      onClick={() => setLabelDialogOpen(true)}
+                      data-testid="shipping-label"
                     >
                       <FolderDown className="h-4 w-4 mr-2" />
                       {downloadingDoc === "label" ? "Preparing…" : "Shipping label"}
                     </Button>
+                    {bookingPk != null ? (
+                      <SampleLabelDialog
+                        bookingId={Number(bookingPk)}
+                        open={labelDialogOpen}
+                        onOpenChange={setLabelDialogOpen}
+                        onLegacy={async () => {
+                          // Sample labels switched off: the previous label (no QR code).
+                          setDownloadingDoc("label");
+                          try {
+                            const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
+                            if (res.error) {
+                              toast.error(res.error);
+                              return;
+                            }
+                            if (res.blob) {
+                              const url = URL.createObjectURL(res.blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = `shipping_label_${booking.virtual_booking_id || booking.booking_id}.pdf`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }
+                          } finally {
+                            setDownloadingDoc(null);
+                          }
+                        }}
+                      />
+                    ) : null}
                   </>
                 )}
               {onUserCancelClick &&
@@ -3138,17 +2889,6 @@ export function BookingDetailCard({
                   Analyzed Data
                 </Button>
               )}
-              {!resultsLoading && isCompleted && isExternalSelfView && resultsFbrBlock && !hasDownloadableResults && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-amber-600 text-amber-800 dark:text-amber-200"
-                  type="button"
-                  onClick={() => setResultsFbrInfoOpen(true)}
-                >
-                  Why can&apos;t I download {remoteAnalysisEnabled ? "raw data" : "results"}?
-                </Button>
-              )}
               {labThread?.outreach && bookingPk != null && (
                 <>
                   <Button size="sm" variant="outline" type="button" onClick={() => setOutreachKind("reminder")}>
@@ -3552,52 +3292,23 @@ export function BookingDetailCard({
                 return true;
               })()}
             />
+            {/* Live courier tracking of the sample (renders nothing until a shipment is registered). */}
+            {bookingPk != null && (
+              <div className="mt-4">
+                <SampleArrivalPanel
+                  bookingId={bookingPk}
+                  isOwner={currentUserId != null && booking.user === currentUserId}
+                  allowEdit={false}
+                  refreshKey={shipmentRefreshKey}
+                />
+              </div>
+            )}
             </div>
           )}
 
           {!isWaitlistedEntry && bookingPk != null && (
             <BookingLabMessages bookingId={bookingPk} onThreadChange={setLabThread} refreshKey={labRefreshKey} />
           )}
-
-          <Dialog open={resultsFbrInfoOpen} onOpenChange={setResultsFbrInfoOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>{resultsFolderLabel} not available yet</DialogTitle>
-                <DialogDescription className="text-left space-y-3 pt-2">
-                  <span className="block text-foreground">{resultsFbrBlock?.message}</span>
-                  {resultsFbrBlock?.portalUrl ? (
-                    <a
-                      href={resultsFbrBlock.portalUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block text-primary font-medium underline"
-                    >
-                      Open I-STEM portal
-                    </a>
-                  ) : null}
-                  <span className="block text-sm font-medium text-foreground pt-2">Officer in Charge (contact)</span>
-                  {oicContacts.length > 0 ? (
-                    <ul className="text-sm space-y-2 list-none pl-0">
-                      {oicContacts.map((c) => (
-                        <li key={c.user_id} className="border rounded-md p-2">
-                          <div className="font-medium">{c.name}</div>
-                          {c.phone ? <div>Mobile: {c.phone}</div> : null}
-                          {c.email ? <div>Email: {c.email}</div> : null}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No OIC contact listed for this equipment. Please use institute helpdesk.</p>
-                  )}
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button type="button" onClick={() => setResultsFbrInfoOpen(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
           <Dialog open={resultsDialogOpen} onOpenChange={setResultsDialogOpen}>
             <DialogContent className="sm:max-w-md">
@@ -3903,6 +3614,67 @@ export function BookingDetailCard({
               <p className="text-base font-medium mb-1">Notes:</p>
               <p className="text-base text-muted-foreground">{booking.notes}</p>
             </div>
+          )}
+
+          {/* Contacts: every viewer except the Lab in-charge, who is one of these contacts. */}
+          {!(isLabInchargeUser || normalizedCurrentUserType === "operator") && !isJobSheetView && (
+            <section className="mt-4 pt-4 border-t" aria-labelledby={`contacts-${booking.booking_id}`} data-testid="booking-contacts">
+              <p id={`contacts-${booking.booking_id}`} className="text-base font-semibold mb-2">Contacts</p>
+              <div className="grid gap-3 text-sm sm:grid-cols-3">
+                {!isWaitlistedEntry && (
+                  <div className="min-w-0 rounded-md border p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoices &amp; payments</p>
+                    {booking.accounts_in_charge ? (
+                      <div className="mt-1 break-words">
+                        <p className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</p>
+                        {booking.accounts_in_charge.phone ? <p className="text-muted-foreground">{booking.accounts_in_charge.phone}</p> : null}
+                        {booking.accounts_in_charge.email ? (
+                          <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${booking.accounts_in_charge.email}`}>
+                            {booking.accounts_in_charge.email}
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-muted-foreground">Not available.</p>
+                    )}
+                  </div>
+                )}
+                <div className="min-w-0 rounded-md border p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Technical · Lab Operator</p>
+                  {booking.lab_in_charge ? (
+                    <div className="mt-1 break-words">
+                      <p className="font-medium text-emerald-700 dark:text-emerald-300">{booking.lab_in_charge.name}</p>
+                      {booking.lab_in_charge.phone ? <p className="text-muted-foreground">{booking.lab_in_charge.phone}</p> : null}
+                      {booking.lab_in_charge.email ? (
+                        <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${booking.lab_in_charge.email}`}>
+                          {booking.lab_in_charge.email}
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-muted-foreground">Not available.</p>
+                  )}
+                </div>
+                <div className="min-w-0 rounded-md border p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Technical · Officer In-Charge</p>
+                  {oicContacts.length > 0 ? (
+                    oicContacts.map((c) => (
+                      <div key={c.user_id} className="mt-1 break-words">
+                        <p className="font-medium text-violet-700 dark:text-violet-300">{c.name}</p>
+                        {c.phone ? <p className="text-muted-foreground">{c.phone}</p> : null}
+                        {c.email ? (
+                          <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${c.email}`}>
+                            {c.email}
+                          </a>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="mt-1 text-muted-foreground">Not available.</p>
+                  )}
+                </div>
+              </div>
+            </section>
           )}
 
           {!isWaitlistedEntry && (
