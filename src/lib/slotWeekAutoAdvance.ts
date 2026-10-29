@@ -20,6 +20,9 @@ export function nextAutoWeekStep(opts: {
   const { index, startIndex, weekCount, hasBookableSlot } = opts;
   if (hasBookableSlot) return { done: true, showIndex: index, advanced: index !== startIndex };
   if (index + 1 < weekCount) return { done: false, showIndex: index + 1 };
-  // Nothing free in any open week: stay on the current week, which explains when the next slots open.
+  // Nothing free in any open week. Once next week has opened (Wednesday 21:00 for internal users), land on it even
+  // if it is full too: the current week is over for this user. Before that, stay on the current week, which
+  // explains when the next slots open.
+  if (startIndex + 1 < weekCount) return { done: true, showIndex: startIndex + 1, advanced: true };
   return { done: true, showIndex: startIndex, advanced: false };
 }

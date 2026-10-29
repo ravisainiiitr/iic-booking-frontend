@@ -30,11 +30,16 @@ describe("nextAutoWeekStep", () => {
     });
   });
 
-  it("goes back to the current week when no open week has a free slot", () => {
+  it("lands on next week when no open week has a free slot and next week is open", () => {
     expect(nextAutoWeekStep({ index: 2, startIndex: 0, weekCount: 3, hasBookableSlot: false })).toEqual({
       done: true,
-      showIndex: 0,
-      advanced: false,
+      showIndex: 1,
+      advanced: true,
+    });
+    expect(nextAutoWeekStep({ index: 1, startIndex: 0, weekCount: 2, hasBookableSlot: false })).toEqual({
+      done: true,
+      showIndex: 1,
+      advanced: true,
     });
   });
 
