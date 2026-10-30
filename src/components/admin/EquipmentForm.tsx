@@ -1037,19 +1037,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     const inputFields = formData.input_fields ?? [];
     const seenKeysByUserType = new Map<string, Set<string>>();
     for (let i = 0; i < inputFields.length; i++) {
+      // An empty user type is the shared set (all user types without fields of their own), as the booking page uses it.
       const ut = String(inputFields[i].user_type || "").trim();
       const key = String(inputFields[i].field_key || "").trim().toUpperCase();
       const label = String(inputFields[i].field_label || "").trim();
-      if (!ut) {
-        toast.error(`Dynamic input field #${i + 1}: User type is required (attach under a charge profile).`);
-        return;
-      }
       if (!/^[A-Z]$/.test(key)) {
         toast.error(`Dynamic input field #${i + 1}: Field key must be a single letter A–Z.`);
         return;
       }
       if (!label) {
-        toast.error(`Dynamic input field ${key} (${ut}): Field label is required.`);
+        toast.error(`Dynamic input field ${key} (${ut || "all user types"}): Field label is required.`);
         return;
       }
       const seen = seenKeysByUserType.get(ut) ?? new Set<string>();
@@ -1064,7 +1061,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           allowNegative: Boolean(inputFields[i].allow_negative),
         });
         if (limitError) {
-          toast.error(`Dynamic input field ${key} (${ut}): ${limitError}`);
+          toast.error(`Dynamic input field ${key} (${ut || "all user types"}): ${limitError}`);
           return;
         }
       }
@@ -2500,6 +2497,16 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         Enable <strong>Require I-STEM FBR</strong> when that user type must submit and verify an I-STEM Facility Booking Record.
         <strong> Show charge breakdown</strong> is on by default; uncheck to hide the itemized breakdown in Charge Calculation.
       </p>
+      {(formData.input_fields ?? []).some((f) => !String(f.user_type || "").trim()) ? (
+        <div className="space-y-1" data-testid="shared-input-fields">
+          <p className="text-sm font-medium">Input fields for all user types</p>
+          <p className="text-xs text-muted-foreground">
+            Used on the booking page for any user type that has no input fields of its own. Edit or remove them here;
+            fields added under a user type below replace them for that user type.
+          </p>
+          {renderDynamicFieldsForUserType("", "shared")}
+        </div>
+      ) : null}
       <div className="rounded border divide-y">
         {(formData.charge_profiles ?? []).length === 0 ? (
           <p className="p-3 text-sm text-muted-foreground">No charge profiles yet. Add rows below or save equipment first in Django admin.</p>

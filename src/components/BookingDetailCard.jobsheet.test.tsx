@@ -146,7 +146,7 @@ describe("BookingDetailCard job sheet", () => {
     expect(html).not.toContain("Job sheet");
     expect(html).toContain("Total Cost");
     expect(html).toContain("Charge Breakdown");
-    expect(html).toContain("Invoices &amp; payments"); // compact Contacts block
+    expect(html).toContain("For Invoice Related Query Please Contact the Undersigned"); // contacts block
   });
 
   it("shows Accounts the return shipping actions once an external user's sample is analysed", () => {

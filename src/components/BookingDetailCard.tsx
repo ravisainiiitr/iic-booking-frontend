@@ -3938,66 +3938,6 @@ export function BookingDetailCard({
             </div>
           )}
 
-          {/* Contacts: every viewer except the Lab in-charge, who is one of these contacts. */}
-          {!(isLabInchargeUser || normalizedCurrentUserType === "operator") && !isJobSheetView && (
-            <section className="mt-4 pt-4 border-t" aria-labelledby={`contacts-${booking.booking_id}`} data-testid="booking-contacts">
-              <p id={`contacts-${booking.booking_id}`} className="text-base font-semibold mb-2">Contacts</p>
-              <div className="grid gap-3 text-sm sm:grid-cols-3">
-                {!isWaitlistedEntry && (
-                  <div className="min-w-0 rounded-md border p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoices &amp; payments</p>
-                    {booking.accounts_in_charge ? (
-                      <div className="mt-1 break-words">
-                        <p className="font-medium text-sky-700 dark:text-sky-300">{booking.accounts_in_charge.name}</p>
-                        {booking.accounts_in_charge.phone ? <p className="text-muted-foreground">{booking.accounts_in_charge.phone}</p> : null}
-                        {booking.accounts_in_charge.email ? (
-                          <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${booking.accounts_in_charge.email}`}>
-                            {booking.accounts_in_charge.email}
-                          </a>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-muted-foreground">Not available.</p>
-                    )}
-                  </div>
-                )}
-                <div className="min-w-0 rounded-md border p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Technical · Lab Operator</p>
-                  {booking.lab_in_charge ? (
-                    <div className="mt-1 break-words">
-                      <p className="font-medium text-emerald-700 dark:text-emerald-300">{booking.lab_in_charge.name}</p>
-                      {booking.lab_in_charge.phone ? <p className="text-muted-foreground">{booking.lab_in_charge.phone}</p> : null}
-                      {booking.lab_in_charge.email ? (
-                        <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${booking.lab_in_charge.email}`}>
-                          {booking.lab_in_charge.email}
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-muted-foreground">Not available.</p>
-                  )}
-                </div>
-                <div className="min-w-0 rounded-md border p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Technical · Officer In-Charge</p>
-                  {oicContacts.length > 0 ? (
-                    oicContacts.map((c) => (
-                      <div key={c.user_id} className="mt-1 break-words">
-                        <p className="font-medium text-violet-700 dark:text-violet-300">{c.name}</p>
-                        {c.phone ? <p className="text-muted-foreground">{c.phone}</p> : null}
-                        {c.email ? (
-                          <a className="text-muted-foreground underline-offset-2 hover:underline" href={`mailto:${c.email}`}>
-                            {c.email}
-                          </a>
-                        ) : null}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="mt-1 text-muted-foreground">Not available.</p>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
 
           {!isWaitlistedEntry && (
             <div className="mt-4 pt-4 border-t no-print">
