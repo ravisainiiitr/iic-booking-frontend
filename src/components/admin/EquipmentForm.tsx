@@ -287,7 +287,8 @@ export type EquipmentFormData = {
   }>;
   equipment_accessories?: Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
   equipment_additional_accessories?: Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
-  slot_masters?: Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
+  /** id of an existing slot master: the save updates it in place (its daily slots and bookings stay). */
+  slot_masters?: Array<{ id?: number | null; slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
   charge_profiles?: Array<{
     user_type: string;
     /** standard (default) or pi — UI-only until save splits to pi_charge_profiles. */
@@ -799,7 +800,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
       }>;
       const accessories = (d.accessories || d.equipment_accessories || []) as Array<{ accessory_name: string; is_optional?: boolean; is_enabled?: boolean }>;
       const addAccessories = (d.additional_accessories || d.equipment_additional_accessories || []) as Array<{ additional_accessory_name: string; additional_accessory_description?: string; is_optional?: boolean; is_enabled?: boolean }>;
-      const slots = (d.slot_masters || []) as Array<{ slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
+      const slots = (d.slot_masters || []) as Array<{ id?: number; slot_number: number; slot_name?: string; open_time: string; close_time: string; is_active?: boolean }>;
       const profiles = (d.charge_profiles || []) as Array<Record<string, unknown>>;
       const piProfiles = (d.pi_charge_profiles || []) as Array<Record<string, unknown>>;
       const rawInputs = (d.input_fields || []) as Array<Record<string, unknown>>;
@@ -947,7 +948,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           : prev.equipment_publications ?? [],
         equipment_accessories: Array.isArray(accessories) ? accessories.map((a) => ({ accessory_name: a.accessory_name ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_accessories ?? [],
         equipment_additional_accessories: Array.isArray(addAccessories) ? addAccessories.map((a) => ({ additional_accessory_name: a.additional_accessory_name ?? "", additional_accessory_description: a.additional_accessory_description ?? "", is_optional: a.is_optional ?? false, is_enabled: a.is_enabled !== false })) : prev.equipment_additional_accessories ?? [],
-        slot_masters: Array.isArray(slots) ? slots.map((s) => ({ slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? slotCloseTimeForForm(s.close_time) : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
+        slot_masters: Array.isArray(slots) ? slots.map((s) => ({ id: s.id ?? null, slot_number: s.slot_number, slot_name: s.slot_name ?? "", open_time: typeof s.open_time === "string" ? s.open_time : "", close_time: typeof s.close_time === "string" ? slotCloseTimeForForm(s.close_time) : "", is_active: s.is_active ?? true })) : prev.slot_masters ?? [],
         charge_profiles: mergedChargeProfiles.length ? mergedChargeProfiles : prev.charge_profiles ?? [],
         pi_charge_profiles: [],
         input_fields: Array.isArray(inputs) ? inputs.map((i) => {
