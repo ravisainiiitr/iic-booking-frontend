@@ -522,7 +522,8 @@ export const externalBookingApi = {
   downloadInvoice: (documentId: number) =>
     downloadPdf(`${extBase()}/invoices/documents/${documentId}/download/`, `GST_invoice_${documentId}.pdf`),
   // addresses and copies (user)
-  addresses: () => request<{ addresses: PostalAddress[] }>(`${extBase()}/addresses/`),
+  addresses: () =>
+    request<{ addresses: PostalAddress[]; last_label_address_id?: number | null; sample_labels_enabled?: boolean }>(`${extBase()}/addresses/`),
   saveAddress: (address: PostalAddress) =>
     address.id
       ? request<PostalAddress>(`${extBase()}/addresses/${address.id}/`, { method: "PATCH", json: address })
