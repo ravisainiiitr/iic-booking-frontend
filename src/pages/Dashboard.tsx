@@ -37,6 +37,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
+import NoticeGroup from "@/components/dashboard/NoticeGroup";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
 import { LoginTipCard } from "@/components/LoginTip/LoginTipCard";
 import { pickNextSampleReminder, type SampleDeadlineItem } from "@/lib/loginTips";
@@ -4227,6 +4228,7 @@ const Dashboard = () => {
   // Dashboard home only, between the page header card and the first section; each renders nothing when empty.
   // The administration overview lists pending actions under its own "Needs attention".
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
+  const groupsStaffNotices = showsLabStyleDashboard || isAdmin;
   const dashboardNotices = (
     <>
       <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} />
@@ -4608,7 +4610,7 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {showsLabStyleDashboard || isAdmin ? <MaintenanceBanner className="mb-4" /> : null}
+        {/* Staff: maintenance is shown in the collapsible notices panel of the main column. */}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
@@ -4772,16 +4774,28 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
-            {!disruptionBannerDismissed && disruptionAttention?.enabled ? (
-              <DisruptionAttentionBanner
-                count={disruptionAttention.reason_missing}
-                onOpen={() => openWorkspace("/disruptions?reason_missing=1")}
-                onDismiss={() => {
-                  dismissDisruptionBanner();
-                  setDisruptionBannerDismissed(true);
-                }}
-              />
-            ) : null}
+            {(() => {
+              const disruptionBanner =
+                !disruptionBannerDismissed && disruptionAttention?.enabled ? (
+                  <DisruptionAttentionBanner
+                    count={disruptionAttention.reason_missing}
+                    onOpen={() => openWorkspace("/disruptions?reason_missing=1")}
+                    onDismiss={() => {
+                      dismissDisruptionBanner();
+                      setDisruptionBannerDismissed(true);
+                    }}
+                  />
+                ) : null;
+              if (!groupsStaffNotices) return disruptionBanner;
+              // OIC, Lab in-charge and Main Admin: maintenance, disruptions and attention items in one panel.
+              return (
+                <NoticeGroup className="mb-4">
+                  <MaintenanceBanner />
+                  {disruptionBanner}
+                  {showAdminOverview ? null : <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} />}
+                </NoticeGroup>
+              );
+            })()}
             {showAdminOverview ? (
               <Suspense
                 fallback={
@@ -4814,7 +4828,7 @@ const Dashboard = () => {
               </CardHeader>
             </Card>
             )}
-            {showAdminOverview ? null : dashboardNotices}
+            {showAdminOverview ? null : groupsStaffNotices ? loginTip : dashboardNotices}
 
         {showsLabStyleDashboard && (
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">

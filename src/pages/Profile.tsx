@@ -21,6 +21,7 @@ import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
 import IstemLinkCard from "@/components/profile/IstemLinkCard";
+import { CityPicker, CountryPicker, StatePicker } from "@/components/address/AddressPickers";
 import { formatDMY } from "@/lib/dateFormat";
 
 const Profile = () => {
@@ -937,21 +938,30 @@ const Profile = () => {
 
                     <div className="grid gap-4 sm:grid-cols-3">
                       <div className="space-y-2">
-                        <Label htmlFor="billing_city">City</Label>
-                        <Input
-                          id="billing_city"
-                          value={externalBilling.billing_city}
-                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_city: e.target.value }))}
-                          maxLength={120}
+                        <Label htmlFor="billing_country">Country</Label>
+                        <CountryPicker
+                          id="billing_country"
+                          value={externalBilling.billing_country}
+                          onChange={(v) => setExternalBilling((p) => ({ ...p, billing_country: v }))}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="billing_state">State</Label>
-                        <Input
+                        <StatePicker
                           id="billing_state"
                           value={externalBilling.billing_state}
-                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_state: e.target.value }))}
-                          maxLength={120}
+                          country={externalBilling.billing_country}
+                          onChange={(v) => setExternalBilling((p) => ({ ...p, billing_state: v }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_city">City</Label>
+                        <CityPicker
+                          id="billing_city"
+                          value={externalBilling.billing_city}
+                          country={externalBilling.billing_country}
+                          state={externalBilling.billing_state}
+                          onChange={(v) => setExternalBilling((p) => ({ ...p, billing_city: v }))}
                         />
                       </div>
                       <div className="space-y-2">
@@ -963,16 +973,6 @@ const Profile = () => {
                           maxLength={20}
                         />
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="billing_country">Country</Label>
-                      <Input
-                        id="billing_country"
-                        value={externalBilling.billing_country}
-                        onChange={(e) => setExternalBilling((p) => ({ ...p, billing_country: e.target.value }))}
-                        maxLength={120}
-                      />
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
@@ -1032,21 +1032,30 @@ const Profile = () => {
 
                         <div className="grid gap-4 sm:grid-cols-3">
                           <div className="space-y-2">
-                            <Label htmlFor="shipping_city">City</Label>
-                            <Input
-                              id="shipping_city"
-                              value={externalBilling.shipping_city}
-                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_city: e.target.value }))}
-                              maxLength={120}
+                            <Label htmlFor="shipping_country">Country</Label>
+                            <CountryPicker
+                              id="shipping_country"
+                              value={externalBilling.shipping_country}
+                              onChange={(v) => setExternalBilling((p) => ({ ...p, shipping_country: v }))}
                             />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="shipping_state">State</Label>
-                            <Input
+                            <StatePicker
                               id="shipping_state"
                               value={externalBilling.shipping_state}
-                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_state: e.target.value }))}
-                              maxLength={120}
+                              country={externalBilling.shipping_country}
+                              onChange={(v) => setExternalBilling((p) => ({ ...p, shipping_state: v }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_city">City</Label>
+                            <CityPicker
+                              id="shipping_city"
+                              value={externalBilling.shipping_city}
+                              country={externalBilling.shipping_country}
+                              state={externalBilling.shipping_state}
+                              onChange={(v) => setExternalBilling((p) => ({ ...p, shipping_city: v }))}
                             />
                           </div>
                           <div className="space-y-2">
@@ -1060,15 +1069,6 @@ const Profile = () => {
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="shipping_country">Country</Label>
-                          <Input
-                            id="shipping_country"
-                            value={externalBilling.shipping_country}
-                            onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_country: e.target.value }))}
-                            maxLength={120}
-                          />
-                        </div>
                       </>
                     )}
 

@@ -163,8 +163,8 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const searching = trimmed.length >= 2;
   const isStaffUser =
     isAuthenticated && (staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase()));
-  // Staff already find every user under People; other users find lab staff here.
-  const labStaff = isStaffUser ? [] : result.lab_staff ?? [];
+  // Every signed-in user finds the Officers in Charge and Lab In-charges here (staff also under People).
+  const labStaff = result.lab_staff ?? [];
   const hasHits =
     pageHits.length + result.equipment.length + result.bookings.length + result.people.length + labStaff.length > 0;
   const placeholder = isAuthenticated
@@ -366,6 +366,17 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         </p>
                       ) : null}
                       {modeInactiveOf(e) ? <p className={SECONDARY}>{modeInactiveOf(e)!.message}</p> : null}
+                      {e.lab_staff?.length ? (
+                        <p className={SECONDARY} data-testid={`equipment-lab-staff-${e.id}`}>
+                          {(["Officer in Charge", "Lab In-charge"] as const)
+                            .map((role) => {
+                              const names = e.lab_staff!.filter((s) => s.role === role).map((s) => s.name);
+                              return names.length ? `${role}: ${names.join(", ")}` : "";
+                            })
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      ) : null}
                     </div>
                     {isAuthenticated && !modeInactiveOf(e) && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
                       <button

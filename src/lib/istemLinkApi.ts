@@ -72,3 +72,27 @@ export const istemLinkApi = {
   sendOtp: () => request<{ message: string; email_masked: string; expires_at: string; attempts_left: number }>("/send-otp/", {}),
   verifyOtp: (otp: string) => request<IstemLinkStatus & { message: string }>("/verify-otp/", { otp }),
 };
+
+/** Registration with an existing I-STEM account (before the portal account exists; no sign-in token). */
+async function publicRequest<T>(path: string, json?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}/istem/register${path}`, {
+    method: json === undefined ? "GET" : "POST",
+    headers: json === undefined ? {} : { "Content-Type": "application/json" },
+    body: json === undefined ? undefined : JSON.stringify(json),
+    credentials: "omit",
+  });
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new IstemLinkError(res.status, data);
+  return data as T;
+}
+
+export const istemRegisterApi = {
+  availability: () => publicRequest<{ available: boolean }>("/availability/"),
+  lookup: (email: string, mobile: string) =>
+    publicRequest<{ message: string; token: string; email_masked: string; expires_in: number }>("/lookup/", { email, mobile }),
+  verify: (token: string, otp: string) =>
+    publicRequest<{ message: string; profile: IstemProfile & { mobile?: string; state?: string }; link_token: string }>(
+      "/verify/",
+      { token, otp },
+    ),
+};

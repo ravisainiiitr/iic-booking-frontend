@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { FileDown, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { CityPicker, CountryPicker, StatePicker } from "@/components/address/AddressPickers";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -47,16 +48,29 @@ export function AddressFields({ value, onChange, idPrefix }: { value: PostalAddr
       />
     </div>
   );
+  const picker = (key: "country" | "state" | "city", label: string, required: boolean, node: ReactNode) => (
+    <div>
+      <Label htmlFor={`${idPrefix}-${key}`}>
+        {label}
+        {required ? " *" : ""}
+      </Label>
+      {node}
+    </div>
+  );
+  const set = (key: "country" | "state" | "city") => (v: string) => onChange({ ...value, [key]: v });
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {field("recipient_name", "Recipient name", true)}
       {field("organisation", "Organisation / department")}
       {field("line1", "Address line 1", true)}
       {field("line2", "Address line 2")}
-      {field("city", "City / town", true)}
-      {field("state", "State", true)}
+      {picker("country", "Country", false,
+        <CountryPicker id={`${idPrefix}-country`} value={String(value.country ?? "")} onChange={set("country")} />)}
+      {picker("state", "State", true,
+        <StatePicker id={`${idPrefix}-state`} value={String(value.state ?? "")} onChange={set("state")} country={value.country ?? ""} />)}
+      {picker("city", "City / town", true,
+        <CityPicker id={`${idPrefix}-city`} value={String(value.city ?? "")} onChange={set("city")} country={value.country ?? ""} state={value.state ?? ""} />)}
       {field("postal_code", "PIN code", true)}
-      {field("country", "Country")}
       {field("phone", "Phone for delivery")}
     </div>
   );

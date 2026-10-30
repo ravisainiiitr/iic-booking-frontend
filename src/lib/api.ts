@@ -324,6 +324,8 @@ export interface GlobalSearchResult {
     match?: "exact" | "prefix" | "contains" | "technique" | "fuzzy";
     /** "Matched technique: …" or "Did you mean …?" on technique and spelling matches. */
     hint?: string;
+    /** Active Officers in Charge and Lab In-charges of this equipment (signed-in users only). */
+    lab_staff?: Array<{ id: number; name: string; role: string; email: string }>;
   }>;
   /** Corrected query when the best equipment match needed a spelling correction. */
   suggestion?: string;
@@ -4693,7 +4695,9 @@ class ApiClient {
     program_end_date?: string,
     program_start_date?: string | null,
     gender?: string | null,
-    organization_request_id?: number | null
+    organization_request_id?: number | null,
+    /** Signed token from verifying an existing I-STEM account (links the new account to it). */
+    istem_link_token?: string | null
   ) {
     const url = `${this.baseURL}/auth/register/`;
     const formData = new FormData();
@@ -4724,6 +4728,9 @@ class ApiClient {
     }
     if (organization_request_id != null && organization_request_id !== undefined) {
       formData.append('organization_request', organization_request_id.toString());
+    }
+    if (istem_link_token) {
+      formData.append('istem_link_token', istem_link_token);
     }
     if (department != null && department !== undefined && department !== 0) {
       formData.append('department', department.toString());

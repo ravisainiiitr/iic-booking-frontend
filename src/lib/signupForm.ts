@@ -65,9 +65,10 @@ export function kindNeedsState(kind: SignupKind | null): boolean {
   return kind === "educational" || kind === "rnd" || kind === "industry" || kind === "external_startup";
 }
 
-/** Educational Institute and Govt R&D need the signed KYC form when registering with a public email. */
-export function kindNeedsKycForPublicEmail(kind: SignupKind | null): boolean {
-  return kind === "educational" || kind === "rnd";
+/** The signed KYC form is optional for every user type (also with a public email): each external booking carries the
+ * equipment requisition form signed by the user's authorities. Kept so the form can make it required again. */
+export function kindNeedsKycForPublicEmail(_kind: SignupKind | null): boolean {
+  return false;
 }
 
 const ORDER_IITR: SignupKind[] = ["iitr_postdoc", "iitr_ra", "iitr_startup"];
@@ -191,7 +192,7 @@ const RND_ITEM: Requirement = {
 
 /** Requirements shown in the collapsible panel: everything before a type is chosen, then only that type's. */
 export function requirementsFor(kind: SignupKind | null): Requirement[] {
-  if (!kind) return [EVERYONE, ...IITR_ITEMS.slice(0, 2), ...EXTERNAL_ITEMS, KYC_ITEM];
+  if (!kind) return [EVERYONE, ...IITR_ITEMS.slice(0, 2), ...EXTERNAL_ITEMS, ...(kindNeedsKycForPublicEmail(null) ? [KYC_ITEM] : [])];
   if (isIitrKind(kind)) return [EVERYONE, ...IITR_ITEMS];
   const items = [EVERYONE, ...(kindNeedsState(kind) ? EXTERNAL_ITEMS : EXTERNAL_ITEMS.slice(1))];
   if (kindNeedsKycForPublicEmail(kind)) items.push(KYC_ITEM);

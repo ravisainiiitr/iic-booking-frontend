@@ -33,6 +33,8 @@ import { SignUpAside } from "@/components/auth/SignUpAside";
 import { RegistrationRequirements } from "@/components/auth/RegistrationRequirements";
 import { SignupField, SignupSection } from "@/components/auth/SignupFormParts";
 import { SIGNUP_INPUT_CLASS, describedBy } from "@/components/auth/signupFieldUtils";
+import IstemRegistrationDialog, { type IstemRegistrationResult } from "@/components/istem/IstemRegistrationDialog";
+import { istemRegisterApi } from "@/lib/istemLinkApi";
 import {
   departmentLabel,
   findUserType,
@@ -203,6 +205,12 @@ const Auth = () => {
   const [pendingOrganizationRequests, setPendingOrganizationRequests] = useState<PendingOrganizationRequest[]>([]);
   const [indianStates, setIndianStates] = useState<Array<{ value: string; label: string; type?: "state" | "union_territory" }>>([]);
   const [selectedStateUt, setSelectedStateUt] = useState("");
+  // Registration with an existing I-STEM account (shown only while the I-STEM API is switched on).
+  const [istemRegisterAvailable, setIstemRegisterAvailable] = useState(false);
+  const [istemDialogOpen, setIstemDialogOpen] = useState(false);
+  const [istemAskedForExternal, setIstemAskedForExternal] = useState(false);
+  const [istemLinkToken, setIstemLinkToken] = useState<string | null>(null);
+  const [istemLinkedOrganisation, setIstemLinkedOrganisation] = useState("");
   const [stateComboboxOpen, setStateComboboxOpen] = useState(false);
   const [departmentComboboxOpen, setDepartmentComboboxOpen] = useState(false);
   const [departmentSearch, setDepartmentSearch] = useState("");
@@ -474,6 +482,33 @@ const Auth = () => {
   const signupIsIitr = isIitrKind(signupKindValue);
   const signupNeedsState = kindNeedsState(signupKindValue);
   const signupKycRequired = kindNeedsKycForPublicEmail(signupKindValue) && isPublicEmailDomain(email);
+  const signupIsExternal = Boolean(signupKindValue) && !signupIsIitr;
+
+  useEffect(() => {
+    istemRegisterApi.availability().then((r) => setIstemRegisterAvailable(r.available)).catch(() => setIstemRegisterAvailable(false));
+  }, []);
+
+  useEffect(() => {
+    // Ask once, when an external user type is first chosen.
+    if (signupIsExternal && istemRegisterAvailable && !istemAskedForExternal && !istemLinkToken) {
+      setIstemAskedForExternal(true);
+      setIstemDialogOpen(true);
+    }
+  }, [signupIsExternal, istemRegisterAvailable, istemAskedForExternal, istemLinkToken]);
+
+  const applyIstemProfile = (r: IstemRegistrationResult) => {
+    const p = r.profile;
+    const fullName = [p.first_name, p.last_name].filter(Boolean).join(" ").trim();
+    if (fullName) setName(fullName);
+    setEmail(r.email);
+    setPhoneNumber(r.mobile);
+    const stateName = String(p.state ?? "").trim().toLowerCase();
+    const stateMatch = indianStates.find((s) => s.label.toLowerCase() === stateName);
+    if (stateMatch) setSelectedStateUt(stateMatch.value);
+    setIstemLinkToken(r.linkToken);
+    setIstemLinkedOrganisation(String(p.organisation ?? ""));
+    toast.success("Filled from your I-STEM account. Check the details and complete your registration.");
+  };
   const selectedUserType = findUserType(userTypes, userType);
   const groupedUserTypes = groupUserTypes(userTypes);
   const todayIso = new Date().toLocaleDateString("en-CA");
@@ -560,7 +595,8 @@ const Auth = () => {
         validated.program_end_date,
         undefined,
         validated.gender,
-        signupOrgRequestId
+        signupOrgRequestId,
+        signupIsExternal ? istemLinkToken : null
       );
 
       if ('error' in response && response.error) {
@@ -1046,6 +1082,7 @@ const Auth = () => {
           : "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
       )}
     >
+      <IstemRegistrationDialog open={istemDialogOpen} onOpenChange={setIstemDialogOpen} onVerified={applyIstemProfile} />
       {/* Brand panel (desktop): the gradient fills the whole column; the content stays pinned beside the long Create account form */}
       <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-brand to-[hsl(200_65%_30%)] text-white lg:block">
         <div className="relative overflow-hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
@@ -1759,6 +1796,16 @@ const Auth = () => {
                         : "Choose your user type above to load the list."
                   }
                 >
+                  {signupIsExternal && istemLinkToken ? (
+                    <p className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-950/30 dark:text-emerald-100">
+                      Linked to your I-STEM account{istemLinkedOrganisation ? ` (${istemLinkedOrganisation})` : ""}. Your
+                      bookings will be recorded against it.
+                    </p>
+                  ) : signupIsExternal && istemRegisterAvailable ? (
+                    <Button type="button" variant="link" className="h-auto p-0 text-sm" onClick={() => setIstemDialogOpen(true)}>
+                      Already registered on I-STEM? Fill this form from your I-STEM account
+                    </Button>
+                  ) : null}
                   {signupNeedsState && (
                     <SignupField
                       id="signup-state-ut"
