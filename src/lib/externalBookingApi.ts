@@ -329,7 +329,21 @@ export interface ReceiptView {
   message?: string;
 }
 
-export type ScanOutcome = "received_at_office" | "received_at_lab" | "payment_pending" | "awaiting_office" | "details";
+/** What a scanned sample label shows its holder (no personal details): may courier details still be given? */
+export type LabelCourierView = {
+  label_reference: string;
+  booking_reference: string | number;
+  equipment: string;
+  lab: string;
+  sample_count: number;
+  can_submit: boolean;
+  reason: string;
+  recorded: { courier_name: string; tracking_tail: string } | null;
+  courier_list: boolean;
+  couriers: Array<{ slug: string; name: string }>;
+};
+
+export type ScanOutcome ="received_at_office" | "received_at_lab" | "payment_pending" | "awaiting_office" | "details";
 
 /** A scanned label as the server processed it for the signed-in staff member. */
 export interface ScanResult extends ReceiptView {
@@ -557,6 +571,11 @@ export const externalBookingApi = {
   scanSample: (code: string) => request<ScanResult>(`${extBase()}/staff/sample-receipt/scan/`, { method: "POST", json: { code } }),
   confirmSample: (code: string, outcome: "forwarded_to_lab" | "held_at_office", notes: string) =>
     request<ReceiptView>(`${extBase()}/staff/sample-receipt/confirm/`, { method: "POST", json: { code, outcome, notes } }),
+  // first scan of a sample label (sender, signed in or not)
+  labelCourierStatus: (code: string) =>
+    request<LabelCourierView>(`${extBase()}/sample-label/courier/status/`, { method: "POST", json: { code } }),
+  submitLabelCourier: (code: string, body: { courier_slug?: string; courier_name?: string; tracking_number: string }) =>
+    request<LabelCourierView>(`${extBase()}/sample-label/courier/`, { method: "POST", json: { code, ...body } }),
 };
 
 // --- presentation helpers (pure; unit-tested) -------------------------------------------------------------------------

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   scanSample: vi.fn(),
   confirmSample: vi.fn(),
+  labelCourierStatus: vi.fn(),
+  submitLabelCourier: vi.fn(),
   auth: { isAuthenticated: true, loading: false },
   redirect: vi.fn(),
 }));
@@ -17,10 +19,16 @@ vi.mock("@/lib/authRedirect", () => ({ setPostLoginRedirect: m.redirect }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/externalBookingApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/externalBookingApi")>();
-  return { ...actual, externalBookingApi: { scanSample: m.scanSample, confirmSample: m.confirmSample } };
+  return { ...actual, externalBookingApi: {
+      scanSample: m.scanSample,
+      confirmSample: m.confirmSample,
+      labelCourierStatus: m.labelCourierStatus,
+      submitLabelCourier: m.submitLabelCourier,
+    },
+  };
 });
 
-import type { ScanResult } from "@/lib/externalBookingApi";
+import type { LabelCourierView, ScanResult } from "@/lib/externalBookingApi";
 import StaffSampleReceipt from "./StaffSampleReceipt";
 
 function result(over: Partial<ScanResult> = {}): ScanResult {
@@ -52,6 +60,22 @@ function result(over: Partial<ScanResult> = {}): ScanResult {
     timeline: [{ status: "FORWARDED_TO_LAB", label: "Forwarded to Lab", at: "2026-10-28T21:10:00+05:30", by: "Accounts", reason: "" }],
     received_at_office: true,
     received_at_lab: false,
+    ...over,
+  };
+}
+
+function courierView(over: Partial<LabelCourierView> = {}): LabelCourierView {
+  return {
+    label_reference: "SCAN2345",
+    booking_reference: "ACCMLACCXRD202600009",
+    equipment: "Synthetic XRD",
+    lab: "Synthetic Materials Lab",
+    sample_count: 2,
+    can_submit: true,
+    reason: "",
+    recorded: null,
+    courier_list: true,
+    couriers: [{ slug: "bluedart", name: "Blue Dart" }],
     ...over,
   };
 }
@@ -97,12 +121,37 @@ describe("sample receipt by scanning", () => {
     expect(screen.getByTestId("scan-timeline").textContent).toContain("Received at Office");
   });
 
-  it("signed-out phone scan goes to sign-in and comes back to the same label", async () => {
+  it("signed-out phone scan asks for the courier once, and offers staff sign-in back to the same label", async () => {
     m.auth.isAuthenticated = false;
+    m.labelCourierStatus.mockResolvedValue(courierView());
+    m.submitLabelCourier.mockResolvedValue(
+      courierView({ can_submit: false, reason: "The courier details were already given by scanning this label.", recorded: { courier_name: "Blue Dart", tracking_tail: "…5678" } }),
+    );
     renderAt("/staff/sample-receipt?code=tok123");
+    expect((await screen.findByTestId("courier-step")).textContent).toContain("ACCMLACCXRD202600009");
+    expect(m.scanSample).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Courier"), { target: { value: "bluedart" } });
+    fireEvent.change(screen.getByLabelText("Tracking (AWB) number"), { target: { value: "AB12345678" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(await screen.findByText(/already given by scanning/)).toBeTruthy();
+    expect(m.submitLabelCourier).toHaveBeenCalledWith("tok123", { courier_slug: "bluedart", tracking_number: "AB12345678" });
+    expect(screen.queryByRole("button", { name: "Submit" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Staff sign in/ }));
     expect(await screen.findByText("sign-in page")).toBeTruthy();
     expect(m.redirect).toHaveBeenCalledWith("/staff/sample-receipt?code=tok123");
-    expect(m.scanSample).not.toHaveBeenCalled();
+  });
+
+  it("courier typed by name when the lab has no courier list", async () => {
+    m.auth.isAuthenticated = false;
+    m.labelCourierStatus.mockResolvedValue(courierView({ courier_list: false, couriers: [] }));
+    m.submitLabelCourier.mockResolvedValue(courierView({ can_submit: false, recorded: { courier_name: "DTDC", tracking_tail: "…4567" } }));
+    renderAt("/staff/sample-receipt?code=tok123");
+    fireEvent.change(await screen.findByLabelText("Courier"), { target: { value: "DTDC" } });
+    fireEvent.change(screen.getByLabelText("Tracking (AWB) number"), { target: { value: "D1234567" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+    expect(await screen.findByText("DTDC")).toBeTruthy();
+    expect(m.submitLabelCourier).toHaveBeenCalledWith("tok123", { courier_name: "DTDC", tracking_number: "D1234567" });
   });
 
   it("pending payment: nothing forwarded, office can hold it with a reason", async () => {
@@ -115,11 +164,22 @@ describe("sample receipt by scanning", () => {
     expect(screen.getByTestId("scan-details").textContent).toContain("Pending ₹590.00");
   });
 
-  it("a label that is not for this person shows the server's message", async () => {
+  it("signed in but not receiving staff (the sender on their phone): the courier step, no staff sign-in", async () => {
     const { ExternalBookingApiError } = await import("@/lib/externalBookingApi");
     m.scanSample.mockRejectedValue(new ExternalBookingApiError(404, { error: "This label was not found, or it is not for you to receive." }));
+    m.labelCourierStatus.mockResolvedValue(courierView({ can_submit: false, reason: "IIC has already received this sample." }));
     renderAt("/staff/sample-receipt?code=tok123");
-    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect((await screen.findByTestId("courier-step")).textContent).toContain("already received");
     expect(screen.queryByTestId("scan-outcome")).toBeNull();
+    expect(screen.queryByTestId("staff-sign-in")).toBeNull();
+  });
+
+  it("an unknown label shows the server's message", async () => {
+    const { ExternalBookingApiError } = await import("@/lib/externalBookingApi");
+    m.scanSample.mockRejectedValue(new ExternalBookingApiError(404, { error: "x" }));
+    m.labelCourierStatus.mockRejectedValue(new ExternalBookingApiError(404, { error: "This label was not found." }));
+    renderAt("/staff/sample-receipt?code=tok123");
+    expect((await screen.findByRole("alert")).textContent).toContain("This label was not found.");
+    expect(screen.queryByTestId("courier-step")).toBeNull();
   });
 });

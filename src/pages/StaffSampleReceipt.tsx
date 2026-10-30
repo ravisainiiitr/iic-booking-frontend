@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Camera, CheckCircle2, FlaskConical, Info, Loader2, Package } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, FlaskConical, Info, Loader2, LogIn, Package, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/PageShell";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { setPostLoginRedirect } from "@/lib/authRedirect";
-import { externalBookingApi, formatInstant, formatSlotRange, type ScanOutcome, type ScanResult } from "@/lib/externalBookingApi";
+import {
+  ExternalBookingApiError,
+  externalBookingApi,
+  formatInstant,
+  formatSlotRange,
+  type LabelCourierView,
+  type ScanOutcome,
+  type ScanResult,
+} from "@/lib/externalBookingApi";
 
 /** The label code from what was scanned or typed: a full label URL (…?code=XYZ) or the code itself. */
 export function extractCode(raw: string): string {
@@ -57,7 +65,99 @@ const BANNER: Record<ScanOutcome, { title: string; tone: string; icon: JSX.Eleme
   },
 };
 
-/** Opening a sample label's QR link: the server records the next step for this staff member, or shows the booking. */
+/** First scan by the sender: the courier and tracking number, accepted once (later changes only on the portal). */
+function CourierStep({ code, view, onSaved }: { code: string; view: LabelCourierView; onSaved: (v: LabelCourierView) => void }) {
+  const [courier, setCourier] = useState("");
+  const [number, setNumber] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setFieldError(null);
+    try {
+      const body = view.courier_list
+        ? { courier_slug: courier, tracking_number: number.trim() }
+        : { courier_name: courier.trim(), tracking_number: number.trim() };
+      onSaved(await externalBookingApi.submitLabelCourier(code, body));
+      toast.success("Courier details recorded. The booking's owner gets an email.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not record the courier details.";
+      setFieldError({ field: err instanceof ExternalBookingApiError ? err.field : "", message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="space-y-3 rounded-xl border-2 border-indigo-300 bg-indigo-50 p-4 text-sm text-slate-900" data-testid="courier-step">
+      <div className="flex items-start gap-3">
+        <Truck className="h-8 w-8 text-indigo-700" aria-hidden="true" />
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold">Sample sent by courier</h1>
+          <p>
+            Booking <span className="font-mono">{view.booking_reference}</span> · {view.equipment}
+            {view.lab ? ` · ${view.lab}` : ""} · {view.sample_count} sample{view.sample_count === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+      {view.can_submit ? (
+        <form className="space-y-3" onSubmit={(e) => void submit(e)}>
+          <div>
+            <Label htmlFor="lc-courier">Courier</Label>
+            {view.courier_list ? (
+              <select
+                id="lc-courier"
+                className="mt-1 block w-full rounded-md border border-input bg-white px-3 py-2"
+                value={courier}
+                onChange={(e) => setCourier(e.target.value)}
+                required
+              >
+                <option value="">Choose the courier</option>
+                {view.couriers.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input id="lc-courier" value={courier} onChange={(e) => setCourier(e.target.value)} maxLength={80} placeholder="e.g. DTDC, Speed Post" required />
+            )}
+            {fieldError && ["courier_slug", "courier_name"].includes(fieldError.field) ? (
+              <p className="mt-1 text-red-700">{fieldError.message}</p>
+            ) : null}
+          </div>
+          <div>
+            <Label htmlFor="lc-number">Tracking (AWB) number</Label>
+            <Input id="lc-number" value={number} onChange={(e) => setNumber(e.target.value)} maxLength={64} autoComplete="off" required />
+            {fieldError?.field === "tracking_number" ? <p className="mt-1 text-red-700">{fieldError.message}</p> : null}
+          </div>
+          {fieldError && !["courier_slug", "courier_name", "tracking_number"].includes(fieldError.field) ? (
+            <p role="alert" className="text-red-700">{fieldError.message}</p>
+          ) : null}
+          <p className="text-slate-600">These details can be given only once from the label. Later changes are made on the portal (My Bookings).</p>
+          <Button type="submit" disabled={saving || !courier.trim() || !number.trim()}>
+            {saving ? "Submitting…" : "Submit"}
+          </Button>
+        </form>
+      ) : (
+        <div className="space-y-1">
+          {view.recorded ? (
+            <p>
+              Courier: <strong>{view.recorded.courier_name}</strong> · tracking <span className="font-mono">{view.recorded.tracking_tail}</span>
+            </p>
+          ) : null}
+          <p className="text-slate-700">{view.reason}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Opening a sample label's QR link. Receiving staff: the server records the next step (office, then lab) or shows
+ * the booking. Anyone else (normally the sender, signed in or not): the courier step. */
 export default function StaffSampleReceipt() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -69,39 +169,63 @@ export default function StaffSampleReceipt() {
   const [scanning, setScanning] = useState(false);
   const [manual, setManual] = useState("");
   const [holdReason, setHoldReason] = useState("Payment pending");
+  const [courier, setCourier] = useState<LabelCourierView | null>(null);
   const handled = useRef("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  const scan = useCallback(async (raw: string) => {
-    const c = extractCode(raw);
-    if (!c || handled.current === c) return;
-    handled.current = c; // one request per scanned code (no double recording on re-render)
-    setCode(c);
-    setResult(null);
-    setError("");
-    setBusy(true);
+  /** The courier step for whoever holds the label but is not receiving staff (or is not signed in). */
+  const loadCourier = useCallback(async (c: string) => {
     try {
-      setResult(await externalBookingApi.scanSample(c));
+      setCourier(await externalBookingApi.labelCourierStatus(c));
+      setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "This label was not found.");
-    } finally {
-      setBusy(false);
     }
   }, []);
+
+  const scan = useCallback(
+    async (raw: string, signedIn = true) => {
+      const c = extractCode(raw);
+      if (!c || handled.current === c) return;
+      handled.current = c; // one request per scanned code (no double recording on re-render)
+      setCode(c);
+      setResult(null);
+      setCourier(null);
+      setError("");
+      setBusy(true);
+      try {
+        if (!signedIn) {
+          await loadCourier(c);
+          return;
+        }
+        setResult(await externalBookingApi.scanSample(c));
+      } catch (e) {
+        if (e instanceof ExternalBookingApiError && e.status === 404) {
+          // Not receiving staff for this label (for example the sender on their own phone): the courier step.
+          await loadCourier(c);
+          return;
+        }
+        setError(e instanceof Error ? e.message : "This label was not found.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadCourier],
+  );
 
   useEffect(() => {
     const fromUrl = params.get("code");
     if (!fromUrl || authLoading) return;
-    if (!isAuthenticated) {
-      // Phone camera opened the link without a session: sign in, then come straight back to this label.
-      setPostLoginRedirect(`/staff/sample-receipt?code=${encodeURIComponent(fromUrl)}`);
-      navigate("/auth", { replace: true });
-      return;
-    }
-    void scan(fromUrl);
+    // Signed out (a phone camera opening the link): the courier step, with sign-in offered to receiving staff.
+    void scan(fromUrl, isAuthenticated);
     params.delete("code"); // keep the code out of the address bar and history
     setParams(params, { replace: true });
-  }, [params, setParams, authLoading, isAuthenticated, navigate, scan]);
+  }, [params, setParams, authLoading, isAuthenticated, scan]);
+
+  const staffSignIn = () => {
+    setPostLoginRedirect(`/staff/sample-receipt?code=${encodeURIComponent(code)}`);
+    navigate("/auth");
+  };
 
   useEffect(() => {
     if (!scanning) return;
@@ -120,7 +244,7 @@ export default function StaffSampleReceipt() {
           if (found[0]?.rawValue) {
             setScanning(false);
             handled.current = "";
-            void scan(found[0].rawValue);
+            void scan(found[0].rawValue, isAuthenticated);
             break;
           }
           await new Promise((r) => setTimeout(r, 300));
@@ -134,7 +258,7 @@ export default function StaffSampleReceipt() {
       stop = true;
       stream?.getTracks().forEach((t) => t.stop());
     };
-  }, [scanning, scan]);
+  }, [scanning, scan, isAuthenticated]);
 
   const holdAtOffice = async () => {
     if (busy || !code || !holdReason.trim()) return;
@@ -165,6 +289,16 @@ export default function StaffSampleReceipt() {
           <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
             {error}
           </p>
+        ) : null}
+
+        {courier && code ? <CourierStep code={code} view={courier} onSaved={setCourier} /> : null}
+        {courier && !isAuthenticated ? (
+          <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-white p-4 text-sm" data-testid="staff-sign-in">
+            <p className="text-slate-700">IIC office or lab staff receiving this sample: sign in to record the receipt.</p>
+            <Button variant="outline" onClick={staffSignIn}>
+              <LogIn className="mr-1 h-4 w-4" aria-hidden="true" /> Staff sign in
+            </Button>
+          </section>
         ) : null}
 
         {result && banner ? (
@@ -297,7 +431,7 @@ export default function StaffSampleReceipt() {
               onSubmit={(e: FormEvent) => {
                 e.preventDefault();
                 handled.current = "";
-                void scan(manual);
+                void scan(manual, isAuthenticated);
               }}
             >
               <div className="min-w-[240px] flex-1">
