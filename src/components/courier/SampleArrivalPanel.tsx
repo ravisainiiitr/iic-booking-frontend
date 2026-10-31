@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { courierTrackingApi, type Arrival, type BookingArrival } from "@/lib/courierTrackingApi";
+import { courierTrackingApi, type BookingArrival } from "@/lib/courierTrackingApi";
 
 import { SampleArrivalForm } from "./SampleArrivalForm";
 import { formatWhen } from "./courierHelpers";
@@ -12,8 +12,8 @@ import { ShipmentStatus, StatusBadge } from "./ShipmentStatus";
 
 /**
  * "Sample arrival" section of a booking: the booking user declares manual delivery or (external users, where the
- * department has Courier Tracking on) registers a courier shipment; everyone allowed to see the booking sees the
- * status. The server decides every permission; this only reflects its answer.
+ * department has the courier module on) enters the courier and tracking number; everyone allowed to see the booking
+ * sees those details. The server decides every permission; this only reflects its answer.
  */
 export function SampleArrivalPanel({
   bookingId,
@@ -32,7 +32,6 @@ export function SampleArrivalPanel({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,20 +48,6 @@ export function SampleArrivalPanel({
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
-
-  const refresh = async (arrival: Arrival) => {
-    setRefreshing(true);
-    try {
-      const res = await courierTrackingApi.refresh(arrival.id);
-      setData((prev) => (prev ? { ...prev, active: res.arrival } : prev));
-      if (res.checked) toast.success(res.message);
-      else toast.info(res.message);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The shipment could not be checked.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   if (loading && !data && !allowEdit) return null;
   if (loading && !data) {
@@ -93,7 +78,7 @@ export function SampleArrivalPanel({
     <section aria-labelledby={`arrival-${bookingId}`} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={`arrival-${bookingId}`} className="flex items-center gap-2 text-sm font-semibold">
-          <PackageSearch className="h-4 w-4" aria-hidden="true" /> Shipment tracking
+          <PackageSearch className="h-4 w-4" aria-hidden="true" /> Sample dispatch
         </h3>
         {active && canDeclare && !editing ? (
           <Button type="button" size="sm" variant="outline" onClick={() => setEditing(true)}>
@@ -103,12 +88,7 @@ export function SampleArrivalPanel({
       </div>
 
       {active && !editing ? (
-        <ShipmentStatus
-          arrival={active}
-          onRefresh={() => void refresh(active)}
-          refreshing={refreshing}
-          showSubmitter={!isOwner}
-        />
+        <ShipmentStatus arrival={active} showSubmitter={!isOwner} />
       ) : null}
 
       {active && isOwner && !eligibility.may_declare && eligibility.reasons.length > 0 ? (

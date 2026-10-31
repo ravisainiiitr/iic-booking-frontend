@@ -10653,6 +10653,13 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                     <p className="mt-2 text-xs text-muted-foreground">
                                       If you select Yes, return shipping charges will be added before GST is calculated.
                                     </p>
+                                    <p
+                                      className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-950"
+                                      data-testid="return-shipping-non-refundable"
+                                    >
+                                      Return shipping charges are non-refundable, including when the booking is cancelled
+                                      or rescheduled.
+                                    </p>
                                   </div>
                                 )}
                             </div>

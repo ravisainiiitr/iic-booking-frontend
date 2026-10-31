@@ -41,7 +41,8 @@ import {
 const MASTER_OFF_HINT = "Turn on the master switch to manage departments";
 
 type MasterKey = Exclude<WalletModeOptionKey, "direct_recharge">;
-const MASTER_OPTIONS: MasterKey[] = ["project_grant", "direct_cash", "online_gateway", "peer_transfer", "credit"];
+// Same-department transfer and Credit Limit were removed (31 Oct 2026); they are not offered as switches.
+const MASTER_OPTIONS: MasterKey[] = ["project_grant", "direct_cash", "online_gateway"];
 
 function mastersFromSettings(s: AdminWalletModeSettings): Record<MasterKey, boolean> {
   return {

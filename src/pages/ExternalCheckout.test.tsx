@@ -193,6 +193,26 @@ describe("payment selection", () => {
     expect(toast.info).toHaveBeenCalledWith(expect.stringContaining("Nothing was charged"));
   });
 
+  it("shows a 5-minute pay-by countdown and closes the gateway when the 6-minute hold ends", async () => {
+    const now = Date.now();
+    const payBy = new Date(now + 5 * 60_000).toISOString();
+    const holdEnds = new Date(now + 6 * 60_000).toISOString();
+    const awaiting = checkout({ state: "awaiting_payment", choice: "full_gateway", pay_by: payBy, expires_at: holdEnds, slot_held: true });
+    api.checkout.mockResolvedValue(awaiting);
+    api.payCheckout.mockResolvedValue({
+      checkout: awaiting,
+      order: { order_id: "order_MOCK3", amount: 1023600, currency: "INR", key: "k", breakup: { base_amount: "10000.00", convenience_fee: "200.00", fee_gst: "36.00", total_amount: "10236.00" } },
+    });
+    renderAt(`/external-checkout/${ID}`);
+    const timer = await screen.findByTestId("pay-countdown");
+    expect(timer.textContent).toMatch(/complete the payment within [45]:\d\d/);
+    fireEvent.click(screen.getByText("Complete online payment"));
+    await waitFor(() => expect(razorpayOptions).not.toBeNull());
+    const timeout = Number(razorpayOptions?.timeout);
+    expect(timeout).toBeGreaterThan(5 * 60); // gateway stays open into the grace minute
+    expect(timeout).toBeLessThanOrEqual(6 * 60);
+  });
+
   it("a refused payment shows the server's reason", async () => {
     api.checkout.mockResolvedValue(checkout());
     api.payCheckout.mockRejectedValue(new ExternalBookingApiError(409, { error: "The slot is no longer available.", code: "booking_not_possible" }));

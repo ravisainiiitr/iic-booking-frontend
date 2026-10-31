@@ -29,7 +29,7 @@ export const DEFAULT_WALLET_MODE_FLAGS: WalletModeFlags = {
   projectGrant: false,
   directCash: true,
   onlineGateway: false,
-  peerTransfer: true,
+  peerTransfer: false, // wallet-to-wallet transfer was removed (31 Oct 2026)
   creditFacility: false,
 };
 

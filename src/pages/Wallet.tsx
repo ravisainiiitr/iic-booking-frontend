@@ -14,7 +14,6 @@ import {
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
 import SupervisorInviteSection from "@/components/wallet/SupervisorInvite";
 import {
-  AWAITING_APPROVAL_TEXT,
   DEFAULT_WALLET_MODE_FLAGS,
   walletModeFlagsFromSettings,
   type WalletModeFlags,
@@ -36,7 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { AlertTriangle, ArrowUp, Send, X, Clock, CheckCircle, XCircle, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Send, X, Clock, CheckCircle, XCircle, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -1863,31 +1862,21 @@ const Wallet = () => {
             <p className="mt-1 text-sm text-muted-foreground">
               {isShared
                 ? "View the shared faculty wallet balance, department balances and transactions."
-                : "Manage your wallet balance, recharge requests, transfers and credit."}
+                : "Manage your wallet balance, recharge requests and any credit already taken."}
             </p>
           </div>
           {(canShowWalletRecharge || !isShared) && (
             <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end shrink-0">
-              {!isShared && isFacultyEffective && (
-                <Button
-                  size="lg"
-                  className="h-12 px-6 text-base"
-                  onClick={() => navigate("/wallet/transfer")}
-                  title={walletModeFlags.peerTransfer ? undefined : AWAITING_APPROVAL_TEXT}
-                >
-                  <ArrowUp className="h-5 w-5 mr-2 rotate-45" />
-                  Transfer
-                </Button>
-              )}
               {!isShared && (
                 <Button
                   size="lg"
                   className="h-12 px-6 text-base"
+                  variant="outline"
                   onClick={() => navigate("/wallet/credit-facility")}
-                  title={walletModeFlags.creditFacility ? undefined : AWAITING_APPROVAL_TEXT}
+                  title="Credit already taken and its repayment (new credit is no longer offered)"
                 >
                   <CreditCard className="h-5 w-5 mr-2" />
-                  Credit Facility
+                  Credit history
                 </Button>
               )}
               {canShowWalletRecharge && (

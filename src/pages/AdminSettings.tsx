@@ -17,7 +17,6 @@ import {
   FolderTree,
   FileSpreadsheet,
   GraduationCap,
-  PackageSearch,
   ToggleRight,
   UsersRound,
   Sparkles,
@@ -228,14 +227,6 @@ const AdminSettings = () => {
               title="Department Modules"
               description="Switch DSA, Remote Analysis, Training, Courier Tracking and Procurement on, off or test-users-only per department"
               onClick={() => navigate("/admin/department-modules")}
-            />
-          )}
-          {isAdmin && (
-            <SettingsTile
-              icon={<PackageSearch className="h-5 w-5" />}
-              title="Courier Tracking"
-              description="TrackCourier.io usage and quota, unresolved shipments, alerts, reminders and notification settings"
-              onClick={() => navigate("/admin/courier-tracking")}
             />
           )}
           {isAdmin && (

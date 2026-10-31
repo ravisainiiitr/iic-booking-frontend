@@ -105,14 +105,14 @@ describe("SampleArrivalForm", () => {
     const calls = stubServer();
     const onSaved = vi.fn();
     render(<SampleArrivalForm bookingId={7} eligibility={external} onSaved={onSaved} />);
-    expect(screen.getByText("Email me when the courier tracking status changes.")).toBeTruthy();
+    expect(screen.queryByText(/Email me when/)).toBeNull(); // no automatic tracking, so no status emails
     await chooseCourier(user, "Blue Dart");
     await user.type(screen.getByLabelText(/Tracking \/ AWB number/), " 1234 5678 90 ");
-    await user.click(screen.getByRole("button", { name: "Register shipment" }));
+    await user.click(screen.getByRole("button", { name: "Save courier details" }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     const post = calls.find((c) => c.method === "POST");
     expect(post?.url).toBe("/api/v1/courier-tracking/bookings/7/arrival/");
-    expect(post?.body).toMatchObject({ arrival_mode: "COURIER", courier_slug: "bluedart", email_updates: true });
+    expect(post?.body).toMatchObject({ arrival_mode: "COURIER", courier_slug: "bluedart" });
   });
 
   it("requires a courier from the list and validates postal numbers before sending", async () => {
@@ -120,10 +120,10 @@ describe("SampleArrivalForm", () => {
     const calls = stubServer();
     render(<SampleArrivalForm bookingId={7} eligibility={external} onSaved={vi.fn()} />);
     await user.type(screen.getByLabelText(/Tracking \/ AWB number/), "ABC123");
-    await user.click(screen.getByRole("button", { name: "Register shipment" }));
+    await user.click(screen.getByRole("button", { name: "Save courier details" }));
     expect(await screen.findByText("Choose a courier from the list.")).toBeTruthy();
     await chooseCourier(user, "Speed Post");
-    await user.click(screen.getByRole("button", { name: "Register shipment" }));
+    await user.click(screen.getByRole("button", { name: "Save courier details" }));
     expect(await screen.findByText(/13 characters/)).toBeTruthy();
     expect(calls.filter((c) => c.method === "POST")).toHaveLength(0);
   });
@@ -135,7 +135,7 @@ describe("SampleArrivalForm", () => {
     render(<SampleArrivalForm bookingId={7} eligibility={external} onSaved={vi.fn()} />);
     await chooseCourier(user, "DTDC");
     await user.type(screen.getByLabelText(/Tracking \/ AWB number/), "D3010377227");
-    const submit = screen.getByRole("button", { name: "Register shipment" });
+    const submit = screen.getByRole("button", { name: "Save courier details" });
     await user.click(submit);
     await user.click(submit);
     await user.dblClick(submit);
@@ -150,7 +150,7 @@ describe("SampleArrivalForm", () => {
     render(<SampleArrivalForm bookingId={7} eligibility={external} onSaved={vi.fn()} />);
     await chooseCourier(user, "DTDC");
     await user.type(screen.getByLabelText(/Tracking \/ AWB number/), "D3010377227");
-    await user.click(screen.getByRole("button", { name: "Register shipment" }));
+    await user.click(screen.getByRole("button", { name: "Save courier details" }));
     expect((await screen.findAllByText("Choose a courier from the list.")).length).toBeGreaterThan(0);
     expect(screen.getByRole("alert").textContent).toContain("Choose a courier from the list.");
   });

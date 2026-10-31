@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { courierTrackingApi, type Courier } from "@/lib/courierTrackingApi";
 
-// One list per page session, shared by every selector (the server caches the provider's list and refreshes it at
-// most daily). A failed load is not cached, so Retry asks again.
+// One list per page session, shared by every selector (the built-in list rarely changes).
+// A failed load is not cached, so Retry asks again.
 let couriersCache: Courier[] | null = null;
 let couriersInFlight: Promise<Courier[]> | null = null;
 

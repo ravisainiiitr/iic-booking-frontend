@@ -157,7 +157,7 @@ const USER_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "operator", label: "Lab Operator" },
   { value: "finance", label: "Accounts In Charge" },
   { value: "student", label: "Student" },
-  { value: "individual_student", label: "Individual Student" },
+  // "Individual Student" was retired (31 Oct 2026): existing ones stay listed in the filter below.
   { value: "faculty", label: "Faculty" },
   { value: "external", label: "Educational Institute" },
   { value: "RND", label: "Govt R&D Organizations" },

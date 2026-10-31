@@ -417,10 +417,13 @@ export interface BookingCheckout {
   choice: CheckoutChoice | null;
   wallet_amount: string;
   gateway_amount: string;
+  /** End of the slot hold (one minute after pay_by: grace for a payment finished a little late). */
   expires_at: string | null;
+  /** The deadline shown to the user: 5 minutes after the online payment was chosen. */
+  pay_by?: string | null;
   created_at: string | null;
   confirmed_at: string | null;
-  slot_held: false;
+  slot_held: boolean;
   wallet_balance?: string;
   options?: CheckoutOption[];
   payment?: {
