@@ -74,6 +74,25 @@ export const istemLinkApi = {
   verifyOtp: (otp: string) => request<IstemLinkStatus & { message: string }>("/verify-otp/", { otp }),
 };
 
+const TEST_KEY_STORAGE = "istem_test";
+
+/**
+ * The I-STEM registration test key from the test link (``/auth?istem_test=<key>``). While the server has one set, only
+ * that link offers "Already registered on I-STEM?"; the key is kept for the tab so it survives moving between pages.
+ */
+export function istemTestKey(): string {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get(TEST_KEY_STORAGE);
+    if (fromUrl) {
+      sessionStorage.setItem(TEST_KEY_STORAGE, fromUrl);
+      return fromUrl;
+    }
+    return sessionStorage.getItem(TEST_KEY_STORAGE) || "";
+  } catch {
+    return "";
+  }
+}
+
 /** Registration with an existing I-STEM account (before the portal account exists; no sign-in token). */
 async function publicRequest<T>(path: string, json?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}/istem/register${path}`, {
@@ -88,9 +107,16 @@ async function publicRequest<T>(path: string, json?: unknown): Promise<T> {
 }
 
 export const istemRegisterApi = {
-  availability: () => publicRequest<{ available: boolean }>("/availability/"),
+  availability: () => {
+    const key = istemTestKey();
+    return publicRequest<{ available: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
+  },
   lookup: (email: string, mobile: string) =>
-    publicRequest<{ message: string; token: string; email_masked: string; expires_in: number }>("/lookup/", { email, mobile }),
+    publicRequest<{ message: string; token: string; email_masked: string; expires_in: number }>("/lookup/", {
+      email,
+      mobile,
+      ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),
+    }),
   verify: (token: string, otp: string) =>
     publicRequest<{ message: string; profile: IstemProfile & { mobile?: string; state?: string }; link_token: string }>(
       "/verify/",
