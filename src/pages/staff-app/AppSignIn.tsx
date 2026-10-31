@@ -159,7 +159,7 @@ export default function AppSignIn() {
         <div className="flex flex-col items-center text-center">
           <img src={iitrLogo256} width={80} height={80} alt="IIT Roorkee" className="h-20 w-20 object-contain" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">IIC Booking – Staff</h1>
-          <p className="mt-1 text-sm text-muted-foreground">For Officers In Charge and Lab Operators</p>
+          <p className="mt-1 text-sm text-muted-foreground">Equipment booking, payments, samples and results</p>
         </div>
 
         <div className="mt-8 space-y-4">

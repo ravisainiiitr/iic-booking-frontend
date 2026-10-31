@@ -279,10 +279,12 @@ describe("Get the Android app card", () => {
     expect(screen.queryByText("Get the Android app")).toBeNull();
   });
 
-  it("is not shown to other roles", () => {
+  it("is not shown when the server keeps the app from this user (outside the app audience)", async () => {
     state.native = false;
-    state.auth.user = { id: 9, user_type: "faculty" };
+    state.auth.user = { id: 9, user_type: "external" };
+    state.api.getMobileAppLatest.mockResolvedValue({ error: "not available", status: 403, errorCode: "APP_AUDIENCE" });
     renderAt("/dashboard", <AndroidAppCard />);
-    expect(state.api.getMobileAppLatest).not.toHaveBeenCalled();
+    await waitFor(() => expect(state.api.getMobileAppLatest).toHaveBeenCalled());
+    expect(screen.queryByText("Get the Android app")).toBeNull();
   });
 });

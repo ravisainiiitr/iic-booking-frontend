@@ -4613,7 +4613,7 @@ const Dashboard = () => {
         {showsLabStyleDashboard || isAdmin ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
-        {showsLabStyleDashboard ? <AndroidAppCard className="mb-4" /> : null}
+        <AndroidAppCard className="mb-4" />
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
