@@ -52,6 +52,8 @@ export default function MobileAppAudienceCard() {
   };
 
   const dirty = !!settings && !sameSet(selected, settings.audience_user_types);
+  const allCodes = settings ? settings.choices.map((c) => c.code) : [];
+  const everyoneSelected = allCodes.length > 0 && allCodes.every((c) => selected.includes(c));
   const latest = settings?.latest_release;
 
   return (
@@ -62,8 +64,8 @@ export default function MobileAppAudienceCard() {
           Mobile app audience
         </CardTitle>
         <CardDescription>
-          Who may sign in through the IIC Booking Android app. The website is not affected. Removing a role signs its phones out
-          within a few minutes.
+          Who may sign in through the IIC Booking app. The website is not affected. Choose Everyone to open the app to all
+          users, internal and external. Removing a role signs its phones out within a few minutes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -75,6 +77,26 @@ export default function MobileAppAudienceCard() {
         )}
         {settings && (
           <>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant={everyoneSelected ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setSelected(allCodes)}
+                disabled={everyoneSelected}
+                data-testid="app-audience-everyone"
+              >
+                {everyoneSelected ? "Everyone selected" : "Everyone"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelected(settings.default_audience_user_types)}
+              >
+                Staff only (default)
+              </Button>
+            </div>
             <fieldset className="grid gap-3 sm:grid-cols-2">
               <legend className="sr-only">User types allowed in the app</legend>
               {settings.choices.map(({ code, name }) => (

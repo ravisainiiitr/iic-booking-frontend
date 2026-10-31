@@ -8,7 +8,7 @@ import { APP_SIGN_IN_PATH, clearNativeSession, consumeAppAudienceRefusal, openIn
 
 const PORTAL_URL = "https://equip.iitr.ac.in";
 const DEFAULT_MESSAGE =
-  "The IIC Booking app is currently available to Officers In Charge and Lab Operators. Please use https://equip.iitr.ac.in in your browser.";
+  "The IIC Booking app is not available for this account yet. Please use https://equip.iitr.ac.in in your browser.";
 
 export default function AppNotAvailable() {
   const navigate = useNavigate();

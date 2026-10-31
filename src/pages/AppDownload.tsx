@@ -68,7 +68,7 @@ export default function AppDownload() {
           </span>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">IIC Booking for Android</h1>
-            <p className="text-sm text-muted-foreground">For Officers In Charge and Lab Operators, on the go.</p>
+            <p className="text-sm text-muted-foreground">Book equipment, pay, and follow your samples and results on the go.</p>
           </div>
         </div>
 

@@ -7,7 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type MobileAppRelease } from "@/lib/api";
 import { SHOW_ANDROID_APP_BANNER } from "@/lib/androidAppBanner";
 import { isNativeApp } from "@/lib/nativeApp";
-import { isStaffAppUserType } from "@/lib/staffApp";
 import { cn } from "@/lib/utils";
 import { APP_DOWNLOAD_PAGE_URL, downloadLatestApk, formatBytes } from "./androidApp";
 import QrCode from "./QrCode";
@@ -17,12 +16,13 @@ function dismissKey(userId: unknown, versionCode: number) {
 }
 
 /**
- * "Get the Android app" on the Officer In Charge and Lab Operator dashboards (website only).
+ * "Get the Android app" on the dashboard of every user in the app audience (website only).
  * Dismissing hides it until a newer version is published. Off for everyone while SHOW_ANDROID_APP_BANNER is false.
  */
 export default function AndroidAppCard({ className }: { className?: string }) {
   const { user } = useAuth();
-  const eligible = SHOW_ANDROID_APP_BANNER && !isNativeApp() && isStaffAppUserType(user?.user_type);
+  // The server answers only for users in the app audience (any user type once the app is open to everyone).
+  const eligible = SHOW_ANDROID_APP_BANNER && !isNativeApp() && Boolean(user);
   const [release, setRelease] = useState<MobileAppRelease | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
