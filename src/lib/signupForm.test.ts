@@ -61,7 +61,7 @@ describe("requirementsFor", () => {
     expect(iitr).toContain("iitr-documents");
     expect(iitr).not.toContain("external-kyc");
     const educational = requirementsFor("educational").map((r) => r.id);
-    expect(educational).toContain("external-kyc");
+    expect(educational).not.toContain("external-kyc"); // the KYC form is optional
     expect(educational).not.toContain("iitr-supervisor");
     expect(requirementsFor("industry").map((r) => r.id)).not.toContain("external-kyc");
     expect(requirementsFor(null).length).toBeGreaterThan(4);
@@ -84,9 +84,9 @@ describe("validateSignup", () => {
     expect(validateSignup({ ...base, userType: "startup_incubated_iitr", supervisorId: "" }, today).supervisor).toMatch(/mentors your startup/);
   });
 
-  it("keeps the public-email KYC rule for Educational Institute and Govt R&D only", () => {
+  it("does not require the KYC form, even with a public email", () => {
     const external = { ...base, userType: "external", state: "UK", supervisorId: "" as const };
-    expect(validateSignup(external, today).documents).toBeTruthy();
+    expect(validateSignup(external, today).documents).toBeUndefined();
     expect(validateSignup({ ...external, documentCount: 1 }, today).documents).toBeUndefined();
     expect(validateSignup({ ...external, email: "a@college.edu.in" }, today).documents).toBeUndefined();
     expect(validateSignup({ ...external, userType: "Industry" }, today).documents).toBeUndefined();
