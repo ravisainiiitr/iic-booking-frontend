@@ -21,7 +21,24 @@ import { loadRazorpayScript } from "@/lib/razorpay";
 
 type RazorpayInstance = { open: () => void; on?: (event: string, cb: (resp: unknown) => void) => void };
 
-/** Payment choice for an external booking. The slot is not held: the booking is made when the payment is confirmed. */
+/** Whole seconds from now until ``iso`` (0 once passed), ticking every second; null without a time. */
+function useSecondsLeft(iso: string | null | undefined): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!iso) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [iso]);
+  if (!iso) return null;
+  return Math.max(0, Math.floor((new Date(iso).getTime() - now) / 1000));
+}
+
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/**
+ * Payment choice for an external booking. The booking is made when the payment is confirmed. Once an online payment
+ * is chosen the slots are held: the user sees a 5-minute countdown, and the server keeps the hold one minute longer.
+ */
 export default function ExternalCheckout() {
   const { checkoutId = "" } = useParams<{ checkoutId: string }>();
   const navigate = useNavigate();
@@ -31,6 +48,8 @@ export default function ExternalCheckout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const busyRef = useRef(false);
+  const payByLeft = useSecondsLeft(checkout?.state === "awaiting_payment" ? (checkout.pay_by ?? checkout.expires_at) : null);
+  const holdLeft = useSecondsLeft(checkout?.state === "awaiting_payment" ? checkout.expires_at : null);
 
   const toConfirmation = useCallback(
     () => navigate(`/external-checkout/${encodeURIComponent(checkoutId)}/confirmation`, { replace: true }),
@@ -80,6 +99,10 @@ export default function ExternalCheckout() {
       description: "IIC equipment booking",
       image: institutionLogoUrl(),
       theme: { color: INSTITUTION.themeColor },
+      // Close the payment window when the slot hold ends (pay-by time plus one minute of grace).
+      ...(c.expires_at
+        ? { timeout: Math.max(30, Math.floor((new Date(c.expires_at).getTime() - Date.now()) / 1000)) }
+        : {}),
       handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
         // The browser callback is not proof of payment: the confirmation page shows what the server verified.
         await apiClient.verifyRazorpayCheckout(response);
@@ -87,7 +110,7 @@ export default function ExternalCheckout() {
       },
       modal: {
         ondismiss: () => {
-          toast.info("Payment window closed. Nothing was charged and your slot was not held.");
+          toast.info("Payment window closed. Nothing was charged. Your slot stays held until the timer runs out.");
           release();
         },
       },
@@ -175,6 +198,29 @@ export default function ExternalCheckout() {
             ) : awaiting ? (
               <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm">
                 <p className="font-semibold">Online payment pending</p>
+                {payByLeft !== null ? (
+                  <p
+                    role="timer"
+                    aria-live="off"
+                    data-testid="pay-countdown"
+                    className={`rounded-lg border p-3 ${
+                      payByLeft > 60
+                        ? "border-blue-200 bg-blue-50 text-blue-950"
+                        : "border-amber-300 bg-amber-50 text-amber-950"
+                    }`}
+                  >
+                    {payByLeft > 0 ? (
+                      <>
+                        Your slot is held for you. Please complete the payment within{" "}
+                        <strong className="tabular-nums">{mmss(payByLeft)}</strong>.
+                      </>
+                    ) : holdLeft ? (
+                      <>Time is almost up: finish the payment now to keep this slot.</>
+                    ) : (
+                      <>The hold has ended. If you have already paid, check the status; otherwise start again.</>
+                    )}
+                  </p>
+                ) : null}
                 <p className="text-slate-700">
                   Wallet: {formatINRWithPaise(checkout.wallet_amount)} · Online: {formatINRWithPaise(checkout.gateway_amount)}
                   {checkout.payment ? ` (${formatINRWithPaise(checkout.payment.gateway_total)} with the gateway fee)` : ""}

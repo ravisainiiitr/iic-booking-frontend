@@ -6,12 +6,11 @@ import { Input } from "@/components/ui/input";
 import type { WalletModeDepartmentRow, WalletModeOptionKey } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+// Same-department transfer and Credit Limit were removed (31 Oct 2026) and are no longer shown or switchable.
 export const OPTION_ORDER: WalletModeOptionKey[] = [
   "project_grant",
   "direct_cash",
   "online_gateway",
-  "peer_transfer",
-  "credit",
   "direct_recharge",
 ];
 

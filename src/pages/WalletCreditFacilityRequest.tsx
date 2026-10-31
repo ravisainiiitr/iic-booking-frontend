@@ -31,6 +31,8 @@ type EligibleDepartment = {
 
 type Summary = {
   feature_enabled: boolean;
+  /** false since 31 Oct 2026: no new credit; existing credit is still shown and repaid. */
+  new_credit_allowed?: boolean;
   current_wallet_balance: string;
   existing_outstanding_credit: string;
   active_facility_reference: string | null;
@@ -291,6 +293,18 @@ export default function WalletCreditFacilityRequest() {
                       ? "External users are not entitled to the Wallet Credit Facility."
                       : "Wallet Credit Facility is available only to eligible faculty/staff/internal users. Student accounts are not eligible."}
                   </p>
+                ) : summary?.new_credit_allowed === false ? (
+                  <div
+                    role="status"
+                    data-testid="credit-withdrawn"
+                    className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+                  >
+                    <p className="font-semibold">Wallet credit is no longer offered.</p>
+                    <p className="mt-1">
+                      Please recharge your wallet before booking. Any credit you already have is listed below and can
+                      be repaid as before.
+                    </p>
+                  </div>
                 ) : !summary?.feature_enabled ? (
                   <div
                     role="status"

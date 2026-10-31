@@ -17,16 +17,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { courierTrackingApi, type Arrival, type ShipmentFilters } from "@/lib/courierTrackingApi";
 
 const STAFF_TYPES = new Set(["admin", "manager", "dept_admin", "operator", "finance"]);
-const STATUS_OPTIONS: [string, string][] = [
-  ["", "Any status"],
-  ["REGISTERED,PENDING,INFO_RECEIVED", "Not yet moving"],
-  ["IN_TRANSIT", "In transit"],
-  ["OUT_FOR_DELIVERY", "Out for delivery"],
-  ["DELIVERY_REPORTED", "Delivery reported"],
-  ["ATTEMPT_FAILED,EXCEPTION,TRACKING_PROBLEM", "Needs attention"],
-  ["RETURNED,CANCELLED,EXPIRED", "Returned / cancelled / expired"],
-];
-
 export default function CourierTracking() {
   const { user } = useAuth();
   const isStaff = STAFF_TYPES.has(String(user?.user_type ?? "").toLowerCase());
@@ -40,7 +30,6 @@ export default function CourierTracking() {
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
   const [detail, setDetail] = useState<Arrival | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const couriers = useCouriers(view === "staff");
 
   const query = useMemo<ShipmentFilters>(
@@ -80,21 +69,6 @@ export default function CourierTracking() {
     }
   };
 
-  const refresh = async (id: number) => {
-    setRefreshing(true);
-    try {
-      const res = await courierTrackingApi.refresh(id);
-      setDetail(res.arrival);
-      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...res.arrival, checkpoints: null } : r)));
-      if (res.checked) toast.success(res.message);
-      else toast.info(res.message);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "The shipment could not be checked.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const setFilter = (key: keyof ShipmentFilters, value: string) => {
     setPage(1);
     setFilters((prev) => ({ ...prev, [key]: value || undefined }));
@@ -106,8 +80,8 @@ export default function CourierTracking() {
       <main className="container mx-auto px-4 py-5">
         <StandaloneOnly>
           <PageHero
-            title="Courier tracking"
-            description="How samples are reaching the lab: courier shipments with their latest status, and manual deliveries. A delivery reported by the courier is not confirmation that the lab has the sample."
+            title="Sample dispatch"
+            description="How samples are reaching the lab: courier shipments with the courier and tracking number the user entered, and manual deliveries. Lab staff confirm receipt on the portal."
           />
         </StandaloneOnly>
 
@@ -131,17 +105,6 @@ export default function CourierTracking() {
                   value={filters.q ?? ""}
                   onChange={(e) => setFilter("q", e.target.value)}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label id="ct-status-label">Status</Label>
-                <Select value={filters.status ?? ""} onValueChange={(v) => setFilter("status", v === "any" ? "" : v)}>
-                  <SelectTrigger aria-labelledby="ct-status-label"><SelectValue placeholder="Any status" /></SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map(([value, label]) => (
-                      <SelectItem key={label} value={value || "any"}>{label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-1">
                 <Label id="ct-mode-label">Arrival method</Label>
@@ -174,10 +137,6 @@ export default function CourierTracking() {
               <div className="space-y-1">
                 <Label htmlFor="ct-to">Expected to</Label>
                 <Input id="ct-to" type="date" value={filters.expected_to ?? ""} onChange={(e) => setFilter("expected_to", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ct-synced">Not checked since</Label>
-                <Input id="ct-synced" type="date" value={filters.synced_before ?? ""} onChange={(e) => setFilter("synced_before", e.target.value)} />
               </div>
               <div className="flex flex-col justify-end gap-2 text-sm">
                 <label className="flex items-center gap-2">
@@ -242,18 +201,13 @@ export default function CourierTracking() {
                         </span>
                       ) : null}
                       {view === "staff" && row.submitted_by ? <span>{row.submitted_by.name || row.submitted_by.email}</span> : null}
-                      <span>Checked {formatWhen(row.last_synced_at)}</span>
+                      <span>Entered {formatWhen(row.created_at)}</span>
                     </span>
                   </button>
                   {openId === row.id ? (
                     <div className="border-t p-3">
                       {detail && detail.id === row.id ? (
-                        <ShipmentStatus
-                          arrival={detail}
-                          onRefresh={() => void refresh(row.id)}
-                          refreshing={refreshing}
-                          showSubmitter={view === "staff"}
-                        />
+                        <ShipmentStatus arrival={detail} showSubmitter={view === "staff"} />
                       ) : (
                         <Loader2 className="h-4 w-4 animate-spin" aria-label="Loading shipment" />
                       )}

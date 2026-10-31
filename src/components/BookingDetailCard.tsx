@@ -3574,7 +3574,7 @@ export function BookingDetailCard({
                 return true;
               })()}
             />
-            {/* Live courier tracking of the sample (renders nothing until a shipment is registered). */}
+            {/* How the sample is reaching the lab: courier details as entered, or manual delivery (renders nothing until declared). */}
             {bookingPk != null && (
               <div className="mt-4">
                 <SampleArrivalPanel

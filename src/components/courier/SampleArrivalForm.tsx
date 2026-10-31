@@ -2,7 +2,6 @@ import { useId, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -41,10 +40,9 @@ export function SampleArrivalForm({ bookingId, eligibility, current, onSaved, on
   const [dispatchDate, setDispatchDate] = useState(current?.dispatch_date ?? "");
   const [expectedDate, setExpectedDate] = useState(current?.expected_arrival_date ?? "");
   const [notes, setNotes] = useState(current?.notes ?? "");
-  const [emailUpdates, setEmailUpdates] = useState(current?.email_updates ?? true);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
-  // The courier list is loaded only when courier tracking can actually be used.
+  // The courier list is loaded only when a courier shipment can be entered.
   const couriers = useCouriers(courierAllowed && mode === "COURIER");
 
   const courierValid = useMemo(
@@ -83,7 +81,6 @@ export function SampleArrivalForm({ bookingId, eligibility, current, onSaved, on
               dispatch_date: dispatchDate || null,
               expected_arrival_date: expectedDate || null,
               notes: notes.trim(),
-              email_updates: emailUpdates,
             }
           : {
               arrival_mode: "MANUAL",
@@ -125,7 +122,7 @@ export function SampleArrivalForm({ bookingId, eligibility, current, onSaved, on
               <RadioGroupItem value="COURIER" className="mt-0.5" />
               <span>
                 <span className="block font-medium">Courier / postal shipment</span>
-                <span className="text-muted-foreground">We follow the tracking number for you.</span>
+                <span className="text-muted-foreground">Enter the courier and tracking number so the lab knows it is coming.</span>
               </span>
             </Label>
             <Label className="flex cursor-pointer items-start gap-2 rounded-md border p-3 font-normal has-[:checked]:border-primary">
@@ -205,10 +202,6 @@ export function SampleArrivalForm({ bookingId, eligibility, current, onSaved, on
             />
             {errors.expected_arrival_date ? <p className="text-sm text-destructive">{errors.expected_arrival_date}</p> : null}
           </div>
-          <label className="flex items-start gap-2 text-sm sm:col-span-2">
-            <Checkbox checked={emailUpdates} onCheckedChange={(v) => setEmailUpdates(v === true)} className="mt-0.5" />
-            <span>Email me when the courier tracking status changes.</span>
-          </label>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -240,7 +233,7 @@ export function SampleArrivalForm({ bookingId, eligibility, current, onSaved, on
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={submitting || (mode === "COURIER" && couriers.loading)}>
           {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {mode === "COURIER" ? "Register shipment" : "Confirm manual delivery"}
+          {mode === "COURIER" ? "Save courier details" : "Confirm manual delivery"}
         </Button>
         {onCancel ? (
           <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>

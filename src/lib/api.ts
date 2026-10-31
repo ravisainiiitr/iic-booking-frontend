@@ -8087,66 +8087,7 @@ class ApiClient {
     }>('/wallet/credit-facility/my-status/', { method: 'GET' });
   }
 
-  async getWalletPeerTransferSourceDepartments() {
-    return this.request<{
-      departments: Array<{
-        id: number;
-        name: string;
-        code?: string;
-        grant_code?: string;
-        balance: string;
-      }>;
-      count: number;
-    }>('/wallet/peer-transfer/source-departments/');
-  }
-
-  async searchWalletPeerTransferRecipients(departmentId: number, q?: string, limit = 20) {
-    const params = new URLSearchParams({
-      department_id: String(departmentId),
-      limit: String(limit),
-    });
-    if (q?.trim()) params.set('q', q.trim());
-    return this.request<{
-      results: Array<{
-        id: number;
-        name: string;
-        email: string;
-        emp_id?: string;
-        department?: string;
-        grant_code?: string;
-        has_wallet?: boolean;
-      }>;
-      grant_code?: string;
-      count: number;
-    }>(`/wallet/peer-transfer/eligible-recipients/?${params.toString()}`);
-  }
-
-  async sendWalletPeerTransferOtp(payload: {
-    department_id: number;
-    recipient_id: number;
-    amount: number | string;
-    remarks?: string;
-  }) {
-    return this.request<{
-      message: string;
-      transfer: Record<string, unknown> & { id: number; transaction_id: string };
-      otp_expires_at?: string | null;
-    }>('/wallet/peer-transfer/send-otp/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async confirmWalletPeerTransfer(payload: { transfer_id: number; otp: string }) {
-    return this.request<{
-      message: string;
-      transfer: Record<string, unknown>;
-    }>('/wallet/peer-transfer/confirm/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
+  // Starting a wallet-to-wallet transfer was removed (31 Oct 2026); only the history of past transfers remains.
   async getWalletPeerTransferHistory(statusFilter?: string) {
     const q = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : '';
     return this.request<{

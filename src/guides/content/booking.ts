@@ -334,11 +334,12 @@ export function ownerWalletSection(g: Gate): GuideSection {
     g.when(f.directCash, "Direct Cash Deposit / Bank Transfer"),
     g.when(f.onlineGateway, "Pay online (card, UPI or net banking; a convenience fee applies)"),
   ]);
-  const anySwitchedOff = (faculty && ((!f.projectGrant && !sric) || !f.peerTransfer || !f.creditFacility)) || !f.directCash;
+  // Transfer and Credit Facility were removed (31 Oct 2026), so they no longer count as "switched off".
+  const anySwitchedOff = (faculty && !f.projectGrant && !sric) || !f.directCash;
 
   return {
     id: "wallet",
-    title: faculty ? "Wallet: recharge, transfer and credit" : "Wallet and payments",
+    title: faculty ? "Wallet: recharge and balances" : "Wallet and payments",
     icon: "wallet",
     group: "Wallet",
     intro: compact([
@@ -389,7 +390,6 @@ export function ownerWalletSection(g: Gate): GuideSection {
       g.when(f.externalBooking, "Funds are held when you request a bank transfer."),
     ]),
     tips: compact([
-      g.when(faculty, "If your department offers a Faculty Credit Facility and you are eligible, use Avail credit on that sub-wallet."),
       g.when(anySwitchedOff, "Options switched off by the Main Administrator appear greyed out with Awaiting Competent Authority Approval."),
     ]),
   };

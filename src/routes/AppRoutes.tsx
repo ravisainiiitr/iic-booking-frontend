@@ -60,7 +60,6 @@ const AdminUsersOverview = lazyPage(() => import("@/pages/admin-insights/UsersOv
 const AdminCancellationsDashboard = lazyPage(() => import("@/pages/admin-insights/CancellationsDashboard"));
 const EquipmentFlashMessages = lazyPage(() => import("@/pages/EquipmentFlashMessages"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
-const WalletPeerTransfer = lazyPage(() => import("@/pages/WalletPeerTransfer"));
 const WalletSricRecharge = lazyPage(() => import("@/pages/WalletSricRecharge"));
 const WalletCreditFacilityRequest = lazyPage(() => import("@/pages/WalletCreditFacilityRequest"));
 const WalletDirectRecharge = lazyPage(() => import("@/pages/WalletDirectRecharge"));
@@ -181,7 +180,6 @@ const DutyRespond = lazyPage(() => import("@/pages/DutyRespond"));
 const VerifyCertificate = lazyPage(() => import("@/pages/VerifyCertificate"));
 const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraining"));
 const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
-const AdminCourierTracking = lazyPage(() => import("@/pages/AdminCourierTracking"));
 const CourierTracking = lazyPage(() => import("@/pages/CourierTracking"));
 const AdminExternalBooking = lazyPage(() => import("@/pages/AdminExternalBooking"));
 const ExternalSpecialRequests = lazyPage(() => import("@/pages/ExternalSpecialRequests"));
@@ -266,7 +264,7 @@ export default function AppRoutes() {
           <Route path="/equipment/:id" element={<EquipmentProfile />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/slot-exchanges" element={<SlotExchanges />} />
-          <Route path="/courier-tracking" element={<ErrorBoundary fallbackTitle="Courier tracking" backPath="/dashboard"><CourierTracking /></ErrorBoundary>} />
+          <Route path="/courier-tracking" element={<ErrorBoundary fallbackTitle="Sample dispatch" backPath="/dashboard"><CourierTracking /></ErrorBoundary>} />
           <Route path="/my-booking-attempts" element={<MyBookingAttempts />} />
           <Route path="/booking-templates" element={<BookingTemplates />} />
           <Route path="/my-results" element={<ViewResults />} />
@@ -312,7 +310,6 @@ export default function AppRoutes() {
           <Route path="/ta-nominations-log" element={<TANominationsLog />} />
           <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
           <Route path="/wallet" element={<Wallet />} />
-          <Route path="/wallet/transfer" element={<WalletPeerTransfer />} />
           <Route path="/wallet/recharge-from-project" element={<WalletSricRecharge />} />
           <Route path="/wallet/credit-facility" element={<WalletCreditFacilityRequest />} />
           <Route path="/wallet/direct-recharge" element={<WalletDirectRecharge />} />
@@ -432,7 +429,6 @@ export default function AppRoutes() {
           <Route path="/admin-settings/rewards" element={<AdminRewardsConfig />} />
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
           <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
-          <Route path="/admin/courier-tracking" element={<ErrorBoundary fallbackTitle="Courier Tracking" backPath="/admin-settings"><AdminCourierTracking /></ErrorBoundary>} />
           <Route path="/admin/external-booking" element={<ErrorBoundary fallbackTitle="External booking" backPath="/dashboard"><AdminExternalBooking /></ErrorBoundary>} />
           <Route path="/external-special-requests" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
           <Route path="/external-special-requests/new" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
