@@ -82,6 +82,7 @@ import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { InvoiceAction } from "@/components/external/InvoiceAction";
 import { SampleLabelDialog } from "@/components/external/SampleLabelDialog";
+import { BookingJourney } from "@/components/booking/BookingJourney";
 import { SampleArrivalPanel } from "@/components/courier/SampleArrivalPanel";
 import { SampleDispatchAction } from "@/components/courier/SampleDispatchAction";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
@@ -1846,6 +1847,11 @@ export function BookingDetailCard({
         </CardHeader>
         )}
         <CardContent className="text-base">
+          {isBookingOwnerView && !isWaitlistedEntry ? (
+            <div className="mb-4 rounded-lg border border-border/70 bg-card px-3 py-3 no-print">
+              <BookingJourney booking={booking} external={isExternalBookingType} />
+            </div>
+          ) : null}
           {labThread &&
             (labThread.viewer === "booking_user" || labThread.viewer === "supervisor") &&
             (labThread.open_question_count ?? 0) > 0 && (
@@ -2697,33 +2703,20 @@ export function BookingDetailCard({
                       data-testid="shipping-label"
                     >
                       <FolderDown className="h-4 w-4 mr-2" />
-                      {downloadingDoc === "label" ? "Preparing…" : "Shipping label"}
+                      {downloadingDoc === "label" ? "Preparing…" : "Shipping label and requisition form"}
                     </Button>
                     {bookingPk != null ? (
                       <SampleLabelDialog
                         bookingId={Number(bookingPk)}
+                        bookingReference={String(booking.virtual_booking_id || booking.booking_id)}
                         open={labelDialogOpen}
                         onOpenChange={setLabelDialogOpen}
-                        onLegacy={async () => {
-                          // Sample labels switched off: the previous label (no QR code).
-                          setDownloadingDoc("label");
-                          try {
-                            const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
-                            if (res.error) {
-                              toast.error(res.error);
-                              return;
-                            }
-                            if (res.blob) {
-                              const url = URL.createObjectURL(res.blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = `shipping_label_${booking.virtual_booking_id || booking.booking_id}.pdf`;
-                              a.click();
-                              URL.revokeObjectURL(url);
-                            }
-                          } finally {
-                            setDownloadingDoc(null);
-                          }
+                        requisitionPdf={() => generateExternalEquipmentRequisitionFormPdf(booking)}
+                        legacyLabelPdf={async () => {
+                          // Sample labels switched off: the previous plain label.
+                          const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
+                          if (res.error) throw new Error(res.error);
+                          return res.blob ?? null;
                         }}
                       />
                     ) : null}

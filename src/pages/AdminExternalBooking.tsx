@@ -298,7 +298,7 @@ const SWITCHES: Array<{ key: keyof ServicesSettings; label: string; help: string
   { key: "early_invoice_allowed", label: "Early GST invoice option", help: "Needs the approved early-invoice disclosure." },
   { key: "auto_request_without_preference", label: "Request invoices without a stated preference", help: "After analysis, also for users who never chose." },
   { key: "physical_copies_enabled", label: "Printed invoice copies by Speed Post", help: "" },
-  { key: "sample_labels_enabled", label: "Sample shipment labels with QR code", help: "" },
+  { key: "sample_labels_enabled", label: "Sample shipment labels (booking ID, TO and FROM with mobiles)", help: "Downloaded with the filled requisition form as one PDF." },
   {
     key: "cancellation_policy_enabled",
     label: "Cancellation penalties and bank refunds",

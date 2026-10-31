@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient, type DashboardMenuLayout } from "@/lib/api";
 import { localDateStamp } from "@/lib/localDate";
 import { getUserTypeDisplayName, isEndUserBookingType, isExternalBookingUserType } from "@/lib/userTypes";
+import { ExternalGettingStarted } from "@/components/external/ExternalGettingStarted";
 import { hasRbacPermission } from "@/lib/rbac";
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { formatBookingDateTime } from "@/lib/bookingDates";
@@ -4581,6 +4582,7 @@ const Dashboard = () => {
           }
         />
         <AccountLifecycleNotice inline className="mb-4" />
+        {isExternalBookingUserType(userTypeStr) ? <ExternalGettingStarted /> : null}
         {isAdmin || isAccountsInChargeUser ? (
           <WalletFundReceiptFollowUpAlert
             onReview={(path) => openWorkspace(path, "Wallet recharge requests")}

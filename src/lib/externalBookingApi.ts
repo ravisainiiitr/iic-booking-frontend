@@ -2,7 +2,7 @@ import { API_BASE_URL, apiClient } from "@/lib/api";
 
 /**
  * External-user services: central external booking window, special booking requests with payment deadlines, GST
- * invoice requests to SRIC, printed copies, labels and QR sample receipt. The server enforces every rule; this
+ * invoice requests to SRIC, printed copies, sample labels and refunds. The server enforces every rule; this
  * client only reflects what it returns.
  */
 /** Base URLs are built when used (not at import), so screens that merely include these components import nothing
@@ -313,62 +313,10 @@ export interface StaffInvoiceRequest {
   document: { id: number; uploaded_at: string } | null;
 }
 
-export interface ReceiptView {
-  label_reference: string;
-  booking_id: number;
-  booking_reference: string;
-  booking_status: string;
-  equipment: string;
-  user_name: string;
-  sample_count: number;
-  description: string;
-  latest_sample_status: string | null;
-  already_received: boolean;
-  slots: string[];
-  recorded?: boolean;
-  message?: string;
-}
-
 /** What a scanned sample label shows its holder (no personal details): may courier details still be given? */
-export type LabelCourierView = {
-  label_reference: string;
-  booking_reference: string | number;
-  equipment: string;
-  lab: string;
-  sample_count: number;
-  can_submit: boolean;
-  reason: string;
-  recorded: { courier_name: string; tracking_tail: string } | null;
-  courier_list: boolean;
-  couriers: Array<{ slug: string; name: string }>;
-};
-
 export type ScanOutcome ="received_at_office" | "received_at_lab" | "payment_pending" | "awaiting_office" | "details";
 
 /** A scanned label as the server processed it for the signed-in staff member. */
-export interface ScanResult extends ReceiptView {
-  outcome: ScanOutcome;
-  role: "office" | "lab" | "viewer";
-  message: string;
-  lab: string;
-  equipment_code: string;
-  location: string;
-  officers_in_charge: string[];
-  lab_incharge: string[];
-  slot_ranges: { start: string; end: string }[];
-  amount_due: string;
-  payment_settled: boolean;
-  notes: string;
-  inputs: {
-    sets: number;
-    fields: { key: string; label: string; values: { kind: string; text?: string; columns?: string[]; rows?: string[][] }[] }[];
-    comments: string;
-  };
-  timeline: { status: string; label: string; at: string; by: string; reason: string }[];
-  received_at_office: boolean;
-  received_at_lab: boolean;
-}
-
 export interface ServicesSettings {
   special_requests_enabled: boolean;
   special_request_surcharge: boolean;
@@ -561,8 +509,25 @@ export const externalBookingApi = {
     request<CopyRequest>(`${extBase()}/bookings/${bookingId}/invoice/copy/`, { method: "POST", json: body }),
   myCopies: () => request<{ copies: CopyRequest[] }>(`${extBase()}/invoice-copies/`),
   cancelCopy: (id: number) => request<CopyRequest>(`${extBase()}/invoice-copies/${id}/cancel/`, { method: "POST" }),
-  downloadSampleLabel: (bookingId: number, body: { sample_count: number; description: string; address_id?: number; sender?: PostalAddress }) =>
-    downloadPdf(`${extBase()}/bookings/${bookingId}/sample-label/`, `sample_label_${bookingId}.pdf`, { method: "POST", json: body }),
+  /** The sample label (no QR code since 31 Oct 2026) as PDF bytes, to be combined with the requisition form. */
+  sampleLabelBytes: async (
+    bookingId: number,
+    body: { sample_count: number; description: string; address_id?: number; sender?: PostalAddress },
+  ): Promise<ArrayBuffer> => {
+    const headers = authHeaders();
+    headers["Content-Type"] = "application/json";
+    const res = await fetch(`${extBase()}/bookings/${bookingId}/sample-label/`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      credentials: "omit",
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      throw new ExternalBookingApiError(res.status, data);
+    }
+    return res.arrayBuffer();
+  },
   // accounts in charge
   staffInvoiceRequests: (params: { status?: string; q?: string } = {}) => {
     const qs = new URLSearchParams();
@@ -595,16 +560,6 @@ export const externalBookingApi = {
       json: { dispatch_date: dispatchDate, speed_post_reference: reference },
     }),
   downloadEnvelope: (id: number) => downloadPdf(`${extBase()}/staff/invoice-copies/${id}/envelope/`, `envelope_${id}.pdf`),
-  // sample receipt (staff)
-  lookupSample: (code: string) => request<ReceiptView>(`${extBase()}/staff/sample-receipt/lookup/`, { method: "POST", json: { code } }),
-  scanSample: (code: string) => request<ScanResult>(`${extBase()}/staff/sample-receipt/scan/`, { method: "POST", json: { code } }),
-  confirmSample: (code: string, outcome: "forwarded_to_lab" | "held_at_office", notes: string) =>
-    request<ReceiptView>(`${extBase()}/staff/sample-receipt/confirm/`, { method: "POST", json: { code, outcome, notes } }),
-  // first scan of a sample label (sender, signed in or not)
-  labelCourierStatus: (code: string) =>
-    request<LabelCourierView>(`${extBase()}/sample-label/courier/status/`, { method: "POST", json: { code } }),
-  submitLabelCourier: (code: string, body: { courier_slug?: string; courier_name?: string; tracking_number: string }) =>
-    request<LabelCourierView>(`${extBase()}/sample-label/courier/`, { method: "POST", json: { code, ...body } }),
 };
 
 // --- presentation helpers (pure; unit-tested) -------------------------------------------------------------------------

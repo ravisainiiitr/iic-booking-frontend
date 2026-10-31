@@ -186,7 +186,6 @@ const ExternalSpecialRequests = lazyPage(() => import("@/pages/ExternalSpecialRe
 const ExternalSpecialRequestsManage = lazyPage(() => import("@/pages/ExternalSpecialRequestsManage"));
 const AccountsExternalInvoices = lazyPage(() => import("@/pages/AccountsExternalInvoices"));
 const AccountsExternalRefunds = lazyPage(() => import("@/pages/AccountsExternalRefunds"));
-const StaffSampleReceipt = lazyPage(() => import("@/pages/StaffSampleReceipt"));
 const AdminUserGroups = lazyPage(() => import("@/pages/AdminUserGroups"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
 
@@ -437,7 +436,6 @@ export default function AppRoutes() {
           <Route path="/accounts/invoice-requests" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />
           <Route path="/accounts/refunds" element={<ErrorBoundary fallbackTitle="Refunds" backPath="/dashboard"><AccountsExternalRefunds /></ErrorBoundary>} />
           <Route path="/accounts/invoice-dispatch" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />
-          <Route path="/staff/sample-receipt" element={<ErrorBoundary fallbackTitle="Sample receipt" backPath="/dashboard"><StaffSampleReceipt /></ErrorBoundary>} />
           <Route path="/admin-settings/user-groups" element={<ErrorBoundary fallbackTitle="User Groups" backPath="/admin-settings"><AdminUserGroups /></ErrorBoundary>} />
           <Route path="/oic/accessories" element={<ErrorBoundary fallbackTitle="Accessories" backPath="/dashboard"><OICAccessories /></ErrorBoundary>} />
           <Route path="/oic/print-materials" element={<ErrorBoundary fallbackTitle="Fabrication Materials" backPath="/dashboard"><OICPrintMaterials /></ErrorBoundary>} />
