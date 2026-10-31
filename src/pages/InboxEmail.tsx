@@ -21,6 +21,7 @@ import SricMailboxSyncBar from "@/components/wallet/SricMailboxSyncBar";
 import DashboardHeader from "@/components/DashboardHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { sanitizeRichHtml } from "@/lib/richText";
 import { StandaloneOnly } from "@/components/PageShell";
 
 type InboxEmail = {
@@ -257,7 +258,8 @@ const InboxEmailPage = () => {
                           {em.body_html && !em.body_plain && (
                             <div
                               className="mt-3 text-sm prose prose-sm max-w-none dark:prose-invert"
-                              dangerouslySetInnerHTML={{ __html: em.body_html }}
+                              // Incoming mail from anyone: sanitised (no scripts, handlers or unsafe links).
+                              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(em.body_html) }}
                             />
                           )}
                         </div>
