@@ -1,5 +1,5 @@
 import { Navigate, useSearchParams } from "react-router-dom";
-import { setPostLoginRedirect } from "@/lib/authRedirect";
+import { isSafeInAppPath, setPostLoginRedirect } from "@/lib/authRedirect";
 
 /**
  * Alias for `/login`, which backend redirects point at when an unauthenticated
@@ -11,7 +11,7 @@ const LoginRedirect = () => {
   const next = searchParams.get("next");
 
   if (next) {
-    if (next.startsWith("/") && !next.startsWith("//")) {
+    if (isSafeInAppPath(next)) {
       setPostLoginRedirect(next);
     } else {
       try {

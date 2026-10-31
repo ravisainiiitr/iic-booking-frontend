@@ -148,7 +148,9 @@ const authSchema = z.object({
       "Enter a valid 10-digit Indian mobile number (e.g. 9876543210). It must start with 6, 7, 8, or 9."
     ),
   department: z.number().int().positive("Department ID must be a positive number").optional(),
-  gender: z.enum(["male", "female", "other"], { required_error: "Gender is required", invalid_type_error: "Please select gender" }),
+  gender: z.enum(["male", "female", "other"], {
+    error: (issue) => (issue.input === undefined ? "Gender is required" : "Please select gender"),
+  }),
   program_end_date: z.string().min(1, "Current Program/Employment Validity is required"),
 }).refine((data) => data.password === data.password_confirm, {
   message: "Passwords do not match",
@@ -700,7 +702,7 @@ const Auth = () => {
       }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
+        toast.error(error.issues[0]?.message ?? "Please check the form.");
       } else {
         // Check if error message contains email already exists
         const errorMessage = error.message || "Failed to sign up";

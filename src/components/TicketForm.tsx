@@ -55,7 +55,7 @@ const ticketFormSchema = z.object({
   public_phone: z.string().optional().or(z.literal("")),
   ticket_type: z.string().min(1, "Please select a ticket type"),
   priority: z.enum(["low", "medium", "high", "urgent"], {
-    required_error: "Please select a priority",
+    error: "Please select a priority",
   }),
   subject: z.string().min(5, "Subject must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
