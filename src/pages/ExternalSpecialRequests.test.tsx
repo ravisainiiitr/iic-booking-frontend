@@ -13,7 +13,6 @@ vi.mock("@/components/PageShell", () => ({
 import { ExternalWindowNotice } from "@/components/external/ExternalWindowNotice";
 import type { SpecialPolicy, SpecialRequest } from "@/lib/externalBookingApi";
 import { NewSpecialRequestForm, localToIso, timelineSteps } from "./ExternalSpecialRequests";
-import { extractCode } from "./StaffSampleReceipt";
 
 afterEach(() => cleanup());
 
@@ -145,13 +144,5 @@ describe("external window notice", () => {
       </MemoryRouter>,
     );
     expect((screen.getByRole("button", { name: /Request a Special Booking/ }) as HTMLButtonElement).disabled).toBe(false);
-  });
-});
-
-describe("sample receipt code", () => {
-  it("reads the code from a scanned label link or a typed code", () => {
-    expect(extractCode("https://equip.iitr.ac.in/staff/sample-receipt?code=abc123XYZ")).toBe("abc123XYZ");
-    expect(extractCode("  abc123XYZ ")).toBe("abc123XYZ");
-    expect(extractCode("")).toBe("");
   });
 });

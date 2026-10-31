@@ -7,26 +7,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExternalBookingApiError, externalBookingApi, type PostalAddress } from "@/lib/externalBookingApi";
+import { dispatchPackName, mergePdfs, saveBlob } from "@/lib/dispatchPack";
 import { AddressFields } from "./ExternalInvoicePanel";
 
 const EMPTY_ADDRESS: PostalAddress = { recipient_name: "", organisation: "", line1: "", line2: "", city: "", state: "", postal_code: "", country: "India", phone: "" };
 
 /**
- * The booking's "Shipping label" action for external users: the QR-coded sample label (lab, addressed person, QR the
- * receiving office and lab scan). Asks only for the sender address and the number of samples; the sender of the
- * latest label is offered first (a newly typed one is saved to the address book by the server). When sample labels
- * are switched off the dialog says so and offers the previous label (no QR code) through ``onLegacy``.
+ * The booking's "Shipping label and requisition form" action for external users: one PDF with the sample label
+ * (booking ID in large type, TO and FROM with mobile numbers; no QR code since 31 Oct 2026) on page 1 and the
+ * filled equipment requisition form after it. Asks only for the sender address and the number of samples; the
+ * sender of the latest label is offered first (a newly typed one is saved to the address book by the server). When
+ * sample labels are switched off the previous plain label is used through ``legacyLabelPdf``, still with the form.
  */
 export function SampleLabelDialog({
   bookingId,
+  bookingReference,
   open,
   onOpenChange,
-  onLegacy,
+  requisitionPdf,
+  legacyLabelPdf,
 }: {
   bookingId: number;
+  /** The booking ID shown to the user (file name). */
+  bookingReference: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onLegacy: () => Promise<void> | void;
+  /** The filled equipment requisition form for this booking. */
+  requisitionPdf: () => Promise<Blob>;
+  /** The previous plain shipping label, used while sample labels are switched off. */
+  legacyLabelPdf: () => Promise<Blob | null>;
 }) {
   const [addresses, setAddresses] = useState<PostalAddress[]>([]);
   const [choice, setChoice] = useState("new");
@@ -62,11 +71,17 @@ export function SampleLabelDialog({
     }
     setBusy(true);
     try {
-      await externalBookingApi.downloadSampleLabel(
-        bookingId,
-        choice === "new" ? { sample_count: n, description: "", sender } : { sample_count: n, description: "", address_id: Number(choice) },
+      const [label, form] = await Promise.all([
+        externalBookingApi.sampleLabelBytes(
+          bookingId,
+          choice === "new" ? { sample_count: n, description: "", sender } : { sample_count: n, description: "", address_id: Number(choice) },
+        ),
+        requisitionPdf(),
+      ]);
+      saveBlob(await mergePdfs([label, form]), dispatchPackName(bookingReference));
+      toast.success(
+        "Downloaded: label (page 1) and requisition form. Print the label at actual size for the parcel; sign the form and put it inside.",
       );
-      toast.success("Label downloaded. Print it at actual size and stick it on the parcel.");
       onOpenChange(false);
     } catch (e) {
       if (e instanceof ExternalBookingApiError && e.code === "labels_disabled") {
@@ -79,24 +94,34 @@ export function SampleLabelDialog({
     }
   };
 
-  const plainLabel = () => {
-    onOpenChange(false);
-    void onLegacy();
+  const plainLabel = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const [label, form] = await Promise.all([legacyLabelPdf(), requisitionPdf()]);
+      saveBlob(label ? await mergePdfs([label, form]) : form, dispatchPackName(bookingReference));
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "The documents could not be prepared.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Shipping label</DialogTitle>
+          <DialogTitle>Shipping label and requisition form</DialogTitle>
           <DialogDescription>
-            A 10 × 4.5 inch label with the lab, the person it is addressed to and a QR code the receiving office scans.
-            Print at actual size and keep the QR code visible. Each new label replaces the previous one.
+            One PDF: the 10 × 4.5 inch label with your booking ID in large type and the TO and FROM addresses with mobile
+            numbers (page 1), then your filled equipment requisition form. Print the label at actual size and stick it on
+            the parcel; sign the form and put it inside. Each new label replaces the previous one.
           </DialogDescription>
         </DialogHeader>
         {disabled ? (
           <p role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950" data-testid="labels-disabled">
-            Labels with a QR code are switched off at the moment. You can download the plain shipping label (no QR code).
+            The new labels are switched off at the moment. You can download the plain shipping label with the requisition form.
           </p>
         ) : (
           <div className="space-y-3 text-sm">
@@ -133,13 +158,14 @@ export function SampleLabelDialog({
             Cancel
           </Button>
           {disabled ? (
-            <Button type="button" onClick={plainLabel}>
-              Download plain label
+            <Button type="button" onClick={() => void plainLabel()} disabled={busy}>
+              {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              Download label and form
             </Button>
           ) : (
             <Button type="button" onClick={() => void download()} disabled={busy} data-testid="download-label">
               {busy ? <Loader2 className="mr-1 h-4 w-4 animate-spin" aria-hidden="true" /> : <Tag className="mr-1 h-4 w-4" aria-hidden="true" />}
-              Download label
+              Download label and form
             </Button>
           )}
         </DialogFooter>
