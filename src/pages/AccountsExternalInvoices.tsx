@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FileDown, Loader2, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
@@ -361,6 +361,10 @@ export default function AccountsExternalInvoices() {
         <StandaloneOnly>
           <PageHero title="GST invoices for external bookings" description="Requests sent to SRIC, official invoices received from SRIC, and printed copies to post. SRIC issues the GST invoice; upload it here when it arrives." />
         </StandaloneOnly>
+        <p className="text-sm">
+          Refunds to users' bank accounts go to SRIC in the same weekly batch:{" "}
+          <Link to="/accounts/refunds" className="font-medium underline">Refunds to bank accounts</Link>.
+        </p>
         <Tabs defaultValue={defaultTab}>
           <TabsList>
             <TabsTrigger value="requests">Invoice requests</TabsTrigger>
