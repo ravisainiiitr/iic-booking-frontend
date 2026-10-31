@@ -384,6 +384,10 @@ export interface ServicesSettings {
   sric_recipient_email: string;
   sric_test_recipient_email: string;
   iic_postal_address: string;
+  cancellation_policy_enabled?: boolean;
+  cancellation_free_hours?: number;
+  cancellation_half_hours?: number;
+  cancellation_half_penalty_percent?: number;
 }
 
 export type CheckoutChoice = "full_gateway" | "wallet_plus_gateway" | "full_wallet";
@@ -460,6 +464,27 @@ export const externalBookingApi = {
     }),
   cancelCheckout: (id: string) =>
     request<BookingCheckout>(`${extBase()}/checkouts/${encodeURIComponent(id)}/cancel/`, { method: "POST", json: {} }),
+  // cancellation and refunds (31 Oct 2026 policy)
+  cancellationQuote: (bookingId: number) =>
+    request<CancellationQuote>(`${extBase()}/bookings/${bookingId}/cancellation-quote/`),
+  cancelWithRefund: (
+    bookingId: number,
+    body: { destination: "wallet" | "bank"; bank_account_id?: number; notes?: string; expected_refund?: string },
+  ) =>
+    request<{ refund: ExternalRefund; booking_status: string }>(`${extBase()}/bookings/${bookingId}/cancel/`, {
+      method: "POST",
+      json: body,
+    }),
+  refundAccounts: () => request<{ accounts: RefundBankAccount[] }>(`${extBase()}/refund-accounts/`),
+  addRefundAccount: (body: RefundBankAccountInput) =>
+    request<RefundBankAccount>(`${extBase()}/refund-accounts/`, { method: "POST", json: body }),
+  myRefunds: () => request<{ refunds: ExternalRefund[] }>(`${extBase()}/refunds/`),
+  staffRefunds: (params: { status?: string; q?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as string[][]).toString();
+    return request<{ refunds: ExternalRefund[]; count: number }>(`${extBase()}/staff/refunds/${qs ? `?${qs}` : ""}`);
+  },
+  closeRefund: (id: number, body: { utr?: string; note?: string }) =>
+    request<ExternalRefund>(`${extBase()}/staff/refunds/${id}/close/`, { method: "POST", json: body }),
   // window
   window: (date?: string) => request<ExternalWindow>(`${extBase()}/window/${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   adminWindow: () => request<WindowAdminPayload>(`${extAdminBase()}/window/`),
@@ -654,6 +679,79 @@ export function isShortNotice(startIso: string, days: number, now: Date = new Da
   const start = new Date(startIso).getTime();
   if (Number.isNaN(start)) return false;
   return start - now.getTime() < days * 24 * 3600 * 1000;
+}
+
+/** 31 Oct 2026 cancellation policy: what cancelling now would refund, shown before the user confirms. */
+export interface RefundBankAccount {
+  id: number;
+  account_holder_name: string;
+  bank_name: string;
+  ifsc: string;
+  branch: string;
+  /** Masked (XXXX1234) except for the Accounts In Charge. */
+  account_number: string;
+  is_default: boolean;
+  created_at: string | null;
+}
+
+export interface RefundBankAccountInput {
+  account_holder_name: string;
+  bank_name: string;
+  account_number: string;
+  account_number_confirm: string;
+  ifsc: string;
+  branch?: string;
+}
+
+export type RefundTier = "free" | "half" | "full" | "disruption";
+
+export interface CancellationQuote {
+  applies: boolean;
+  disruption?: boolean;
+  bank_refund_allowed?: boolean;
+  tier?: RefundTier;
+  penalty_percent?: number;
+  paid?: string;
+  gst_paid?: string;
+  return_shipping?: string;
+  refundable_base?: string;
+  gst_refunded?: boolean;
+  refund_base?: string;
+  refund_gst?: string;
+  refund?: string;
+  first_slot_start?: string | null;
+  free_until?: string | null;
+  half_until?: string | null;
+  rules?: { free_hours: number; half_hours: number; half_penalty_percent: number };
+  accounts?: RefundBankAccount[];
+}
+
+export type RefundStatus = "queued" | "sent" | "failed" | "closed";
+
+export interface ExternalRefund {
+  id: number;
+  booking_id: number;
+  booking_reference: string;
+  origin: "cancellation" | "disruption";
+  destination: "wallet" | "bank";
+  tier: RefundTier;
+  penalty_percent: number;
+  paid_amount: string;
+  return_shipping: string;
+  refund_base: string;
+  refund_gst: string;
+  refund_amount: string;
+  gst_refunded: boolean;
+  status: RefundStatus;
+  status_label: string;
+  created_at: string;
+  sent_at: string | null;
+  closed_at: string | null;
+  close_note: string;
+  bank: (Partial<RefundBankAccount> & { account_number?: string }) | null;
+  user?: { id: number; name: string; email: string };
+  equipment?: string;
+  utr?: string;
 }
 
 /** Indian PIN code check used for inline validation (the server validates again). */

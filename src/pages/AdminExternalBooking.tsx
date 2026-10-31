@@ -299,6 +299,11 @@ const SWITCHES: Array<{ key: keyof ServicesSettings; label: string; help: string
   { key: "auto_request_without_preference", label: "Request invoices without a stated preference", help: "After analysis, also for users who never chose." },
   { key: "physical_copies_enabled", label: "Printed invoice copies by Speed Post", help: "" },
   { key: "sample_labels_enabled", label: "Sample shipment labels with QR code", help: "" },
+  {
+    key: "cancellation_policy_enabled",
+    label: "Cancellation penalties and bank refunds",
+    help: "Users cancel with the fixed penalties below; after a lab disruption they choose wallet or bank refund (sent to SRIC weekly).",
+  },
 ];
 
 function SettingsCard() {
@@ -383,6 +388,18 @@ function SettingsCard() {
           <div>
             <Label htmlFor="xs-pay">Hours to pay after approval</Label>
             <Input id="xs-pay" type="number" min={1} max={168} value={value("payment_window_hours")} onChange={(e) => setDraft({ ...draft, payment_window_hours: Number(e.target.value) })} />
+          </div>
+          <div>
+            <Label htmlFor="xs-free">No penalty more than (hours before)</Label>
+            <Input id="xs-free" type="number" min={1} max={720} value={value("cancellation_free_hours") ?? 48} onChange={(e) => setDraft({ ...draft, cancellation_free_hours: Number(e.target.value) })} />
+          </div>
+          <div>
+            <Label htmlFor="xs-half">No refund less than (hours before)</Label>
+            <Input id="xs-half" type="number" min={0} max={720} value={value("cancellation_half_hours") ?? 24} onChange={(e) => setDraft({ ...draft, cancellation_half_hours: Number(e.target.value) })} />
+          </div>
+          <div>
+            <Label htmlFor="xs-pen">Penalty in between (%)</Label>
+            <Input id="xs-pen" type="number" min={0} max={100} value={value("cancellation_half_penalty_percent") ?? 50} onChange={(e) => setDraft({ ...draft, cancellation_half_penalty_percent: Number(e.target.value) })} />
           </div>
           <div>
             <Label htmlFor="xs-mode">SRIC sending</Label>

@@ -43,6 +43,8 @@ import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import { X, FolderDown, Download, RotateCcw, Banknote, CalendarPlus, History, ArrowLeftRight } from "lucide-react";
 import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { ExternalCancelDialog } from "@/components/external/ExternalCancelDialog";
+import { externalBookingApi } from "@/lib/externalBookingApi";
 import { getBookingKey, getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import {
@@ -355,6 +357,8 @@ const MyBookings = () => {
   /** When landing from post-booking CTA (?edit_inputs=1), open Edit User Inputs once details load. */
   const [autoOpenEditInputs, setAutoOpenEditInputs] = useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  /** External users under the 31 Oct 2026 cancellation policy cancel through ExternalCancelDialog instead. */
+  const [policyCancel, setPolicyCancel] = useState<{ id: number; label: string } | null>(null);
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
   const [rescheduleQuota, setRescheduleQuota] = useState<QuotaFailure | null>(null);
   useEffect(() => {
@@ -1152,7 +1156,7 @@ const MyBookings = () => {
     }
   };
 
-  const handleCancelClick = (booking: Booking) => {
+  const handleCancelClick = async (booking: Booking) => {
     if (isRepeatBooking(booking) && !isLabDisruption(booking)) {
       toast.error("Repeat sample bookings cannot be cancelled. Please contact admin if you need to cancel.");
       return;
@@ -1164,6 +1168,19 @@ const MyBookings = () => {
     if (!isStaffCancelingOtherUser(booking) && !serverAllowsOwnerCancel(booking)) {
       toast.error(booking.cancel_block_message || "This booking can't be cancelled.");
       return;
+    }
+    const realId = getRealBookingId(booking);
+    if (!isStaffCancelingOtherUser(booking) && realId != null) {
+      // The server says whether the fixed-penalty policy applies to this owner (external users while it is on).
+      try {
+        const quote = await externalBookingApi.cancellationQuote(realId);
+        if (quote.applies) {
+          setPolicyCancel({ id: realId, label: booking.virtual_booking_id || `#${realId}` });
+          return;
+        }
+      } catch {
+        // Fall back to the usual dialog; the server applies the policy there too.
+      }
     }
     // Owner cancel: enforce reschedule-hours threshold (maintenance disruption always allowed).
     // Staff canceling another user's booking: no owner time-window gate (server enforces role scope).
@@ -1586,7 +1603,7 @@ const MyBookings = () => {
             variant="ghost"
             size="sm"
             className={`text-destructive hover:text-destructive ${btn ?? ""}`}
-            onClick={() => handleCancelClick(booking)}
+            onClick={() => void handleCancelClick(booking)}
           >
             Cancel
           </Button>
@@ -2496,6 +2513,15 @@ const MyBookings = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        {policyCancel ? (
+          <ExternalCancelDialog
+            bookingId={policyCancel.id}
+            bookingLabel={policyCancel.label}
+            open
+            onOpenChange={(open) => !open && setPolicyCancel(null)}
+            onCancelled={() => void fetchBookings(undefined, page)}
+          />
+        ) : null}
       </main>
     </div>
   );
