@@ -86,6 +86,7 @@ import { BookingJourney } from "@/components/booking/BookingJourney";
 import { SampleArrivalPanel } from "@/components/courier/SampleArrivalPanel";
 import { SampleDispatchAction } from "@/components/courier/SampleDispatchAction";
 import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
+import LabFailureRefundDialog from "@/components/external/LabFailureRefundDialog";
 import { getRealBookingId, type BookingRef } from "@/lib/bookingRef";
 import { formatBookingDateTime } from "@/lib/bookingDates";
 import {
@@ -793,6 +794,7 @@ export function BookingDetailCard({
   const [atmosphereSaving, setAtmosphereSaving] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [labFailureOpen, setLabFailureOpen] = useState(false);
   const [shipmentRefreshKey, setShipmentRefreshKey] = useState(0);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
@@ -2788,6 +2790,26 @@ export function BookingDetailCard({
                   Refund
                 </Button>
               )}
+              {isExternalBookingType && (isManagerOrAdmin || isFinanceUser) && !isExternalSelfView &&
+                !["CANCELLED", "REFUNDED", "BOOKING_NOT_UTILIZED"].includes(String(booking.status).toUpperCase()) &&
+                bookingPk != null ? (
+                <Button size="sm" variant="outline" onClick={() => setLabFailureOpen(true)}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Refund for lab failure
+                </Button>
+              ) : null}
+              {labFailureOpen && bookingPk != null ? (
+                <LabFailureRefundDialog
+                  bookingId={Number(bookingPk)}
+                  bookingReference={String(booking.virtual_booking_id || booking.booking_id)}
+                  open={labFailureOpen}
+                  onOpenChange={setLabFailureOpen}
+                  onDone={() => {
+                    onClose();
+                    onUpdated();
+                  }}
+                />
+              ) : null}
               {!isHold && !isFabrication && isOperatorOrManager && !isLabInchargeUser && canPerformAction(booking, "absent", isOperator) && !isExternalSelfView && (
                 <Button size="sm" variant="outline" onClick={() => openActionDialog("absent", booking)}>
                   <XCircle className="h-4 w-4 mr-2" />
