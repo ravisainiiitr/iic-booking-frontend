@@ -2633,6 +2633,12 @@ export interface EquipmentMaintenanceStatus {
   users_notified: number;
   results_paused: number;
   adopted: boolean;
+  expected_recovery_at?: string | null;
+  recovery_status?: "UNKNOWN" | "EXPECTED" | "DELAYED";
+  recovery_text?: string;
+  /** True once the expected recovery time has passed: the OIC must confirm the equipment's status. */
+  action_required?: boolean;
+  action?: string;
 }
 
 export interface OicEquipmentSettingsRow {

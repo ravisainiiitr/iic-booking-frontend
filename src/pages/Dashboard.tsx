@@ -4230,7 +4230,7 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} />
+      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={showsLabStyleDashboard} />
       {loginTip}
     </>
   );
@@ -4610,7 +4610,8 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {showsLabStyleDashboard || isAdmin ? <MaintenanceBanner className="mb-4" /> : null}
+        {/* OIC and Lab Operator dashboards show maintenance inside "Needs your attention" instead. */}
+        {isAdmin && !showsLabStyleDashboard ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         <AndroidAppCard className="mb-4" />
