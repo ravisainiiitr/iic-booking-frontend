@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { StandaloneOnly } from "@/components/PageShell";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -79,6 +80,17 @@ export default function AdminResearchRecognition() {
     if (res.error) toast({ title: "Not changed", description: res.error, variant: "destructive" });
     else {
       toast({ title: hide ? "Taken off the Hall of Frames" : "Shown in the Hall of Frames again" });
+      void load();
+    }
+  };
+
+  const setHallEnabled = async (enabled: boolean) => {
+    setBusy("hall-enabled");
+    const res = await apiClient.setHallOfFramesEnabled(enabled);
+    setBusy(null);
+    if (res.error) toast({ title: "Not changed", description: res.error, variant: "destructive" });
+    else {
+      toast({ title: enabled ? "Hall of Frames is on the home page" : "Hall of Frames hidden from the home page" });
       void load();
     }
   };
@@ -163,6 +175,20 @@ export default function AdminResearchRecognition() {
                 </TabsContent>
 
                 <TabsContent value="hall" className="pt-4">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-3">
+                    <div>
+                      <p className="text-sm font-medium">Show the Hall of Frames on the home page</p>
+                      <p className="text-xs text-muted-foreground">
+                        {data.hall_enabled ? "On: visitors see the Hall of Frames." : "Off: the Hall of Frames is not shown to anyone."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={Boolean(data.hall_enabled)}
+                      disabled={!isMainAdmin || busy === "hall-enabled"}
+                      onCheckedChange={(v) => void setHallEnabled(v)}
+                      aria-label="Show the Hall of Frames on the home page"
+                    />
+                  </div>
                   {data.hall.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">No approved publications yet.</p>
                   ) : (

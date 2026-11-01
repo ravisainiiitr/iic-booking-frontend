@@ -19,7 +19,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-/** Booking Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
+/** Research Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
 
 type Rec = Record<string, unknown>;
 

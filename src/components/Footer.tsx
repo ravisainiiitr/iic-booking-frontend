@@ -76,7 +76,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Rightmost on md+: its two links leave the bottom-right free for the fixed Booking Assistant button. */}
+          {/* Rightmost on md+: its two links leave the bottom-right free for the fixed Research Assistant button. */}
           <div className="md:order-last">
             <h4 className={HEADING_CLASS}>Resources</h4>
             <ul className={LIST_CLASS}>

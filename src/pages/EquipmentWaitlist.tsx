@@ -301,7 +301,7 @@ export default function EquipmentWaitlist() {
             </p>
           </div>
         </StandaloneOnly>
-        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        {/* Bottom margin keeps the last row clear of the floating Research Assistant button. */}
         <Card className="mb-20 rounded-xl border-border/70 shadow-sm">
           <CardHeader className="px-4 pb-3 sm:px-5">
             <CardTitle className="text-base">Queue</CardTitle>

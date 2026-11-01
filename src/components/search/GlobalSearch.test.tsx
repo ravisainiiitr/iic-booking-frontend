@@ -14,7 +14,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
 const openUserCard = vi.hoisted(() => vi.fn());
 vi.mock("@/components/users/UserIdCardLink", () => ({ useUserCard: () => ({ openUserCard, drawer: null }) }));
 
-const api = vi.hoisted(() => ({ globalSearch: vi.fn(), automationFeatures: vi.fn() }));
+const api = vi.hoisted(() => ({ globalSearch: vi.fn(), automationFeatures: vi.fn(), portalActionEquipment: vi.fn(), runPortalAction: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiClient: api }));
 
 globalThis.ResizeObserver ??= class {
@@ -317,5 +317,67 @@ describe("GlobalSearchHost", () => {
     await screen.findByText("Go to");
     expect(screen.queryByText("Instrument finder")).toBeNull();
     expect(api.automationFeatures).not.toHaveBeenCalled();
+  });
+});
+
+describe("Search actions and sections", () => {
+  const equipment = [{ id: 3, name: "Grazing Incidence XRD", code: "GI-XRD", category: "", department: "", status: "",
+    contacts: { lab_operators: [{ name: "Op", designation: "Lab Operator", email: "op@x.in", phone: "" }], oics: [], accounts_in_charge: [{ name: "Accounts", designation: "Accounts In Charge", email: "acc@x.in", phone: "" }] } }];
+
+  it("shows equipment without contact details, then people, then bookings", async () => {
+    auth.value = { user: { id: 2, user_type: "student" }, isAuthenticated: true };
+    api.globalSearch.mockResolvedValue({
+      data: {
+        query: "xrd", equipment,
+        bookings: [{ id: 42, virtual_booking_id: "IICXRD1", status: "BOOKED", status_label: "Booked", equipment: "GI-XRD",
+          equipment_code: "GI-XRD", user_name: "", slot_start: null, created_at: null, own: true }],
+        people: [{ id: 5, name: "Mohammad Danish", email: "op@x.in", user_type: "Lab In-charge", department: "",
+          relation: "Lab Operator · GI-XRD" }],
+        people_enabled: false,
+      },
+    });
+    renderHost();
+    act(() => openGlobalSearch("xrd"));
+    await screen.findByText("Grazing Incidence XRD");
+    expect(screen.queryByText("acc@x.in")).toBeNull();
+    expect(screen.queryByText("Accounts")).toBeNull();
+    const headings = Array.from(document.querySelectorAll("[cmdk-group-heading]")).map((h) => h.textContent);
+    expect(headings.indexOf("Equipment")).toBeLessThan(headings.indexOf("People"));
+    expect(headings.indexOf("People")).toBeLessThan(headings.indexOf("Bookings"));
+    expect(screen.getByText("Lab Operator · GI-XRD")).toBeTruthy();
+  });
+
+  it("asks which instrument for an action, then turns the switch on", async () => {
+    auth.value = { user: { id: 1, user_type: "admin" }, isAuthenticated: true };
+    api.globalSearch.mockResolvedValue({
+      data: { query: "slot exchange", equipment: [], bookings: [], people: [], people_enabled: true,
+        actions: [{ key: "slot_exchange", title: "Turn Slot Exchange on or off", hint: "Let users swap slots", path: "",
+          group: "Equipment", needs_equipment: true, switch: true }] },
+    });
+    api.portalActionEquipment.mockResolvedValue({ data: { equipment: [{ id: 3, name: "Grazing Incidence XRD", code: "GI-XRD", on: false }] } });
+    api.runPortalAction.mockResolvedValue({ data: { id: 3, name: "Grazing Incidence XRD", code: "GI-XRD", on: true } });
+    renderHost();
+    act(() => openGlobalSearch("slot exchange"));
+    fireEvent.click(await screen.findByText("Turn Slot Exchange on or off"));
+    fireEvent.click(await screen.findByText("Grazing Incidence XRD"));
+    const panel = await screen.findByTestId("action-step-switch");
+    expect(within(panel).getByText("off")).toBeTruthy();
+    fireEvent.click(within(panel).getByRole("button", { name: /Turn on/ }));
+    expect(await within(panel).findByText("Slot Exchange is now on for Grazing Incidence XRD.")).toBeTruthy();
+    expect(api.runPortalAction).toHaveBeenCalledWith("slot_exchange", 3, true);
+  });
+
+  it("opens a per-instrument page for the instrument the search named", async () => {
+    auth.value = { user: { id: 7, user_type: "manager" }, isAuthenticated: true };
+    api.globalSearch.mockResolvedValue({
+      data: { query: "block slots xrd", equipment: [], bookings: [], people: [], people_enabled: true,
+        actions: [{ key: "change_slot_status", title: "Change slot status", hint: "Block, open or reserve slots",
+          path: "/change-slot-status?equipment_id={id}", group: "Equipment", needs_equipment: true, switch: false,
+          equipment: { id: 3, name: "Grazing Incidence XRD", code: "GI-XRD" } }] },
+    });
+    renderHost();
+    act(() => openGlobalSearch("block slots xrd"));
+    fireEvent.click(await screen.findByText("Change slot status"));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/change-slot-status?equipment_id=3"));
   });
 });

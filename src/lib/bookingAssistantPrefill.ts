@@ -1,5 +1,5 @@
 /**
- * Booking Assistant → booking page handoff. Instruments whose inputs can't be collected in chat
+ * Research Assistant → booking page handoff. Instruments whose inputs can't be collected in chat
  * (file uploads, tables, periodic tables…) open the booking page with the equipment, the chosen day
  * and whatever the user already answered in chat. Inputs travel via sessionStorage and are
  * sanitized against the equipment's current fields by the booking page.

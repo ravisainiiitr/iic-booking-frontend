@@ -32,7 +32,7 @@ export const GUIDE_AUDIENCE_LABELS: Record<GuideAudienceId, string> = {
 
 /** Features that are switched on per institute or per account. Unknown values default to off. */
 export interface GuideFeatureFlags {
-  /** Booking Assistant button is shown to this user. */
+  /** Research Assistant button is shown to this user. */
   assistant: boolean;
   /** The assistant can confirm bookings in chat for this user. */
   inChatBooking: boolean;

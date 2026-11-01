@@ -51,7 +51,7 @@ export default function WhatsNewDialog({ open, onClose, guide, userName, unreadI
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
           className={cn(
-            // Above the floating Booking Assistant launcher (z-9999), which would otherwise cover "Got it" on phones.
+            // Above the floating Research Assistant launcher (z-9999), which would otherwise cover "Got it" on phones.
             "fixed inset-0 z-[10000] flex items-stretch justify-center bg-black/45 sm:items-center sm:p-4",
             "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0"
           )}

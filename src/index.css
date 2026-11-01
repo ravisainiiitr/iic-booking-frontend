@@ -1249,14 +1249,14 @@
   }
 }
 
-/* Floating launchers (Booking Assistant) step aside while a modal dialog or sheet is open, so they never
+/* Floating launchers (Research Assistant) step aside while a modal dialog or sheet is open, so they never
    sit on top of a dialog's footer buttons on small screens. */
 body:has(:is([role="dialog"], [role="alertdialog"])[data-state="open"]:not([data-side])) .floating-launcher,
 body:has([data-vaul-drawer][data-state="open"]) .floating-launcher {
   visibility: hidden;
 }
 
-/* Booking Assistant button: dragged to either side edge; --fab-bottom is the saved height. It rises above the
+/* Research Assistant button: dragged to either side edge; --fab-bottom is the saved height. It rises above the
    booking action bar, marked sticky bars ([data-floating-clearance]) and the home indicator. */
 .assistant-fab,
 .assistant-panel {

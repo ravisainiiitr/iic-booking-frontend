@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import {
   ArrowRight,
+  Zap,
   CalendarClock,
   Clock,
   FileSearch,
@@ -27,14 +28,14 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { useAuth } from "@/contexts/AuthContext";
 import { useAutomationFeatures } from "@/components/automation/useAutomationFeatures";
 import { useUserCard } from "@/components/users/UserIdCardLink";
-import { apiClient, type GlobalSearchResult } from "@/lib/api";
+import { apiClient, type GlobalSearchResult, type PortalAction } from "@/lib/api";
 import type { ModeInactive } from "@/lib/modeAvailability";
 import { ModeInactivePill } from "@/components/modeAvailability/ModeInactiveNotice";
 import { TrainingRequiredBadge } from "@/components/training/AuthorisationGateCard";
 import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 import { cn } from "@/lib/utils";
 import { SEARCH_SHORTCUT_LABEL } from "./GlobalSearch";
-import { SearchContacts } from "./SearchContacts";
+import ActionStep from "./ActionStep";
 import {
   bookingHref,
   clearRecentSearches,
@@ -135,6 +136,8 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches());
+  // A chosen action that needs an instrument (search shows the instrument step instead of results).
+  const [step, setStep] = useState<{ action: PortalAction; preselected?: PortalAction["equipment"] } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const pages = useMemo(() => pagesFor(user?.user_type, isAuthenticated), [user?.user_type, isAuthenticated]);
@@ -144,11 +147,16 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
     () => (open && isAuthenticated ? searchablePages(pages, menuActionsFor(user?.id), adminSettingsTiles(user)) : pages),
     [open, isAuthenticated, pages, user],
   );
-  const pageHits = useMemo(() => matchPages(actionPages, trimmed, 8), [actionPages, trimmed]);
+  const actionHits = useMemo(() => result.actions ?? [], [result.actions]);
+  const pageHits = useMemo(() => {
+    const taken = new Set(actionHits.filter((a) => !a.needs_equipment).map((a) => a.path));
+    return matchPages(actionPages, trimmed, 8).filter((p) => !taken.has(p.path));
+  }, [actionPages, trimmed, actionHits]);
   const staffView = Boolean(result.staff_view);
 
   useEffect(() => {
     setQuery(initialQuery);
+    setStep(null);
     setRecent(loadRecentSearches());
     // Only a new open resets the field, not edits to the initial query.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,7 +206,15 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const searching = trimmed.length >= 2;
   const isStaffUser =
     isAuthenticated && (staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase()));
-  const hasHits = pageHits.length + result.equipment.length + result.bookings.length + result.people.length > 0;
+  const hasHits =
+    actionHits.length + pageHits.length + result.equipment.length + result.bookings.length + result.people.length > 0;
+
+  const runAction = (a: PortalAction) => {
+    if (trimmed) setRecent(rememberSearch(trimmed));
+    if (!a.needs_equipment) go(a.path);
+    else if (a.equipment && !a.switch) go(a.path.replace("{id}", String(a.equipment.id)));
+    else setStep({ action: a, preselected: a.equipment });
+  };
   const placeholder = isAuthenticated
     ? isStaffUser
       ? "Search booking ID, equipment, a person, a page or a setting…"
@@ -214,6 +230,14 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
         <DialogDescription className="sr-only">
           Type at least two characters. Use the arrow keys to move through results and Enter to open one.
         </DialogDescription>
+        {step ? (
+          <ActionStep
+            action={step.action}
+            preselected={step.preselected}
+            onBack={() => setStep(null)}
+            onOpen={(path) => go(path)}
+          />
+        ) : (
         <Command shouldFilter={false} loop className="rounded-none">
           <div className="flex items-center gap-2 border-b px-4" cmdk-input-wrapper="">
             {loading ? (
@@ -310,6 +334,24 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
               </div>
             ) : null}
 
+            {searching && actionHits.length > 0 ? (
+              <CommandGroup heading="Actions">
+                {actionHits.map((a) => (
+                  <CommandItem key={`a-${a.key}`} value={`action-${a.key}`} onSelect={() => runAction(a)} className="group items-start">
+                    <Zap className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-amber-600 group-data-[selected=true]:text-current dark:text-amber-300" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {a.title}
+                        {a.equipment ? <span className="font-normal text-muted-foreground group-data-[selected=true]:text-current"> · {a.equipment.name}</span> : null}
+                      </p>
+                      <p className={SECONDARY}>{a.needs_equipment && !a.equipment ? `${a.hint} · choose the instrument next` : a.hint}</p>
+                    </div>
+                    <ArrowRight className="ml-2 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ) : null}
+
             {searching && pageHits.length > 0 ? (
               <CommandGroup heading="Pages and settings">
                 {pageHits.map((p) => (
@@ -318,41 +360,6 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                     {p.title}
                   </CommandItem>
                 ))}
-              </CommandGroup>
-            ) : null}
-
-            {searching && result.bookings.length > 0 ? (
-              <CommandGroup heading="Bookings">
-                {result.bookings.map((b) => (
-                  <CommandItem
-                    key={`b-${b.id}`}
-                    value={`booking-${b.id}`}
-                    onSelect={() => go(bookingHref(b, staffView))}
-                    className="group items-start"
-                  >
-                    <CalendarClock className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-sm font-semibold">{b.virtual_booking_id}</span>
-                        <StatusPill status={b.status} label={b.status_label} />
-                      </div>
-                      <p className={SECONDARY}>
-                        {b.equipment}
-                        {b.slot_start ? ` · ${shortDate(b.slot_start)}` : ""}
-                      </p>
-                    </div>
-                  </CommandItem>
-                ))}
-                {staffView ? (
-                  <CommandItem
-                    value="booking-all"
-                    onSelect={() => go(`/booking-management?search=${encodeURIComponent(trimmed)}`)}
-                  >
-                    <FileSearch className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
-                    See all matching bookings
-                    <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden />
-                  </CommandItem>
-                ) : null}
               </CommandGroup>
             ) : null}
 
@@ -397,7 +404,6 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         </p>
                       ) : null}
                       {modeInactiveOf(e) ? <p className={SECONDARY}>{modeInactiveOf(e)!.message}</p> : null}
-                      <SearchContacts contacts={e.contacts} />
                     </div>
                     {isAuthenticated && !modeInactiveOf(e) && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
                       <button
@@ -458,6 +464,41 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                 ))}
               </CommandGroup>
             ) : null}
+            {searching && result.bookings.length > 0 ? (
+              <CommandGroup heading="Bookings">
+                {result.bookings.map((b) => (
+                  <CommandItem
+                    key={`b-${b.id}`}
+                    value={`booking-${b.id}`}
+                    onSelect={() => go(bookingHref(b, staffView))}
+                    className="group items-start"
+                  >
+                    <CalendarClock className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-semibold">{b.virtual_booking_id}</span>
+                        <StatusPill status={b.status} label={b.status_label} />
+                      </div>
+                      <p className={SECONDARY}>
+                        {b.equipment}
+                        {b.slot_start ? ` · ${shortDate(b.slot_start)}` : ""}
+                      </p>
+                    </div>
+                  </CommandItem>
+                ))}
+                {staffView ? (
+                  <CommandItem
+                    value="booking-all"
+                    onSelect={() => go(`/booking-management?search=${encodeURIComponent(trimmed)}`)}
+                  >
+                    <FileSearch className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
+                    See all matching bookings
+                    <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" aria-hidden />
+                  </CommandItem>
+                ) : null}
+              </CommandGroup>
+            ) : null}
+
           </CommandList>
           <CommandSeparator />
           <div className="hidden items-center gap-4 bg-muted/40 px-4 py-2 text-[11px] text-muted-foreground sm:flex">
@@ -474,6 +515,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
             </span>
           </div>
         </Command>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -5,7 +5,7 @@ import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import NoticeBoard from "@/components/NoticeBoard";
 import HallOfFrames from "@/components/home/HallOfFrames";
-import ResearcherOfTheMonth from "@/components/home/ResearcherOfTheMonth";
+import ResearcherSpotlight from "@/components/home/ResearcherSpotlight";
 import { useEffect } from "react";
 
 const Index = () => {
@@ -18,6 +18,8 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <Hero />
+      {/* Phones and tablets: Researcher of the Month right under the hero (large screens show it in the hero). */}
+      <ResearcherSpotlight variant="compact" className="lg:hidden" />
 
       <section id="equipment" className="mx-auto w-full max-w-7xl px-4 sm:px-6 pt-6 pb-2 sm:pt-8 sm:pb-3">
         <div className="mb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
@@ -41,7 +43,7 @@ const Index = () => {
         </div>
       </section>
 
-      <ResearcherOfTheMonth />
+      {/* Shown only when the Main Administrator switches the Hall of Frames on. */}
       <HallOfFrames />
       <Features />
       <Footer />

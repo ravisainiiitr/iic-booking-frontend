@@ -228,7 +228,7 @@ export default function AdminSettingsAutomation() {
                 <CardDescription>Suggestions shown to people booking.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Row title="Instrument finder" description="Describe the sample and goal; get ranked instruments with reasons. Also used by the Booking Assistant.">
+                <Row title="Instrument finder" description="Describe the sample and goal; get ranked instruments with reasons. Also used by the IITR Research Assistant.">
                   {sw("instrument_finder_enabled")}
                 </Row>
                 <Row title="Best times for you" description="Up to five free runs on the booking page: earliest, and ones matching the user's usual times; similar instruments when nothing is free soon.">

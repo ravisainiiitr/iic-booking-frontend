@@ -9,7 +9,8 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }));
 
 import HallOfFrames from "./HallOfFrames";
-import ResearcherOfTheMonth from "./ResearcherOfTheMonth";
+import { MemoryRouter } from "react-router-dom";
+import ResearcherSpotlight from "./ResearcherSpotlight";
 
 beforeAll(() => {
   // jsdom lacks these; embla needs them to lay out the carousel.
@@ -72,33 +73,60 @@ describe("Hall of Frames", () => {
   });
 });
 
-describe("Researcher of the Month", () => {
-  it("shows this month's researchers, institute-wide first, with their department", async () => {
-    api.getResearchersOfTheMonth.mockResolvedValue({
-      data: {
-        month: "2026-11-01",
-        history: false,
-        results: [
-          { ...person(3), month: "2026-11-01", department_id: 7, department_name: "Physics" },
-          { ...person(4), month: "2026-11-01", department_id: null, department_name: "Institute-wide" },
-        ],
-      },
-    });
-    render(<ResearcherOfTheMonth />);
-    const section = await screen.findByTestId("researcher-of-the-month");
-    expect(within(section).getByRole("heading", { name: "November 2026" })).toBeTruthy();
-    const cards = within(section).getAllByRole("article");
-    expect(within(cards[0]).getByText("Institute-wide")).toBeTruthy();
-    expect(within(cards[1]).getByText("Physics")).toBeTruthy();
+describe("Researcher of the Month spotlight", () => {
+  const month = (results: unknown[]) => ({ data: { month: "2026-11-01", history: false, results } });
+
+  it("shows one card per researcher with every title, the count and the latest publication", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue(
+      month([{ ...person(3, { publication_count: 4 }), month: "2026-11-01", department_id: null, department_name: "Institute-wide",
+               titles: ["Institute-wide", "Physics"] }]),
+    );
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    const card = await screen.findByTestId("researcher-spotlight");
+    expect(within(card).getByText("November 2026")).toBeTruthy();
+    expect(within(card).getAllByText("Researcher 3")).toHaveLength(1);
+    expect(within(card).getByText("Institute-wide")).toBeTruthy();
+    expect(within(card).getByText("Physics")).toBeTruthy();
+    expect(within(card).getByText(/acknowledging IIC/).textContent).toContain("4 publications");
+    expect(within(card).getByText("Paper 3")).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Next researcher" })).toBeNull();
   });
 
-  it("is hidden when no researcher is set for the month", async () => {
-    api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", history: false, results: [] } });
-    const { container } = render(<ResearcherOfTheMonth />);
+  it("steps through several researchers", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue(
+      month([
+        { ...person(3), month: "2026-11-01", department_id: null, department_name: "Institute-wide" },
+        { ...person(4), month: "2026-11-01", department_id: 7, department_name: "Chemistry" },
+      ]),
+    );
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    const card = await screen.findByTestId("researcher-spotlight");
+    expect(within(card).getByRole("heading", { name: "Researcher 3" })).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Next researcher" }));
+    expect(within(card).getByRole("heading", { name: "Researcher 4" })).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Show Researcher 3" }));
+    expect(within(card).getByRole("heading", { name: "Researcher 3" })).toBeTruthy();
+  });
+
+  it("has a compact version for small screens", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue(
+      month([{ ...person(5), month: "2026-11-01", department_id: 7, department_name: "Physics" }]),
+    );
+    render(<MemoryRouter><ResearcherSpotlight variant="compact" /></MemoryRouter>);
+    const strip = await screen.findByTestId("researcher-spotlight-compact");
+    expect(within(strip).getByText("Researcher 5")).toBeTruthy();
+    expect(within(strip).getByText(/Physics/)).toBeTruthy();
+  });
+
+  it("is hidden when no researcher is chosen for the month", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue(month([]));
+    const { container } = render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
     await new Promise((r) => setTimeout(r, 0));
     expect(container.innerHTML).toBe("");
   });
+});
 
+describe("Hall of Frames details", () => {
   it("shows how many approved publications a researcher has, and an icon when the photo cannot load", async () => {
     api.getHallOfFrames.mockResolvedValue({ data: { results: [person(1, { publication_count: 9 })] } });
     render(<HallOfFrames />);

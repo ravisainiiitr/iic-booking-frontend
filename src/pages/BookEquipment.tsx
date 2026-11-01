@@ -3648,7 +3648,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     }
   }, [altFromParam, equipmentDetail?.equipment_id]);
 
-  // Booking Assistant deep links: `date=YYYY-MM-DD` opens that week, and `from=assistant` fills the
+  // Research Assistant deep links: `date=YYYY-MM-DD` opens that week, and `from=assistant` fills the
   // inputs the user already gave in chat — once per equipment/date handoff.
   const assistantDateParam = (searchParams.get("date") || "").trim();
   const fromAssistant = searchParams.get("from") === "assistant";
@@ -3685,7 +3685,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
-      toast.success("Details from Booking Assistant filled in. Complete the remaining fields and pick your slot.");
+      toast.success("Details from Research Assistant filled in. Complete the remaining fields and pick your slot.");
       if (droppedLabels.length > 0) {
         toast.info(`Some details no longer match this equipment's options and were reset: ${droppedLabels.join(", ")}.`);
       }
