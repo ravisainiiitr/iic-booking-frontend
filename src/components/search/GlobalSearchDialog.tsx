@@ -34,6 +34,7 @@ import { TrainingRequiredBadge } from "@/components/training/AuthorisationGateCa
 import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 import { cn } from "@/lib/utils";
 import { SEARCH_SHORTCUT_LABEL } from "./GlobalSearch";
+import { SearchContacts } from "./SearchContacts";
 import {
   bookingHref,
   clearRecentSearches,
@@ -309,6 +310,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         {b.user_name ? ` · ${b.user_name}` : ""}
                         {b.slot_start ? ` · ${shortDate(b.slot_start)}` : ""}
                       </p>
+                      <SearchContacts contacts={b.contacts} />
                     </div>
                   </CommandItem>
                 ))}
@@ -366,6 +368,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                         </p>
                       ) : null}
                       {modeInactiveOf(e) ? <p className={SECONDARY}>{modeInactiveOf(e)!.message}</p> : null}
+                      <SearchContacts contacts={e.contacts} />
                     </div>
                     {isAuthenticated && !modeInactiveOf(e) && String(user?.user_type ?? "").toLowerCase() !== "finance" ? (
                       <button

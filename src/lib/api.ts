@@ -311,6 +311,22 @@ export interface SimilarAvailability {
   basis: "group" | "category" | null;
 }
 
+export interface SearchContactPerson {
+  name: string;
+  /** Designation on the staff profile, or the role when none is recorded. */
+  designation: string;
+  email: string;
+  /** Empty for visitors who are not signed in. */
+  phone: string;
+}
+
+/** Responsible people shown with an equipment or booking search result. */
+export interface SearchContacts {
+  lab_operators: SearchContactPerson[];
+  oics: SearchContactPerson[];
+  accounts_in_charge: SearchContactPerson[];
+}
+
 export interface GlobalSearchResult {
   query: string;
   equipment: Array<{
@@ -326,6 +342,8 @@ export interface GlobalSearchResult {
     hint?: string;
     /** Active Officers in Charge and Lab In-charges of this equipment (signed-in users only). */
     lab_staff?: Array<{ id: number; name: string; role: string; email: string }>;
+    /** Lab Operator, Officer In Charge and Accounts In Charge of this equipment. */
+    contacts?: SearchContacts | null;
   }>;
   /** Corrected query when the best equipment match needed a spelling correction. */
   suggestion?: string;
@@ -340,6 +358,8 @@ export interface GlobalSearchResult {
     slot_start: string | null;
     created_at: string | null;
     own: boolean;
+    /** Lab Operator, Officer In Charge and Accounts In Charge of the booking's equipment. */
+    contacts?: SearchContacts | null;
   }>;
   people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
   people_enabled: boolean;
