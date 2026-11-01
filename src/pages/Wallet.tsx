@@ -203,6 +203,8 @@ const Wallet = () => {
       user?.user_type === 2
     );
   }, [isFaculty, user]);
+  // Internal (IIT Roorkee) faculty are not offered credit, so they get no Credit history button.
+  const isInternalFaculty = isFacultyEffective && String(user?.department_type ?? "").toLowerCase() === "internal";
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [walletOwner, setWalletOwner] = useState<{
@@ -1867,7 +1869,7 @@ const Wallet = () => {
           </div>
           {(canShowWalletRecharge || !isShared) && (
             <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end shrink-0">
-              {!isShared && (
+              {!isShared && !isInternalFaculty && (
                 <Button
                   size="lg"
                   className="h-12 px-6 text-base"
