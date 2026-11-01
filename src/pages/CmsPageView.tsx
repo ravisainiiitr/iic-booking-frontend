@@ -1,20 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiClient, type CmsPageBlock, type ColumnsBlock } from "@/lib/api";
+import { sanitizeCmsHtml as sanitizeHtml } from "@/lib/cmsHtml";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Mail, Phone, MapPin, Briefcase } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import NoticeBoard from "@/components/NoticeBoard";
-
-/** Strip script/style and event handlers to reduce XSS risk for HTML blocks. */
-function sanitizeHtml(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, "");
-}
 
 function getYoutubeEmbedUrl(url: string): string | null {
   const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
