@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { apiClient, API_BASE_URL, type CallContextType, type CallOptions } from "@/lib/api";
 import { CallEngine, callsSocketUrl, type CallState } from "@/lib/callEngine";
-import { getCallPushToken, getNativeAppInfo, isNativeApp, nativePlatform, setNativeCallAudio } from "@/lib/nativeApp";
+import { getCallPushToken, getNativeAppInfo, isNativeApp, nativePlatform, setNativeCallActive, setNativeCallAudio } from "@/lib/nativeApp";
 import { useAuth } from "@/contexts/AuthContext";
 import CallScreen from "./CallScreen";
 
@@ -54,7 +54,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const token = apiClient.getToken();
     if (!token) return;
     const eng = new CallEngine(browserDeps(audioRef.current));
-    const unsubscribe = eng.subscribe(setState);
+    let nativeActive = false;
+    const unsubscribe = eng.subscribe((next) => {
+      setState(next);
+      // In the app: an ongoing-call notification keeps audio alive while connected; released when the call ends.
+      const connected = next.phase === "in_call" || next.phase === "reconnecting";
+      if (connected !== nativeActive) {
+        nativeActive = connected;
+        void setNativeCallActive(connected, next.call?.other.name ?? "");
+      }
+    });
     let cancelled = false;
     void eng.start(callsSocketUrl(API_BASE_URL, window.location.protocol, window.location.host), token).then(async (ok) => {
       if (cancelled) return;
@@ -68,7 +77,17 @@ export function CallProvider({ children }: { children: ReactNode }) {
         }
       }
     });
+    // iPhone: End / Mute pressed on the system (CallKit) call screen.
+    const onNativeEnd = () => void eng.hangUp();
+    const onNativeMute = () => !eng.state.muted && eng.toggleMute();
+    const onNativeUnmute = () => eng.state.muted && eng.toggleMute();
+    window.addEventListener("iic-call-native-end", onNativeEnd);
+    window.addEventListener("iic-call-native-mute", onNativeMute);
+    window.addEventListener("iic-call-native-unmute", onNativeUnmute);
     return () => {
+      window.removeEventListener("iic-call-native-end", onNativeEnd);
+      window.removeEventListener("iic-call-native-mute", onNativeMute);
+      window.removeEventListener("iic-call-native-unmute", onNativeUnmute);
       cancelled = true;
       unsubscribe();
       eng.stop();

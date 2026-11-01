@@ -482,3 +482,13 @@ export async function setNativeCallAudio(route: "speaker" | "earpiece"): Promise
     /* older app: the phone keeps its default route */
   }
 }
+
+/** In-app calls: tell the app a call is connected (keeps audio alive in the background) or has ended. */
+export async function setNativeCallActive(active: boolean, name = ""): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await callNative("IicCall", active ? "callStarted" : "callEnded", active ? { name } : {});
+  } catch {
+    /* older app */
+  }
+}
