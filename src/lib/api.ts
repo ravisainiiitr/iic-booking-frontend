@@ -2481,6 +2481,29 @@ export interface CallInfo {
   ring_seconds: number;
 }
 
+export type LiveFeedSource = "screen" | "camera";
+export type LiveFeedPeerStatus = "offered" | "answered" | "closed" | "failed";
+/** A live instrument feed the Lab Operator started for the booking in progress (GET /live/sessions/). */
+export interface LiveFeedSession {
+  id: number;
+  equipment: { id: number; name: string };
+  booking_id: number;
+  sources: LiveFeedSource[];
+  audio: boolean;
+  status: "active" | "ended";
+  started_at: string;
+  slot_end: string;
+  end_reason: string;
+}
+export interface LiveFeedPeer {
+  peer_id: number;
+  status: LiveFeedPeerStatus;
+  error: string;
+  sdp: string | null;
+  session_status: "active" | "ended";
+  end_reason: string;
+}
+
 /** Whom the user may call about a booking / instrument / invoice (GET /calls/options/). */
 export interface CallOptions {
   enabled: boolean;
@@ -12604,6 +12627,28 @@ class ApiClient {
 
   async getCallOptions(context: CallContextType, id: number) {
     return this.request<CallOptions>(`/calls/options/?context=${context}&id=${id}`);
+  }
+
+  /** Live feeds the user may watch now (their booking's slot, started by the Lab Operator). */
+  async getLiveFeeds(bookingId?: number) {
+    return this.request<{ results: LiveFeedSession[]; ice_servers: RTCIceServer[] }>(
+      bookingId ? `/live/sessions/?booking=${bookingId}` : "/live/sessions/",
+    );
+  }
+
+  async offerLiveFeed(sessionId: number, kind: LiveFeedSource, sdp: string) {
+    return this.request<{ peer_id: number; status: LiveFeedPeerStatus }>(`/live/sessions/${sessionId}/peers/`, {
+      method: "POST",
+      body: JSON.stringify({ kind, sdp }),
+    });
+  }
+
+  async getLiveFeedPeer(peerId: number) {
+    return this.request<LiveFeedPeer>(`/live/peers/${peerId}/`);
+  }
+
+  async closeLiveFeedPeer(peerId: number) {
+    return this.request<unknown>(`/live/peers/${peerId}/`, { method: "DELETE" });
   }
 
   async startCall(body: { context: CallContextType; id: number; role: CallRole; callee_id?: number; reason?: string; platform?: string }) {
