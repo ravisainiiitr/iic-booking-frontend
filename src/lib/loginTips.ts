@@ -46,6 +46,27 @@ export function pickLoginTip(user: LoginTipUser | null | undefined, tips: readon
   return tips.find((t) => t.appliesTo(user)) ?? null;
 }
 
+// ---- Expanded or collapsed (localStorage: kept across sign-ins on this browser; collapsed unless opened) ----
+
+const EXPANDED_KEY = "iic_login_tip_expanded";
+
+export function isLoginTipExpanded(): boolean {
+  try {
+    return localStorage.getItem(EXPANDED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setLoginTipExpanded(expanded: boolean) {
+  try {
+    if (expanded) localStorage.setItem(EXPANDED_KEY, "1");
+    else localStorage.removeItem(EXPANDED_KEY);
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
 // ---- Per-login bookkeeping (sessionStorage: one browser tab or one app session) ----
 
 const KEY_PREFIX = "iic_login_tip_dismissed_";

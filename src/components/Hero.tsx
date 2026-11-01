@@ -32,8 +32,12 @@ const DEFAULT_HOME = {
   stat4_label: "Bookings",
 };
 
+/** The main action (Book Equipment, and sign-in for visitors): solid, the most prominent. */
 const primaryCtaClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-3.5 text-sm text-brand-foreground shadow-lg shadow-black/25 ring-1 ring-white/10 hover:bg-brand/90 sm:gap-2 sm:px-4 sm:text-base";
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/30 ring-1 ring-white/15 hover:bg-brand/90 focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-5 sm:text-base";
+/** Other quick links (catalog, charges, calendar, contact): lighter, so the main action stands out. */
+const secondaryCtaClass =
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap border border-white/35 bg-white/10 px-3.5 text-sm font-medium text-white shadow-sm backdrop-blur-sm hover:bg-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-4 sm:text-base";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -147,7 +151,7 @@ const Hero = () => {
           decoding="async"
           {...{ fetchpriority: "high" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_55%_8%/0.88)] via-[hsl(215_50%_14%/0.55)] to-[hsl(210_45%_12%/0.25)]" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_60%_7%/0.92)] via-[hsl(215_55%_12%/0.68)] to-[hsl(210_45%_12%/0.35)]" />
         <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.75)] via-transparent to-[hsl(210_45%_12%/0.2)]" />
       </div>
 
@@ -157,24 +161,25 @@ const Hero = () => {
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">IIT Roorkee · Online Equipment Booking</span>
+              <span className="truncate">Institute Instrumentation Centre · IIT Roorkee</span>
             </div>
 
             <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
-                className="text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
+                className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
               >
                 {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               </h1>
+              <div className="h-1 w-20 rounded-full bg-gradient-to-r from-amber-300 to-sky-300" aria-hidden />
               <p
-                className="text-lg font-medium text-white/95 sm:text-xl md:text-2xl"
+                className="text-lg font-medium text-sky-100 sm:text-xl md:text-2xl"
                 style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
               >
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-2xl whitespace-pre-line text-base leading-snug text-white/80 sm:text-lg"
+                className="max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 sm:text-lg"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
                 {(() => {
@@ -190,9 +195,9 @@ const Hero = () => {
               </p>
             </div>
 
-            <HeroSearchBar className="max-w-2xl" />
+            <HeroSearchBar className="max-w-2xl rounded-xl shadow-xl shadow-black/30 ring-1 ring-white/20" />
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <nav aria-label="Quick actions" className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {!isAuthenticated && (
                 <Button
                   size="lg"
@@ -226,7 +231,7 @@ const Hero = () => {
               )}
               <Button
                 size="lg"
-                className={primaryCtaClass}
+                className={secondaryCtaClass}
                 style={fontSizes.cta_browse_text ? { fontSize: fontSizes.cta_browse_text } : undefined}
                 onClick={() => scrollTo(home.cta_browse_anchor || "#equipment")}
               >
@@ -235,7 +240,7 @@ const Hero = () => {
               </Button>
               <Button
                 size="lg"
-                className={primaryCtaClass}
+                className={secondaryCtaClass}
                 onClick={() => navigate("/analysis-charges")}
               >
                 <IndianRupee className="h-4 w-4" />
@@ -243,7 +248,7 @@ const Hero = () => {
               </Button>
               <Button
                 size="lg"
-                className={primaryCtaClass}
+                className={secondaryCtaClass}
                 onClick={() => navigate("/booking-calendar")}
               >
                 <CalendarClock className="h-4 w-4" />
@@ -251,18 +256,18 @@ const Hero = () => {
               </Button>
               <Button
                 size="lg"
-                className={primaryCtaClass}
+                className={secondaryCtaClass}
                 onClick={() => scrollTo(home.cta_contact_anchor || "#contact")}
               >
                 <Mail className="h-4 w-4" />
                 {home.cta_contact_text || "Contact Us"}
               </Button>
-            </div>
+            </nav>
           </div>
         </div>
 
         <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/25 bg-white/20 p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_10%/0.35)] backdrop-blur-md sm:gap-3 sm:p-4 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_6%/0.5)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:divide-x lg:divide-white/15">
             {(
               [
                 {

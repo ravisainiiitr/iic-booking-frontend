@@ -48,6 +48,7 @@ import {
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
+import DashboardShortcuts from "@/components/dashboard/DashboardShortcuts";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -4230,10 +4231,17 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} />
+      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={showsLabStyleDashboard} />
       {loginTip}
     </>
   );
+
+  // Internal and external users group their dashboard buttons in the main area ("My shortcuts"); staff dashboards
+  // keep their own layouts. Only buttons this user already has are offered.
+  const showsMyShortcuts = !showsLabStyleDashboard && !usesAdminMenuSections && !isAccountsInChargeUser;
+  const shortcutEntries = dashboardMenuEntries
+    .filter((e) => e.visible && e.path)
+    .map((e) => ({ id: e.id, label: e.label, path: e.path as string }));
 
   const dashboardMenuDefaultOrder = isOicUser
     ? [
@@ -4610,7 +4618,8 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {showsLabStyleDashboard || isAdmin ? <MaintenanceBanner className="mb-4" /> : null}
+        {/* OIC and Lab Operator dashboards show maintenance inside "Needs your attention" instead. */}
+        {isAdmin && !showsLabStyleDashboard ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         <AndroidAppCard className="mb-4" />
@@ -4817,6 +4826,9 @@ const Dashboard = () => {
             </Card>
             )}
             {showAdminOverview ? null : dashboardNotices}
+            {showsMyShortcuts ? (
+              <DashboardShortcuts entries={shortcutEntries} onOpen={(path, label) => openWorkspace(path, label)} />
+            ) : null}
 
         {showsLabStyleDashboard && (
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">

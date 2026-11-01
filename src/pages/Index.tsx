@@ -4,6 +4,8 @@ import EquipmentGrid from "@/components/EquipmentGrid";
 import Features from "@/components/Features";
 import Footer from "@/components/Footer";
 import NoticeBoard from "@/components/NoticeBoard";
+import HallOfFrames from "@/components/home/HallOfFrames";
+import ResearcherOfTheMonth from "@/components/home/ResearcherOfTheMonth";
 import { useEffect } from "react";
 
 const Index = () => {
@@ -39,6 +41,8 @@ const Index = () => {
         </div>
       </section>
 
+      <ResearcherOfTheMonth />
+      <HallOfFrames />
       <Features />
       <Footer />
     </div>

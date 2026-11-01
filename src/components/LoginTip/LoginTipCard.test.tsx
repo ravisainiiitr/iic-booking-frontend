@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { clearLoginTipsThisLogin, type LoginTipUser, type NextSampleReminder } from "@/lib/loginTips";
+import { clearLoginTipsThisLogin, setLoginTipExpanded, type LoginTipUser, type NextSampleReminder } from "@/lib/loginTips";
 import type { SamplePolicyEquipment } from "@/lib/samplePolicy";
 import { LoginTipCard } from "./LoginTipCard";
 
@@ -52,6 +52,8 @@ const renderCard = (user: LoginTipUser | null, nextSampleReminder: NextSampleRem
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
+  setLoginTipExpanded(true); // the content tests below read the opened card; the collapsed default is tested last
   catalog.rows = ROWS;
   catalog.fail = false;
 });
@@ -283,5 +285,31 @@ describe("LoginTipCard", () => {
         "No advance deadline applies: bring your sample at the start of the slot. After the slot, take the sample back with you."
       )
     );
+  });
+
+  it("is collapsed to its title by default and expands on request, remembered on this browser", () => {
+    localStorage.clear();
+    renderCard(student);
+    const toggle = screen.getByRole("button", { name: /Submit your sample before the deadline/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Got it" })).toBeNull();
+    expect(screen.getByTestId("login-tip").getAttribute("data-expanded")).toBe("false");
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "Got it" })).not.toBeNull();
+    cleanup();
+
+    renderCard(student); // next visit: still open
+    expect(screen.getByTestId("login-tip").getAttribute("data-expanded")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /Submit your sample before the deadline/ }));
+    expect(screen.queryByRole("button", { name: "Got it" })).toBeNull();
+  });
+
+  it("can still be dismissed while collapsed", () => {
+    localStorage.clear();
+    renderCard(student);
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss tip" }));
+    expect(screen.queryByTestId("login-tip")).toBeNull();
   });
 });

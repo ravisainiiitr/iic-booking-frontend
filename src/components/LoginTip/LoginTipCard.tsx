@@ -1,11 +1,13 @@
 import { lazy, Suspense, useId, useState } from "react";
-import { CalendarClock, FlaskConical, Info, X } from "lucide-react";
+import { CalendarClock, ChevronDown, FlaskConical, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   dismissLoginTip,
   isLoginTipDismissed,
+  isLoginTipExpanded,
   pickLoginTip,
+  setLoginTipExpanded,
   type LoginTipUser,
   type NextSampleReminder,
 } from "@/lib/loginTips";
@@ -43,8 +45,9 @@ function NextBookingLine({ reminder, rows }: { reminder: NextSampleReminder; row
 }
 
 /**
- * Dashboard card with the tip for the signed-in user. Stays until "Got it" and then stays hidden
- * for the rest of this sign-in (sessionStorage); the next sign-in shows it again.
+ * Dashboard card with the tip for the signed-in user. Collapsed to its title by default (one line); the user can
+ * expand it, and that choice is kept on this browser. Stays until "Got it" and then stays hidden for the rest of
+ * this sign-in (sessionStorage); the next sign-in shows it again.
  */
 export function LoginTipCard({
   user,
@@ -56,6 +59,8 @@ export function LoginTipCard({
   className?: string;
 }) {
   const titleId = useId();
+  const bodyId = useId();
+  const [expanded, setExpanded] = useState(isLoginTipExpanded);
   const tip = pickLoginTip(user);
   const userId = user?.id ?? null;
   const [dismissedNow, setDismissedNow] = useState<string | null>(null);
@@ -75,33 +80,62 @@ export function LoginTipCard({
 
   const atSlotNames = tip.samplePolicy ? sampleAtSlotShortList(equipment.rows) : "";
   const reminder = tip.samplePolicy ? nextSampleReminder : null;
+  const toggle = () => {
+    setExpanded((was) => {
+      setLoginTipExpanded(!was);
+      return !was;
+    });
+  };
 
   return (
     <section
       role="status"
       aria-labelledby={titleId}
       data-testid="login-tip"
+      data-expanded={expanded ? "true" : "false"}
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 px-4 py-4 shadow-sm sm:px-5",
+        "relative overflow-hidden rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-emerald-50 shadow-sm",
+        expanded ? "px-4 py-4 sm:px-5" : "px-3 py-2 sm:px-4",
         "dark:border-sky-500/30 dark:from-sky-500/10 dark:via-card dark:to-emerald-500/10",
         className
       )}
     >
-      <div className="flex items-start gap-3 sm:gap-4">
+      <div className={cn("flex gap-3 sm:gap-4", expanded ? "items-start" : "items-center")}>
         <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm sm:h-11 sm:w-11"
+          className={cn(
+            "flex shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm",
+            expanded ? "h-10 w-10 sm:h-11 sm:w-11" : "h-7 w-7 rounded-lg"
+          )}
           aria-hidden
         >
-          <FlaskConical className="h-5 w-5" />
+          <FlaskConical className={expanded ? "h-5 w-5" : "h-4 w-4"} />
         </span>
         <div className="min-w-0 flex-1">
           <h2 id={titleId} className="pr-8 leading-snug">
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-300">
-              {tip.eyebrow}
-              <span className="sr-only">:</span>
-            </span>{" "}
-            <span className="block text-base font-semibold text-foreground">{tip.title}</span>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-expanded={expanded}
+              aria-controls={bodyId}
+              className="group flex w-full min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+            >
+              <span className={cn("min-w-0", expanded ? "block" : "flex items-baseline gap-2 truncate")}>
+                <span className="block shrink-0 text-[11px] font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+                  {tip.eyebrow}
+                  <span className="sr-only">:</span>
+                </span>{" "}
+                <span className={cn("font-semibold text-foreground", expanded ? "block text-base" : "truncate text-sm")}>
+                  {tip.title}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn("ml-auto h-4 w-4 shrink-0 text-sky-700 transition-transform dark:text-sky-300", expanded && "rotate-180")}
+                aria-hidden
+              />
+              <span className="sr-only">{expanded ? "Collapse tip" : "Expand tip"}</span>
+            </button>
           </h2>
+          <div id={bodyId} hidden={!expanded}>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{tip.body}</p>
           {tip.samplePolicy ? (
             <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground" data-testid="login-tip-at-slot">
@@ -132,6 +166,7 @@ export function LoginTipCard({
                 More information
               </Button>
             ) : null}
+          </div>
           </div>
         </div>
       </div>
