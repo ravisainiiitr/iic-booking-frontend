@@ -49,6 +49,7 @@ import {
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
 import DashboardShortcuts from "@/components/dashboard/DashboardShortcuts";
+import DashboardQuickActions from "@/components/dashboard/DashboardQuickActions";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -4244,6 +4245,12 @@ const Dashboard = () => {
   const shortcutEntries = dashboardMenuEntries
     .filter((e) => e.visible && e.path)
     .map((e) => ({ id: e.id, label: e.label, path: e.path as string }));
+  // Internal / external user dashboards (Module 7.1): calmer cards with one accent; staff dashboards keep theirs.
+  const userCards = showsMyShortcuts;
+  const greetingName = String(user?.name || "")
+    .trim()
+    .split(/\s+/)
+    .filter((part) => !/^(dr|prof|mr|mrs|ms|shri|smt)\.?$/i.test(part))[0];
 
   const dashboardMenuDefaultOrder = isOicUser
     ? [
@@ -4812,6 +4819,12 @@ const Dashboard = () => {
                   notices={loginTip}
                 />
               </Suspense>
+            ) : showsMyShortcuts ? (
+              <DashboardQuickActions
+                firstName={greetingName}
+                entries={shortcutEntries}
+                onOpen={(path, label) => openWorkspace(path, label)}
+              />
             ) : !showsLabStyleDashboard && (
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
@@ -5549,20 +5562,24 @@ const Dashboard = () => {
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && (
           <section className="mt-6 space-y-5">
-            <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider">
-              Your activity
-            </p>
-            <div className="dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {userCards ? (
+              <h2 className="text-base font-semibold tracking-tight">Your activity</h2>
+            ) : (
+              <p className="dashboard-section-title text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Your activity
+              </p>
+            )}
+            <div className={cn("dashboard-uniform-cards grid grid-cols-1 lg:grid-cols-2", userCards ? "gap-4" : "gap-6")}>
               {/* Upcoming Bookings Section */}
-              <Card className="overflow-hidden border-0 shadow-lg shadow-primary/10 bg-card rounded-2xl">
-                <CardHeader className="pb-4 border-b bg-gradient-to-r from-primary/10 to-accent/10">
+              <Card className={userCards ? "overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm" : "overflow-hidden border-0 shadow-lg shadow-primary/10 bg-card rounded-2xl"}>
+                <CardHeader className={userCards ? "border-b border-border/60 bg-muted/30 px-4 py-3 sm:px-5" : "pb-4 border-b bg-gradient-to-r from-primary/10 to-accent/10"}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg">
-                        <Calendar className="h-6 w-6" />
+                      <div className={userCards ? "flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-300" : "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-brand/50 to-brand-accent text-white shadow-lg"}>
+                        <Calendar className={userCards ? "h-4 w-4" : "h-6 w-6"} aria-hidden />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">Upcoming bookings</CardTitle>
+                        <CardTitle className={userCards ? "text-base font-semibold" : "text-lg"}>Upcoming bookings</CardTitle>
                         <CardDescription className="text-sm">
                           {isDeptAdmin
                             ? "Upcoming sessions on your department’s equipment"
@@ -5652,15 +5669,15 @@ const Dashboard = () => {
               </Card>
 
               {/* Equipment Statistics Section */}
-              <Card className="overflow-hidden border-0 shadow-lg shadow-emerald-500/10 bg-card rounded-2xl">
-                <CardHeader className="pb-4 border-b bg-gradient-to-r from-emerald-500/10 to-primary/10">
+              <Card className={userCards ? "overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm" : "overflow-hidden border-0 shadow-lg shadow-emerald-500/10 bg-card rounded-2xl"}>
+                <CardHeader className={userCards ? "border-b border-border/60 bg-muted/30 px-4 py-3 sm:px-5" : "pb-4 border-b bg-gradient-to-r from-emerald-500/10 to-primary/10"}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg">
-                        <BarChart3 className="h-6 w-6" />
+                      <div className={userCards ? "flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-300" : "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand text-white shadow-lg"}>
+                        <BarChart3 className={userCards ? "h-4 w-4" : "h-6 w-6"} aria-hidden />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">Equipment statistics</CardTitle>
+                        <CardTitle className={userCards ? "text-base font-semibold" : "text-lg"}>Equipment statistics</CardTitle>
                         <CardDescription className="text-sm">
                           {isDeptAdmin
                             ? "Usage and spending for your department’s equipment"
@@ -5672,7 +5689,9 @@ const Dashboard = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => navigate("/reports")}
-                      className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-500/10 dark:text-emerald-300 dark:hover:text-emerald-200 shrink-0"
+                      className={userCards
+                        ? "text-primary hover:text-primary hover:bg-primary/10 shrink-0"
+                        : "text-emerald-700 hover:text-emerald-800 hover:bg-emerald-500/10 dark:text-emerald-300 dark:hover:text-emerald-200 shrink-0"}
                     >
                       View Report
                       <ArrowRight className="h-4 w-4 ml-1" />
@@ -5721,7 +5740,9 @@ const Dashboard = () => {
                     </ul>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-primary/10 dark:from-emerald-900/30 dark:to-primary/30 text-emerald-600 dark:text-emerald-400 mb-4">
+                      <div className={cn("flex h-14 w-14 items-center justify-center rounded-2xl mb-4", userCards
+                        ? "bg-primary/10 text-primary dark:bg-primary/15 dark:text-sky-300"
+                        : "bg-gradient-to-br from-emerald-100 to-primary/10 dark:from-emerald-900/30 dark:to-primary/30 text-emerald-600 dark:text-emerald-400")}>
                         <TrendingUp className="h-7 w-7" />
                       </div>
                       <p className="font-medium text-foreground">No statistics yet</p>
