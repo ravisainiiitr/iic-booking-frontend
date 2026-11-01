@@ -409,7 +409,19 @@ export interface GlobalSearchResult {
     /** Lab Operator, Officer In Charge and Accounts In Charge of the booking's equipment. */
     contacts?: SearchContacts | null;
   }>;
-  people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
+  /**
+   * People, apart from bookings: name matches (staff: any user; others: Officers in Charge and Lab In-charges), then
+   * the people on the matching bookings. ``relation`` says why they are listed, e.g. "Booked IICXRD…".
+   */
+  people: Array<{
+    id: number;
+    name: string;
+    email: string;
+    user_type: string;
+    department: string;
+    photo_url?: string | null;
+    relation?: string;
+  }>;
   people_enabled: boolean;
   staff_view?: boolean;
   /** Officers in Charge and Lab In-charges matching by name, with the instruments they look after (signed-in users). */
@@ -2427,13 +2439,38 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
-/** One of the user's own groups of dashboard buttons ("My shortcuts"); list order is the group order. */
-export interface DashboardShortcutGroup {
-  id: string;
-  name: string;
-  icon: string;
-  items: string[];
-  collapsed: boolean;
+/** One of the user's own bookings on the My activity panel. */
+export interface MyActivityBooking {
+  id: number;
+  display_id: string;
+  equipment: { id: number; name: string; code: string };
+  status: string;
+  status_display: string;
+  slot_start: string | null;
+  slot_end: string | null;
+  charge: number;
+  /** Upcoming bookings only: when the sample must reach the lab (null when the equipment sets none). */
+  sample_deadline?: string | null;
+}
+
+/** GET /profiles/me/activity/: the signed-in user's day-to-day summary (internal and external users). */
+export interface MyActivity {
+  generated_at: string;
+  next: MyActivityBooking | null;
+  upcoming: MyActivityBooking[];
+  counts: {
+    upcoming: number;
+    awaiting_payment: number;
+    needs_choice: number;
+    waitlisted: number;
+    processing: number;
+    completed_month: number;
+  };
+  results: { new: number; recent: Array<MyActivityBooking & { files: number; ready_at: string | null; new: boolean }> };
+  spend: { this_month: number; last_month: number; year: number; months: Array<{ month: string; amount: number; bookings: number }> };
+  hours: { this_month: number; year: number };
+  wallet: { balance: number; is_owner: boolean } | null;
+  book_again: Array<{ id: number; name: string; code: string; times: number; last_booked: string | null; available: boolean }>;
 }
 
 export interface DashboardMenuLayout {
@@ -12470,6 +12507,10 @@ class ApiClient {
     });
   }
 
+  async getMyActivity() {
+    return this.request<MyActivity>("/profiles/me/activity/");
+  }
+
   async getDashboardMenuLayout() {
     return this.request<DashboardMenuLayout>("/profiles/me/dashboard-menu-layout/");
   }
@@ -12479,22 +12520,6 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(layout),
     });
-  }
-
-  async getDashboardShortcuts() {
-    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/");
-  }
-
-  async saveDashboardShortcuts(groups: DashboardShortcutGroup[]) {
-    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/", {
-      method: "PUT",
-      body: JSON.stringify({ groups }),
-    });
-  }
-
-  /** Restore the default dashboard: removes all of the user's groups. */
-  async resetDashboardShortcuts() {
-    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/", { method: "DELETE" });
   }
 
   async getDashboardEquipmentOrder() {

@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { resetAutomationFeaturesCache } from "@/components/automation/useAutomationFeatures";
 import { GlobalSearchHost, openGlobalSearch } from "./GlobalSearch";
 import { bookingHref, editDistance, matchPages, pagesFor, rememberSearch, loadRecentSearches } from "./searchCatalog";
+import { menuActionsFor, publishMenuActions } from "./menuActions";
 
 const auth = vi.hoisted(() => ({ value: { user: null as unknown, isAuthenticated: false } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
@@ -123,7 +124,7 @@ describe("GlobalSearchHost", () => {
     });
     renderHost();
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    const input = await screen.findByPlaceholderText(/Search booking ID, equipment, user name/);
+    const input = await screen.findByPlaceholderText(/Search booking ID, equipment, a person/);
     fireEvent.change(input, { target: { value: "IIC" } });
 
     expect(await screen.findByText("IICXRD202600042")).toBeTruthy();
@@ -153,27 +154,53 @@ describe("GlobalSearchHost", () => {
     expect(openUserCard).toHaveBeenCalledWith(9);
   });
 
-  it("lets users find the Officer in Charge and Lab In-charge and opens their instrument", async () => {
+  it("lists people apart from bookings, with why they are listed, and opens their ID card", async () => {
     auth.value = { user: { id: 2, user_type: "student" }, isAuthenticated: true };
     api.globalSearch.mockResolvedValue({
       data: {
-        query: "mee",
+        query: "IICXRD",
         equipment: [],
-        bookings: [],
-        people: [],
-        people_enabled: false,
-        lab_staff: [
-          { id: 5, name: "Dr. Meera Sharma", role: "Officer in Charge", email: "meera@iitr.ac.in",
-            equipment: [{ id: 10, name: "FESEM-APREO", code: "APREO" }] },
+        bookings: [
+          { id: 42, virtual_booking_id: "IICXRD202600042", status: "BOOKED", status_label: "Booked",
+            equipment: "X-ray Diffractometer", equipment_code: "XRD", user_name: "", slot_start: null,
+            created_at: null, own: true },
         ],
+        people: [
+          { id: 5, name: "Dr. Meera Sharma", email: "meera@iitr.ac.in", user_type: "Officer In Charge",
+            department: "", photo_url: null, relation: "Officer in Charge · X-ray Diffractometer" },
+        ],
+        people_enabled: false,
       },
     });
     renderHost();
-    act(() => openGlobalSearch("mee"));
-    expect(await screen.findByText("Officer in Charge and Lab In-charge")).toBeTruthy();
-    expect(screen.getByText("Officer in Charge · meera@iitr.ac.in")).toBeTruthy();
-    fireEvent.click(screen.getByText("Dr. Meera Sharma"));
-    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/equipment/10"));
+    act(() => openGlobalSearch("IICXRD"));
+    const people = (await screen.findByText("People")).closest("[cmdk-group]") as HTMLElement;
+    const bookings = screen.getByText("Bookings").closest("[cmdk-group]") as HTMLElement;
+    expect(within(people).getByText("Officer in Charge · X-ray Diffractometer")).toBeTruthy();
+    expect(within(bookings).queryByText(/Meera/)).toBeNull();
+    fireEvent.click(within(people).getByText("Dr. Meera Sharma"));
+    expect(openUserCard).toHaveBeenCalledWith(5);
+  });
+
+  it("finds the user's own menu items and Admin Settings pages", async () => {
+    publishMenuActions(1, [{ id: "change_slot_status", label: "Change Slot Status", path: "/change-slot-status?x=1" }]);
+    auth.value = { user: { id: 1, user_type: "admin" }, isAuthenticated: true };
+    api.globalSearch.mockResolvedValue({
+      data: { query: "slot", equipment: [], bookings: [], people: [], people_enabled: true },
+    });
+    renderHost();
+    act(() => openGlobalSearch("slot"));
+    const pages = (await screen.findByText("Pages and settings")).closest("[cmdk-group]") as HTMLElement;
+    expect(within(pages).getByText("Change Slot Status")).toBeTruthy();
+    expect(within(pages).getByText("Admin settings: Session / Auto-logout")).toBeTruthy();
+    fireEvent.click(within(pages).getByText("Change Slot Status"));
+    await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/change-slot-status?x=1"));
+  });
+
+  it("never offers another user's menu", () => {
+    publishMenuActions(1, [{ id: "a", label: "A", path: "/a" }]);
+    expect(menuActionsFor(2)).toEqual([]);
+    expect(menuActionsFor(1).map((m) => m.path)).toEqual(["/a"]);
   });
 
   it("shows technique hints and a did-you-mean suggestion that refines the query", async () => {
