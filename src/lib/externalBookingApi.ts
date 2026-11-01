@@ -423,6 +423,16 @@ export const externalBookingApi = {
       method: "POST",
       json: body,
     }),
+  labFailureQuote: (bookingId: number, portion = 100) =>
+    request<LabFailureQuote>(`${extBase()}/bookings/${bookingId}/lab-failure-refund/?portion=${portion}`),
+  refundLabFailure: (
+    bookingId: number,
+    body: { kind: LabFailureKind; reason: string; portion_percent: number; expected_refund: string },
+  ) =>
+    request<{ refund: ExternalRefund; booking_status: string }>(`${extBase()}/bookings/${bookingId}/lab-failure-refund/`, {
+      method: "POST",
+      json: body,
+    }),
   refundAccounts: () => request<{ accounts: RefundBankAccount[] }>(`${extBase()}/refund-accounts/`),
   addRefundAccount: (body: RefundBankAccountInput) =>
     request<RefundBankAccount>(`${extBase()}/refund-accounts/`, { method: "POST", json: body }),
@@ -674,11 +684,36 @@ export interface CancellationQuote {
   refund_base?: string;
   refund_gst?: string;
   refund?: string;
+  /** Return shipping given back when the lab is at fault (base, plus GST only when no invoice was requested). */
+  shipping_refunded?: string;
+  /** Share of the service charges refunded. */
+  portion_percent?: number;
   first_slot_start?: string | null;
   free_until?: string | null;
   half_until?: string | null;
   rules?: { free_hours: number; half_hours: number; half_penalty_percent: number };
   accounts?: RefundBankAccount[];
+}
+
+export type LabFailureKind = "equipment_failure" | "analysis_unsuccessful";
+
+/** Refund the lab would make for equipment failure / analysis not possible (server-computed). */
+export interface LabFailureQuote {
+  paid: string;
+  gst_paid: string;
+  return_shipping: string;
+  refundable_base: string;
+  refund_base: string;
+  refund_gst: string;
+  refund: string;
+  gst_refunded: boolean;
+  invoice_requested: boolean;
+  shipping_refunded: string;
+  portion_percent: number;
+  /** Service charges refunded, before GST. */
+  service_refunded: string;
+  tier: string;
+  kinds: Record<LabFailureKind, string>;
 }
 
 export type RefundStatus = "queued" | "sent" | "failed" | "closed";

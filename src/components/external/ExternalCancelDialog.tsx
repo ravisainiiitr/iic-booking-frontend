@@ -194,7 +194,12 @@ export function ExternalCancelDialog({
             <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 tabular-nums" data-testid="refund-breakdown">
               <dt className="text-muted-foreground">Amount paid</dt>
               <dd>{formatINRWithPaise(quote.paid ?? "0")}</dd>
-              {Number(quote.return_shipping ?? 0) > 0 ? (
+              {Number(quote.shipping_refunded ?? 0) > 0 ? (
+                <>
+                  <dt className="text-muted-foreground">Return shipping (refunded: the lab is at fault)</dt>
+                  <dd>{formatINRWithPaise(quote.shipping_refunded ?? "0")}</dd>
+                </>
+              ) : Number(quote.return_shipping ?? 0) > 0 ? (
                 <>
                   <dt className="text-muted-foreground">Return shipping (non-refundable)</dt>
                   <dd>− {formatINRWithPaise(quote.return_shipping ?? "0")}</dd>
