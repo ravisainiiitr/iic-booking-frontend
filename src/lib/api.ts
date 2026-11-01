@@ -5723,6 +5723,11 @@ class ApiClient {
     return this.request<CmsPagePublic>(`/cms/pages/${encodeURIComponent(slug)}/`);
   }
 
+  /** Public: the published website policy pages (Terms, Privacy, Refunds, About), in footer order. */
+  async getPolicyPages() {
+    return this.request<{ pages: { slug: string; title: string }[] }>('/cms/policy-pages/');
+  }
+
   async getEquipmentById(id: string) {
     return this.request<any>(`/equipment/${id}/`);
   }

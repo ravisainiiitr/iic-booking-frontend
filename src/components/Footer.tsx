@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Clock, FlaskConical, Mail, MapPin, Phone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { Link } from "react-router-dom";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
+import { loadPolicyPages, type PolicyPageLink } from "@/lib/policyPages";
 
 const LINK_CLASS = "hover:text-primary transition-colors";
 const HEADING_CLASS = "text-sm font-semibold text-foreground mb-2";
@@ -13,6 +15,17 @@ const Footer = () => {
   const { isAuthenticated } = useAuth();
   const { openGuide } = useUserGuide();
   const embedded = useEmbeddedMode();
+  // Website policies the payment gateway requires; each appears once it is published in the CMS.
+  const [policyPages, setPolicyPages] = useState<PolicyPageLink[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void loadPolicyPages().then((pages) => {
+      if (alive) setPolicyPages(pages);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const isEmbed =
     embedded ||
     (typeof window !== "undefined" &&
@@ -87,6 +100,18 @@ const Footer = () => {
                   Support Tickets
                 </Link>
               </li>
+              <li>
+                <Link to="/analysis-charges" className={LINK_CLASS}>
+                  Pricing (Analysis Charges)
+                </Link>
+              </li>
+              {policyPages.map((page) => (
+                <li key={page.slug}>
+                  <Link to={`/page/${page.slug}`} className={LINK_CLASS}>
+                    {page.title}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -106,6 +131,13 @@ const Footer = () => {
                 <a href="mailto:iic@iitr.ac.in" className={LINK_CLASS}>
                   iic@iitr.ac.in
                 </a>
+              </li>
+              <li className="flex items-start gap-2">
+                <MapPin className={`${ICON_CLASS} mt-0.5`} aria-hidden="true" />
+                <span className="sr-only">Address: </span>
+                <address className="not-italic leading-snug">
+                  Institute Instrumentation Centre, IIT Roorkee, Roorkee 247667, Uttarakhand, India
+                </address>
               </li>
               <li className="flex items-center gap-2">
                 <Clock className={ICON_CLASS} aria-hidden="true" />
