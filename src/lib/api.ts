@@ -2456,6 +2456,17 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
+export type ProfileOnboardingStep = "organisation" | "gender" | "mobile" | "programme" | "password";
+
+/** GET/POST /profiles/me/onboarding/: steps still to complete after signing up with an I-STEM account. */
+export interface ProfileOnboarding {
+  required: boolean;
+  steps: ProfileOnboardingStep[];
+  /** For the organisation step: what I-STEM said (State/UT code, organisation name) and which list to show. */
+  hints: { state?: string; organisation?: string; subcategory?: string };
+  values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
+}
+
 /** One of the user's own bookings on the My activity panel. */
 export interface MyActivityBooking {
   id: number;
@@ -12537,6 +12548,18 @@ class ApiClient {
     }>(`/oic/equipment-additional-accessories/${accessoryId}/`, {
       method: "PATCH",
       body: JSON.stringify({ is_enabled: isEnabled }),
+    });
+  }
+
+  /** What an account created from I-STEM still has to complete (organisation, gender, mobile, programme, password). */
+  async getOnboarding() {
+    return this.request<ProfileOnboarding>("/profiles/me/onboarding/");
+  }
+
+  async saveOnboardingStep(step: ProfileOnboardingStep, values: Record<string, string | number>) {
+    return this.request<ProfileOnboarding>("/profiles/me/onboarding/", {
+      method: "POST",
+      body: JSON.stringify({ step, ...values }),
     });
   }
 

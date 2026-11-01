@@ -29,16 +29,24 @@ export function splitIdentifier(value: string): { email: string; mobile: string 
  * number registered on I-STEM (either is enough, 31 Oct 2026), enters the OTP sent to the email registered on I-STEM,
  * and the form is filled from I-STEM; submitting it confirms the registration at once. Nothing about the I-STEM
  * account is shown before the OTP is verified (the server enforces it).
+ *
+ * With ``userType`` and ``onSignedIn`` the account is created at once after the OTP (no password, no form) and the
+ * user is signed in; the dashboard then asks for whatever is still missing. Without them the form is filled instead.
  */
 export default function IstemRegistrationDialog({
   open,
   onOpenChange,
   onVerified,
+  userType,
+  onSignedIn,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onVerified: (result: IstemRegistrationResult) => void;
+  userType?: string;
+  onSignedIn?: (token: string, user: Record<string, unknown>) => void;
 }) {
+  const direct = Boolean(userType && onSignedIn);
   const [step, setStep] = useState<Step>("ask");
   const [identifier, setIdentifier] = useState("");
   const [token, setToken] = useState("");
@@ -76,6 +84,18 @@ export default function IstemRegistrationDialog({
     setError("");
     try {
       const res = await istemRegisterApi.verify(token, otp);
+      if (userType && onSignedIn) {
+        try {
+          const done = await istemRegisterApi.complete(res.link_token, userType);
+          onSignedIn(done.token, done.user);
+          close();
+          return;
+        } catch (e) {
+          // An existing portal account (or an unexpected refusal): say so; the form below still works.
+          setError(e instanceof Error ? e.message : "Your account could not be created. Please try again.");
+          return;
+        }
+      }
       const given = splitIdentifier(identifier);
       const profileEmail = String(res.profile.email ?? "").trim().toLowerCase();
       const profileMobile = String(res.profile.mobile ?? "").replace(/\D/g, "").slice(-10);
@@ -103,7 +123,9 @@ export default function IstemRegistrationDialog({
           <DialogTitle>Already registered on I-STEM?</DialogTitle>
           <DialogDescription>
             {step === "ask"
-              ? "If you have an account on I-STEM, the national facility portal, we can fill in this form from it."
+              ? direct
+                ? "If you have an account on I-STEM, the national facility portal, we can create your account from it: no form to fill."
+                : "If you have an account on I-STEM, the national facility portal, we can fill in this form from it."
               : step === "details"
                 ? "Enter the email or the mobile number registered on I-STEM. We send a one-time password to the email registered there."
                 : `Enter the 6-digit OTP sent to ${masked}.`}
@@ -156,7 +178,7 @@ export default function IstemRegistrationDialog({
               <Button type="button" variant="outline" onClick={() => setStep("details")} disabled={busy}>Back</Button>
               <Button type="button" onClick={verify} disabled={busy || otp.length !== 6}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
-                Verify and fill the form
+                {direct ? "Verify and create my account" : "Verify and fill the form"}
               </Button>
             </>
           )}
