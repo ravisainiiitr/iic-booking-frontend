@@ -42,7 +42,10 @@ import {
   matchPages,
   pagesFor,
   rememberSearch,
+  searchablePages,
 } from "./searchCatalog";
+import { menuActionsFor } from "./menuActions";
+import { adminSettingsTiles } from "@/pages/adminSettingsTiles";
 
 const DEBOUNCE_MS = 200;
 
@@ -64,6 +67,32 @@ function StatusPill({ status, label }: { status: string; label: string }) {
       )}
     >
       {label}
+    </span>
+  );
+}
+
+/** Photo, or initials when there is none or it cannot be loaded. */
+function PersonAvatar({ name, photoUrl }: { name: string; photoUrl?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name
+    .split(/\s+/)
+    .filter((w) => /^[A-Za-z]/.test(w) && !/^(dr|prof|mr|mrs|ms)\.?$/i.test(w))
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+  return photoUrl && !failed ? (
+    <img
+      src={photoUrl}
+      alt=""
+      width={36}
+      height={36}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="mr-3 h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border"
+    />
+  ) : (
+    <span className="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary dark:text-sky-300" aria-hidden>
+      {initials || <UserRound className="h-4 w-4" />}
     </span>
   );
 }
@@ -110,7 +139,12 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
 
   const pages = useMemo(() => pagesFor(user?.user_type, isAuthenticated), [user?.user_type, isAuthenticated]);
   const trimmed = query.trim();
-  const pageHits = useMemo(() => matchPages(pages, trimmed), [pages, trimmed]);
+  // Fixed pages, the user's own dashboard menu and their Admin Settings tiles (re-read on every open).
+  const actionPages = useMemo(
+    () => (open && isAuthenticated ? searchablePages(pages, menuActionsFor(user?.id), adminSettingsTiles(user)) : pages),
+    [open, isAuthenticated, pages, user],
+  );
+  const pageHits = useMemo(() => matchPages(actionPages, trimmed, 8), [actionPages, trimmed]);
   const staffView = Boolean(result.staff_view);
 
   useEffect(() => {
@@ -164,14 +198,11 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
   const searching = trimmed.length >= 2;
   const isStaffUser =
     isAuthenticated && (staffView || ["admin", "dept_admin", "manager", "operator"].includes(String(user?.user_type ?? "").toLowerCase()));
-  // Staff already find every user under People; other users find lab staff here.
-  const labStaff = isStaffUser ? [] : result.lab_staff ?? [];
-  const hasHits =
-    pageHits.length + result.equipment.length + result.bookings.length + result.people.length + labStaff.length > 0;
+  const hasHits = pageHits.length + result.equipment.length + result.bookings.length + result.people.length > 0;
   const placeholder = isAuthenticated
     ? isStaffUser
-      ? "Search booking ID, equipment, user name or email…"
-      : "Search equipment, your bookings, Officer in Charge or Lab In-charge…"
+      ? "Search booking ID, equipment, a person, a page or a setting…"
+      : "Search equipment, your bookings, people, pages or settings…"
     : "Search equipment and pages…";
 
   return (
@@ -259,8 +290,8 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                   {!isAuthenticated
                     ? "Tip: type an instrument name, code or what you want to measure, e.g. XRD, crystal structure or thermal stability. Sign in to search your bookings."
                     : isStaffUser
-                      ? "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name, code or technique, or a user's name, email or phone."
-                      : "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code, or a technique such as surface morphology."}
+                      ? "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name, code or technique, a user's name, email or phone, or a page or setting such as change slot status."
+                      : "Tip: type a booking ID (e.g. IICXRD2026…), an equipment name or code, a technique such as surface morphology, a person, or a page such as wallet."}
                 </p>
               </>
             ) : null}
@@ -280,7 +311,7 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
             ) : null}
 
             {searching && pageHits.length > 0 ? (
-              <CommandGroup heading="Pages">
+              <CommandGroup heading="Pages and settings">
                 {pageHits.map((p) => (
                   <CommandItem key={p.path} value={`page-${p.path}`} onSelect={() => go(p.path)}>
                     <LayoutGrid className="mr-3 h-4 w-4 text-muted-foreground" aria-hidden />
@@ -307,10 +338,8 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                       </div>
                       <p className={SECONDARY}>
                         {b.equipment}
-                        {b.user_name ? ` · ${b.user_name}` : ""}
                         {b.slot_start ? ` · ${shortDate(b.slot_start)}` : ""}
                       </p>
-                      <SearchContacts contacts={b.contacts} />
                     </div>
                   </CommandItem>
                 ))}
@@ -407,38 +436,23 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
               </CommandGroup>
             ) : null}
 
-            {searching && labStaff.length > 0 ? (
-              <CommandGroup heading="Officer in Charge and Lab In-charge">
-                {labStaff.map((s) => (
-                  <CommandItem
-                    key={`s-${s.role}-${s.id}`}
-                    value={`staff-${s.role}-${s.id}`}
-                    onSelect={() => (s.equipment[0] ? go(`/equipment/${s.equipment[0].id}`) : undefined)}
-                    className="group items-start"
-                  >
-                    <UserRound className="mr-3 mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{s.name}</p>
-                      <p className={SECONDARY}>{[s.role, s.email].filter(Boolean).join(" · ")}</p>
-                      {s.equipment.length > 0 ? (
-                        <p className={SECONDARY}>{s.equipment.map((e) => e.name).join(", ")}</p>
-                      ) : null}
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : null}
-
             {searching && result.people.length > 0 ? (
               <CommandGroup heading="People">
                 {result.people.map((p) => (
-                  <CommandItem key={`p-${p.id}`} value={`person-${p.id}`} onSelect={() => openPerson(p.id)} className="group">
-                    <IdCard className="mr-3 h-4 w-4 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-hidden />
+                  <CommandItem
+                    key={`p-${p.id}`}
+                    value={`person-${p.id}`}
+                    onSelect={() => openPerson(p.id)}
+                    className="group items-start"
+                  >
+                    <PersonAvatar name={p.name} photoUrl={p.photo_url} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{p.name}</p>
-                      <p className={SECONDARY}>
-                        {[p.user_type, p.department, p.email].filter(Boolean).join(" · ")}
+                      <p className="flex items-center gap-2 text-sm font-medium">
+                        <span className="truncate">{p.name}</span>
+                        <IdCard className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-data-[selected=true]:text-current" aria-label="Opens ID card" />
                       </p>
+                      <p className={SECONDARY}>{[p.user_type, p.department, p.email].filter(Boolean).join(" · ")}</p>
+                      {p.relation ? <p className={SECONDARY}>{p.relation}</p> : null}
                     </div>
                   </CommandItem>
                 ))}

@@ -36,6 +36,8 @@ import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceip
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
+import { MenuActionsPublisher } from "@/components/search/menuActions";
+import MyActivity from "@/components/dashboard/MyActivity";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
@@ -48,8 +50,6 @@ import {
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
-import DashboardShortcuts from "@/components/dashboard/DashboardShortcuts";
-import DashboardQuickActions from "@/components/dashboard/DashboardQuickActions";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -1672,12 +1672,11 @@ const Dashboard = () => {
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
-  const canCustomizeDashboardMenu = isOicUser || isAdmin;
   const [dashboardMenuLayout, setDashboardMenuLayout] = useState<DashboardMenuLayout | null>(null);
   const [hasFabricationEquipment, setHasFabricationEquipment] = useState(false);
 
   useEffect(() => {
-    if (!user?.id || !canCustomizeDashboardMenu) {
+    if (!user?.id) {
       setDashboardMenuLayout(null);
       return;
     }
@@ -1688,7 +1687,7 @@ const Dashboard = () => {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, canCustomizeDashboardMenu]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user?.id || !(isOicUser || isDeptAdmin)) {
@@ -4239,18 +4238,11 @@ const Dashboard = () => {
     </>
   );
 
-  // Internal and external users group their dashboard buttons in the main area ("My shortcuts"); staff dashboards
-  // keep their own layouts. Only buttons this user already has are offered.
-  const showsMyShortcuts = !showsLabStyleDashboard && !usesAdminMenuSections && !isAccountsInChargeUser;
-  const shortcutEntries = dashboardMenuEntries
-    .filter((e) => e.visible && e.path)
-    .map((e) => ({ id: e.id, label: e.label, path: e.path as string }));
-  // Internal / external user dashboards (Module 7.1): calmer cards with one accent; staff dashboards keep theirs.
-  const userCards = showsMyShortcuts;
-  const greetingName = String(user?.name || "")
-    .trim()
-    .split(/\s+/)
-    .filter((part) => !/^(dr|prof|mr|mrs|ms|shri|smt)\.?$/i.test(part))[0];
+  // Internal / external user dashboards: calmer cards with one accent; staff dashboards keep theirs. Like every
+  // user, they arrange their own left menu (groups for rarely used items, and the order) as the OIC does.
+  const userCards = !showsLabStyleDashboard && !usesAdminMenuSections && !isAccountsInChargeUser;
+  // Internal and external users (not OIC, Lab In-charge or administrators) get the full My activity panel.
+  const showsMyActivity = userCards && !isOperatorOrManager && isEndUserBookingType(userTypeStr);
 
   const dashboardMenuDefaultOrder = isOicUser
     ? [
@@ -4453,7 +4445,7 @@ const Dashboard = () => {
           entries={dashboardMenuEntries}
           defaultOrder={dashboardMenuDefaultOrder}
           layout={dashboardMenuLayout}
-          canCustomize={canCustomizeDashboardMenu}
+          canCustomize
           activePath={activeMenuPath}
           onSaveLayout={saveDashboardMenuLayout}
           footer={downloadBrochureButton}
@@ -4466,6 +4458,12 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page page-shell">
       <DashboardHeader />
+      <MenuActionsPublisher
+        userId={user?.id}
+        actions={dashboardMenuEntries
+          .filter((e) => e.visible && e.path)
+          .map((e) => ({ id: e.id, label: e.label, path: e.path as string }))}
+      />
 
       <main
         id="main-content"
@@ -4819,13 +4817,7 @@ const Dashboard = () => {
                   notices={loginTip}
                 />
               </Suspense>
-            ) : showsMyShortcuts ? (
-              <DashboardQuickActions
-                firstName={greetingName}
-                entries={shortcutEntries}
-                onOpen={(path, label) => openWorkspace(path, label)}
-              />
-            ) : !showsLabStyleDashboard && (
+            ) : !showsLabStyleDashboard && !userCards && (
             <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
               <div className="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primary/50" />
               <CardHeader className="pb-3">
@@ -4841,9 +4833,6 @@ const Dashboard = () => {
             </Card>
             )}
             {showAdminOverview ? null : dashboardNotices}
-            {showsMyShortcuts ? (
-              <DashboardShortcuts entries={shortcutEntries} onOpen={(path, label) => openWorkspace(path, label)} />
-            ) : null}
 
         {showsLabStyleDashboard && (
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
@@ -5559,8 +5548,10 @@ const Dashboard = () => {
           </Card>
         )}
 
+        {showsMyActivity ? <MyActivity onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
-        {!isOperatorOrManager && (
+        {!isOperatorOrManager && !showsMyActivity && (
           <section className="mt-6 space-y-5">
             {userCards ? (
               <h2 className="text-base font-semibold tracking-tight">Your activity</h2>
