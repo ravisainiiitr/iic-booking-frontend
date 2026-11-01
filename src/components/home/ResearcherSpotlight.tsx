@@ -114,7 +114,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
       aria-label="Researcher of the Month"
       data-testid="researcher-spotlight"
       className={cn(
-        "relative w-full overflow-hidden rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-6 text-white shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)] backdrop-blur-xl",
+        "relative w-full overflow-hidden rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-5 text-white shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)] backdrop-blur-xl",
         className,
       )}
       {...pause}
@@ -131,11 +131,11 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         </span>
       </header>
 
-      <div key={p.id} className="relative mt-5 animate-in fade-in duration-500">
+      <div key={p.id} className="relative mt-4 animate-in fade-in duration-500">
         <div className="flex items-center gap-5">
           <div className="relative">
             <div aria-hidden className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100/60 to-sky-300 opacity-80" />
-            <Portrait person={p} className="relative h-24 w-24 ring-4 ring-[hsl(218_55%_10%)]" />
+            <Portrait person={p} className="relative h-20 w-20 ring-4 ring-[hsl(218_55%_10%)]" />
           </div>
           <div className="min-w-0">
             <h2 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">{p.researcher_name}</h2>
@@ -151,7 +151,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         </div>
 
         {count ? (
-          <p className="mt-5 flex items-center gap-2 text-sm text-white/85">
+          <p className="mt-3 flex items-center gap-2 text-sm text-white/85">
             <Award className="h-4 w-4 text-amber-200" aria-hidden />
             <span>
               <span className="font-semibold text-white">{count}</span> publication{count === 1 ? "" : "s"} acknowledging IIC
@@ -160,7 +160,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         ) : null}
 
         {p.publication_title ? (
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/55">
               <BookOpen className="h-3.5 w-3.5" aria-hidden /> Latest publication
             </p>
@@ -187,7 +187,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         ) : null}
       </div>
 
-      <footer className="relative mt-5 flex items-center justify-between gap-3">
+      <footer className="relative mt-3 flex items-center justify-between gap-3">
         <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-200 hover:text-white hover:underline">
           All publications <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
