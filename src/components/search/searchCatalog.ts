@@ -43,6 +43,30 @@ export const SEARCH_PAGES: SearchPage[] = [
 
 const STAFF_TYPES = new Set(["admin", "dept_admin", "manager", "operator"]);
 
+/** Turns ``change_slot_status`` into words search can match. */
+const idWords = (id: string) => id.replace(/[_-]+/g, " ");
+
+/**
+ * Everything search may offer this user to open: the fixed pages for their role, every item of their own dashboard
+ * menu and the Admin Settings tiles they may open. One entry per path, fixed pages first.
+ */
+export function searchablePages(
+  base: SearchPage[],
+  menu: Array<{ id: string; label: string; path: string }>,
+  settings: Array<{ title: string; description: string; path: string }>,
+): SearchPage[] {
+  const out: SearchPage[] = [];
+  const add = (page: SearchPage) => {
+    if (!out.some((p) => p.path === page.path)) out.push(page);
+  };
+  base.forEach(add);
+  menu.forEach((m) => add({ path: m.path, title: m.label, keywords: `${idWords(m.id)} menu`, audience: "signed_in" }));
+  settings.forEach((t) =>
+    add({ path: t.path, title: `Admin settings: ${t.title}`, keywords: `${t.description} settings configuration`, audience: "signed_in" }),
+  );
+  return out;
+}
+
 export function pagesFor(userType: string | number | null | undefined, signedIn: boolean): SearchPage[] {
   const type = String(userType ?? "").toLowerCase();
   const staff = STAFF_TYPES.has(type);

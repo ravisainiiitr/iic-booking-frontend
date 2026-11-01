@@ -409,7 +409,19 @@ export interface GlobalSearchResult {
     /** Lab Operator, Officer In Charge and Accounts In Charge of the booking's equipment. */
     contacts?: SearchContacts | null;
   }>;
-  people: Array<{ id: number; name: string; email: string; user_type: string; department: string }>;
+  /**
+   * People, apart from bookings: name matches (staff: any user; others: Officers in Charge and Lab In-charges), then
+   * the people on the matching bookings. ``relation`` says why they are listed, e.g. "Booked IICXRD…".
+   */
+  people: Array<{
+    id: number;
+    name: string;
+    email: string;
+    user_type: string;
+    department: string;
+    photo_url?: string | null;
+    relation?: string;
+  }>;
   people_enabled: boolean;
   staff_view?: boolean;
   /** Officers in Charge and Lab In-charges matching by name, with the instruments they look after (signed-in users). */

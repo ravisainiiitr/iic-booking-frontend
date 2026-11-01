@@ -36,6 +36,7 @@ import WalletFundReceiptFollowUpAlert from "@/components/wallet/WalletFundReceip
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
+import { MenuActionsPublisher } from "@/components/search/menuActions";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
@@ -4454,6 +4455,12 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page page-shell">
       <DashboardHeader />
+      <MenuActionsPublisher
+        userId={user?.id}
+        actions={dashboardMenuEntries
+          .filter((e) => e.visible && e.path)
+          .map((e) => ({ id: e.id, label: e.label, path: e.path as string }))}
+      />
 
       <main
         id="main-content"
