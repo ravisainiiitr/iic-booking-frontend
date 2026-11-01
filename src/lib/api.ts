@@ -2427,6 +2427,15 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
+/** One of the user's own groups of dashboard buttons ("My shortcuts"); list order is the group order. */
+export interface DashboardShortcutGroup {
+  id: string;
+  name: string;
+  icon: string;
+  items: string[];
+  collapsed: boolean;
+}
+
 export interface DashboardMenuLayout {
   groups: DashboardMenuGroup[];
   /** Top-level menu priority: item ids and `group:<id>` keys. Unlisted entries keep their default place. */
@@ -12468,6 +12477,22 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(layout),
     });
+  }
+
+  async getDashboardShortcuts() {
+    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/");
+  }
+
+  async saveDashboardShortcuts(groups: DashboardShortcutGroup[]) {
+    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/", {
+      method: "PUT",
+      body: JSON.stringify({ groups }),
+    });
+  }
+
+  /** Restore the default dashboard: removes all of the user's groups. */
+  async resetDashboardShortcuts() {
+    return this.request<{ groups: DashboardShortcutGroup[] }>("/profiles/me/dashboard-shortcuts/", { method: "DELETE" });
   }
 
   async getDashboardEquipmentOrder() {

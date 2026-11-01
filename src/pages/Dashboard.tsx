@@ -48,6 +48,7 @@ import {
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
+import DashboardShortcuts from "@/components/dashboard/DashboardShortcuts";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -4235,6 +4236,13 @@ const Dashboard = () => {
     </>
   );
 
+  // Internal and external users group their dashboard buttons in the main area ("My shortcuts"); staff dashboards
+  // keep their own layouts. Only buttons this user already has are offered.
+  const showsMyShortcuts = !showsLabStyleDashboard && !usesAdminMenuSections && !isAccountsInChargeUser;
+  const shortcutEntries = dashboardMenuEntries
+    .filter((e) => e.visible && e.path)
+    .map((e) => ({ id: e.id, label: e.label, path: e.path as string }));
+
   const dashboardMenuDefaultOrder = isOicUser
     ? [
         ...OIC_DASHBOARD_MENU_ORDER,
@@ -4818,6 +4826,9 @@ const Dashboard = () => {
             </Card>
             )}
             {showAdminOverview ? null : dashboardNotices}
+            {showsMyShortcuts ? (
+              <DashboardShortcuts entries={shortcutEntries} onOpen={(path, label) => openWorkspace(path, label)} />
+            ) : null}
 
         {showsLabStyleDashboard && (
           <Card className="overflow-hidden rounded-2xl border-border/60 shadow-lg shadow-primary/10 dark:shadow-none">
