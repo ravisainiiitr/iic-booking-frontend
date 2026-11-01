@@ -21,9 +21,10 @@ function prefersReducedMotion(): boolean {
   }
 }
 
-/** Fixed-size portrait (no layout shift); initials-style fallback when there is no photo. */
+/** Fixed-size portrait (no layout shift); a neutral icon when there is no photo or it cannot be loaded. */
 export function ResearcherPortrait({ person, size = "h-20 w-20" }: { person: ResearchRecognition; size?: string }) {
-  return person.photo_url ? (
+  const [failed, setFailed] = useState(false);
+  return person.photo_url && !failed ? (
     <img
       src={person.photo_url}
       alt={`Portrait of ${person.researcher_name}`}
@@ -31,6 +32,7 @@ export function ResearcherPortrait({ person, size = "h-20 w-20" }: { person: Res
       height={160}
       loading="lazy"
       decoding="async"
+      onError={() => setFailed(true)}
       className={`${size} shrink-0 rounded-full object-cover ring-2 ring-primary/20`}
     />
   ) : (
@@ -40,6 +42,17 @@ export function ResearcherPortrait({ person, size = "h-20 w-20" }: { person: Res
     >
       <UserRound className="h-1/2 w-1/2" />
     </span>
+  );
+}
+
+/** "9 publications acknowledging IIC" (approved publications counted on the server). */
+export function PublicationCount({ person }: { person: ResearchRecognition }) {
+  const n = person.publication_count ?? 0;
+  if (!n) return null;
+  return (
+    <p className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
+      {n} publication{n === 1 ? "" : "s"} acknowledging IIC
+    </p>
   );
 }
 
@@ -123,7 +136,7 @@ export default function HallOfFrames() {
           Research made possible at IIC
         </h2>
         <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
-          Researchers who acknowledged IIC facilities in their publications.
+          Researchers who acknowledged IIC facilities in their publications, most publications first.
         </p>
       </div>
       <Carousel
@@ -150,6 +163,7 @@ export default function HallOfFrames() {
                 <div className="min-w-0 space-y-0.5">
                   <h3 className="font-semibold leading-tight">{p.researcher_name}</h3>
                   {p.affiliation ? <p className="text-xs text-muted-foreground">{p.affiliation}</p> : null}
+                  <PublicationCount person={p} />
                   <div className="pt-1.5">
                     <PublicationLine person={p} />
                   </div>

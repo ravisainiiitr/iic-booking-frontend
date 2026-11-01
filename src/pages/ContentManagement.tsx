@@ -89,7 +89,7 @@ const ContentManagement = () => {
           <SettingsTile
             icon={<Award className="h-5 w-5" />}
             title="Researcher recognition"
-            description="Hall of Frames and Researcher of the Month on the home page"
+            description="Hall of Frames and Researcher of the Month, from approved publications"
             onClick={() => navigate("/admin/research-recognition")}
           />
           <SettingsTile

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
 import { apiClient, type ResearcherOfTheMonthItem } from "@/lib/api";
-import { PublicationLine, ResearcherPortrait } from "@/components/home/HallOfFrames";
+import { PublicationCount, PublicationLine, ResearcherPortrait } from "@/components/home/HallOfFrames";
 
 function monthLabel(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
@@ -62,6 +62,7 @@ export default function ResearcherOfTheMonth() {
                 </p>
                 <h3 className="text-lg font-semibold leading-tight">{p.researcher_name}</h3>
                 {p.affiliation ? <p className="text-xs text-muted-foreground">{p.affiliation}</p> : null}
+                <PublicationCount person={p} />
                 {p.research_summary ? (
                   <p className="pt-1 text-sm leading-relaxed text-muted-foreground">{p.research_summary}</p>
                 ) : null}
