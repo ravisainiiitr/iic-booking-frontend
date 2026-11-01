@@ -2456,6 +2456,53 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
+export type CallRole = "operator" | "oic" | "accounts";
+export type CallContextType = "booking" | "equipment" | "invoice";
+export type CallStatus = "ringing" | "accepted" | "ended" | "declined" | "missed" | "busy" | "cancelled" | "failed";
+
+/** One in-app call (GET/POST /calls/...). No audio is stored. */
+export interface CallInfo {
+  id: string;
+  status: CallStatus;
+  status_display: string;
+  direction: "incoming" | "outgoing";
+  role: CallRole;
+  role_label: string;
+  other: { id: number; name: string };
+  context_type: CallContextType;
+  context_id: number;
+  context_label: string;
+  reason: string;
+  created_at: string;
+  answered_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number;
+  failure_code: string;
+  ring_seconds: number;
+}
+
+/** Whom the user may call about a booking / instrument / invoice (GET /calls/options/). */
+export interface CallOptions {
+  enabled: boolean;
+  context_type?: CallContextType;
+  context_id?: number;
+  label?: string;
+  roles: Array<{
+    role: CallRole;
+    label: string;
+    people: Array<{ id: number; name: string; available: boolean }>;
+    /** When nobody in this role can be reached: "oic" (call the Officer In Charge) or "ticket". */
+    fallback: "" | "oic" | "ticket";
+  }>;
+}
+
+export interface CallConfig {
+  enabled: boolean;
+  ice_servers: Array<{ urls: string[] | string; username?: string; credential?: string }>;
+  turn: boolean;
+  ring_seconds: number;
+}
+
 export type ProfileOnboardingStep = "organisation" | "gender" | "mobile" | "programme" | "password";
 
 /** GET/POST /profiles/me/onboarding/: steps still to complete after signing up with an I-STEM account. */
@@ -12549,6 +12596,34 @@ class ApiClient {
       method: "PATCH",
       body: JSON.stringify({ is_enabled: isEnabled }),
     });
+  }
+
+  async getCallConfig() {
+    return this.request<CallConfig>("/calls/config/");
+  }
+
+  async getCallOptions(context: CallContextType, id: number) {
+    return this.request<CallOptions>(`/calls/options/?context=${context}&id=${id}`);
+  }
+
+  async startCall(body: { context: CallContextType; id: number; role: CallRole; callee_id?: number; reason?: string; platform?: string }) {
+    return this.request<CallInfo>("/calls/", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async callAction(callId: string, action: "accept" | "decline" | "cancel" | "timeout" | "end" | "fail", body: Record<string, string> = {}) {
+    return this.request<CallInfo>(`/calls/${callId}/${action}/`, { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async getCall(callId: string) {
+    return this.request<CallInfo>(`/calls/${callId}/`);
+  }
+
+  async getCallHistory() {
+    return this.request<{ results: CallInfo[] }>("/calls/");
+  }
+
+  async registerCallDevice(body: { platform: "android" | "ios"; device_id: string; token: string; app_version?: string }) {
+    return this.request<{ ok: boolean }>("/calls/devices/", { method: "POST", body: JSON.stringify(body) });
   }
 
   /** What an account created from I-STEM still has to complete (organisation, gender, mobile, programme, password). */

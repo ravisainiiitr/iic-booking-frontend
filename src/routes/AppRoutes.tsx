@@ -146,6 +146,7 @@ const Print3DAnalyzerTest = lazyPage(() => import("@/pages/Print3DAnalyzerTest")
 const EquipmentProfile = lazyPage(() => import("@/pages/EquipmentProfile"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
 const Notifications = lazyPage(() => import("@/pages/Notifications"));
+const CallHistory = lazyPage(() => import("@/pages/CallHistory"));
 const Unsubscribe = lazyPage(() => import("@/pages/Unsubscribe"));
 const WalletRechargeRequestAction = lazyPage(() => import("@/pages/WalletRechargeRequestAction"));
 const WalletRechargeEmailAction = lazyPage(() => import("@/pages/WalletRechargeEmailAction"));
@@ -454,6 +455,8 @@ export default function AppRoutes() {
           <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/calls" element={<CallHistory />} />
+          <Route path="/calls/answer/:callId" element={<CallHistory />} />
           <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="/user-guide" element={<UserGuidePage />} />
           <Route path="/dev/user-guides" element={<UserGuidePreview />} />

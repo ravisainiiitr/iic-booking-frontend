@@ -49,6 +49,7 @@ import ModeAvailabilitySection from "@/components/modeAvailability/ModeAvailabil
 import ModeInactiveNotice, { ModeInactivePill } from "@/components/modeAvailability/ModeInactiveNotice";
 import { bookingPathFor, isMultiModeEquipment, type ModeInactive } from "@/lib/modeAvailability";
 import { Badge } from "@/components/ui/badge";
+import CallButton from "@/components/calls/CallButton";
 import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -1135,6 +1136,12 @@ const EquipmentProfile = () => {
                     "Contact us",
                     <UserCog className="h-5 w-5" />,
                     <div className="space-y-8">
+                      {id ? (
+                        <div className="flex flex-wrap gap-2">
+                          <CallButton context="equipment" id={Number(id)} role="operator" label="Call Lab Operator" />
+                          <CallButton context="equipment" id={Number(id)} role="oic" label="Call OIC" />
+                        </div>
+                      ) : null}
                       <div className="space-y-3">
                         <h4 className="text-base font-semibold text-foreground">Officer in-charge</h4>
                         {brochureManagers.length > 0

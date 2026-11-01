@@ -15,6 +15,7 @@ import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
 import AccountLifecycleBanner from "./components/accountLifecycle/AccountLifecycleBanner";
 import QuotaBreakdownHost from "./components/quota/QuotaBreakdownHost";
+import { CallProvider } from "./components/calls/CallProvider";
 import { UserCardProvider } from "./components/users/UserIdCardLink";
 import { GlobalSearchHost } from "./components/search/GlobalSearch";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
@@ -54,6 +55,7 @@ const App = () => (
           <BuildUpdateNotifier />
           <PeakWindowGate>
             <UserCardProvider>
+            <CallProvider>
             <AccountLifecycleBanner />
             <EmbedChrome />
             <GlobalBackButton />
@@ -63,6 +65,7 @@ const App = () => (
             <StaffAppChrome />
             <QuotaBreakdownHost />
             <GlobalSearchHost />
+            </CallProvider>
             </UserCardProvider>
           </PeakWindowGate>
         </NotificationProvider>
