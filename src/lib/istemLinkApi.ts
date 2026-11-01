@@ -122,4 +122,11 @@ export const istemRegisterApi = {
       "/verify/",
       { token, otp },
     ),
+  /** Creates the approved account from the verified I-STEM profile and signs the user in (no password, no form). */
+  complete: (linkToken: string, userType: string) =>
+    publicRequest<{ token: string; user: Record<string, unknown>; onboarding: { required: boolean; steps: string[] } }>("/complete/", {
+      link_token: linkToken,
+      user_type: userType,
+      ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),
+    }),
 };

@@ -1093,7 +1093,19 @@ const Auth = () => {
           : "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]",
       )}
     >
-      <IstemRegistrationDialog open={istemDialogOpen} onOpenChange={setIstemDialogOpen} onVerified={applyIstemProfile} />
+      <IstemRegistrationDialog
+        open={istemDialogOpen}
+        onOpenChange={setIstemDialogOpen}
+        onVerified={applyIstemProfile}
+        userType={userType ? userType.split("|")[0] : undefined}
+        onSignedIn={(token, signedIn) => {
+          // Created and signed in from the verified I-STEM account; the dashboard asks for the rest.
+          apiClient.setToken(token);
+          setUserFromAuth(signedIn as unknown as Parameters<typeof setUserFromAuth>[0]);
+          toast.success("Your account is ready. Complete a few details on the dashboard.");
+          navigate("/dashboard");
+        }}
+      />
       {/* Brand panel (desktop): the gradient fills the whole column; the content stays pinned beside the long Create account form */}
       <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-brand to-[hsl(200_65%_30%)] text-white lg:block">
         <div className="relative overflow-hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">

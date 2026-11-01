@@ -38,6 +38,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import { MenuActionsPublisher } from "@/components/search/menuActions";
 import MyActivity from "@/components/dashboard/MyActivity";
+import ProfileOnboarding from "@/components/dashboard/ProfileOnboarding";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
@@ -4458,6 +4459,8 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page page-shell">
       <DashboardHeader />
+      {/* Accounts created from I-STEM: ask for what is missing, then a password. */}
+      {isExternalBookingUserType(userTypeStr) ? <ProfileOnboarding /> : null}
       <MenuActionsPublisher
         userId={user?.id}
         actions={dashboardMenuEntries
