@@ -196,7 +196,7 @@ export default function RepeatSampleRequests() {
           </div>
         </StandaloneOnly>
 
-        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        {/* Bottom margin keeps the last row clear of the floating Research Assistant button. */}
         <Card className="mb-20">
           <CardHeader className="space-y-3 px-4 pb-3 sm:px-5">
             <div className="flex flex-wrap items-center justify-between gap-3">

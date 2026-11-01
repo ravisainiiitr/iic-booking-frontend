@@ -154,7 +154,7 @@ const AdminSettingsCopilotAnswers = () => {
         return;
       }
       if (res.error || !res.data) {
-        toast.error(res.error || "Could not load Booking Assistant answers");
+        toast.error(res.error || "Could not load Research Assistant answers");
         return;
       }
       setGate("ok");
@@ -306,8 +306,8 @@ const AdminSettingsCopilotAnswers = () => {
 
   const header = (
     <PageHero
-      title="Booking Assistant Answers & Console"
-      description="Reviewed answers the Booking Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
+      title="Research Assistant Answers & Console"
+      description="Reviewed answers the IITR Research Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
     >
       <StandaloneOnly>
         <Button
@@ -331,8 +331,8 @@ const AdminSettingsCopilotAnswers = () => {
           <Card>
             <CardContent className="py-8 text-sm text-muted-foreground">
               {gate === "disabled"
-                ? "Booking Assistant knowledge features are not enabled on this server."
-                : "You do not have permission to manage Booking Assistant answers."}
+                ? "Research Assistant knowledge features are not enabled on this server."
+                : "You do not have permission to manage Research Assistant answers."}
             </CardContent>
           </Card>
         </main>
@@ -539,7 +539,7 @@ const AdminSettingsCopilotAnswers = () => {
                 <Card>
                   <CardContent className="p-0">
                     {escalations.length === 0 ? (
-                      <p className="p-6 text-sm text-muted-foreground">No Booking Assistant escalations yet.</p>
+                      <p className="p-6 text-sm text-muted-foreground">No Research Assistant escalations yet.</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <Table>

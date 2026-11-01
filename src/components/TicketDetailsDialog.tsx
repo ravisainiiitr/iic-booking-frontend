@@ -250,10 +250,10 @@ export default function TicketDetailsDialog({
     setAnswerSavedId(res.data.id);
     setAnswerFormOpen(false);
     toast({
-      title: "Booking Assistant answer saved",
+      title: "Research Assistant answer saved",
       description:
         res.data.status === "approved"
-          ? "The answer is approved and can now be used by the Booking Assistant."
+          ? "The answer is approved and can now be used by the IITR Research Assistant."
           : "The answer is pending approval and will not be shown to users until approved.",
     });
   };
@@ -670,22 +670,22 @@ export default function TicketDetailsDialog({
               {answerDraft && (
                 <section className="space-y-3 rounded-xl border border-amber-200/70 bg-amber-50/30 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">Booking Assistant knowledge</h3>
+                    <h3 className="text-sm font-semibold">Research Assistant knowledge</h3>
                     {!answerFormOpen && !answerSavedId && (
                       <Button type="button" size="sm" variant="outline" onClick={() => setAnswerFormOpen(true)}>
-                        Save as Booking Assistant answer
+                        Save as Research Assistant answer
                       </Button>
                     )}
                   </div>
                   {answerSavedId ? (
                     <p className="text-sm text-muted-foreground">
-                      Saved to the Booking Assistant knowledge base and waiting for approval.
-                      {answerDraft.can_approve ? " You can approve it in the Booking Assistant knowledge console." : ""}
+                      Saved to the IITR Research Assistant knowledge base and waiting for approval.
+                      {answerDraft.can_approve ? " You can approve it in the IITR Research Assistant knowledge console." : ""}
                     </p>
                   ) : answerFormOpen ? (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">
-                        Rewrite the resolution as a general answer and remove any personal details. The Booking Assistant shows
+                        Rewrite the resolution as a general answer and remove any personal details. The Research Assistant shows
                         it to users only after it is approved.
                       </p>
                       <div className="space-y-1">
@@ -732,7 +732,7 @@ export default function TicketDetailsDialog({
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Turn this resolution into a reviewed answer that the Booking Assistant can reuse for similar questions.
+                      Turn this resolution into a reviewed answer that the IITR Research Assistant can reuse for similar questions.
                     </p>
                   )}
                 </section>

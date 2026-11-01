@@ -58,7 +58,7 @@ beforeEach(() => {
   api.researchCopilotBootstrap.mockResolvedValue({
     data: {
       enabled: true,
-      assistant_name: "IIC Booking Assistant",
+      assistant_name: "IITR Research Assistant",
       suggested_prompts: ["What is HOLD?"],
       command_actions: [{ id: "c1", label: "Cancellation rules", prompt: "How do I cancel a booking?" }],
       starter_actions: STARTERS,
@@ -147,7 +147,7 @@ describe("Instrument finder beside the message box", () => {
     await user.click(await screen.findByRole("button", { name: "My upcoming bookings" }));
     expect(await screen.findByRole("button", { name: "Join the waitlist" })).toBeTruthy();
 
-    await user.type(screen.getByLabelText("Message Booking Assistant"), "band gap of my powder");
+    await user.type(screen.getByLabelText("Message Research Assistant"), "band gap of my powder");
     await user.click(screen.getByRole("button", { name: "Instrument finder" }));
     await waitFor(() =>
       expect(screen.getByTestId("where").textContent).toBe("/find-instrument?q=band%20gap%20of%20my%20powder"),
@@ -174,7 +174,7 @@ describe("Need help? after a booking failure", () => {
         <ResearchCopilotLauncher />
       </MemoryRouter>,
     );
-    await screen.findByRole("button", { name: "Open Booking Assistant" });
+    await screen.findByRole("button", { name: "Open Research Assistant" });
 
     act(() => offerAssistantHelp({ code: "slot_taken", equipmentId: 5, equipmentName: "XRD", message: "Slot not available" }));
     expect(screen.getByText("Need help?")).toBeTruthy();
@@ -187,7 +187,7 @@ describe("Need help? after a booking failure", () => {
 
     act(() => offerAssistantHelp({ code: "quota", equipmentId: 5, equipmentName: "XRD", message: "Weekly quota exceeded" }));
     expect(screen.getByText(/how much quota is left/)).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Ask the Booking Assistant" }));
+    await user.click(screen.getByRole("button", { name: "Ask the IITR Research Assistant" }));
 
     await waitFor(() =>
       expect(api.researchCopilotSendMessage).toHaveBeenCalledWith(

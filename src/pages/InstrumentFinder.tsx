@@ -46,7 +46,7 @@ export default function InstrumentFinder() {
     [setParams],
   );
 
-  // A shared link, or a new ?q= from the header search or Booking Assistant while this page is open.
+  // A shared link, or a new ?q= from the header search or Research Assistant while this page is open.
   const qParam = (params.get("q") ?? "").trim();
   useEffect(() => {
     if (qParam && qParam !== lastQuery.current) {

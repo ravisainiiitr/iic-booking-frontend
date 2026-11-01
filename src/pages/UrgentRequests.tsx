@@ -400,7 +400,7 @@ const UrgentRequests = () => {
           </div>
         </StandaloneOnly>
 
-        {/* Bottom margin keeps the last row clear of the floating Booking Assistant button. */}
+        {/* Bottom margin keeps the last row clear of the floating Research Assistant button. */}
         <Card className="mb-20 overflow-hidden rounded-xl border border-border/60 shadow-sm">
           <CardHeader className="space-y-3 border-b border-border/40 bg-muted/20 px-4 py-3 dark:bg-muted/10">
             <StaffListFilterRow filters={listFilters} equipmentOptions={equipmentOptions}>

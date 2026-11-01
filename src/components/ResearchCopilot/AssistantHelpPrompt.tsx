@@ -27,7 +27,7 @@ export function AssistantHelpPrompt({ detail, onAccept, onDismiss }: Props) {
           <p className="mt-0.5 text-xs text-muted-foreground">{helpPromptText(detail.code)}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button type="button" size="sm" className="h-8 rounded-full px-3 text-xs" onClick={onAccept}>
-              Ask the Booking Assistant
+              Ask the IITR Research Assistant
             </Button>
             <Button type="button" size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={onDismiss}>
               No thanks

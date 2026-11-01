@@ -426,6 +426,31 @@ export interface GlobalSearchResult {
     email: string;
     equipment: Array<{ id: number; name: string; code: string }>;
   }>;
+  /** Things the signed-in user can do that match the words (pages, settings, per-instrument actions). */
+  actions?: PortalAction[];
+}
+
+/** A page, setting or per-instrument action from the portal action catalogue (shared with the Research Assistant). */
+export interface PortalAction {
+  key: string;
+  title: string;
+  hint: string;
+  /** Page to open; ``{id}`` is replaced by the chosen instrument. Empty for switches. */
+  path: string;
+  group: string;
+  needs_equipment: boolean;
+  /** Turned on or off directly (Slot Exchange, Split Booking, user ratings). */
+  switch: boolean;
+  /** The one instrument the search words named, when there is one. */
+  equipment?: { id: number; name: string; code: string };
+}
+
+export interface PortalActionEquipment {
+  id: number;
+  name: string;
+  code: string;
+  /** Switch actions: whether it is on for this instrument now. */
+  on?: boolean;
 }
 
 export interface SearchSynonym {
@@ -7742,6 +7767,22 @@ class ApiClient {
   /** Header search: equipment for everyone; bookings and people limited to the viewer's role. */
   async globalSearch(q: string, signal?: AbortSignal) {
     return this.request<GlobalSearchResult>(`/search/?q=${encodeURIComponent(q)}`, { signal });
+  }
+
+  /** Instruments the user may choose for a portal action (with each switch's current state). */
+  async portalActionEquipment(key: string, q = '', signal?: AbortSignal) {
+    return this.request<{ action: PortalAction; equipment: PortalActionEquipment[] }>(
+      `/portal-actions/${encodeURIComponent(key)}/equipment/?q=${encodeURIComponent(q)}`,
+      { signal },
+    );
+  }
+
+  /** Turn an equipment switch on or off (same rules as the equipment form). */
+  async runPortalAction(key: string, equipmentId: number, on: boolean) {
+    return this.request<PortalActionEquipment>(`/portal-actions/${encodeURIComponent(key)}/run/`, {
+      method: 'POST',
+      body: JSON.stringify({ equipment_id: equipmentId, on }),
+    });
   }
 
   /** Main Administrator: techniques and search terms used by the header search. */

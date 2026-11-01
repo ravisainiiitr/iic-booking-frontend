@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Floating launchers (Booking Assistant) read this to sit above the bar. */
+/** Floating launchers (Research Assistant) read this to sit above the bar. */
 export const ACTION_BAR_OFFSET_VAR = "--booking-action-bar-h";
 
 type Props = {

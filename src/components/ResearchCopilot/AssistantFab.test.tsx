@@ -20,7 +20,7 @@ import {
 import { FLOATING_CLEARANCE_ATTR, measureFloatingClearance } from "./floatingLayout";
 
 const KEY = `${FAB_STORAGE_PREFIX}u7`;
-const LABEL = "Open Booking Assistant";
+const LABEL = "Open Research Assistant";
 
 const setViewport = (w: number, h: number) => {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: w });
@@ -193,17 +193,17 @@ describe("AssistantFab visibility", () => {
 
   it("can be hidden until reload, with Undo in the toast", () => {
     renderFab();
-    fireEvent.click(screen.getByRole("button", { name: "Hide Booking Assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hide Research Assistant" }));
     expect(screen.queryByRole("button", { name: LABEL })).toBeNull();
-    expect(toast).toHaveBeenCalledWith("Booking Assistant hidden", expect.objectContaining({ description: expect.stringMatching(/reload/) }));
+    expect(toast).toHaveBeenCalledWith("Research Assistant hidden", expect.objectContaining({ description: expect.stringMatching(/reload/) }));
     act(() => showAssistantFab());
     expect(screen.getByRole("button", { name: LABEL })).toBeTruthy();
   });
 
   it("offers no hide control while the chat panel is open", () => {
-    renderFab({ expanded: true, label: "Close Booking Assistant" });
-    expect(screen.getByRole("button", { name: "Close Booking Assistant" }).getAttribute("aria-expanded")).toBe("true");
-    expect(screen.queryByRole("button", { name: "Hide Booking Assistant" })).toBeNull();
+    renderFab({ expanded: true, label: "Close Research Assistant" });
+    expect(screen.getByRole("button", { name: "Close Research Assistant" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByRole("button", { name: "Hide Research Assistant" })).toBeNull();
   });
 });
 

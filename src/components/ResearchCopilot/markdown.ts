@@ -1,5 +1,5 @@
 /**
- * Minimal, safe markdown for Booking Assistant replies: paragraphs, bullet and numbered lists, **bold**,
+ * Minimal, safe markdown for Research Assistant replies: paragraphs, bullet and numbered lists, **bold**,
  * `code` and [links](/portal-path). Output is a token tree rendered as React elements — never raw HTML —
  * and links are limited to portal paths and http(s); anything else (seed://, javascript:, …) stays plain text.
  */

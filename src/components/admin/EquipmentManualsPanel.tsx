@@ -218,7 +218,7 @@ export default function EquipmentManualsPanel() {
           Equipment manuals
         </CardTitle>
         <CardDescription>
-          Upload the operating manual (PDF, up to {MAX_MB} MB) for an equipment. The Booking Assistant answers operation,
+          Upload the operating manual (PDF, up to {MAX_MB} MB) for an equipment. The Research Assistant answers operation,
           specification, sample-preparation and safety questions from it and cites page numbers.
         </CardDescription>
       </CardHeader>

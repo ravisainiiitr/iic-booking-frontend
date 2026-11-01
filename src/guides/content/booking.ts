@@ -87,7 +87,7 @@ export function bookSection(g: Gate): GuideSection {
     ]),
     tips: compact([
       "If no slot is free, tick Join the waitlist (when offered). You are told your place in the queue.",
-      g.when(g.flags.assistant, "After a failed booking, click Ask the Booking Assistant under Need help? for the reason and the next step."),
+      g.when(g.flags.assistant, "After a failed booking, click Ask the IITR Research Assistant under Need help? for the reason and the next step."),
     ]),
   };
 }
@@ -186,11 +186,11 @@ export function assistantSection(g: Gate): GuideSection | null {
   const booker = g.is("student", "project_staff", "faculty", "startup", "external");
   return {
     id: "assistant",
-    title: "Booking Assistant",
+    title: "Research Assistant",
     icon: "bot",
     group: booker ? GROUP : "Tools",
     intro: compact([
-      "Open Booking Assistant (the round sparkle button, bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data. If it covers something, drag it up or to the left edge; it remembers the spot.",
+      "Open Research Assistant (the round sparkle button, bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data. If it covers something, drag it up or to the left edge; it remembers the spot.",
       g.when(!booker, "It answers look-ups; booking management stays on View Booking and your role's pages."),
     ]),
     steps: booker
