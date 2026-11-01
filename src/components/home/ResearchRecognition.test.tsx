@@ -98,4 +98,13 @@ describe("Researcher of the Month", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(container.innerHTML).toBe("");
   });
+
+  it("shows how many approved publications a researcher has, and an icon when the photo cannot load", async () => {
+    api.getHallOfFrames.mockResolvedValue({ data: { results: [person(1, { publication_count: 9 })] } });
+    render(<HallOfFrames />);
+    const section = await screen.findByTestId("hall-of-frames");
+    expect(within(section).getByText("9 publications acknowledging IIC")).toBeTruthy();
+    fireEvent.error(within(section).getByRole("img", { name: "Portrait of Researcher 1" }));
+    expect(within(section).queryByRole("img", { name: "Portrait of Researcher 1" })).toBeNull();
+  });
 });

@@ -311,52 +311,42 @@ export interface SimilarAvailability {
   basis: "group" | "category" | null;
 }
 
-/** An approved Hall of Frames entry or Researcher of the Month, as shown on the home page. */
+/** A researcher on the home page, worked out from approved publications (Hall of Frames, Researcher of the Month). */
 export interface ResearchRecognition {
   id: number;
+  user_id?: number | null;
   researcher_name: string;
+  /** The researcher's profile photo; null when there is none. */
   photo_url: string | null;
   affiliation: string;
+  /** Approved publications that acknowledge IIC (Researcher of the Month: in the last 12 months). */
+  publication_count?: number;
   publication_title: string;
   research_summary: string;
   journal: string;
   year: number | null;
   publication_url: string;
-  /** Acknowledged equipment and/or facility, joined for display. */
+  /** Acknowledged equipment, joined for display. */
   facility: string;
   equipment_id: number | null;
+  /** Admin listing only: taken off the Hall of Frames by the Main Administrator. */
+  hidden?: boolean;
 }
 
 export interface ResearcherOfTheMonthItem extends ResearchRecognition {
   month: string;
   department_id: number | null;
   department_name: string;
+  auto?: boolean;
+  /** Admin listing only: false when the Main Administrator disabled it and nobody else qualified. */
+  shown?: boolean;
 }
 
-/** Admin form fields shared by both kinds (photo travels separately as a file). */
-export interface ResearchRecognitionAdmin {
-  id: number;
-  researcher_name: string;
-  photo_url: string | null;
-  affiliation: string;
-  publication_title: string;
-  research_summary: string;
-  journal: string;
-  year: number | null;
-  publication_url: string;
-  equipment: number | null;
-  facility: string;
-  facility_label: string;
-  is_approved: boolean;
-  approved_by_name: string;
-  approved_at: string | null;
-  /** Hall of Frames only. */
-  order?: number;
-  publication?: number | null;
-  /** Researcher of the Month only. */
-  month?: string;
-  department?: number | null;
-  department_name?: string;
+export interface ResearchRecognitionAdminView {
+  hall: ResearchRecognition[];
+  month: string;
+  current: ResearcherOfTheMonthItem[];
+  history: ResearcherOfTheMonthItem[];
 }
 
 export interface SearchContactPerson {
@@ -1867,8 +1857,6 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   cmsHome: 'admin/cms-home',
   cmsPages: 'admin/cms-pages',
   cmsHeroSlides: 'admin/cms-hero-slides',
-  cmsHallOfFrames: 'admin/cms-hall-of-frames',
-  cmsResearchersOfTheMonth: 'admin/cms-researchers-of-the-month',
   cmsSiteDocuments: 'admin/cms-site-documents',
   communicationTemplates: 'admin/communication-templates',
   communicationLogs: 'admin/communication-logs',
@@ -15547,34 +15535,25 @@ class ApiClient {
     return this.adminUpdate('cmsHeroSlides', id, data as Record<string, unknown>);
   }
 
-  /**
-   * Admin: create or update a Hall of Frames entry / Researcher of the Month (multipart, so a photo can travel with
-   * the fields). ``section`` is cmsHallOfFrames or cmsResearchersOfTheMonth; ``id`` null creates.
-   */
-  async adminSaveResearchRecognition(
-    section: 'cmsHallOfFrames' | 'cmsResearchersOfTheMonth',
-    id: number | null,
-    fields: Record<string, string | number | boolean | null | undefined>,
-    photo?: File | null,
-  ): Promise<{ data?: ResearchRecognitionAdmin; error?: string }> {
-    const endpoint = this.getAdminEndpoint(section);
-    const form = new FormData();
-    for (const [k, v] of Object.entries(fields)) {
-      if (v === undefined) continue;
-      form.append(k, v === null ? '' : typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v));
-    }
-    if (photo) form.append('photo', photo);
-    const url = `${this.baseURL}${endpoint}${id != null ? `${id}/` : ''}`;
-    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
-    const res = await fetch(url, { method: id != null ? 'PATCH' : 'POST', headers, body: form });
-    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      const first = Object.entries(body)
-        .map(([k, v]) => `${k === 'detail' || k === 'non_field_errors' ? '' : `${k}: `}${Array.isArray(v) ? v.join(' ') : String(v)}`)
-        .join('; ');
-      return { error: first || `HTTP ${res.status}` };
-    }
-    return { data: body as unknown as ResearchRecognitionAdmin };
+  /** Admin: the automatic Hall of Frames (with hidden researchers) and Researchers of the Month. */
+  async getResearchRecognitionAdmin() {
+    return this.request<ResearchRecognitionAdminView>('/cms/recognition/');
+  }
+
+  /** Main Administrator: take a researcher off the Hall of Frames (hidden) or show them again. */
+  async setHallOfFramesHidden(userId: number, hidden: boolean, reason = '') {
+    return this.request<{ ok: boolean }>(`/cms/recognition/hall/${userId}/`, {
+      method: 'POST',
+      body: JSON.stringify({ hidden, reason }),
+    });
+  }
+
+  /** Main Administrator: disable this month's researcher; the next eligible one is chosen automatically. */
+  async disableResearcherOfTheMonth(rowId: number, reason = '') {
+    return this.request<ResearcherOfTheMonthItem>(`/cms/recognition/month/${rowId}/disable/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
   }
 
   /** Admin: get site document by key (e.g. analysis_charges). */
