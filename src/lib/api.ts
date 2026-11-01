@@ -311,6 +311,54 @@ export interface SimilarAvailability {
   basis: "group" | "category" | null;
 }
 
+/** An approved Hall of Frames entry or Researcher of the Month, as shown on the home page. */
+export interface ResearchRecognition {
+  id: number;
+  researcher_name: string;
+  photo_url: string | null;
+  affiliation: string;
+  publication_title: string;
+  research_summary: string;
+  journal: string;
+  year: number | null;
+  publication_url: string;
+  /** Acknowledged equipment and/or facility, joined for display. */
+  facility: string;
+  equipment_id: number | null;
+}
+
+export interface ResearcherOfTheMonthItem extends ResearchRecognition {
+  month: string;
+  department_id: number | null;
+  department_name: string;
+}
+
+/** Admin form fields shared by both kinds (photo travels separately as a file). */
+export interface ResearchRecognitionAdmin {
+  id: number;
+  researcher_name: string;
+  photo_url: string | null;
+  affiliation: string;
+  publication_title: string;
+  research_summary: string;
+  journal: string;
+  year: number | null;
+  publication_url: string;
+  equipment: number | null;
+  facility: string;
+  facility_label: string;
+  is_approved: boolean;
+  approved_by_name: string;
+  approved_at: string | null;
+  /** Hall of Frames only. */
+  order?: number;
+  publication?: number | null;
+  /** Researcher of the Month only. */
+  month?: string;
+  department?: number | null;
+  department_name?: string;
+}
+
 export interface SearchContactPerson {
   name: string;
   /** Designation on the staff profile, or the role when none is recorded. */
@@ -1807,6 +1855,8 @@ export const ADMIN_SECTION_ENDPOINTS: Record<string, string> = {
   cmsHome: 'admin/cms-home',
   cmsPages: 'admin/cms-pages',
   cmsHeroSlides: 'admin/cms-hero-slides',
+  cmsHallOfFrames: 'admin/cms-hall-of-frames',
+  cmsResearchersOfTheMonth: 'admin/cms-researchers-of-the-month',
   cmsSiteDocuments: 'admin/cms-site-documents',
   communicationTemplates: 'admin/communication-templates',
   communicationLogs: 'admin/communication-logs',
@@ -5665,6 +5715,22 @@ class ApiClient {
 
   async getCmsHome() {
     return this.request<{ content: Record<string, string>; font_sizes: Record<string, string> }>('/cms/home/');
+  }
+
+  /** Public: approved Hall of Frames entries, in display order. */
+  async getHallOfFrames() {
+    return this.request<{ results: ResearchRecognition[] }>('/cms/hall-of-frames/');
+  }
+
+  /** Public: this month's approved Researchers of the Month (``history`` for earlier months). */
+  async getResearchersOfTheMonth(params?: { department?: number; history?: boolean }) {
+    const q = new URLSearchParams();
+    if (params?.department) q.set('department', String(params.department));
+    if (params?.history) q.set('history', '1');
+    const qs = q.toString();
+    return this.request<{ month: string; history: boolean; results: ResearcherOfTheMonthItem[] }>(
+      `/cms/researcher-of-the-month/${qs ? `?${qs}` : ''}`,
+    );
   }
 
   /** Public hero stats: operational equipment (public catalog), bookings, publications, active users. */
@@ -15427,6 +15493,36 @@ class ApiClient {
       return { data: resData };
     }
     return this.adminUpdate('cmsHeroSlides', id, data as Record<string, unknown>);
+  }
+
+  /**
+   * Admin: create or update a Hall of Frames entry / Researcher of the Month (multipart, so a photo can travel with
+   * the fields). ``section`` is cmsHallOfFrames or cmsResearchersOfTheMonth; ``id`` null creates.
+   */
+  async adminSaveResearchRecognition(
+    section: 'cmsHallOfFrames' | 'cmsResearchersOfTheMonth',
+    id: number | null,
+    fields: Record<string, string | number | boolean | null | undefined>,
+    photo?: File | null,
+  ): Promise<{ data?: ResearchRecognitionAdmin; error?: string }> {
+    const endpoint = this.getAdminEndpoint(section);
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      form.append(k, v === null ? '' : typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v));
+    }
+    if (photo) form.append('photo', photo);
+    const url = `${this.baseURL}${endpoint}${id != null ? `${id}/` : ''}`;
+    const headers: HeadersInit = { ...(this.token ? { Authorization: `Token ${this.token}` } : {}) };
+    const res = await fetch(url, { method: id != null ? 'PATCH' : 'POST', headers, body: form });
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const first = Object.entries(body)
+        .map(([k, v]) => `${k === 'detail' || k === 'non_field_errors' ? '' : `${k}: `}${Array.isArray(v) ? v.join(' ') : String(v)}`)
+        .join('; ');
+      return { error: first || `HTTP ${res.status}` };
+    }
+    return { data: body as unknown as ResearchRecognitionAdmin };
   }
 
   /** Admin: get site document by key (e.g. analysis_charges). */

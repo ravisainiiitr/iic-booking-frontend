@@ -78,6 +78,7 @@ const DepartmentAdministrationHub = lazyPage(() => import("@/pages/DepartmentAdm
 const DepartmentStaffManagement = lazyPage(() => import("@/pages/DepartmentStaffManagement"));
 const DepartmentFacultyCreditFacility = lazyPage(() => import("@/pages/DepartmentFacultyCreditFacility"));
 const AdminHeroSlides = lazyPage(() => import("@/pages/AdminHeroSlides"));
+const AdminResearchRecognition = lazyPage(() => import("@/pages/AdminResearchRecognition"));
 const AdminAnalysisCharges = lazyPage(() => import("@/pages/AdminAnalysisCharges"));
 const ContentManagement = lazyPage(() => import("@/pages/ContentManagement"));
 const AdminSettings = lazyPage(() => import("@/pages/AdminSettings"));
@@ -356,6 +357,7 @@ export default function AppRoutes() {
           <Route path="/manage/department-administration/:role" element={<DepartmentStaffManagement />} />
           <Route path="/organization/users" element={<OrganizationUsersManagement />} />
           <Route path="/admin/hero-slides" element={<AdminHeroSlides />} />
+          <Route path="/admin/research-recognition" element={<AdminResearchRecognition />} />
           <Route path="/admin/analysis-charges" element={<AdminAnalysisCharges />} />
           <Route path="/content-management" element={<ContentManagement />} />
           <Route path="/admin-settings" element={<AdminSettings />} />
