@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import { MenuActionsPublisher } from "@/components/search/menuActions";
+import MyActivity from "@/components/dashboard/MyActivity";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
 import { TemplateAttentionNotice } from "@/components/booking-templates/TemplateAttentionNotice";
@@ -4240,6 +4241,8 @@ const Dashboard = () => {
   // Internal / external user dashboards: calmer cards with one accent; staff dashboards keep theirs. Like every
   // user, they arrange their own left menu (groups for rarely used items, and the order) as the OIC does.
   const userCards = !showsLabStyleDashboard && !usesAdminMenuSections && !isAccountsInChargeUser;
+  // Internal and external users (not OIC, Lab In-charge or administrators) get the full My activity panel.
+  const showsMyActivity = userCards && !isOperatorOrManager && isEndUserBookingType(userTypeStr);
 
   const dashboardMenuDefaultOrder = isOicUser
     ? [
@@ -5545,8 +5548,10 @@ const Dashboard = () => {
           </Card>
         )}
 
+        {showsMyActivity ? <MyActivity onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
-        {!isOperatorOrManager && (
+        {!isOperatorOrManager && !showsMyActivity && (
           <section className="mt-6 space-y-5">
             {userCards ? (
               <h2 className="text-base font-semibold tracking-tight">Your activity</h2>

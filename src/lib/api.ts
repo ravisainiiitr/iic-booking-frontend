@@ -2439,6 +2439,40 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
+/** One of the user's own bookings on the My activity panel. */
+export interface MyActivityBooking {
+  id: number;
+  display_id: string;
+  equipment: { id: number; name: string; code: string };
+  status: string;
+  status_display: string;
+  slot_start: string | null;
+  slot_end: string | null;
+  charge: number;
+  /** Upcoming bookings only: when the sample must reach the lab (null when the equipment sets none). */
+  sample_deadline?: string | null;
+}
+
+/** GET /profiles/me/activity/: the signed-in user's day-to-day summary (internal and external users). */
+export interface MyActivity {
+  generated_at: string;
+  next: MyActivityBooking | null;
+  upcoming: MyActivityBooking[];
+  counts: {
+    upcoming: number;
+    awaiting_payment: number;
+    needs_choice: number;
+    waitlisted: number;
+    processing: number;
+    completed_month: number;
+  };
+  results: { new: number; recent: Array<MyActivityBooking & { files: number; ready_at: string | null; new: boolean }> };
+  spend: { this_month: number; last_month: number; year: number; months: Array<{ month: string; amount: number; bookings: number }> };
+  hours: { this_month: number; year: number };
+  wallet: { balance: number; is_owner: boolean } | null;
+  book_again: Array<{ id: number; name: string; code: string; times: number; last_booked: string | null; available: boolean }>;
+}
+
 export interface DashboardMenuLayout {
   groups: DashboardMenuGroup[];
   /** Top-level menu priority: item ids and `group:<id>` keys. Unlisted entries keep their default place. */
@@ -12471,6 +12505,10 @@ class ApiClient {
       method: "PATCH",
       body: JSON.stringify({ is_enabled: isEnabled }),
     });
+  }
+
+  async getMyActivity() {
+    return this.request<MyActivity>("/profiles/me/activity/");
   }
 
   async getDashboardMenuLayout() {
