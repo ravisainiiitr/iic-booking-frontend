@@ -37,6 +37,7 @@ function MaintenanceRow({ p, action }: { p: EquipmentMaintenanceStatus; action?:
       </div>
       <p className="mt-0.5 pl-6 text-xs text-muted-foreground">{maintenanceCounts(p)}</p>
       {p.recovery_text ? <p className="pl-6 text-xs text-muted-foreground">{p.recovery_text}</p> : null}
+      {!action && p.waiting_for ? <p className="pl-6 text-xs text-muted-foreground">{p.waiting_for}</p> : null}
       {action && p.action ? <p className="mt-1 pl-6 text-xs font-medium text-amber-900 dark:text-amber-200">{p.action}</p> : null}
     </li>
   );
