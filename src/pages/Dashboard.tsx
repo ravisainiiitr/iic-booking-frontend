@@ -49,6 +49,7 @@ import {
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
 import DashboardShortcuts from "@/components/dashboard/DashboardShortcuts";
+import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -599,6 +600,7 @@ const Dashboard = () => {
   // Admin Settings section is visible to Main Admin always, and to other roles only when the
   // Main Administrator has configured Admin Panel access for their user type + department.
   const isAdmin = userTypeStr === 'admin';
+  const maintenanceShown = maintenancePlacement({ showsLabStyleDashboard, isAdmin });
   const canSeeAdminSettingsCard =
     !isAccountsInChargeUser && (isAdmin || hasAdminPanelAccess(user));
   const isDeptAdmin = userTypeStr === 'dept_admin';
@@ -4231,7 +4233,7 @@ const Dashboard = () => {
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={showsLabStyleDashboard} />
+      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={maintenanceShown.inAttention} />
       {loginTip}
     </>
   );
@@ -4619,7 +4621,7 @@ const Dashboard = () => {
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
         {/* OIC and Lab Operator dashboards show maintenance inside "Needs your attention" instead. */}
-        {isAdmin && !showsLabStyleDashboard ? <MaintenanceBanner className="mb-4" /> : null}
+        {maintenanceShown.banner ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         <AndroidAppCard className="mb-4" />

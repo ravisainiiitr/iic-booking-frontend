@@ -2698,6 +2698,8 @@ export interface EquipmentMaintenanceStatus {
   /** True once the expected recovery time has passed: the OIC must confirm the equipment's status. */
   action_required?: boolean;
   action?: string;
+  /** For viewers who cannot change the status (e.g. Lab Operators): who has been asked to act. */
+  waiting_for?: string;
 }
 
 export interface OicEquipmentSettingsRow {
