@@ -160,14 +160,15 @@ const Hero = () => {
         {/* pt clears the fixed site header (height + safe area); keep badge fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
+            {/* Badge, title and search on the left; Researcher of the Month on the right, its bottom level with the
+                search bar so the quick actions sit right below both. */}
+            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:gap-12">
+            <div className="min-w-0 space-y-3.5 sm:space-y-4">
             <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
               <FlaskConical className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">Institute Instrumentation Centre · IIT Roorkee</span>
             </div>
 
-            {/* Title and search on the left; Researcher of the Month over the campus photo on large screens. */}
-            <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:gap-12">
-            <div className="min-w-0 space-y-3.5 sm:space-y-4">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
                 className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"
