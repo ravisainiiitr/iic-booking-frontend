@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import iitrMainBuilding from "@/assets/iitr-main-building.webp";
 import { cn } from "@/lib/utils";
 import { HeroSearchBar } from "@/components/search/GlobalSearch";
+import ResearcherSpotlight from "@/components/home/ResearcherSpotlight";
 
 const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
@@ -164,6 +165,9 @@ const Hero = () => {
               <span className="truncate">Institute Instrumentation Centre · IIT Roorkee</span>
             </div>
 
+            {/* Title and search on the left; Researcher of the Month over the campus photo on large screens. */}
+            <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:gap-12">
+            <div className="min-w-0 space-y-3.5 sm:space-y-4">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
                 className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"
@@ -196,6 +200,9 @@ const Hero = () => {
             </div>
 
             <HeroSearchBar className="max-w-2xl rounded-xl shadow-xl shadow-black/30 ring-1 ring-white/20" />
+            </div>
+            <ResearcherSpotlight className="hidden lg:block" />
+            </div>
 
             <nav aria-label="Quick actions" className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {!isAuthenticated && (

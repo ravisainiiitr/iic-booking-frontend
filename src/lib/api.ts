@@ -337,12 +337,16 @@ export interface ResearcherOfTheMonthItem extends ResearchRecognition {
   month: string;
   department_id: number | null;
   department_name: string;
+  /** Public list: every title this researcher won this month (institute-wide first), one card per person. */
+  titles?: string[];
   auto?: boolean;
   /** Admin listing only: false when the Main Administrator disabled it and nobody else qualified. */
   shown?: boolean;
 }
 
 export interface ResearchRecognitionAdminView {
+  /** The Hall of Frames is on the home page only when the Main Administrator switched it on. */
+  hall_enabled?: boolean;
   hall: ResearchRecognition[];
   month: string;
   current: ResearcherOfTheMonthItem[];
@@ -15538,6 +15542,14 @@ class ApiClient {
   /** Admin: the automatic Hall of Frames (with hidden researchers) and Researchers of the Month. */
   async getResearchRecognitionAdmin() {
     return this.request<ResearchRecognitionAdminView>('/cms/recognition/');
+  }
+
+  /** Main Administrator: show or hide the whole Hall of Frames on the home page. */
+  async setHallOfFramesEnabled(enabled: boolean) {
+    return this.request<{ enabled: boolean }>('/cms/recognition/hall/enabled/', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    });
   }
 
   /** Main Administrator: take a researcher off the Hall of Frames (hidden) or show them again. */
