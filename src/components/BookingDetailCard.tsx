@@ -109,6 +109,7 @@ import {
 import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/booking/ResultsDeadlineNotice";
 import { ResultsOverdueNotice, ResultsPausedNotice } from "@/components/booking/ResultsOverdueNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
+import CallButton from "@/components/calls/CallButton";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
 
@@ -2225,6 +2226,7 @@ export function BookingDetailCard({
                   ) : (
                     <div className="text-sm sm:text-base text-muted-foreground">Not available.</div>
                   )}
+                  {bookingPk ? <CallButton context="invoice" id={bookingPk} role="accounts" label="Call Accounts In Charge" reason="Invoice or payment" className="mt-3" /> : null}
                 </div>
               )}
 
@@ -2247,6 +2249,7 @@ export function BookingDetailCard({
                     ) : (
                       <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
                     )}
+                    {bookingPk ? <CallButton context="booking" id={bookingPk} role="operator" label="Call Lab Operator" className="mt-2" /> : null}
                   </div>
 
                   <div>
@@ -2266,6 +2269,7 @@ export function BookingDetailCard({
                     ) : (
                       <div className="text-sm sm:text-base text-muted-foreground mt-1">Not available.</div>
                     )}
+                    {bookingPk ? <CallButton context="booking" id={bookingPk} role="oic" label="Call OIC" className="mt-2" /> : null}
                   </div>
                 </div>
               </div>

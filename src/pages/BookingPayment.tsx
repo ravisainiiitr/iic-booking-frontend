@@ -1,3 +1,4 @@
+import CallButton from "@/components/calls/CallButton";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
@@ -199,6 +200,10 @@ export default function BookingPayment() {
             <CardDescription>
               {booking?.equipment_name} — {booking?.virtual_booking_id || booking?.booking_id}
             </CardDescription>
+            {bookingId ? (
+              <CallButton context="invoice" id={Number(bookingId)} role="accounts" label="Payment question? Call Accounts In Charge"
+                reason="Payment" className="mt-2 w-fit" />
+            ) : null}
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <div className="rounded-lg border p-4 space-y-2">

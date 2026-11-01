@@ -460,3 +460,35 @@ function installPullToRefresh() {
   );
   document.addEventListener("touchcancel", reset, { passive: true });
 }
+
+/** In-app calls: this install's push token for incoming calls (Android FCM, iOS VoIP), or null outside the app. */
+export async function getCallPushToken(): Promise<{ platform: "android" | "ios"; token: string } | null> {
+  if (!isNativeApp()) return null;
+  try {
+    const res = await callNative<{ platform?: string; token?: string }>("IicCall", "getPushToken");
+    const platform = res.platform === "ios" ? "ios" : res.platform === "android" ? "android" : null;
+    return platform && res.token ? { platform, token: res.token } : null;
+  } catch {
+    return null; // an app version without calling support
+  }
+}
+
+/** In-app calls: route call audio to the speaker or the earpiece (Bluetooth is chosen by the phone when connected). */
+export async function setNativeCallAudio(route: "speaker" | "earpiece"): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await callNative("IicCall", "setAudioRoute", { route });
+  } catch {
+    /* older app: the phone keeps its default route */
+  }
+}
+
+/** In-app calls: tell the app a call is connected (keeps audio alive in the background) or has ended. */
+export async function setNativeCallActive(active: boolean, name = ""): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    await callNative("IicCall", active ? "callStarted" : "callEnded", active ? { name } : {});
+  } catch {
+    /* older app */
+  }
+}
