@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { IstemFbrSeal, isIstemFbrVerifiedStatus } from "@/components/IstemFbrSeal";
+import { IstemAutomaticStatus, istemAutomaticOf } from "@/components/IstemAutomaticStatus";
 import { toast } from "sonner";
 import { StandaloneOnly } from "@/components/PageShell";
 
@@ -87,6 +88,7 @@ export default function BookingNextSteps() {
   const istemPortalUrl = (booking?.istem_portal_url || DEFAULT_ISTEM_URL).trim();
   const isVerified = isIstemFbrVerifiedStatus(booking?.istem_fbr_status);
   const isPrint3d = String(booking?.equipment_profile_type || "").toUpperCase() === "PRINT_3D";
+  const istemAutomatic = istemAutomaticOf(booking);
 
   return (
     <div className="page-shell">
@@ -106,7 +108,9 @@ export default function BookingNextSteps() {
           </StandaloneOnly>
           <h1 className="text-2xl font-semibold tracking-tight">Booking confirmed — next steps</h1>
           <p className="mt-2 text-sm text-white/85">
-            Complete any remaining verification so your slot stays on track.
+            {istemAutomatic
+              ? "Your slot is booked and paid. The portal registers it on I-STEM for you."
+              : "Complete any remaining verification so your slot stays on track."}
           </p>
         </div>
 
@@ -119,12 +123,12 @@ export default function BookingNextSteps() {
               <span>
                 {booking?.equipment_name} · {booking?.virtual_booking_id || booking?.booking_id}
               </span>
-              <IstemFbrSeal
+              {istemAutomatic && !isVerified ? null : <IstemFbrSeal
                 requireIstemFbr={booking?.require_istem_fbr}
                 istemFbrStatus={booking?.istem_fbr_status}
                 size="md"
                 showLabel
-              />
+              />}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 text-sm">
@@ -139,7 +143,9 @@ export default function BookingNextSteps() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-3">
+            {istemAutomatic ? <IstemAutomaticStatus status={istemAutomatic} /> : null}
+
+            {istemAutomatic ? null : <div className="rounded-lg border border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-3">
               <p className="font-semibold">1. Create matching booking on I-STEM</p>
               <p className="text-muted-foreground">
                 Register the same date and time on the national I-STEM portal for this equipment, then enter your
@@ -151,11 +157,11 @@ export default function BookingNextSteps() {
                   Open I-STEM booking page
                 </a>
               </Button>
-            </div>
+            </div>}
 
             {!isPrint3d && (
               <div className="rounded-lg border p-4 space-y-2">
-                <p className="font-semibold">2. Sample submission</p>
+                <p className="font-semibold">{istemAutomatic ? "Sample submission" : "2. Sample submission"}</p>
                 {oicContacts.length > 0 ? (
                   <ul className="list-disc pl-5 space-y-1">
                     {oicContacts.map((c: any, i: number) => (
@@ -170,12 +176,14 @@ export default function BookingNextSteps() {
                   <p className="text-muted-foreground">Contact the lab Officer in Charge for shipping address and label details.</p>
                 )}
                 <p className="text-muted-foreground">
-                  Download shipping label from your booking detail in My Bookings after FBR verification.
+                  {istemAutomatic
+                    ? "Download the shipping label and requisition form from your booking in My Bookings."
+                    : "Download shipping label from your booking detail in My Bookings after FBR verification."}
                 </p>
               </div>
             )}
 
-            <div className="rounded-lg border p-4 space-y-3">
+            {istemAutomatic ? null : <div className="rounded-lg border p-4 space-y-3">
               <p className="font-semibold">{isPrint3d ? "2. Enter I-STEM FBR number" : "3. Enter I-STEM FBR number"}</p>
               <p className="text-muted-foreground">
                 Status: <span className="font-medium">{booking?.istem_fbr_status_display || booking?.istem_fbr_status || "—"}</span>
@@ -206,7 +214,7 @@ export default function BookingNextSteps() {
                     : "Your FBR is awaiting Officer in Charge verification."}
                 </p>
               )}
-            </div>
+            </div>}
 
             <Button className="w-full" onClick={() => navigate(`/my-bookings?booking=${bookingId}`)}>
               View booking details

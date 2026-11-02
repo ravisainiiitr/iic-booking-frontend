@@ -8,6 +8,8 @@ type IstemFbrSealProps = {
   /** Slightly larger seal for detail headers */
   size?: "sm" | "md";
   showLabel?: boolean;
+  /** The portal registers this booking on I-STEM itself: no "Unverified" warning before the FBR is executed. */
+  automatic?: boolean;
 };
 
 /** True when this booking is in the I-STEM FBR workflow. */
@@ -32,12 +34,14 @@ export function IstemFbrSeal({
   className,
   size = "sm",
   showLabel = false,
+  automatic = false,
 }: IstemFbrSealProps) {
   if (!bookingRequiresIstemFbrSeal({ require_istem_fbr: requireIstemFbr, istem_fbr_status: istemFbrStatus })) {
     return null;
   }
 
   const verified = isIstemFbrVerifiedStatus(istemFbrStatus);
+  if (automatic && !verified) return null;
   const iconClass = size === "md" ? "h-4 w-4" : "h-3.5 w-3.5";
 
   if (verified) {

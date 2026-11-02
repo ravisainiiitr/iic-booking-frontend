@@ -179,6 +179,7 @@ interface Booking extends BookingRef {
   istem_portal_url?: string | null;
   istem_fbr_status_url?: string | null;
   require_istem_fbr?: boolean;
+  istem_automatic?: { automatic: true; step: string } | null;
   repeat_sample_request_status?: string | null;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
@@ -1500,6 +1501,7 @@ const MyBookings = () => {
         {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
         <IstemFbrSeal
           requireIstemFbr={booking.require_istem_fbr}
+          automatic={Boolean(booking.istem_automatic)}
           istemFbrStatus={booking.istem_fbr_status}
         />
         <ExternalLink className="h-3.5 w-3.5 opacity-70" />

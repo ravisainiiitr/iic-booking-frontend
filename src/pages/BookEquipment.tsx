@@ -7433,6 +7433,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
             require_istem_fbr?: boolean;
             istem_portal_url?: string;
             istem_fbr_status?: string | null;
+            istem_automatic?: unknown;
             reward?: {
               points_used?: string;
               discount_amount?: string;
@@ -7477,7 +7478,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           if (needsIstemNextSteps) {
             resetBookingPageToDefaults();
             navigate(`/bookings/${realId}/next-steps`);
-            toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
+            toast.success(
+              resData?.istem_automatic
+                ? "Booking confirmed. The portal registers it on I-STEM for you."
+                : "Booking confirmed. Complete I-STEM steps on the next page."
+            );
             return;
           }
         }
