@@ -157,6 +157,7 @@ const OrganizationUsersManagement = lazyPage(() => import("@/pages/OrganizationU
 const ExternalDepartmentAdditionVerification = lazyPage(() => import("@/pages/ExternalDepartmentAdditionVerification"));
 const UserGuidePreview = lazyPage(() => import("@/pages/UserGuidePreview"));
 const AdminSettingsKnowledge = lazyPage(() => import("@/pages/AdminSettingsKnowledge"));
+const AdminMyResearchStorage = lazyPage(() => import("@/pages/AdminMyResearchStorage"));
 const AdminSettingsAutomation = lazyPage(() => import("@/pages/AdminSettingsAutomation"));
 const AdminSettingsCopilotAnswers = lazyPage(() => import("@/pages/AdminSettingsCopilotAnswers"));
 const UserGuidePage = lazyPage(() => import("@/pages/UserGuidePage"));
@@ -360,6 +361,7 @@ export default function AppRoutes() {
           <Route path="/content-management" element={<ContentManagement />} />
           <Route path="/admin-settings" element={<AdminSettings />} />
           <Route path="/admin-settings/knowledge" element={<AdminSettingsKnowledge />} />
+          <Route path="/admin-settings/my-research-storage" element={<AdminMyResearchStorage />} />
           <Route path="/admin-settings/automation" element={<AdminSettingsAutomation />} />
           <Route path="/admin-settings/copilot-answers" element={<AdminSettingsCopilotAnswers />} />
           <Route

@@ -2613,6 +2613,14 @@ export interface ProfileOnboarding {
   values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
 }
 
+/** My Research storage quotas set by the Main Administrator (GB; 0 = no limit). */
+export interface MyResearchQuotas {
+  user_quota_gb: number;
+  workspace_quota_gb: number;
+  updated_at: string | null;
+  users: { id: number; email: string; name: string; quota_gb: number; note: string; used_bytes: number }[];
+}
+
 /** One of the user's own bookings on the My activity panel. */
 export interface MyActivityBooking {
   id: number;
@@ -13655,6 +13663,23 @@ class ApiClient {
   }
 
   // --- My Research (private research workspaces) ---
+  /** Main Administrator: storage quotas (GB; 0 = no limit). */
+  async getMyResearchQuotas() {
+    return this.request<MyResearchQuotas>("/v1/my-research/admin/quotas/");
+  }
+
+  async saveMyResearchQuotas(body: { user_quota_gb: number; workspace_quota_gb: number }) {
+    return this.request<MyResearchQuotas>("/v1/my-research/admin/quotas/", { method: "PUT", body: JSON.stringify(body) });
+  }
+
+  async setMyResearchUserQuota(body: { email: string; quota_gb: number; note?: string }) {
+    return this.request<MyResearchQuotas>("/v1/my-research/admin/quotas/users/", { method: "POST", body: JSON.stringify(body) });
+  }
+
+  async clearMyResearchUserQuota(id: number) {
+    return this.request<MyResearchQuotas>(`/v1/my-research/admin/quotas/users/${id}/`, { method: "DELETE" });
+  }
+
   async myResearchBootstrap() {
     return this.request<MyResearchBootstrap>('/v1/my-research/bootstrap/');
   }
