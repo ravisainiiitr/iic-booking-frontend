@@ -32,12 +32,13 @@ describe("Hero quick actions", () => {
     expect(classes[0]).not.toContain("bg-brand");
   });
 
-  it("keeps the sign-in button prominent for visitors", async () => {
+  it("shows Login with Channel i first for visitors, styled like the other actions", async () => {
     auth.value = { isAuthenticated: false, user: null as never };
     render(<MemoryRouter><Hero /></MemoryRouter>);
     const nav = await screen.findByRole("navigation", { name: "Quick actions" });
-    const signIn = within(nav).getAllByRole("button")[0];
-    expect(signIn.textContent).toMatch(/Login with/);
-    expect(signIn.className).toContain("bg-brand");
+    const buttons = within(nav).getAllByRole("button");
+    expect(buttons[0].textContent).toMatch(/Login with/);
+    expect(new Set(buttons.map((b) => b.className)).size).toBe(1);
+    expect(buttons[0].className).toContain("bg-white/10");
   });
 });

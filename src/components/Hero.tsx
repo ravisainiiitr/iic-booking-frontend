@@ -36,9 +36,8 @@ const DEFAULT_HOME = {
 /** Shared geometry of every hero action: same height, radius, padding, type size, icon gap, border and focus ring. */
 const ctaBaseClass =
   "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 sm:gap-2 sm:px-4 sm:text-base";
-/** Sign-in for visitors: the same button as the others, filled with the brand colour so it still leads. */
-const primaryCtaClass = `${ctaBaseClass} border-white/35 bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground`;
-/** The quick actions (Book Equipment, Analysis Charges, Booking Calendar, Contact Us): one shared style. */
+/** Every hero action, Login with Channel i included (Book Equipment, Analysis Charges, Booking Calendar, Contact Us):
+ * one shared white-glass style. */
 const secondaryCtaClass = `${ctaBaseClass} border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white`;
 
 const Hero = () => {
@@ -205,7 +204,7 @@ const Hero = () => {
               {!isAuthenticated && (
                 <Button
                   size="lg"
-                  className={primaryCtaClass}
+                  className={secondaryCtaClass}
                   onClick={handleChanneliLogin}
                   disabled={channeliLoading}
                 >
