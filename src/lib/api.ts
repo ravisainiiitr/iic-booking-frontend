@@ -333,12 +333,22 @@ export interface ResearchRecognition {
   hidden?: boolean;
 }
 
+export interface ResearcherPublication {
+  title: string;
+  journal: string;
+  year: number | null;
+  url: string;
+  facility: string;
+}
+
 export interface ResearcherOfTheMonthItem extends ResearchRecognition {
   month: string;
   department_id: number | null;
   department_name: string;
   /** Public list: every title this researcher won this month (institute-wide first), one card per person. */
   titles?: string[];
+  /** Public list: the researcher's approved publications, most recent first (the card pages through them). */
+  publications?: ResearcherPublication[];
   auto?: boolean;
   /** Admin listing only: false when the Main Administrator disabled it and nobody else qualified. */
   shown?: boolean;

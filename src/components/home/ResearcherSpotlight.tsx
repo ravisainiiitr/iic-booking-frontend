@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { Link } from "react-router-dom";
 import { Award, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FlaskConical, Sparkles, UserRound } from "lucide-react";
 
-import { apiClient, type ResearchRecognition, type ResearcherOfTheMonthItem } from "@/lib/api";
+import { apiClient, type ResearchRecognition, type ResearcherOfTheMonthItem, type ResearcherPublication } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const ROTATE_MS = 8000;
+/** Pause on each researcher (several this month) or each publication (one researcher) before moving on. */
+const ROTATE_MS = 7000;
 /** Auto-scroll of the acknowledgement list: speed, pause at the top (Researcher of the Month), pause at the end, and
  *  how long after a manual scroll / hover it resumes. */
 const SCROLL_PX_PER_S = 22;
@@ -121,6 +122,20 @@ function Portrait({ person, className }: { person: ResearcherOfTheMonthItem; cla
   );
 }
 
+/** The researcher's publications to page through: the full list when the server sends it, else the latest one. */
+export function publicationsOf(p: ResearcherOfTheMonthItem): ResearcherPublication[] {
+  if (p.publications?.length) return p.publications;
+  return p.publication_title
+    ? [{ title: p.publication_title, journal: p.journal ?? "", year: p.year ?? null, url: p.publication_url ?? "", facility: p.facility ?? "" }]
+    : [];
+}
+
+/** What the arrows and the timer step through: several researchers, or one researcher's publications. */
+export function spotlightSteps(people: ResearcherOfTheMonthItem[]): { by: "researcher" | "publication"; count: number } {
+  if (people.length > 1) return { by: "researcher", count: people.length };
+  return { by: "publication", count: Math.max(1, people[0] ? publicationsOf(people[0]).length : 0) };
+}
+
 /** "Institute-wide · Physics Department" (one card per person, every title they won this month). */
 function titlesOf(p: ResearcherOfTheMonthItem): string[] {
   return p.titles?.length ? p.titles : [p.department_name];
@@ -135,7 +150,9 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   const [month, setMonth] = useState("");
   const [people, setPeople] = useState<ResearcherOfTheMonthItem[]>([]);
   const [index, setIndex] = useState(0);
+  const [pubIndex, setPubIndex] = useState(0);
   const paused = useRef(false);
+  const steps = spotlightSteps(people);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,15 +170,19 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
     };
   }, []);
 
+  // One step every ROTATE_MS (paused while hovered or focused): the next researcher, or with a single researcher
+  // their next publication.
   useEffect(() => {
-    if (people.length < 2) return;
+    if (steps.count < 2) return;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduce) return;
     const t = window.setInterval(() => {
-      if (!paused.current) setIndex((i) => (i + 1) % people.length);
+      if (paused.current) return;
+      if (steps.by === "researcher") setIndex((i) => (i + 1) % steps.count);
+      else setPubIndex((i) => (i + 1) % steps.count);
     }, ROTATE_MS);
     return () => window.clearInterval(t);
-  }, [people.length]);
+  }, [steps.by, steps.count]);
 
   // Everyone whose acknowledgement of IIC is approved, scrolling under the Researcher of the Month.
   const [acknowledgers, setAcknowledgers] = useState<ResearchRecognition[]>([]);
@@ -236,8 +257,20 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   }
   const p = people[index % people.length];
   const count = p.publication_count ?? 0;
-  const venue = [p.journal, p.year ? String(p.year) : ""].filter(Boolean).join(", ");
-  const go = (step: number) => setIndex((i) => (i + step + people.length) % people.length);
+  const pubs = publicationsOf(p);
+  // Several researchers: each shows their latest publication. One researcher: the arrows page through their papers.
+  const pubAt = steps.by === "publication" ? pubIndex % Math.max(1, pubs.length) : 0;
+  const pub = pubs[pubAt];
+  const venue = pub ? [pub.journal, pub.year ? String(pub.year) : ""].filter(Boolean).join(", ") : "";
+  const position = steps.by === "researcher" ? index % people.length : pubAt;
+  const go = (step: number) => {
+    if (steps.by === "researcher") setIndex((i) => (i + step + people.length) % people.length);
+    else setPubIndex((i) => (i + step + steps.count) % steps.count);
+  };
+  const goTo = (i: number) => (steps.by === "researcher" ? setIndex(i) : setPubIndex(i));
+  const stepNoun = steps.by === "researcher" ? "researcher" : "publication";
+  const stepLabel = (i: number) =>
+    steps.by === "researcher" ? `Show ${people[i]?.researcher_name ?? ""}` : `Show publication ${i + 1} of ${steps.count}`;
   const pause = { onMouseEnter: () => (paused.current = true), onMouseLeave: () => (paused.current = false), onFocus: () => (paused.current = true), onBlur: () => (paused.current = false) };
 
   if (variant === "compact") {
@@ -258,11 +291,21 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
             <p className="truncate text-xs text-muted-foreground">
               {[titlesOf(p).join(" · "), count ? `${count} publication${count === 1 ? "" : "s"} acknowledging IIC` : ""].filter(Boolean).join(" — ")}
             </p>
+            {steps.by === "publication" && pub ? (
+              <p key={pubAt} className="mt-0.5 truncate text-xs font-medium text-foreground/80 animate-in fade-in duration-500" title={pub.title}>
+                {pub.title}
+              </p>
+            ) : null}
           </div>
-          {people.length > 1 ? (
-            <button type="button" onClick={() => go(1)} className="rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label="Next researcher">
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
+          {steps.count > 1 ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <button type="button" onClick={() => go(-1)} className="rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label={`Previous ${stepNoun}`}>
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </button>
+              <button type="button" onClick={() => go(1)} className="rounded-full p-2 text-muted-foreground hover:bg-muted" aria-label={`Next ${stepNoun}`}>
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
           ) : null}
         </div>
         {ackList ? (
@@ -283,12 +326,25 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
       data-testid="researcher-spotlight"
       className={cn(
         "relative w-full overflow-hidden rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-5 text-white shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)] backdrop-blur-xl",
+        steps.count > 1 && "px-9",
         className,
       )}
       {...pause}
     >
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-amber-300/10 blur-3xl" />
+      {steps.count > 1 ? (
+        <>
+          <button type="button" onClick={() => go(-1)} aria-label={`Previous ${stepNoun}`} data-testid="spotlight-prev"
+                  className="absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-1 text-white/80 shadow-lg backdrop-blur hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white left-1">
+            <ChevronLeft className="h-4 w-4" aria-hidden />
+          </button>
+          <button type="button" onClick={() => go(1)} aria-label={`Next ${stepNoun}`} data-testid="spotlight-next"
+                  className="absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-1 text-white/80 shadow-lg backdrop-blur hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white right-1">
+            <ChevronRight className="h-4 w-4" aria-hidden />
+          </button>
+        </>
+      ) : null}
 
       <div ref={scrollRef} {...scroller.handlers} tabIndex={0} data-testid="spotlight-scroll"
            className="relative max-h-[30rem] overflow-y-auto pr-1 [scrollbar-color:rgba(255,255,255,.25)_transparent] [scrollbar-width:thin]">
@@ -329,28 +385,29 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
           </p>
         ) : null}
 
-        {p.publication_title ? (
-          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
+        {pub ? (
+          <div key={`${p.id}-${pubAt}`} className="mt-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 animate-in fade-in duration-500" data-testid="spotlight-publication">
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/55">
-              <BookOpen className="h-3.5 w-3.5" aria-hidden /> Latest publication
+              <BookOpen className="h-3.5 w-3.5" aria-hidden />
+              {steps.by === "publication" && pubs.length > 1 ? `Publication ${pubAt + 1} of ${pubs.length}` : "Latest publication"}
             </p>
-            {p.publication_url ? (
+            {pub.url ? (
               <a
-                href={p.publication_url}
+                href={pub.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-white hover:underline"
               >
-                {p.publication_title}
+                {pub.title}
                 <ExternalLink className="ml-1 inline h-3.5 w-3.5 opacity-70" aria-hidden />
               </a>
             ) : (
-              <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-white">{p.publication_title}</p>
+              <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-white">{pub.title}</p>
             )}
             {venue ? <p className="mt-1 text-xs italic text-white/65">{venue}</p> : null}
-            {p.facility ? (
+            {pub.facility ? (
               <p className="mt-2 flex items-center gap-1.5 truncate text-xs text-white/65">
-                <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden /> {p.facility}
+                <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden /> {pub.facility}
               </p>
             ) : null}
           </div>
@@ -364,24 +421,18 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-200 hover:text-white hover:underline">
           All publications <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
-        {people.length > 1 ? (
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => go(-1)} className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white" aria-label="Previous researcher">
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-            </button>
-            {people.map((x, i) => (
+        {steps.count > 1 ? (
+          <div className="flex items-center gap-1.5" data-testid="spotlight-dots">
+            {Array.from({ length: steps.count }, (_, i) => (
               <button
-                key={x.id}
+                key={i}
                 type="button"
-                onClick={() => setIndex(i)}
-                aria-label={`Show ${x.researcher_name}`}
-                aria-current={i === index % people.length}
-                className={cn("h-1.5 rounded-full transition-all", i === index % people.length ? "w-5 bg-amber-200" : "w-1.5 bg-white/35 hover:bg-white/60")}
+                onClick={() => goTo(i)}
+                aria-label={stepLabel(i)}
+                aria-current={i === position}
+                className={cn("h-1.5 rounded-full transition-all", i === position ? "w-5 bg-amber-200" : "w-1.5 bg-white/35 hover:bg-white/60")}
               />
             ))}
-            <button type="button" onClick={() => go(1)} className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white" aria-label="Next researcher">
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </button>
           </div>
         ) : null}
         {stepButtons}

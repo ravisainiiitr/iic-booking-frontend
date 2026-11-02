@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ getHallOfFrames: vi.fn(), getResearchersOfTheMonth: vi.fn(), getAcknowledgers: vi.fn(async () => ({ data: { results: [] } })) }));
@@ -106,6 +106,48 @@ describe("Researcher of the Month spotlight", () => {
     expect(within(card).getByRole("heading", { name: "Researcher 4" })).toBeTruthy();
     fireEvent.click(within(card).getByRole("button", { name: "Show Researcher 3" }));
     expect(within(card).getByRole("heading", { name: "Researcher 3" })).toBeTruthy();
+  });
+
+  it("with one researcher, the arrows page through their publications", async () => {
+    const pubs = [1, 2, 3].map((n) => ({ title: `Work ${n}`, journal: "J", year: 2026, url: "", facility: "" }));
+    api.getResearchersOfTheMonth.mockResolvedValue(
+      month([{ ...person(3, { publication_count: 3 }), month: "2026-11-01", department_id: null, department_name: "Institute-wide",
+               publications: pubs }]),
+    );
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    const card = await screen.findByTestId("researcher-spotlight");
+    expect(within(card).getByText("Work 1")).toBeTruthy();
+    expect(within(card).getByText("Publication 1 of 3")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Next publication" }));
+    expect(within(card).getByText("Work 2")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Previous publication" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Previous publication" }));
+    expect(within(card).getByText("Work 3")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Show publication 1 of 3" }));
+    expect(within(card).getByText("Work 1")).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Next researcher" })).toBeNull();
+  });
+
+  it("moves on by itself after a pause, and not while hovered", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      api.getResearchersOfTheMonth.mockResolvedValue(
+        month([
+          { ...person(3), month: "2026-11-01", department_id: null, department_name: "Institute-wide" },
+          { ...person(4), month: "2026-11-01", department_id: 7, department_name: "Chemistry" },
+        ]),
+      );
+      render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+      const card = await screen.findByTestId("researcher-spotlight");
+      expect(within(card).getByRole("heading", { name: "Researcher 3" })).toBeTruthy();
+      await act(async () => { vi.advanceTimersByTime(7100); });
+      expect(within(card).getByRole("heading", { name: "Researcher 4" })).toBeTruthy();
+      fireEvent.mouseEnter(card);
+      await act(async () => { vi.advanceTimersByTime(15000); });
+      expect(within(card).getByRole("heading", { name: "Researcher 4" })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("has a compact version for small screens", async () => {
