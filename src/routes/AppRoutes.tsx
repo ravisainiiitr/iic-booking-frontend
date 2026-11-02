@@ -183,6 +183,7 @@ const AdminSettingsTraining = lazyPage(() => import("@/pages/AdminSettingsTraini
 const AdminDepartmentModules = lazyPage(() => import("@/pages/AdminDepartmentModules"));
 const CourierTracking = lazyPage(() => import("@/pages/CourierTracking"));
 const AdminExternalBooking = lazyPage(() => import("@/pages/AdminExternalBooking"));
+const StaffSampleReceipt = lazyPage(() => import("@/pages/StaffSampleReceipt"));
 const ExternalSpecialRequests = lazyPage(() => import("@/pages/ExternalSpecialRequests"));
 const ExternalSpecialRequestsManage = lazyPage(() => import("@/pages/ExternalSpecialRequestsManage"));
 const AccountsExternalInvoices = lazyPage(() => import("@/pages/AccountsExternalInvoices"));
@@ -433,6 +434,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/training" element={<AdminSettingsTraining />} />
           <Route path="/admin/department-modules" element={<ErrorBoundary fallbackTitle="Department Modules" backPath="/dashboard"><AdminDepartmentModules /></ErrorBoundary>} />
           <Route path="/admin/external-booking" element={<ErrorBoundary fallbackTitle="External booking" backPath="/dashboard"><AdminExternalBooking /></ErrorBoundary>} />
+          <Route path="/staff/sample-receipt" element={<ErrorBoundary fallbackTitle="Sample receipt" backPath="/dashboard"><StaffSampleReceipt /></ErrorBoundary>} />
           <Route path="/external-special-requests" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
           <Route path="/external-special-requests/new" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
           <Route path="/external-special-requests/manage" element={<ErrorBoundary fallbackTitle="External special requests" backPath="/dashboard"><ExternalSpecialRequestsManage /></ErrorBoundary>} />

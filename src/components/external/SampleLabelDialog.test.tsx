@@ -56,7 +56,7 @@ describe("shipping label and requisition form dialog", () => {
     m.sampleLabelBytes.mockResolvedValue(LABEL);
     const { requisitionPdf } = show();
     expect(await screen.findByText(/4 Hill Road/)).toBeTruthy();
-    expect(screen.queryByText(/QR/)).toBeNull(); // no QR code since 31 Oct 2026
+    expect(screen.queryByText(/QR/)).toBeNull(); // the QR is on the label (office scan), not in the dialog
     fireEvent.click(screen.getByTestId("download-label"));
     await waitFor(() => expect(m.saveBlob).toHaveBeenCalledWith(PACK, "label_and_requisition_IICX_9.pdf"));
     expect(m.sampleLabelBytes).toHaveBeenCalledWith(9, { sample_count: 1, description: "", address_id: 2 });
