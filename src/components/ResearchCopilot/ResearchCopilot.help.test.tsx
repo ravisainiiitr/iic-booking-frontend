@@ -202,3 +202,25 @@ describe("Need help? after a booking failure", () => {
     expect(screen.queryByText("Need help?")).toBeNull();
   });
 });
+
+describe("a conversation the server no longer has", () => {
+  it("starts a new conversation and asks again instead of showing 'No Conversation matches the given query'", async () => {
+    const NEW_CONV = "44444444-4444-4444-8444-444444444444";
+    api.researchCopilotCreateConversation
+      .mockResolvedValueOnce({ data: { conversation: { id: CONV } } })
+      .mockResolvedValueOnce({ data: { conversation: { id: NEW_CONV } } });
+    api.researchCopilotSendMessage.mockResolvedValueOnce({ error: "No Conversation matches the given query.", status: 404 });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <ResearchCopilot initialOpen initialBackendEnabled />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "My upcoming bookings" }));
+    await waitFor(() =>
+      expect(api.researchCopilotSendMessage).toHaveBeenLastCalledWith(NEW_CONV, "Show my upcoming bookings", undefined, undefined),
+    );
+    expect(await screen.findByRole("button", { name: "Join the waitlist" })).toBeTruthy();
+    expect(screen.queryByText(/No Conversation matches/)).toBeNull();
+  });
+});

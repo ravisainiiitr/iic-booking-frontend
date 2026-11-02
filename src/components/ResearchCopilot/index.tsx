@@ -259,6 +259,9 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
   if (raw.includes("busy") || status === 409) {
     return "IITR Assistant is busy. Please try again in a moment.";
   }
+  if (status === 404 && raw.includes("conversation")) {
+    return "That conversation is no longer available. Start a new conversation and ask again.";
+  }
   return res.error || "IITR Assistant could not complete that request. You can continue using the booking portal.";
 }
 /** Sources worth showing: none for IITR Assistant live-data answers, and only entries with a title. */
@@ -742,7 +745,7 @@ export default function ResearchCopilot({
 }: ResearchCopilotProps = {}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user: authUser } = useAuth();
   // Analysis desktop controls (Fullscreen/Reconnect) sit bottom-right; Copilot must not cover them.
   const hideOnAnalysisDesktop =
     location.pathname.startsWith("/analysis-launch") ||
@@ -792,6 +795,17 @@ export default function ResearchCopilot({
     });
   const [quickOpen, setQuickOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // A conversation belongs to the account that started it: when the signed-in account changes (sign-out, another
+  // sign-in on this device), the open conversation and its messages are dropped rather than sent to the new account.
+  const accountKey = isAuthenticated ? String(authUser?.id ?? "") : "";
+  const accountRef = useRef(accountKey);
+  useEffect(() => {
+    if (accountRef.current === accountKey) return;
+    accountRef.current = accountKey;
+    setConversationId(null);
+    setMessages([]);
+    setPendingConfirm(null);
+  }, [accountKey]);
   const hasUserMessages = messages.some((m) => m.role === "user");
   // The welcome message carries the role-based starter chips; the full quick-action list stays one tap away.
   const showQuick = quickOpen || (!hasUserMessages && !starterActions.length);
@@ -919,8 +933,8 @@ export default function ResearchCopilot({
     if (open && isAuthenticated) void refreshList();
   }, [open, isAuthenticated, refreshList]);
 
-  const ensureConversation = useCallback(async () => {
-    if (conversationId) return conversationId;
+  const ensureConversation = useCallback(async (fresh = false) => {
+    if (conversationId && !fresh) return conversationId;
     let res = await apiClient.researchCopilotCreateConversation();
     if (!res.data?.conversation?.id && (res.status === 0 || res.error)) {
       // one retry for transient network blips
@@ -1095,7 +1109,14 @@ export default function ResearchCopilot({
       }
 
       const id = await ensureConversation();
-      const res = await apiClient.researchCopilotSendMessage(id, text, choice, action);
+      let res = await apiClient.researchCopilotSendMessage(id, text, choice, action);
+      if (res.status === 404) {
+        // The open conversation is gone on the server (archived elsewhere, or from an earlier sign-in): start a new
+        // one and ask again once, instead of showing the server's "No Conversation matches the given query."
+        setConversationId(null);
+        const freshId = await ensureConversation(true);
+        res = await apiClient.researchCopilotSendMessage(freshId, text, choice, action);
+      }
       if (res.error || !res.data?.message) {
         setMessages((m) => [
           ...m,
