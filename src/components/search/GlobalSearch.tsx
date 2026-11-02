@@ -84,8 +84,14 @@ const BUTTON_WIDTH = {
 };
 
 /** Header button that opens the search; an icon until the ``wideFrom`` breakpoint. */
-export function GlobalSearchButton({ className, wideFrom = "md" }: { className?: string; wideFrom?: "md" | "xl" }) {
+export function GlobalSearchButton({ className, wideFrom = "md", tone = "default" }: {
+  className?: string;
+  wideFrom?: "md" | "xl";
+  /** "light": glass styling for the header laid over the homepage photo. */
+  tone?: "default" | "light";
+}) {
   const width = BUTTON_WIDTH[wideFrom];
+  const light = tone === "light";
   return (
     <button
       type="button"
@@ -95,13 +101,14 @@ export function GlobalSearchButton({ className, wideFrom = "md" }: { className?:
       title={`Search (${SEARCH_SHORTCUT_LABEL})`}
       className={cn(
         "inline-flex h-10 items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 text-sm text-foreground/80 shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        light && "rounded-full border-white/30 bg-white/10 text-white/85 backdrop-blur-sm hover:border-white/50 hover:bg-white/20 hover:text-white focus-visible:ring-white",
         width.box,
         className,
       )}
     >
-      <Search className="h-4 w-4 shrink-0 text-primary dark:text-sky-300" aria-hidden />
+      <Search className={cn("h-4 w-4 shrink-0", light ? "text-white" : "text-primary dark:text-sky-300")} aria-hidden />
       <span className={cn("flex-1 text-left", width.label)}>Search…</span>
-      <kbd className={cn("rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium", width.label)}>
+      <kbd className={cn("rounded border px-1.5 py-0.5 text-[10px] font-medium", light ? "border-white/30 bg-white/10 text-white/80" : "bg-muted", width.label)}>
         {SEARCH_SHORTCUT_LABEL}
       </kbd>
     </button>

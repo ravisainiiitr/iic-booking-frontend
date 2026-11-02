@@ -31,7 +31,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
-import { mergeAttentionItems, nextWeeklyOpening, formatCountdown, type AttentionItem } from "./adminOverviewData";
+import {
+  experienceRatingCard,
+  formatCountdown,
+  mergeAttentionItems,
+  nextWeeklyOpening,
+  reportsLink,
+  type AttentionItem,
+} from "./adminOverviewData";
 
 interface AdminOverviewProps {
   /** Opens a dashboard workspace page. */
@@ -201,6 +208,8 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
   const attention = useMemo(() => mergeAttentionItems(summary?.attention ?? [], pending), [summary, pending]);
   const attentionTotal = attention.reduce((sum, i) => sum + i.count, 0);
   const open = (path: string) => (canOpen(path) ? () => onOpen(path) : undefined);
+  /** Like ``open`` for a page that takes filters in its address (permission is checked on the page path). */
+  const openFiltered = (target: string) => (canOpen(target.split("?")[0]) ? () => onOpen(target) : undefined);
   const openInsight = (path: string) => (canOpen(path) ? () => onOpen(withDepartment(path, dept)) : undefined);
 
   const opening = useMemo(() => {
@@ -237,6 +246,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
   }
 
   const { bookings, revenue, equipment, users, cancellations, waitlist, booking_attempts: attempts, ratings } = summary;
+  const ratingCard = experienceRatingCard(ratings, Boolean(dept));
   const scopeLabel =
     summary.department?.name ?? (summary.scope === "institute" ? "Institute-wide" : "Your department");
   const failureRate = attempts && attempts.total > 0 ? Math.round((attempts.failed / attempts.total) * 100) : 0;
@@ -254,6 +264,11 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
               <Badge variant="secondary" className="font-medium">{scopeLabel}</Badge>
               <span>Updated {formatClock(summary.generated_at)} · refreshes every minute</span>
+              {error ? (
+                <span className="font-medium text-amber-700 dark:text-amber-300" role="status">
+                  · Last refresh failed; these figures are from {formatClock(summary.generated_at)}
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -304,7 +319,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           value={bookings.created_today}
           hint={`${bookings.created_this_week} this week · ${bookings.created_last_7_days} in 7 days`}
           tone="violet"
-          onClick={open("/reports")}
+          onClick={openFiltered(reportsLink("today"))}
         />
         <Kpi
           icon={AlertTriangle}
@@ -324,7 +339,7 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
               : undefined
           }
           tone="emerald"
-          onClick={open("/reports")}
+          onClick={openFiltered(reportsLink("month"))}
         />
       </div>
 
@@ -359,13 +374,15 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
         <Kpi
           compact
           icon={Ban}
-          label={`Failed attempts (${attempts?.days ?? 7} days)`}
+          label="Failed attempts"
           value={attempts ? attempts.failed : "—"}
           hint={
             attempts
-              ? attempts.top_failure_reasons[0]
-                ? `${failureRate}% of ${attempts.total} · top: ${attempts.top_failure_reasons[0].reason}`
-                : `${failureRate}% of ${attempts.total} attempts`
+              ? `Last ${attempts.days} days · ${
+                  attempts.top_failure_reasons[0]
+                    ? `${failureRate}% of ${attempts.total} · top: ${attempts.top_failure_reasons[0].reason}`
+                    : `${failureRate}% of ${attempts.total} attempts`
+                }`
               : undefined
           }
           tone={attempts && attempts.failed > 0 ? "rose" : "slate"}
@@ -374,9 +391,9 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
         <Kpi
           compact
           icon={CalendarX2}
-          label={`Cancellations (${cancellations?.days ?? 30} days)`}
+          label="Cancellations"
           value={cancellations ? cancellations.total : "—"}
-          hint={cancellations ? cancellationHint(cancellations) : undefined}
+          hint={cancellations ? `Last ${cancellations.days} days · ${cancellationHint(cancellations)}` : undefined}
           tone={cancellations && cancellations.total > cancellations.previous_total ? "rose" : "slate"}
           onClick={openInsight(INSIGHT_PATHS.cancellations)}
         />
@@ -384,16 +401,10 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           compact
           icon={Star}
           label="Experience rating"
-          value={ratings?.booking_average != null ? `${ratings.booking_average.toFixed(1)} ★` : "—"}
-          hint={
-            ratings
-              ? `${ratings.booking_count} booking ratings in ${ratings.days} days${
-                  ratings.portal_average != null ? ` · portal ${ratings.portal_average.toFixed(1)} ★` : ""
-                }`
-              : undefined
-          }
+          value={ratingCard.value}
+          hint={ratingCard.hint}
           tone="amber"
-          onClick={open("/admin-settings/feedback")}
+          onClick={ratingCard.source === "portal" ? open("/admin-settings/feedback") : undefined}
         />
       </div>
 

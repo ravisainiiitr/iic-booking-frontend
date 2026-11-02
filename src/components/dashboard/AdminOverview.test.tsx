@@ -142,8 +142,8 @@ describe("AdminOverview", () => {
     expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/equipment");
     await user.click(screen.getByRole("button", { name: /Active users/ }));
     expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/users");
-    expect(screen.getByText("5.0% of 160 bookings · ▲ 3 vs the 30 days before")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: /Cancellations \(30 days\)/ }));
+    expect(screen.getByText("Last 30 days · 5.0% of 160 bookings · ▲ 3 vs the 30 days before")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /^Cancellations/ }));
     expect(onOpen).toHaveBeenLastCalledWith("/admin/insights/cancellations");
   });
 
@@ -176,14 +176,14 @@ describe("AdminOverview", () => {
       }),
     });
     render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} />);
-    expect(await screen.findByText("9 cancellations · 9 refund requests · 2.5% of 363 bookings")).toBeTruthy();
+    expect(await screen.findByText("Last 30 days · 9 cancellations · 9 refund requests · 2.5% of 363 bookings")).toBeTruthy();
   });
 
   it("keeps the insight cards plain when the pages are not in the user's menu or the server is older", async () => {
     render(<AdminOverview onOpen={vi.fn()} canOpen={() => false} />);
     await screen.findByText("Administration overview");
     expect(screen.queryByRole("button", { name: /Active users/ })).toBeNull();
-    expect(screen.getByText("Cancellations (30 days)")).toBeTruthy();
+    expect(screen.getByText("Cancellations")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Cancellations/ })).toBeNull();
   });
 });

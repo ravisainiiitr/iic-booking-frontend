@@ -24,8 +24,31 @@ import { SkipToContent } from "@/components/SkipToContent";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 
-const Header = () => {
+type HeaderProps = {
+  /** "overlay" (homepage): frosted glass over the hero photo until the hero is scrolled past, then the usual bar. */
+  variant?: "default" | "overlay";
+};
+
+/** Scrolled past most of the hero: the overlay header turns back into the solid bar. */
+function useScrolledPast(enabled: boolean): boolean {
+  const [past, setPast] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    const update = () => setPast(window.scrollY > Math.max(120, window.innerHeight * 0.45));
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [enabled]);
+  return past;
+}
+
+const Header = ({ variant = "default" }: HeaderProps) => {
   const navigate = useNavigate();
+  const glass = useScrolledPast(variant === "overlay") === false && variant === "overlay";
   const { user, isAuthenticated, logout } = useAuth();
   const { openGuide, openWhatsNew, hasGuide } = useUserGuide();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -129,7 +152,21 @@ const Header = () => {
   return (
     <>
     <SkipToContent />
-    <header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 pt-safe px-safe backdrop-blur-md shadow-sm shadow-primary/5 supports-[backdrop-filter]:bg-card/90">
+    <header
+      ref={headerRef}
+      data-variant={glass ? "overlay" : "default"}
+      className={
+        glass
+          ? "fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-gradient-to-b from-[hsl(218_60%_7%/0.72)] via-[hsl(218_55%_9%/0.45)] to-[hsl(218_55%_9%/0.2)] pt-safe px-safe backdrop-blur-md transition-colors duration-300"
+          : "fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 pt-safe px-safe backdrop-blur-md shadow-sm shadow-primary/5 transition-colors duration-300 supports-[backdrop-filter]:bg-card/90"
+      }
+    >
+      {glass ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent"
+          aria-hidden
+        />
+      ) : null}
       <div className="container mx-auto px-3 py-2.5 sm:px-6 sm:py-4">
         {/* Equal side columns keep the clock on the header's centre line. They never shrink below
             the banner/actions, so on narrow screens the clock moves off-centre instead of overlapping. */}
@@ -149,16 +186,16 @@ const Header = () => {
               tabIndex={0}
               aria-label="IIT Roorkee — home"
             >
-              <IITRBanner size="lg" className="max-w-full" />
+              <IITRBanner size="lg" className="max-w-full" tone={glass ? "light" : "default"} />
             </div>
           </div>
 
-          <div className="hidden justify-center lg:flex">
+          <div className={`hidden justify-center lg:flex ${glass ? "[&_*]:!text-white [&>*]:!border-white/25 [&>*]:!bg-white/10" : ""}`}>
             <ServerClock />
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
-            <GlobalSearchButton wideFrom="xl" />
+            <GlobalSearchButton wideFrom="xl" tone={glass ? "light" : "default"} />
             {isAuthenticated ? (
               <>
                 <BackToDashboardButton />
@@ -250,7 +287,11 @@ const Header = () => {
               <Button
                 onClick={() => navigate("/auth")}
                 size="lg"
-                className="h-11 px-4 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+                className={
+                  glass
+                    ? "h-11 rounded-full border border-white/40 bg-white px-4 text-sm font-semibold tracking-wide text-[hsl(218_60%_14%)] shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.03] hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 active:scale-[0.98] sm:px-7 sm:text-base"
+                    : "h-11 px-4 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
+                }
               >
                 Sign In
               </Button>

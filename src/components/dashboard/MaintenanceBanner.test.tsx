@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 const api = vi.hoisted(() => ({ getMaintenanceStatus: vi.fn() }));
 vi.mock("@/lib/api", () => ({ apiClient: api }));
 
-import MaintenanceBanner, { maintenanceBannerText } from "./MaintenanceBanner";
+import MaintenanceBanner, { maintenanceBannerText, maintenanceSummary } from "./MaintenanceBanner";
 
 const period = {
   period_id: 3,
@@ -30,16 +30,44 @@ const renderBanner = () =>
     </MemoryRouter>,
   );
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 describe("MaintenanceBanner", () => {
+  it("starts collapsed with a one-line summary", async () => {
+    api.getMaintenanceStatus.mockResolvedValue({ data: { periods: [period, { ...period, period_id: 4, bookings_affected: 0, users_notified: 0 }] } });
+    renderBanner();
+    const toggle = await screen.findByTestId("maintenance-banner-toggle");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.textContent).toContain("2 equipment under maintenance · 3 bookings affected · 1 user notified");
+    expect(screen.queryByTestId("maintenance-banner-row")).toBeNull();
+  });
+
+  it("expands to the full list and remembers the choice", async () => {
+    api.getMaintenanceStatus.mockResolvedValue({ data: { periods: [period] } });
+    renderBanner();
+    fireEvent.click(await screen.findByTestId("maintenance-banner-toggle"));
+    expect(screen.getByTestId("maintenance-banner-toggle").getAttribute("aria-expanded")).toBe("true");
+    expect(localStorage.getItem("dashboard.maintenancePanel.expanded")).toBe("1");
+    cleanup();
+    renderBanner();
+    expect((await screen.findByTestId("maintenance-banner-toggle")).getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("summarises each equipment under maintenance", async () => {
+    localStorage.setItem("dashboard.maintenancePanel.expanded", "1");
     api.getMaintenanceStatus.mockResolvedValue({ data: { periods: [period] } });
     renderBanner();
     const row = await screen.findByTestId("maintenance-banner-row");
     expect(row.textContent).toContain(
       "Under maintenance since Tue 13 Oct 2026, 12:39 PM — 3 bookings affected, 1 user notified, results-overdue paused for 23 bookings",
     );
+  });
+
+  it("summary leaves out zero counts", () => {
+    expect(maintenanceSummary([{ ...period, bookings_affected: 0, users_notified: 0 }])).toBe("1 equipment under maintenance");
   });
 
   it("uses singular wording for one booking", () => {

@@ -1,6 +1,6 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, CalendarClock, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
+import { Calendar, CalendarClock, LogIn, Mail, IndianRupee } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -33,12 +33,13 @@ const DEFAULT_HOME = {
   stat4_label: "Bookings",
 };
 
-/** Sign-in for visitors: solid, the most prominent. */
-const primaryCtaClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/30 ring-1 ring-white/15 hover:bg-brand/90 focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-5 sm:text-base";
+/** Shared geometry of every hero action: same height, radius, padding, type size, icon gap, border and focus ring. */
+const ctaBaseClass =
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 sm:gap-2 sm:px-4 sm:text-base";
+/** Sign-in for visitors: the same button as the others, filled with the brand colour so it still leads. */
+const primaryCtaClass = `${ctaBaseClass} border-white/35 bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground`;
 /** The quick actions (Book Equipment, Analysis Charges, Booking Calendar, Contact Us): one shared style. */
-const secondaryCtaClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap border border-white/35 bg-white/10 px-3.5 text-sm font-medium text-white shadow-sm backdrop-blur-sm hover:bg-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-4 sm:text-base";
+const secondaryCtaClass = `${ctaBaseClass} border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white`;
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -157,18 +158,13 @@ const Hero = () => {
       </div>
 
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
-        {/* pt clears the fixed site header (height + safe area); keep badge fully below the bar */}
+        {/* pt clears the fixed site header (height + safe area); keep the title fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            {/* Badge, title and search on the left; Researcher of the Month on the right, its bottom level with the
+            {/* Title and search on the left; Researcher of the Month on the right, its bottom level with the
                 search bar so the quick actions sit right below both. */}
             <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:gap-12">
             <div className="min-w-0 space-y-3.5 sm:space-y-4">
-            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-sm font-medium tracking-wide text-white shadow-sm backdrop-blur-sm">
-              <FlaskConical className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">Institute Instrumentation Centre · IIT Roorkee</span>
-            </div>
-
             <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
                 className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"

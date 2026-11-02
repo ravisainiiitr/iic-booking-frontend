@@ -16,7 +16,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header variant="overlay" />
       <Hero />
       {/* Phones and tablets: Researcher of the Month right under the hero (large screens show it in the hero). */}
       <ResearcherSpotlight variant="compact" className="lg:hidden" />
