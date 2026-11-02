@@ -165,22 +165,22 @@ const Hero = () => {
                 when the card is taller), so the quick actions sit right below both. */}
             <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] lg:items-stretch xl:gap-12">
             <div className="min-w-0 space-y-3.5 sm:space-y-4 lg:flex lg:flex-col lg:justify-between lg:space-y-0 lg:gap-5">
-            <div className="max-w-3xl space-y-2 sm:space-y-2.5">
+            <div className="max-w-3xl space-y-2 sm:space-y-2.5 lg:space-y-4">
               <h1
-                className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"
+                className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.75rem] lg:leading-[1.08]"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
               >
                 {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               </h1>
               <div className="h-1 w-20 rounded-full bg-gradient-to-r from-amber-300 to-sky-300" aria-hidden />
               <p
-                className="text-lg font-medium text-sky-100 sm:text-xl md:text-2xl"
+                className="text-lg font-medium text-sky-100 sm:text-xl md:text-2xl lg:text-[1.75rem]"
                 style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
               >
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 sm:text-lg"
+                className="max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 sm:text-lg lg:text-xl lg:leading-[1.7]"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
                 {(() => {
