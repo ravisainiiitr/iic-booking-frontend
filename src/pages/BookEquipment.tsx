@@ -7477,7 +7477,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           if (needsIstemNextSteps) {
             resetBookingPageToDefaults();
             navigate(`/bookings/${realId}/next-steps`);
-            toast.success("Booking confirmed. Complete I-STEM steps on the next page.");
+            toast.success(
+              resData?.istem_automatic
+                ? "Booking confirmed. The portal registers it on I-STEM for you."
+                : "Booking confirmed. Complete I-STEM steps on the next page."
+            );
             return;
           }
         }
