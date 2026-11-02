@@ -2460,6 +2460,82 @@ export type CallRole = "operator" | "oic" | "accounts";
 export type CallContextType = "booking" | "equipment" | "invoice";
 export type CallStatus = "ringing" | "accepted" | "ended" | "declined" | "missed" | "busy" | "cancelled" | "failed";
 
+export type UpsLevel = "ok" | "watch" | "attention" | "urgent";
+
+export interface UpsFinding {
+  code: string;
+  level: Exclude<UpsLevel, "ok">;
+  title: string;
+  detail: string;
+  action: string;
+  evidence: Record<string, unknown>;
+}
+
+export interface UpsAssessment {
+  id: number;
+  created_at: string;
+  level: UpsLevel;
+  risk_score: number;
+  findings: UpsFinding[];
+  metrics: Record<string, number | number[] | null>;
+  summary: string;
+  summary_source: "ai" | "rules" | "";
+  notified_at: string | null;
+  notified_codes: string[];
+}
+
+export interface UpsReadingInfo {
+  read_at: string;
+  stale: boolean;
+  reachable: boolean;
+  input_voltage: number | null;
+  output_voltage: number | null;
+  load_percent: number | null;
+  battery_percent: number | null;
+  runtime_minutes: number | null;
+  temperature_c: number | null;
+  on_battery: boolean | null;
+  alerts: { rule: string; severity: string; title: string }[];
+}
+
+export interface UpsUnit {
+  id: number;
+  name: string;
+  manufacturer: string;
+  model: string;
+  department: string;
+  equipment: { id: number; name: string; code: string }[];
+  map_verified: boolean;
+  enabled: boolean;
+  latest: UpsReadingInfo | null;
+  health: { level: UpsLevel; risk_score: number; summary: string; created_at: string } | null;
+}
+
+export interface UpsHistoryPoint {
+  read_at: string;
+  reachable: boolean;
+  load_percent: number | null;
+  battery_percent: number | null;
+  input_voltage: number | null;
+  on_battery: boolean | null;
+}
+
+export interface UpsHealth {
+  device: number;
+  latest: UpsAssessment | null;
+  notices: { at: string; level: UpsLevel; codes: string[]; summary: string; recipients: number }[];
+  officers: string[];
+  notify_officers: boolean;
+  power_events: {
+    kind: string;
+    started_at: string;
+    ended_at: string | null;
+    minutes: number;
+    start_battery_percent: number | null;
+    end_battery_percent: number | null;
+  }[];
+}
+
 /** One in-app call (GET/POST /calls/...). No audio is stored. */
 export interface CallInfo {
   id: string;
@@ -12649,6 +12725,24 @@ class ApiClient {
 
   async closeLiveFeedPeer(peerId: number) {
     return this.request<unknown>(`/live/peers/${peerId}/`, { method: "DELETE" });
+  }
+
+  /** UPS units the user looks after (OIC / Lab Operator: those powering their instruments) with the latest reading. */
+  async getUpsList() {
+    return this.request<{ results: UpsUnit[] }>("/power/ups/");
+  }
+
+  async getUpsHistory(id: number, hours = 24) {
+    return this.request<{ points: UpsHistoryPoint[] }>(`/power/ups/${id}/history/?hours=${hours}`);
+  }
+
+  /** The latest AI health check of a UPS, the notices sent to the officers and recent power cuts. */
+  async getUpsHealth(id: number) {
+    return this.request<UpsHealth>(`/power/ups/${id}/health/`);
+  }
+
+  async runUpsHealth(id: number) {
+    return this.request<UpsAssessment>(`/power/ups/${id}/health/run/`, { method: "POST" });
   }
 
   async startCall(body: { context: CallContextType; id: number; role: CallRole; callee_id?: number; reason?: string; platform?: string }) {
