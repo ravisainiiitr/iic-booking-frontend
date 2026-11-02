@@ -2611,6 +2611,8 @@ export interface ProfileOnboarding {
   /** For the organisation step: what I-STEM said (State/UT code, organisation name) and which list to show. */
   hints: { state?: string; organisation?: string; subcategory?: string };
   values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
+  /** An unlisted organisation the user asked the IIC office to add (pending), or "". */
+  organisation_requested?: string;
 }
 
 /** One of the user's own bookings on the My activity panel. */
