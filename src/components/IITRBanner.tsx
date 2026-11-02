@@ -5,6 +5,8 @@ type Props = {
   /** Controls compactness in headers. */
   size?: "sm" | "md" | "lg";
   className?: string;
+  /** "light": white lettering and the emblem on a white disc, for the header laid over the homepage photo. */
+  tone?: "default" | "light";
 };
 
 const SIZE = {
@@ -35,8 +37,9 @@ const SIZE = {
   },
 } as const;
 
-const IITRBanner = ({ size = "md", className }: Props) => {
+const IITRBanner = ({ size = "md", className, tone = "default" }: Props) => {
   const s = SIZE[size];
+  const light = tone === "light";
 
   return (
     <div className={`flex items-center ${s.gap} min-w-0 ${className ?? ""}`}>
@@ -48,17 +51,19 @@ const IITRBanner = ({ size = "md", className }: Props) => {
         decoding="async"
         alt="IIT Roorkee"
         // Navy emblem on transparency: in dark mode it sits on a white disc (like a seal) instead of being inverted.
-        className={`${s.logo} shrink-0 object-contain drop-shadow-sm dark:rounded-full dark:bg-white dark:p-[2px]`}
+        className={`${s.logo} shrink-0 object-contain drop-shadow-sm ${
+          light ? "rounded-full bg-white p-[3px] shadow-lg shadow-black/30 ring-1 ring-white/40" : "dark:rounded-full dark:bg-white dark:p-[2px]"
+        }`}
       />
       <div className={`min-w-0 ${s.leading}`}>
         <div
-          className={`${s.hindi} text-foreground ${s.wrap}`}
+          className={`${s.hindi} ${light ? "text-white drop-shadow" : "text-foreground"} ${s.wrap}`}
           lang="hi"
           style={{ fontFamily: '"Noto Sans Devanagari", "Mangal", "Kohinoor Devanagari", system-ui, sans-serif' }}
         >
           भारतीय प्रौद्योगिकी संस्थान रुड़की
         </div>
-        <div className={`${s.english} text-foreground/95 ${s.wrap} mt-0.5`}>
+        <div className={`${s.english} ${light ? "text-white/90 drop-shadow" : "text-foreground/95"} ${s.wrap} mt-0.5`}>
           Indian Institute of Technology Roorkee
         </div>
       </div>
