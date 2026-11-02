@@ -110,6 +110,7 @@ import { ResultsDeadlineNotice, sampleAcceptedForResults } from "@/components/bo
 import { ResultsOverdueNotice, ResultsPausedNotice } from "@/components/booking/ResultsOverdueNotice";
 import { canRebook, prepareRebook, type RebookSourceBooking } from "@/lib/rebookPrefill";
 import CallButton from "@/components/calls/CallButton";
+import LiveFeedPanel from "@/components/livefeed/LiveFeedPanel";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
 
@@ -2205,6 +2206,9 @@ export function BookingDetailCard({
               )}
             </div>
           )}
+
+          {/* Live instrument feed: shown only to the booking owner while the operator shares it during the slot. */}
+          {bookingPk ? <LiveFeedPanel bookingId={bookingPk} /> : null}
 
           {/* Invoice + technical contacts: every viewer except the Lab in-charge, who is one of these contacts. */}
           {!(isLabInchargeUser || normalizedCurrentUserType === "operator") && (
