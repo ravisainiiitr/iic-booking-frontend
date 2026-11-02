@@ -33,12 +33,13 @@ const DEFAULT_HOME = {
   stat4_label: "Bookings",
 };
 
-/** Sign-in for visitors: solid, the most prominent. */
-const primaryCtaClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/30 ring-1 ring-white/15 hover:bg-brand/90 focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-5 sm:text-base";
+/** Shared geometry of every hero action: same height, radius, padding, type size, icon gap, border and focus ring. */
+const ctaBaseClass =
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 sm:gap-2 sm:px-4 sm:text-base";
+/** Sign-in for visitors: the same button as the others, filled with the brand colour so it still leads. */
+const primaryCtaClass = `${ctaBaseClass} border-white/35 bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground`;
 /** The quick actions (Book Equipment, Analysis Charges, Booking Calendar, Contact Us): one shared style. */
-const secondaryCtaClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap border border-white/35 bg-white/10 px-3.5 text-sm font-medium text-white shadow-sm backdrop-blur-sm hover:bg-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-4 sm:text-base";
+const secondaryCtaClass = `${ctaBaseClass} border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white`;
 
 const Hero = () => {
   const navigate = useNavigate();
