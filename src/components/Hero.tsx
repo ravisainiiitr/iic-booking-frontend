@@ -36,9 +36,8 @@ const DEFAULT_HOME = {
 /** Shared geometry of every hero action: same height, radius, padding, type size, icon gap, border and focus ring. */
 const ctaBaseClass =
   "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 sm:gap-2 sm:px-4 sm:text-base";
-/** Sign-in for visitors: the same button as the others, filled with the brand colour so it still leads. */
-const primaryCtaClass = `${ctaBaseClass} border-white/35 bg-brand text-brand-foreground hover:bg-brand/90 hover:text-brand-foreground`;
-/** The quick actions (Book Equipment, Analysis Charges, Booking Calendar, Contact Us): one shared style. */
+/** Every hero action, Login with Channel i included (Book Equipment, Analysis Charges, Booking Calendar, Contact Us):
+ * one shared white-glass style. */
 const secondaryCtaClass = `${ctaBaseClass} border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white`;
 
 const Hero = () => {
@@ -161,10 +160,11 @@ const Hero = () => {
         {/* pt clears the fixed site header (height + safe area); keep the title fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            {/* Title and search on the left; Researcher of the Month on the right, its bottom level with the
-                search bar so the quick actions sit right below both. */}
-            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,26rem)] xl:gap-12">
-            <div className="min-w-0 space-y-3.5 sm:space-y-4">
+            {/* Title and search on the left; Researcher of the Month on the right. On large screens the title starts
+                level with the top of the card and the search bar sits level with its bottom (no gap above the title
+                when the card is taller), so the quick actions sit right below both. */}
+            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] lg:items-stretch xl:gap-12">
+            <div className="min-w-0 space-y-3.5 sm:space-y-4 lg:flex lg:flex-col lg:justify-between lg:space-y-0 lg:gap-5">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5">
               <h1
                 className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.4rem]"
@@ -205,7 +205,7 @@ const Hero = () => {
               {!isAuthenticated && (
                 <Button
                   size="lg"
-                  className={primaryCtaClass}
+                  className={secondaryCtaClass}
                   onClick={handleChanneliLogin}
                   disabled={channeliLoading}
                 >

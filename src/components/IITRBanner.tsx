@@ -52,7 +52,7 @@ const IITRBanner = ({ size = "md", className, tone = "default" }: Props) => {
         alt="IIT Roorkee"
         // Navy emblem on transparency: in dark mode it sits on a white disc (like a seal) instead of being inverted.
         className={`${s.logo} shrink-0 object-contain drop-shadow-sm ${
-          light ? "rounded-full bg-white p-[3px] shadow-lg shadow-black/30 ring-1 ring-white/40" : "dark:rounded-full dark:bg-white dark:p-[2px]"
+          light ? "rounded-full bg-white p-[3px] dark:bg-white shadow-lg shadow-black/30 ring-1 ring-white/40" : "dark:rounded-full dark:bg-white dark:p-[2px]"
         }`}
       />
       <div className={`min-w-0 ${s.leading}`}>
