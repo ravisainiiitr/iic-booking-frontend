@@ -4403,6 +4403,55 @@ export async function downloadWithProgress(
   }
 }
 
+/** I-STEM equipment mapping page (Main Admin: every instrument; department administrators: their own). */
+export interface IstemEquipmentMappingInfo {
+  istem_equipment_id: string;
+  sample_count_input_key: string;
+  is_active: boolean;
+  notes: string;
+  set_by: string;
+  set_at: string | null;
+  remote_found: boolean | null;
+  remote_equipment_name: string;
+  remote_checked_at: string | null;
+}
+
+export interface IstemMappingEquipmentRow {
+  equipment_id: number;
+  code: string;
+  name: string;
+  department: { id: number; name: string } | null;
+  requires_istem_fbr: boolean;
+  input_fields: { key: string; label: string }[];
+  open_istem_bookings: number;
+  mapping: IstemEquipmentMappingInfo | null;
+}
+
+export interface IstemEquipmentMappingList {
+  istem_connected: boolean;
+  all_departments: boolean;
+  equipment: IstemMappingEquipmentRow[];
+}
+
+export interface IstemEquipmentSearchRow {
+  equipment_id: string;
+  equipment_name: string;
+  mapped_to: { equipment_id: number; name: string }[];
+}
+
+export interface IstemEquipmentMappingSave {
+  istem_equipment_id: string;
+  sample_count_input_key: string;
+  is_active: boolean;
+  notes: string;
+}
+
+export interface IstemEquipmentVerifyResult {
+  listed: number;
+  found: string[];
+  missing: string[];
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -8080,6 +8129,26 @@ class ApiClient {
   /** Main Admin / Dept Admin: Equipment overview (opened from the dashboard's Equipment card). */
   async getAdminEquipmentInsights(params: InsightParams = {}) {
     return this.request<EquipmentInsights>(`/admin/insights/equipment/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** I-STEM equipment mapping: instruments the user manages, with their I-STEM equipment IDs. */
+  async getIstemEquipmentMappings() {
+    return this.request<IstemEquipmentMappingList>('/istem/equipment-mappings/', { method: 'GET' });
+  }
+
+  /** Active I-STEM equipment of the institute whose name contains ``q`` (read from I-STEM). */
+  async searchIstemEquipment(q: string) {
+    return this.request<{ results: IstemEquipmentSearchRow[] }>(
+      `/istem/equipment-mappings/search/?q=${encodeURIComponent(q)}`, { method: 'GET' });
+  }
+
+  async saveIstemEquipmentMapping(equipmentId: number, body: IstemEquipmentMappingSave) {
+    return this.request<{ mapping: IstemEquipmentMappingInfo; warnings: string[]; checked: boolean }>(
+      `/istem/equipment-mappings/${equipmentId}/`, { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async verifyIstemEquipmentMappings() {
+    return this.request<IstemEquipmentVerifyResult>('/istem/equipment-mappings/verify/', { method: 'POST' });
   }
 
   /** Main Admin / Dept Admin: Users overview (opened from the dashboard's Active users card). */

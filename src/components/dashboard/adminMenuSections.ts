@@ -60,6 +60,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     items: [
       "equipment_settings",
       "multi_mode_equipment",
+      "istem_equipment",
       "change_slot_status",
       "disruption_history",
       "accessories",
