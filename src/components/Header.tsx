@@ -289,7 +289,7 @@ const Header = ({ variant = "default" }: HeaderProps) => {
                 size="lg"
                 className={
                   glass
-                    ? "h-11 rounded-full border border-white/40 bg-white px-4 text-sm font-semibold tracking-wide text-[hsl(218_60%_14%)] shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.03] hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 active:scale-[0.98] sm:px-7 sm:text-base"
+                    ? "h-11 rounded-full border border-white/40 bg-white px-4 text-sm font-semibold tracking-wide text-[hsl(218_60%_14%)] dark:bg-white dark:text-[hsl(218_60%_14%)] shadow-lg shadow-black/25 transition-all duration-200 hover:scale-[1.03] hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 active:scale-[0.98] sm:px-7 sm:text-base"
                     : "h-11 px-4 sm:px-7 text-sm sm:text-base font-semibold tracking-wide shadow-md shadow-primary/15 transition-all duration-200 hover:scale-[1.03] hover:shadow-lg hover:shadow-primary/20 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.98]"
                 }
               >
