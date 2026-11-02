@@ -22,16 +22,20 @@ const STEP_META: Record<ProfileOnboardingStep, { title: string; description: str
 
 const norm = (s: string) => s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
 
-function OrganisationStep({ hints, value, onChange }: {
+function OrganisationStep({ hints, value, onChange, request, onRequest }: {
   hints: Onboarding["hints"];
   value: string;
   onChange: (departmentId: string) => void;
+  /** Name of an unlisted organisation to ask the IIC office to add ("" = choosing from the list). */
+  request: string;
+  onRequest: (name: string, state: string) => void;
 }) {
   const [states, setStates] = useState<Array<{ value: string; label: string }>>([]);
   const [state, setState] = useState(hints.state || "");
   const [orgs, setOrgs] = useState<Array<{ id: number; name: string }>>([]);
   const [search, setSearch] = useState(hints.organisation || "");
   const [loading, setLoading] = useState(false);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     void apiClient.getIndianStates().then((r) => setStates(r.data?.states ?? []));
@@ -74,6 +78,8 @@ function OrganisationStep({ hints, value, onChange }: {
           onChange={(e) => {
             setState(e.target.value);
             onChange("");
+            setAsking(false);
+            onRequest("", e.target.value);
           }}
           className="h-10 w-full rounded-md border bg-background px-3 text-sm"
         >
@@ -91,7 +97,9 @@ function OrganisationStep({ hints, value, onChange }: {
             {loading ? (
               <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
             ) : shown.length === 0 ? (
-              <p className="p-3 text-sm text-muted-foreground">No organisation matches. Clear the search, or contact the IIC office to add yours.</p>
+              <p className="p-3 text-sm text-muted-foreground">
+                No organisation matches. Clear the search, or choose “My organisation is not listed” below.
+              </p>
             ) : (
               shown.map((d) => (
                 <button
@@ -99,7 +107,11 @@ function OrganisationStep({ hints, value, onChange }: {
                   type="button"
                   role="option"
                   aria-selected={value === String(d.id)}
-                  onClick={() => onChange(String(d.id))}
+                  onClick={() => {
+                    onChange(String(d.id));
+                    setAsking(false);
+                    onRequest("", state);
+                  }}
                   className={cn("flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted",
                     value === String(d.id) && "bg-primary/10 font-medium")}
                 >
@@ -109,6 +121,42 @@ function OrganisationStep({ hints, value, onChange }: {
               ))
             )}
           </div>
+          {asking ? (
+            <div className="space-y-1.5 rounded-md border border-dashed p-3">
+              <Label htmlFor="onb-org-request">Organisation to add</Label>
+              <Input
+                id="onb-org-request"
+                value={request}
+                onChange={(e) => onRequest(e.target.value, state)}
+                placeholder="Full name of your organisation"
+              />
+              <p className="text-xs text-muted-foreground">
+                The IIC office adds it to the list and your account is moved to it. You can finish your profile meanwhile.
+              </p>
+              <button
+                type="button"
+                className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => {
+                  setAsking(false);
+                  onRequest("", state);
+                }}
+              >
+                Choose from the list instead
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+              onClick={() => {
+                setAsking(true);
+                onChange("");
+                onRequest(search.trim() || hints.organisation || "", state);
+              }}
+            >
+              My organisation is not listed
+            </button>
+          )}
         </div>
       ) : null}
     </div>
@@ -156,7 +204,10 @@ export default function ProfileOnboarding() {
     setSaving(true);
     setError("");
     const payload: Record<string, string> =
-      step === "organisation" ? { department: values.department || "" }
+      step === "organisation"
+        ? values.org_request
+          ? { request_organisation: "1", organisation_name: values.org_request, state: values.org_state || "" }
+          : { department: values.department || "" }
         : step === "gender" ? { gender: values.gender || "" }
           : step === "mobile" ? { mobile: values.mobile || "" }
             : step === "programme" ? { program_start_date: values.program_start_date || "", program_end_date: values.program_end_date || "" }
@@ -166,6 +217,9 @@ export default function ProfileOnboarding() {
     if (res.error || !res.data) {
       setError(res.error || "Not saved. Please try again.");
       return;
+    }
+    if (step === "organisation" && res.data.organisation_requested) {
+      toast.success(`Sent to the IIC office to add: ${res.data.organisation_requested}`);
     }
     setData(res.data);
     if (!res.data.required) {
@@ -205,7 +259,13 @@ export default function ProfileOnboarding() {
 
         <div className="py-1">
           {step === "organisation" ? (
-            <OrganisationStep hints={data.hints} value={values.department || ""} onChange={set("department")} />
+            <OrganisationStep
+              hints={data.hints}
+              value={values.department || ""}
+              onChange={set("department")}
+              request={values.org_request || ""}
+              onRequest={(name, state) => setValues((prev) => ({ ...prev, org_request: name, org_state: state }))}
+            />
           ) : step === "gender" ? (
             <div role="radiogroup" aria-label="Gender" className="grid grid-cols-3 gap-2">
               {[["male", "Male"], ["female", "Female"], ["other", "Other"]].map(([v, label]) => (
