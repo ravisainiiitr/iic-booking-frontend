@@ -20,6 +20,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
+import WhatsAppCard from "@/components/profile/WhatsAppCard";
 import IstemLinkCard from "@/components/profile/IstemLinkCard";
 import { formatDMY } from "@/lib/dateFormat";
 
@@ -1454,6 +1455,7 @@ const Profile = () => {
         </Card>
         {user && <LoginPasswordCard />}
         {user && <MobileDevicesCard />}
+        {user && <WhatsAppCard />}
         {user && <IstemLinkCard onLinked={loadExternalBilling} />}
       </main>
     </div>
