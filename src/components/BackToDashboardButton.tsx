@@ -83,7 +83,7 @@ export function BackToDashboardButton({
     >
       <LayoutDashboard className="h-4 w-4 shrink-0" />
       <span className="hidden sm:inline">{isEmbed ? "Overview" : label}</span>
-      <span className="sm:hidden">{isEmbed ? "Overview" : "Dashboard"}</span>
+      {isEmbed ? <span className="sm:hidden">Overview</span> : null}
     </Button>
   );
 }
