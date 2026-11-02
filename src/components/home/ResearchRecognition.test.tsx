@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ getHallOfFrames: vi.fn(), getResearchersOfTheMonth: vi.fn() }));
+const api = vi.hoisted(() => ({ getHallOfFrames: vi.fn(), getResearchersOfTheMonth: vi.fn(), getAcknowledgers: vi.fn(async () => ({ data: { results: [] } })) }));
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   apiClient: api,
@@ -134,5 +134,35 @@ describe("Hall of Frames details", () => {
     expect(within(section).getByText("9 publications acknowledging IIC")).toBeTruthy();
     fireEvent.error(within(section).getByRole("img", { name: "Portrait of Researcher 1" }));
     expect(within(section).queryByRole("img", { name: "Portrait of Researcher 1" })).toBeNull();
+  });
+});
+
+describe("Acknowledgement list in the hero", () => {
+  const month = (id: number) => ({ ...person(id, { user_id: id }), month: "2026-11-01", department_id: null, department_name: "Institute-wide", titles: ["Institute-wide"], publication_count: 4 });
+
+  it("lists everyone approved under the Researcher of the Month, without repeating them, and steps manually", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
+    api.getAcknowledgers.mockResolvedValue({ data: { results: [
+      person(3, { user_id: 3, publication_count: 4 }), person(7, { user_id: 7, publication_count: 2 }), person(8, { user_id: 8, publication_count: 1 })] } });
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    const list = await screen.findByRole("region", { name: "Researchers acknowledging IIC" });
+    const rows = within(list).getAllByRole("listitem").map((li) => li.textContent);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("Researcher 7");
+    expect(rows[0]).toContain("2 publications");
+    expect(rows[1]).toContain("1 publication");
+    expect(screen.getByRole("heading", { name: "Researcher 3" })).toBeTruthy();  // the month's card stays on top
+    const scroller = screen.getByTestId("spotlight-scroll");
+    scroller.scrollBy = vi.fn();
+    fireEvent.click(screen.getByRole("button", { name: "Scroll the list on" }));
+    expect(scroller.scrollBy).toHaveBeenCalledWith({ top: 160, behavior: "smooth" });
+  });
+
+  it("shows the list alone when nobody is chosen this month", async () => {
+    api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [] } });
+    api.getAcknowledgers.mockResolvedValue({ data: { results: [person(9, { user_id: 9, publication_count: 1 })] } });
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    expect(await screen.findByTestId("acknowledgers-only")).toBeTruthy();
+    expect(screen.getByText("Researcher 9")).toBeTruthy();
   });
 });

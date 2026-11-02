@@ -5978,6 +5978,11 @@ class ApiClient {
     return this.request<{ results: ResearchRecognition[] }>('/cms/hall-of-frames/');
   }
 
+  /** Everyone whose publication acknowledging IIC is approved (home page hero list; most publications first). */
+  async getAcknowledgers() {
+    return this.request<{ results: ResearchRecognition[] }>('/cms/acknowledgers/');
+  }
+
   /** Public: this month's approved Researchers of the Month (``history`` for earlier months). */
   async getResearchersOfTheMonth(params?: { department?: number; history?: boolean }) {
     const q = new URLSearchParams();
