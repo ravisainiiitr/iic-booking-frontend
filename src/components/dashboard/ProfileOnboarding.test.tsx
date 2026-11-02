@@ -62,6 +62,22 @@ describe("ProfileOnboarding", () => {
     await waitFor(() => expect(api.saveOnboardingStep).toHaveBeenCalledWith("organisation", { department: "9" }));
   });
 
+  it("asks the IIC office to add an organisation that is not listed", async () => {
+    api.getOnboarding.mockResolvedValue(status(["organisation", "password"], { state: "uttarakhand", organisation: "IIC Portal Test", subcategory: "educational_institute" }));
+    api.getIndianStates.mockResolvedValue({ data: { states: [{ value: "uttarakhand", label: "Uttarakhand" }] } });
+    api.getDepartments.mockResolvedValue({ data: { departments: [{ id: 3, name: "Other College" }] } });
+    api.saveOnboardingStep.mockResolvedValue({ data: { ...status(["password"]).data, organisation_requested: "IIC Portal Test" } });
+    render(<ProfileOnboarding />);
+    expect(await screen.findByText(/No organisation matches/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "My organisation is not listed" }));
+    expect((screen.getByLabelText("Organisation to add") as HTMLInputElement).value).toBe("IIC Portal Test");
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    await waitFor(() => expect(api.saveOnboardingStep).toHaveBeenCalledWith("organisation", {
+      request_organisation: "1", organisation_name: "IIC Portal Test", state: "uttarakhand",
+    }));
+    expect(await screen.findByText("Set a password")).toBeTruthy();
+  });
+
   it("shows a server refusal and can be put off for this session", async () => {
     api.getOnboarding.mockResolvedValue(status(["mobile"]));
     api.saveOnboardingStep.mockResolvedValue({ error: "Enter a 10-digit mobile number." });
