@@ -30,6 +30,7 @@ export const SEARCH_PAGES: SearchPage[] = [
   { path: "/booking-management", title: "Booking management", keywords: "manage bookings complete approve", audience: "staff" },
   { path: "/booking-calendar", title: "Booking calendar", keywords: "schedule week day", audience: "staff" },
   { path: "/urgent-requests", title: "Urgent requests", keywords: "urgent allocate priority", audience: "staff" },
+  { path: "/ups-health", title: "UPS health", keywords: "ups power battery backup mains vertiv", audience: "staff" },
   { path: "/repeat-sample-requests", title: "Repeat sample requests", keywords: "repeat sample", audience: "staff" },
   { path: "/equipment-waitlist", title: "Equipment waitlist", keywords: "waitlist queue", audience: "staff" },
   { path: "/change-slot-status", title: "Change slot status", keywords: "block slots maintenance", audience: "staff" },
