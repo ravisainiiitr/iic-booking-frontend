@@ -5,7 +5,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowLeft, CreditCard, FlaskConical, Mail, ShieldCheck, UserCog, Wallet } from "lucide-react";
+import { ArrowLeft, FlaskConical, Mail, ShieldCheck, UserCog, Wallet } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
 
 const MODULES = [
@@ -36,16 +36,6 @@ const MODULES = [
     icon: Wallet,
     gradient: "from-emerald-500 to-green-700",
     button: "bg-emerald-700 hover:bg-emerald-800",
-  },
-  {
-    key: "faculty-credit",
-    title: "Faculty Credit Facility",
-    description:
-      "Enable a one-time controlled negative balance for newly joined faculty on this department’s sub-wallet.",
-    path: "/manage/department-administration/faculty-credit-facility",
-    icon: CreditCard,
-    gradient: "from-amber-500 to-orange-700",
-    button: "bg-amber-600 hover:bg-amber-700",
   },
   {
     key: "sric-bill-section",

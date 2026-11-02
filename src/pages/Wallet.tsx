@@ -35,7 +35,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import UserProfile from "@/components/UserProfile";
-import { AlertTriangle, Send, X, Clock, CheckCircle, XCircle, CreditCard, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, Send, X, Clock, CheckCircle, XCircle, FileText, ChevronDown, ChevronUp, Building2, RefreshCw, Search, User, Minus, Plus, Loader2, Landmark, Download, FileSpreadsheet, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
 import { useAlert } from "@/hooks/use-alert";
@@ -115,25 +115,6 @@ function RechargeStatusBadge({
   return <Badge variant="secondary" className="shrink-0">{request.status_display || "Pending"}</Badge>;
 }
 
-type DeptFacultyCreditStatus = {
-  id: number | null;
-  faculty_user_id: number;
-  department_id: number;
-  department_name: string;
-  status: string;
-  status_display: string;
-  credit_limit: string;
-  department_max_credit_limit?: string;
-  wallet_balance: string;
-  outstanding_credit: string;
-  remaining_credit: string;
-  availed_at: string | null;
-  closed_at: string | null;
-  eligible?: boolean;
-  can_avail?: boolean;
-  settings_enabled?: boolean;
-};
-
 interface Transaction {
   id: number | string;
   transaction_type: "credit" | "debit";
@@ -204,7 +185,6 @@ const Wallet = () => {
     );
   }, [isFaculty, user]);
   // Internal (IIT Roorkee) faculty are not offered credit, so they get no Credit history button.
-  const isInternalFaculty = isFacultyEffective && String(user?.department_type ?? "").toLowerCase() === "internal";
   const [hasApprovedRequest, setHasApprovedRequest] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const [walletOwner, setWalletOwner] = useState<{
@@ -255,13 +235,6 @@ const Wallet = () => {
   const [transactionsTotal, setTransactionsTotal] = useState(0);
   const [fullTransactionsLoaded, setFullTransactionsLoaded] = useState(false);
   const [loadingFullTransactions, setLoadingFullTransactions] = useState(false);
-  const [deptFacultyCreditByDept, setDeptFacultyCreditByDept] = useState<
-    Record<number, DeptFacultyCreditStatus>
-  >({});
-  const [availCreditOpen, setAvailCreditOpen] = useState(false);
-  const [availCreditDeptId, setAvailCreditDeptId] = useState<number | null>(null);
-  const [availCreditAmount, setAvailCreditAmount] = useState("");
-  const [availingCredit, setAvailingCredit] = useState(false);
 
   // External user withdrawal (bank transfer)
   const [isExternalUser, setIsExternalUser] = useState(false);
@@ -388,24 +361,6 @@ const Wallet = () => {
       console.error("Failed to fetch recharge requests:", error);
     } finally {
       setLoadingRechargeRequests(false);
-    }
-  };
-
-  const fetchDeptFacultyCreditStatus = async () => {
-    try {
-      const res = await apiClient.getMyDepartmentFacultyCreditFacilityStatus();
-      if (res.error || !res.data?.results) {
-        setDeptFacultyCreditByDept({});
-        return;
-      }
-      const byDept: Record<number, DeptFacultyCreditStatus> = {};
-      for (const row of res.data.results) {
-        byDept[row.department_id] = row;
-      }
-      setDeptFacultyCreditByDept(byDept);
-    } catch (error) {
-      console.error("Failed to fetch department faculty credit status:", error);
-      setDeptFacultyCreditByDept({});
     }
   };
 
@@ -1209,14 +1164,11 @@ const Wallet = () => {
         if (walletResponse.data.is_shared) {
           await fetchJoinRequests();
         }
-
-        await fetchDeptFacultyCreditStatus();
       }
     } catch (error: any) {
       // Don't redirect on error, just show empty state
       setBalance(0);
       setTransactions([]);
-      setDeptFacultyCreditByDept({});
       toast.error(error.message || "Failed to load wallet data. Showing empty wallet.");
     } finally {
       setLoading(false);
@@ -1354,68 +1306,6 @@ const Wallet = () => {
     [transactions]
   );
 
-  const openAvailCreditDialog = (departmentId: number) => {
-    const status = deptFacultyCreditByDept[departmentId];
-    const remaining =
-      parseFloat(
-        String(
-          status?.remaining_credit ||
-            status?.department_max_credit_limit ||
-            status?.credit_limit ||
-            "0"
-        )
-      ) || 0;
-    setAvailCreditDeptId(departmentId);
-    setAvailCreditAmount(remaining > 0 ? String(remaining) : "");
-    setAvailCreditOpen(true);
-  };
-
-  const handleAvailCreditFacility = async () => {
-    if (availCreditDeptId == null) return;
-    const status = deptFacultyCreditByDept[availCreditDeptId];
-    const remaining =
-      parseFloat(
-        String(
-          status?.remaining_credit ||
-            status?.department_max_credit_limit ||
-            status?.credit_limit ||
-            "0"
-        )
-      ) || 0;
-    const amount = parseFloat(availCreditAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a credit amount greater than zero.");
-      return;
-    }
-    if (amount > remaining) {
-      toast.error(
-        `Credit amount cannot exceed ₹${remaining.toLocaleString("en-IN", { maximumFractionDigits: 2 })}.`
-      );
-      return;
-    }
-    try {
-      setAvailingCredit(true);
-      const res = await apiClient.availDepartmentFacultyCreditFacility({
-        department_id: availCreditDeptId,
-        amount,
-      });
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success(res.data?.message || "Credit facility availed successfully.");
-      setAvailCreditOpen(false);
-      setAvailCreditDeptId(null);
-      setAvailCreditAmount("");
-      await fetchDeptFacultyCreditStatus();
-      await fetchWalletData();
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to avail credit facility");
-    } finally {
-      setAvailingCredit(false);
-    }
-  };
-
   const handleSendSricNotification = async (requestId: number, onSuccess?: () => void) => {
     try {
       setSendingSric(true);
@@ -1479,17 +1369,6 @@ const Wallet = () => {
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, RECENT_RECHARGE_REQUESTS_COUNT),
     [rechargeRequests]
-  );
-
-  const creditFacilityRows = useMemo(
-    () =>
-      Object.values(deptFacultyCreditByDept)
-        .filter((c) => {
-          const s = String(c.status || "").toLowerCase();
-          return s === "active" || s === "exhausted" || Boolean(c.can_avail);
-        })
-        .sort((a, b) => a.department_name.localeCompare(b.department_name)),
-    [deptFacultyCreditByDept]
   );
 
   // Calculate if section should show (needed in multiple return statements)
@@ -1869,18 +1748,6 @@ const Wallet = () => {
           </div>
           {(canShowWalletRecharge || !isShared) && (
             <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end shrink-0">
-              {!isShared && !isInternalFaculty && (
-                <Button
-                  size="lg"
-                  className="h-12 px-6 text-base"
-                  variant="outline"
-                  onClick={() => navigate("/wallet/credit-facility")}
-                  title="Credit already taken and its repayment (new credit is no longer offered)"
-                >
-                  <CreditCard className="h-5 w-5 mr-2" />
-                  Credit history
-                </Button>
-              )}
               {canShowWalletRecharge && (
                 <SuspendedActionTooltip>
                   <Button
@@ -2160,54 +2027,6 @@ const Wallet = () => {
                   >
                     View recharge history
                   </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {isFacultyEffective && !isShared && creditFacilityRows.length > 0 && (
-              <Card className="rounded-lg border-border shadow-sm" data-testid="credit-facility-summary">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Credit facility</CardTitle>
-                  <CardDescription className="text-xs">Temporary department credit, where eligible.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ul className="divide-y divide-border rounded-md border border-border">
-                    {creditFacilityRows.map((credit) => {
-                      const statusLower = String(credit.status || "").toLowerCase();
-                      const isOpen = statusLower === "active" || statusLower === "exhausted";
-                      return (
-                        <li key={credit.department_id} className="space-y-1.5 px-3 py-2 text-sm">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate font-medium text-foreground">{credit.department_name}</span>
-                            {isOpen ? (
-                              <Badge variant={statusLower === "exhausted" ? "destructive" : "secondary"}>
-                                {credit.status_display || (statusLower === "exhausted" ? "Exhausted" : "Active")}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">Available</Badge>
-                            )}
-                          </div>
-                          {isOpen && (
-                            <p className="text-xs text-muted-foreground tabular-nums">
-                              Outstanding {formatMoney(credit.outstanding_credit)} · Remaining{" "}
-                              {formatMoney(credit.remaining_credit)} of {formatMoney(credit.credit_limit)}
-                            </p>
-                          )}
-                          {credit.can_avail && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-8"
-                              onClick={() => openAvailCreditDialog(credit.department_id)}
-                            >
-                              Avail credit
-                            </Button>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
                 </CardContent>
               </Card>
             )}
@@ -3395,138 +3214,6 @@ const Wallet = () => {
           modeFlags={walletModeFlags}
         />
       )}
-
-      <Dialog
-        open={availCreditOpen}
-        onOpenChange={(open) => {
-          setAvailCreditOpen(open);
-          if (!open) {
-            setAvailCreditDeptId(null);
-            setAvailCreditAmount("");
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg max-h-[90dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Avail Credit Facility</DialogTitle>
-            <DialogDescription>
-              One-time credit for this department&apos;s balance. Review the terms carefully before confirming.
-            </DialogDescription>
-          </DialogHeader>
-          {(() => {
-            const status = availCreditDeptId != null ? deptFacultyCreditByDept[availCreditDeptId] : null;
-            const max =
-              parseFloat(String(status?.department_max_credit_limit || status?.credit_limit || "0")) || 0;
-            const outstanding =
-              parseFloat(String(status?.outstanding_credit || "0")) || 0;
-            const remaining =
-              parseFloat(String(status?.remaining_credit || max)) || max;
-            const fmt = (n: number) =>
-              n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-            return (
-              <div className="space-y-4 py-1">
-                {status && (
-                  <p className="text-sm text-muted-foreground">
-                    Department:{" "}
-                    <span className="font-medium text-foreground">{status.department_name}</span>
-                  </p>
-                )}
-
-                <div className="rounded-lg border bg-muted/40 p-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Maximum credit</span>
-                    <span className="font-medium">₹{fmt(max)}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Already utilized</span>
-                    <span className="font-medium">₹{fmt(outstanding)}</span>
-                  </div>
-                  <div className="flex justify-between gap-2 border-t pt-1.5">
-                    <span className="text-muted-foreground">Maximum additional credit available</span>
-                    <span className="font-semibold text-primary">₹{fmt(remaining)}</span>
-                  </div>
-                </div>
-
-                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4 leading-relaxed">
-                  <li>This is a one-time credit facility for this department only.</li>
-                  <li>
-                    Approved credit can be used only for bookings paid from this department&apos;s balance — it
-                    cannot be transferred or used for equipment in other departments.
-                  </li>
-                  <li>Each department independently manages its own credit policy.</li>
-                  <li>Please recharge this department&apos;s balance at the earliest opportunity.</li>
-                  <li>Future wallet recharges automatically recover the outstanding credit balance.</li>
-                  <li>
-                    Once outstanding credit is fully recovered, the facility is permanently closed and cannot
-                    be availed again.
-                  </li>
-                </ul>
-
-                <div className="space-y-2">
-                  <Label htmlFor="avail-credit-amount">Credit amount required (₹)</Label>
-                  <Input
-                    id="avail-credit-amount"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    max={remaining || undefined}
-                    value={availCreditAmount}
-                    onChange={(e) => setAvailCreditAmount(e.target.value)}
-                    disabled={availingCredit}
-                    placeholder="Enter amount"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Enter an amount greater than 0 and up to ₹{fmt(remaining)}.
-                  </p>
-                  {parseFloat(availCreditAmount) > remaining && remaining > 0 && (
-                    <p className="text-xs text-destructive">
-                      Amount exceeds the maximum additional credit available.
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setAvailCreditOpen(false)}
-              disabled={availingCredit}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleAvailCreditFacility()}
-              disabled={
-                availingCredit ||
-                !availCreditAmount ||
-                parseFloat(availCreditAmount) <= 0 ||
-                (availCreditDeptId != null &&
-                  parseFloat(availCreditAmount) >
-                    (parseFloat(
-                      String(
-                        deptFacultyCreditByDept[availCreditDeptId]?.remaining_credit ||
-                          deptFacultyCreditByDept[availCreditDeptId]?.department_max_credit_limit ||
-                          deptFacultyCreditByDept[availCreditDeptId]?.credit_limit ||
-                          "0"
-                      )
-                    ) || 0))
-              }
-            >
-              {availingCredit ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Confirming...
-                </>
-              ) : (
-                "Confirm & Avail"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={!!receiptAttachRow}

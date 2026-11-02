@@ -132,14 +132,15 @@ describe("Wallet: Recharge Wallet for IITR Students", { timeout: 20_000 }, () =>
   });
 });
 
-describe("Wallet: Credit history button", { timeout: 20_000 }, () => {
+// Credit for internal users was withdrawn and never used, so the wallet offers no credit history or credit at all.
+describe("Wallet: no credit facility", { timeout: 20_000 }, () => {
   const ownWallet = {
     balance: "5000.00",
     is_shared: false,
     sub_wallets: [{ id: 3, department_id: 47, department_name: "Tinkering Lab", department_code: "TL", balance: "5000.00" }],
   };
 
-  it("is not shown to internal (IIT Roorkee) faculty", async () => {
+  it("shows no credit history to internal (IIT Roorkee) faculty", async () => {
     renderWallet({
       user: { id: 11, user_type: "faculty", is_faculty: true, department_type: "internal", can_have_wallet: true },
       joinRequests: [],
@@ -149,13 +150,14 @@ describe("Wallet: Credit history button", { timeout: 20_000 }, () => {
     expect(screen.queryByRole("button", { name: /Credit history/ })).toBeNull();
   });
 
-  it("is still shown to other wallet owners", async () => {
+  it("is not shown to other wallet owners either", async () => {
     renderWallet({
       user: { id: 12, user_type: "external", department_type: "external", can_have_wallet: true },
       joinRequests: [],
       wallet: ownWallet,
     });
     await screen.findByTestId("wallet-balance");
-    expect(screen.getByRole("button", { name: /Credit history/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Credit history/ })).toBeNull();
+    expect(screen.queryByTestId("credit-facility-summary")).toBeNull();
   });
 });

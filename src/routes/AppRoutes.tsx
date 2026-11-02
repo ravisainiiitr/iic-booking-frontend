@@ -61,9 +61,7 @@ const AdminCancellationsDashboard = lazyPage(() => import("@/pages/admin-insight
 const EquipmentFlashMessages = lazyPage(() => import("@/pages/EquipmentFlashMessages"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
 const WalletSricRecharge = lazyPage(() => import("@/pages/WalletSricRecharge"));
-const WalletCreditFacilityRequest = lazyPage(() => import("@/pages/WalletCreditFacilityRequest"));
 const WalletDirectRecharge = lazyPage(() => import("@/pages/WalletDirectRecharge"));
-const AdminWalletCreditManagement = lazyPage(() => import("@/pages/AdminWalletCreditManagement"));
 const IdentityAdministration = lazyPage(() => import("@/pages/IdentityAdministration"));
 const AdminPortalMigration = lazyPage(() => import("@/pages/AdminPortalMigration"));
 const LegacyEquipmentMapping = lazyPage(() => import("@/pages/LegacyEquipmentMapping"));
@@ -76,7 +74,6 @@ const AdminSection = lazyPage(() => import("@/pages/AdminSection"));
 const DepartmentRbacManagement = lazyPage(() => import("@/pages/DepartmentRbacManagement"));
 const DepartmentAdministrationHub = lazyPage(() => import("@/pages/DepartmentAdministrationHub"));
 const DepartmentStaffManagement = lazyPage(() => import("@/pages/DepartmentStaffManagement"));
-const DepartmentFacultyCreditFacility = lazyPage(() => import("@/pages/DepartmentFacultyCreditFacility"));
 const AdminHeroSlides = lazyPage(() => import("@/pages/AdminHeroSlides"));
 const AdminResearchRecognition = lazyPage(() => import("@/pages/AdminResearchRecognition"));
 const AdminAnalysisCharges = lazyPage(() => import("@/pages/AdminAnalysisCharges"));
@@ -104,7 +101,6 @@ const ProgrammeExtension = lazyPage(() => import("@/pages/ProgrammeExtension"));
 const RegistrationDecision = lazyPage(() => import("@/pages/RegistrationDecision"));
 const ExtensionDecision = lazyPage(() => import("@/pages/ExtensionDecision"));
 const AdminWalletWithdrawalRequests = lazyPage(() => import("@/pages/AdminWalletWithdrawalRequests"));
-const AdminWalletCreditFacilitySettings = lazyPage(() => import("@/pages/AdminWalletCreditFacilitySettings"));
 const AdminWalletStudentRechargeSettings = lazyPage(() => import("@/pages/AdminWalletStudentRechargeSettings"));
 const ProposeEquipment = lazyPage(() => import("@/pages/ProposeEquipment"));
 const EquipmentAdditionRequests = lazyPage(() => import("@/pages/EquipmentAdditionRequests"));
@@ -314,10 +310,10 @@ export default function AppRoutes() {
           <Route path="/my-nomination-requests" element={<MyNominationRequests />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/wallet/recharge-from-project" element={<WalletSricRecharge />} />
-          <Route path="/wallet/credit-facility" element={<WalletCreditFacilityRequest />} />
+          <Route path="/wallet/credit-facility" element={<Navigate to="/wallet" replace />} />
           <Route path="/wallet/direct-recharge" element={<WalletDirectRecharge />} />
-          <Route path="/admin/wallet-credit" element={<AdminWalletCreditManagement />} />
-          <Route path="/admin/wallet-credit/:facilityId" element={<AdminWalletCreditManagement />} />
+          <Route path="/admin/wallet-credit" element={<Navigate to="/user-management" replace />} />
+          <Route path="/admin/wallet-credit/:facilityId" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin/wallet-ledger" element={<AdminWalletLedger />} />
           <Route path="/admin/wallet-ledger/:ownerId" element={<AdminWalletLedgerOwner />} />
           <Route path="/admin/insights/equipment" element={<AdminEquipmentOverview />} />
@@ -344,7 +340,7 @@ export default function AppRoutes() {
           <Route path="/admin/department-administration" element={<DepartmentAdministrationHub />} />
           <Route
             path="/admin/department-administration/faculty-credit-facility"
-            element={<DepartmentFacultyCreditFacility />}
+            element={<Navigate to="/admin/department-administration" replace />}
           />
           <Route path="/admin/department-administration/:role" element={<DepartmentStaffManagement />} />
           <Route path="/manage/external-user-management" element={<ExternalUserManagement />} />
@@ -354,7 +350,7 @@ export default function AppRoutes() {
           <Route path="/manage/department-administration" element={<DepartmentAdministrationHub />} />
           <Route
             path="/manage/department-administration/faculty-credit-facility"
-            element={<DepartmentFacultyCreditFacility />}
+            element={<Navigate to="/manage/department-administration" replace />}
           />
           <Route path="/manage/department-administration/:role" element={<DepartmentStaffManagement />} />
           <Route path="/organization/users" element={<OrganizationUsersManagement />} />
@@ -425,7 +421,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/sric-wallet-recharges" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/wallet-recharge-parse" element={<WalletRechargeParse />} />
-          <Route path="/admin-settings/wallet-credit-facility-settings" element={<AdminWalletCreditFacilitySettings />} />
+          <Route path="/admin-settings/wallet-credit-facility-settings" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin-settings/wallet-student-recharge-settings" element={<AdminWalletStudentRechargeSettings />} />
           <Route path="/admin-settings/support" element={<AdminSettingsSupport />} />
           <Route path="/admin-settings/feedback" element={<AdminSettingsFeedback />} />
