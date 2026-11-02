@@ -143,6 +143,7 @@ const EquipmentProfile = lazyPage(() => import("@/pages/EquipmentProfile"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
 const Notifications = lazyPage(() => import("@/pages/Notifications"));
 const CallHistory = lazyPage(() => import("@/pages/CallHistory"));
+const EquipmentReferences = lazyPage(() => import("@/pages/EquipmentReferences"));
 const UpsHealth = lazyPage(() => import("@/pages/UpsHealth"));
 const Unsubscribe = lazyPage(() => import("@/pages/Unsubscribe"));
 const WalletRechargeRequestAction = lazyPage(() => import("@/pages/WalletRechargeRequestAction"));
@@ -455,6 +456,7 @@ export default function AppRoutes() {
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/calls" element={<CallHistory />} />
+          <Route path="/equipment-references" element={<ErrorBoundary fallbackTitle="Manufacturer references" backPath="/dashboard"><EquipmentReferences /></ErrorBoundary>} />
           <Route path="/ups-health" element={<ErrorBoundary fallbackTitle="UPS health" backPath="/dashboard"><UpsHealth /></ErrorBoundary>} />
           <Route path="/calls/answer/:callId" element={<CallHistory />} />
           <Route path="/unsubscribe" element={<Unsubscribe />} />

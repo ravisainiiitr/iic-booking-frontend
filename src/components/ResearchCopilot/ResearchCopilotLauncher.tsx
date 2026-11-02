@@ -101,7 +101,7 @@ export default function ResearchCopilotLauncher() {
         {prompt}
         <Suspense
           fallback={
-            <AssistantFab label="Loading Research Assistant" disabled icon={<Loader2 className="h-5 w-5 animate-spin" />} />
+            <AssistantFab label="Loading IITR Assistant" disabled icon={<Loader2 className="h-5 w-5 animate-spin" />} />
           }
         >
           <ResearchCopilot initialOpen initialBackendEnabled={backendEnabled} helpRequest={helpRequest} />
@@ -117,7 +117,7 @@ export default function ResearchCopilotLauncher() {
     <>
       {prompt}
       <AssistantFab
-        label="Open Research Assistant"
+        label="Open IITR Assistant"
         icon={<Sparkles className="h-5 w-5" aria-hidden />}
         onActivate={() => setActivated(true)}
         onPreload={() => void loadCopilot()}

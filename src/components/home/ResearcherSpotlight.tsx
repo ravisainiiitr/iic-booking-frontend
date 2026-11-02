@@ -54,8 +54,9 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
       .getResearchersOfTheMonth()
       .then((res) => {
         if (cancelled || !res.data) return;
-        setMonth(res.data.month);
-        setPeople(res.data.results);
+        // A failed or unexpected response must never take the home page down with it.
+        setMonth(typeof res.data.month === "string" ? res.data.month : "");
+        setPeople(Array.isArray(res.data.results) ? res.data.results : []);
       })
       .catch(() => undefined);
     return () => {

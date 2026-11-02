@@ -345,6 +345,16 @@ export default function AdminSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionKey]);
 
+  // /admin/section/equipment?edit=<id> (IITR Assistant, search): open that instrument's form directly.
+  useEffect(() => {
+    if (sectionKey !== "equipment" || !authChecked) return;
+    const editId = Number(new URLSearchParams(location.search).get("edit"));
+    if (!editId) return;
+    navigate(location.pathname, { replace: true });
+    void openEdit({ [idField]: editId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionKey, authChecked]);
+
   useEffect(() => {
     const check = async () => {
       const token = apiClient.getToken();
