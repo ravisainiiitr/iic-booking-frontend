@@ -138,6 +138,7 @@ interface Booking extends BookingRef {
   rating?: number | null;
   istem_fbr_status?: string | null;
   require_istem_fbr?: boolean;
+  istem_automatic?: { automatic: true; step: string } | null;
   rating_feedback?: string | null;
   rated_at?: string | null;
   equipment_enable_charge_recalculation?: boolean;
@@ -690,6 +691,7 @@ const BookingManagement = () => {
                           >
                             {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}
                             <IstemFbrSeal
+                              automatic={Boolean(booking.istem_automatic)}
                               requireIstemFbr={booking.require_istem_fbr}
                               istemFbrStatus={booking.istem_fbr_status}
                             />

@@ -78,6 +78,7 @@ import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
 import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
+import { IstemAutomaticStatus, istemAutomaticOf, type IstemAutomatic } from "@/components/IstemAutomaticStatus";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import SampleTraceTimeline, { SampleSubmittedAction } from "@/components/SampleTraceTimeline";
 import { InvoiceAction } from "@/components/external/InvoiceAction";
@@ -331,6 +332,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   istem_portal_url?: string | null;
   istem_fbr_status_url?: string | null;
   require_istem_fbr?: boolean;
+  /** The portal's own I-STEM record when automatic FBR is on (no FBR number typed in). */
+  istem_automatic?: IstemAutomatic | null;
   sample_return_after_analysis?: boolean;
   return_shipping_fee_amount?: string;
   return_shipping_company?: string;
@@ -1670,6 +1673,7 @@ export function BookingDetailCard({
     !isFinanceUser &&
     (Boolean(booking.require_istem_fbr) || booking.istem_fbr_status != null);
   const istemPortalUrl = (booking.istem_portal_url || "https://www.istem.gov.in/").trim();
+  const istemAutomatic = istemAutomaticOf(booking);
   const istemFbrStatusUrl = (booking.istem_fbr_status_url || "").trim();
   const canSubmitIstemFbr =
     booking.istem_fbr_status === "PENDING_FBR" ||
@@ -1818,12 +1822,14 @@ export function BookingDetailCard({
               </CardTitle>
               <p className="text-lg sm:text-xl font-semibold text-foreground mt-1 tracking-tight flex flex-wrap items-center gap-2">
                 <span className="break-all">Booking ID- {booking.virtual_booking_id || `${booking.equipment_code}-#${booking.booking_id}`}</span>
-                <IstemFbrSeal
-                  requireIstemFbr={booking.require_istem_fbr}
-                  istemFbrStatus={booking.istem_fbr_status}
-                  size="md"
-                  showLabel
-                />
+                {istemAutomatic && istemAutomatic.step !== "executed" ? null : (
+                  <IstemFbrSeal
+                    requireIstemFbr={booking.require_istem_fbr}
+                    istemFbrStatus={booking.istem_fbr_status}
+                    size="md"
+                    showLabel
+                  />
+                )}
               </p>
               <div className="mt-2">
                 <UserProfile
@@ -2088,7 +2094,13 @@ export function BookingDetailCard({
             </div>
           ) : null}
 
-          {showIstemWorkflow && !isJobSheetView && (
+          {showIstemWorkflow && !isJobSheetView && istemAutomatic ? (
+            <div className="mb-4">
+              <IstemAutomaticStatus status={istemAutomatic} compact />
+            </div>
+          ) : null}
+
+          {showIstemWorkflow && !isJobSheetView && !istemAutomatic && (
             <div className="rounded-lg border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/90 dark:bg-amber-950/25 p-4 mb-4 space-y-3">
               <p className="font-semibold text-foreground">I-STEM (national portal)</p>
               {isManagerOrAdmin ? (
