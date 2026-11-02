@@ -7433,6 +7433,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
             require_istem_fbr?: boolean;
             istem_portal_url?: string;
             istem_fbr_status?: string | null;
+            istem_automatic?: unknown;
             reward?: {
               points_used?: string;
               discount_amount?: string;
