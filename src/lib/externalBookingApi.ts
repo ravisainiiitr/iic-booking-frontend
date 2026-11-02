@@ -313,10 +313,6 @@ export interface StaffInvoiceRequest {
   document: { id: number; uploaded_at: string } | null;
 }
 
-/** What a scanned sample label shows its holder (no personal details): may courier details still be given? */
-export type ScanOutcome ="received_at_office" | "received_at_lab" | "payment_pending" | "awaiting_office" | "details";
-
-/** A scanned label as the server processed it for the signed-in staff member. */
 export interface ServicesSettings {
   special_requests_enabled: boolean;
   special_request_surcharge: boolean;
@@ -519,7 +515,7 @@ export const externalBookingApi = {
     request<CopyRequest>(`${extBase()}/bookings/${bookingId}/invoice/copy/`, { method: "POST", json: body }),
   myCopies: () => request<{ copies: CopyRequest[] }>(`${extBase()}/invoice-copies/`),
   cancelCopy: (id: number) => request<CopyRequest>(`${extBase()}/invoice-copies/${id}/cancel/`, { method: "POST" }),
-  /** The sample label (no QR code since 31 Oct 2026) as PDF bytes, to be combined with the requisition form. */
+  /** The sample label (QR code scanned once at the receiving office) as PDF bytes, combined with the requisition form. */
   sampleLabelBytes: async (
     bookingId: number,
     body: { sample_count: number; description: string; address_id?: number; sender?: PostalAddress },
@@ -538,6 +534,8 @@ export const externalBookingApi = {
     }
     return res.arrayBuffer();
   },
+  // the receiving office scans the label once; later scans only show the booking
+  scanSample: (code: string) => request<ScanResult>(`${extBase()}/staff/sample-receipt/scan/`, { method: "POST", json: { code } }),
   // accounts in charge
   staffInvoiceRequests: (params: { status?: string; q?: string } = {}) => {
     const qs = new URLSearchParams();
@@ -747,4 +745,27 @@ export interface ExternalRefund {
 /** Indian PIN code check used for inline validation (the server validates again). */
 export function isValidIndianPin(pin: string): boolean {
   return /^[1-9][0-9]{5}$/.test(pin.trim());
+}
+
+export type ScanOutcome = "received_at_office" | "payment_pending" | "already_received" | "details";
+
+export interface ScanResult {
+  outcome: ScanOutcome;
+  role: "office" | "viewer";
+  message: string;
+  label_reference: string;
+  booking_id: number;
+  booking_reference: string | number;
+  booking_status: string;
+  equipment: string;
+  equipment_code: string;
+  lab: string;
+  user_name: string;
+  sample_count: number;
+  description: string;
+  slot_ranges: { start: string; end: string }[];
+  amount_due: string;
+  payment_settled: boolean;
+  timeline: { status: string; label: string; at: string; by: string; reason: string }[];
+  received_at_office: boolean;
 }

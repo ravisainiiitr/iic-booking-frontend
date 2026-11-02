@@ -14,7 +14,7 @@ const EMPTY_ADDRESS: PostalAddress = { recipient_name: "", organisation: "", lin
 
 /**
  * The booking's "Shipping label and requisition form" action for external users: one PDF with the sample label
- * (booking ID in large type, TO and FROM with mobile numbers; no QR code since 31 Oct 2026) on page 1 and the
+ * (booking ID in large type, TO and FROM with mobile numbers, a QR code scanned once at the receiving office) on page 1 and the
  * filled equipment requisition form after it. Asks only for the sender address and the number of samples; the
  * sender of the latest label is offered first (a newly typed one is saved to the address book by the server). When
  * sample labels are switched off the previous plain label is used through ``legacyLabelPdf``, still with the form.
