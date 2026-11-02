@@ -1,6 +1,6 @@
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, CalendarClock, Search, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
+import { Calendar, CalendarClock, LogIn, FlaskConical, Mail, IndianRupee } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
@@ -33,10 +33,10 @@ const DEFAULT_HOME = {
   stat4_label: "Bookings",
 };
 
-/** The main action (Book Equipment, and sign-in for visitors): solid, the most prominent. */
+/** Sign-in for visitors: solid, the most prominent. */
 const primaryCtaClass =
   "h-11 shrink-0 gap-1.5 whitespace-nowrap bg-brand px-4 text-sm font-semibold text-brand-foreground shadow-lg shadow-black/30 ring-1 ring-white/15 hover:bg-brand/90 focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-5 sm:text-base";
-/** Other quick links (catalog, charges, calendar, contact): lighter, so the main action stands out. */
+/** The quick actions (Book Equipment, Analysis Charges, Booking Calendar, Contact Us): one shared style. */
 const secondaryCtaClass =
   "h-11 shrink-0 gap-1.5 whitespace-nowrap border border-white/35 bg-white/10 px-3.5 text-sm font-medium text-white shadow-sm backdrop-blur-sm hover:bg-white/20 hover:text-white focus-visible:ring-2 focus-visible:ring-white sm:gap-2 sm:px-4 sm:text-base";
 
@@ -229,7 +229,7 @@ const Hero = () => {
               {!isLabIncharge && (
                 <Button
                   size="lg"
-                  className={primaryCtaClass}
+                  className={secondaryCtaClass}
                   style={fontSizes.cta_book_text ? { fontSize: fontSizes.cta_book_text } : undefined}
                   onClick={() => navigate(home.cta_book_route || "/equipments")}
                 >
@@ -237,15 +237,6 @@ const Hero = () => {
                   {home.cta_book_text || "Book Equipment"}
                 </Button>
               )}
-              <Button
-                size="lg"
-                className={secondaryCtaClass}
-                style={fontSizes.cta_browse_text ? { fontSize: fontSizes.cta_browse_text } : undefined}
-                onClick={() => scrollTo(home.cta_browse_anchor || "#equipment")}
-              >
-                <Search className="h-4 w-4" />
-                {home.cta_browse_text || "Browse Catalog"}
-              </Button>
               <Button
                 size="lg"
                 className={secondaryCtaClass}

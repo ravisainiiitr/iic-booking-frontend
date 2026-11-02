@@ -430,7 +430,7 @@ export interface GlobalSearchResult {
   actions?: PortalAction[];
 }
 
-/** A page, setting or per-instrument action from the portal action catalogue (shared with the Research Assistant). */
+/** A page, setting or per-instrument action from the portal action catalogue (shared with the IITR Assistant). */
 export interface PortalAction {
   key: string;
   title: string;
@@ -2611,6 +2611,30 @@ export interface ProfileOnboarding {
   /** For the organisation step: what I-STEM said (State/UT code, organisation name) and which list to show. */
   hints: { state?: string; organisation?: string; subcategory?: string };
   values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
+}
+
+/** Manufacturer reference of an instrument (IITR Assistant knowledge): a fetched public page or PDF. */
+export interface EquipmentReference {
+  id: string;
+  title: string;
+  url: string;
+  kind: string;
+  kind_label: string;
+  official: boolean;
+  source_type: string;
+  retrieved_at: string | null;
+  index_status: string;
+  chunks: number;
+  error: string;
+}
+
+export interface EquipmentReferenceInstrument {
+  id: number;
+  name: string;
+  code: string;
+  make: string;
+  model: string;
+  references?: number;
 }
 
 /** One of the user's own bookings on the My activity panel. */
@@ -7924,6 +7948,37 @@ class ApiClient {
   /** Header search: equipment for everyone; bookings and people limited to the viewer's role. */
   async globalSearch(q: string, signal?: AbortSignal) {
     return this.request<GlobalSearchResult>(`/search/?q=${encodeURIComponent(q)}`, { signal });
+  }
+
+  /** Instruments the user looks after, with make, model and how many manufacturer references each has. */
+  async getReferenceInstruments(q = "") {
+    return this.request<{ results: EquipmentReferenceInstrument[] }>(
+      `/v1/research-copilot/equipment-references/?q=${encodeURIComponent(q)}`,
+    );
+  }
+
+  async getEquipmentReferences(equipmentId: number) {
+    return this.request<{ equipment: EquipmentReferenceInstrument; kinds: Record<string, string>; results: EquipmentReference[] }>(
+      `/v1/research-copilot/equipment/${equipmentId}/references/`,
+    );
+  }
+
+  async addEquipmentReference(equipmentId: number, body: { url: string; kind: string }) {
+    return this.request<EquipmentReference>(`/v1/research-copilot/equipment/${equipmentId}/references/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async refreshEquipmentReference(equipmentId: number, id: string) {
+    return this.request<EquipmentReference & { refreshed: boolean }>(
+      `/v1/research-copilot/equipment/${equipmentId}/references/${id}/refresh/`,
+      { method: "POST" },
+    );
+  }
+
+  async removeEquipmentReference(equipmentId: number, id: string) {
+    return this.request<unknown>(`/v1/research-copilot/equipment/${equipmentId}/references/${id}/`, { method: "DELETE" });
   }
 
   /** Instruments the user may choose for a portal action (with each switch's current state). */

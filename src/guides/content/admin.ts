@@ -241,12 +241,12 @@ export const adminGuide: RoleGuide = {
       },
       g.when(g.flags.assistant, {
         id: "assistant-admin",
-        title: "Research Assistant administration",
+        title: "IITR Assistant administration",
         icon: "bot",
         group: ADMIN,
         intro: ["Keep the assistant's answers accurate."],
         steps: [
-          { title: "Research Assistant Knowledge", body: "Manage the verified answers and documents the assistant uses (Admin Settings)." },
+          { title: "IITR Assistant Knowledge", body: "Manage the verified answers and documents the assistant uses (Admin Settings)." },
           { title: "Copilot Answers & Console", body: "Review answers and user feedback." },
         ],
       }),

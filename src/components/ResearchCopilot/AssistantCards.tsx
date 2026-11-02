@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { apiClient, type PortalActionEquipment } from "@/lib/api";
 import {
   AlertTriangle,
   Building2,
@@ -19,7 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-/** Research Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
+/** IITR Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
 
 type Rec = Record<string, unknown>;
 
@@ -35,6 +36,7 @@ export const ASSISTANT_CARD_TYPES = new Set([
   "ba_booking_handoff",
   "ba_equipment_info",
   "ba_bookings",
+  "ba_equipment_picker",
 ]);
 
 const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
@@ -139,7 +141,8 @@ function EquipmentOptions({ card, busy, onAction }: Props) {
           if (id === null) return null;
           const bookable = it.bookable !== false;
           const free = num(it.free_slots);
-          const meta = [str(it.code), str(it.department), str(it.location)].filter(Boolean).join(" · ");
+          const makeModel = [str(it.make), str(it.model)].filter(Boolean).join(" ");
+          const meta = [str(it.code), makeModel, str(it.department), str(it.location)].filter(Boolean).join(" · ");
           return (
             <button
               key={id}
@@ -1177,6 +1180,72 @@ function Bookings({ card, busy, onAction, onNavigate }: Props) {
   );
 }
 
+/** Search the instruments the user may choose for a portal action (role-checked server-side), then pick one. */
+function EquipmentPicker({ card, busy, onAction }: Props) {
+  const action = str(card.action);
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<PortalActionEquipment[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!action || q.trim().length < 2) {
+      setRows(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      void apiClient.portalActionEquipment(action, q.trim(), ctrl.signal).then((res) => {
+        if (ctrl.signal.aborted) return;
+        setRows(res.data?.equipment ?? []);
+        setLoading(false);
+      });
+    }, 250);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(timer);
+    };
+  }, [action, q]);
+
+  return (
+    <Shell title={str(card.title) || "Search for the instrument"}>
+      <Input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={str(card.placeholder) || "Name or code"}
+        aria-label={str(card.title) || "Search for the instrument"}
+        className="h-8 text-xs"
+        disabled={busy}
+      />
+      {loading ? <p className="mt-2 text-[11px] text-muted-foreground">Searching…</p> : null}
+      {rows && !loading ? (
+        rows.length ? (
+          <div className="mt-2 space-y-1" role="list">
+            {rows.slice(0, 8).map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                role="listitem"
+                disabled={busy}
+                onClick={() => onAction(r.name, "ba_portal", { action, equipment_id: r.id })}
+                className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background px-3 py-1.5 text-left text-xs hover:border-primary/50 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              >
+                <span className="min-w-0 truncate">
+                  <span className="font-medium text-foreground">{r.name}</span>
+                  {r.code ? <span className="text-muted-foreground"> · {r.code}</span> : null}
+                </span>
+                {r.on !== undefined ? <StatusPill ok={r.on} label={r.on ? "On" : "Off"} /> : null}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-muted-foreground">No instrument you can choose matches “{q.trim()}”.</p>
+        )
+      ) : null}
+    </Shell>
+  );
+}
+
 export function AssistantCard(props: Props) {
   switch (str(props.card.type)) {
     case "ba_equipment_options":
@@ -1195,6 +1264,8 @@ export function AssistantCard(props: Props) {
       return <Handoff {...props} />;
     case "ba_equipment_info":
       return <EquipmentInfo {...props} />;
+    case "ba_equipment_picker":
+      return <EquipmentPicker {...props} />;
     case "ba_bookings":
       return <Bookings {...props} />;
     default:
