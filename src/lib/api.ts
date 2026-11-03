@@ -4237,6 +4237,19 @@ export interface CopilotFeedbackRow {
   created_at: string | null;
 }
 
+/** IITR Assistant trial metrics (GET /v1/research-copilot/assistant/metrics/, Main Administrator). */
+export interface AssistantTrialMetrics {
+  days: number;
+  turns: number;
+  recognised: number;
+  recognition_rate: number | null;
+  outcomes: Record<string, number>;
+  sources: Record<string, number>;
+  top_intents: Array<{ intent: string; count: number }>;
+  roles: Record<string, number>;
+  feedback: { up: number; down: number };
+}
+
 export interface CopilotUsage {
   days: number;
   conversations: number;
@@ -14518,6 +14531,10 @@ class ApiClient {
 
   async copilotConsoleUsage(days = 30) {
     return this.request<CopilotUsage>(`/v1/research-copilot/console/usage/?days=${days}`);
+  }
+
+  async assistantTrialMetrics(days = 30) {
+    return this.request<AssistantTrialMetrics>(`/v1/research-copilot/assistant/metrics/?days=${days}`);
   }
 
   async researchCopilotCreateConversation(title?: string) {

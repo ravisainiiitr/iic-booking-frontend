@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { refetchingClass } from "@/components/filters/LiveFilterStatus";
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import { useLatestRequest } from "@/hooks/use-live-filters";
+import AssistantTrialMetrics from "@/components/ResearchCopilot/AssistantTrialMetrics";
 
 type Option = { value: string; label: string };
 
@@ -130,6 +131,8 @@ const AdminSettingsCopilotAnswers = () => {
   const [feedbackRating, setFeedbackRating] = useState<"down" | "up" | "all">("down");
   const [usage, setUsage] = useState<CopilotUsage | null>(null);
   const [usageDays, setUsageDays] = useState(30);
+  // The trial metrics are for the Main Administrator only (the server refuses everyone else).
+  const isMainAdmin = user?.user_type === "admin";
 
   useEffect(() => {
     if (!authLoading && (!isAuthenticated || !user)) navigate("/auth");
@@ -687,6 +690,7 @@ const AdminSettingsCopilotAnswers = () => {
                         </Card>
                       ))}
                     </div>
+                    {isMainAdmin ? <AssistantTrialMetrics days={usageDays} /> : null}
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base">Most used answers</CardTitle>
