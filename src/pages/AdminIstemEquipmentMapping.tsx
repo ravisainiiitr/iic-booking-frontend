@@ -212,6 +212,11 @@ export default function AdminIstemEquipmentMapping() {
 
   const linkedIds = department?.istem_department_ids ?? [];
   const istemById = useMemo(() => Object.fromEntries((istem?.rows ?? []).map((r) => [r.istem_department_id, r])), [istem]);
+  /** "Institute Instrumentation Centre (164)", or "I-STEM dept 164" until I-STEM's names are read. */
+  const istemLabel = (id: string) => {
+    const name = istemById[id]?.name;
+    return name ? `${name} (${id})` : `I-STEM dept ${id}`;
+  };
   const linkOptions = useMemo(() => {
     if (!department) return [];
     return (istem?.rows ?? [])
@@ -297,7 +302,7 @@ export default function AdminIstemEquipmentMapping() {
                           <div className="mt-1.5"><Progress value={d.mapped} total={d.total} /></div>
                           <div className="mt-1.5 flex items-center gap-1.5 text-[11px]">
                             {d.id == null ? <span className="text-muted-foreground">Instruments without a department</span>
-                              : linked ? <span className="text-emerald-700 dark:text-emerald-400">I-STEM dept {d.istem_department_ids!.join(", ")}</span>
+                              : linked ? <span className="truncate text-emerald-700 dark:text-emerald-400">I-STEM: {d.istem_department_ids!.map(istemLabel).join(", ")}</span>
                               : <span className="text-amber-700 dark:text-amber-400">Not linked to I-STEM</span>}
                             {d.fbr_unmapped ? <span className="ml-auto rounded bg-amber-100 px-1.5 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">{d.fbr_unmapped} FBR</span> : null}
                           </div>
@@ -328,7 +333,7 @@ export default function AdminIstemEquipmentMapping() {
                 {department.id != null ? (
                   <div className="rounded-xl border bg-card p-5 shadow-sm" data-testid="step-link">
                     <StepHeading n={1} done={linkedIds.length > 0} title="Link to the I-STEM department"
-                      hint="I-STEM numbers its departments without names. Recognise it by its equipment; suggestions come from instruments already mapped." />
+                      hint="Pick this department on I-STEM. Suggestions come from instruments already mapped, or from a matching name." />
                     <div className="mt-4 space-y-3 pl-10">
                       {linkedIds.length ? (
                         <div className="flex flex-wrap gap-2">
@@ -336,7 +341,7 @@ export default function AdminIstemEquipmentMapping() {
                             const info = istemById[id];
                             return (
                               <span key={id} className="inline-flex items-center gap-2 rounded-lg border bg-muted/40 py-1.5 pl-3 pr-1.5 text-sm" data-testid="linked-istem-department">
-                                <span className="font-medium">I-STEM dept {id}</span>
+                                <span className="font-medium">{istemLabel(id)}</span>
                                 {info ? <span className="text-xs text-muted-foreground">{info.equipment_count} equipment{info.locations[0] ? ` · ${info.locations[0]}` : ""}</span> : null}
                                 {allDepartments ? (
                                   <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={`Unlink I-STEM department ${id}`}
@@ -360,8 +365,9 @@ export default function AdminIstemEquipmentMapping() {
                               <SelectContent>
                                 {linkOptions.map((r) => (
                                   <SelectItem key={r.istem_department_id} value={r.istem_department_id}>
-                                    {r.suggested?.id === department.id ? "★ Suggested · " : ""}I-STEM dept {r.istem_department_id} · {r.equipment_count} equipment
-                                    {r.sample_equipment.length ? ` · ${r.sample_equipment.slice(0, 2).join(", ")}` : ""}
+                                    {r.suggested?.id === department.id ? "★ Suggested · " : ""}
+                                    {r.name ? `${r.name} (${r.istem_department_id})` : `I-STEM dept ${r.istem_department_id}`} · {r.equipment_count} equipment
+                                    {!r.name && r.sample_equipment.length ? ` · ${r.sample_equipment.slice(0, 2).join(", ")}` : ""}
                                     {r.department ? ` · now: ${r.department.name}` : ""}
                                   </SelectItem>
                                 ))}

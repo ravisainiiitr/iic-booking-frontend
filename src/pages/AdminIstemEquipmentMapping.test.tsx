@@ -72,7 +72,7 @@ describe("I-STEM mapping page", () => {
       istem_source: LIVE, portal_departments: [{ id: 1, name: "IIC" }, { id: 2, name: "Physics" }],
       istem_departments: [
         { istem_department_id: "164", equipment_count: 12, sample_equipment: ["FESEM", "XRF"], locations: ["Analytical Section -1, IIC"], department: null, suggested: { id: 1, name: "IIC", instruments: 1 } },
-        { istem_department_id: "171", equipment_count: 3, sample_equipment: ["Raman"], locations: [], department: { id: 2, name: "Physics" }, suggested: null },
+        { istem_department_id: "171", name: "Department of Physics", equipment_count: 3, sample_equipment: ["Raman"], locations: [], department: { id: 2, name: "Physics" }, suggested: null },
       ],
     } });
     state.api.getIstemEquipmentSuggestions.mockResolvedValue({ data: {
@@ -91,7 +91,7 @@ describe("I-STEM mapping page", () => {
     const items = await screen.findAllByTestId("department-item");
     expect(items).toHaveLength(2);
     expect(within(items[0]).getByText("Not linked to I-STEM")).toBeTruthy();
-    expect(within(items[1]).getByText("I-STEM dept 171")).toBeTruthy();
+    expect(await within(items[1]).findByText("I-STEM: Department of Physics (171)")).toBeTruthy();
     const rows = await screen.findAllByTestId("istem-mapping-row");
     expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("Found on I-STEM")).toBeTruthy();
