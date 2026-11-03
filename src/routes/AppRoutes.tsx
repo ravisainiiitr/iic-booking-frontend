@@ -96,6 +96,7 @@ const AdminWalletPaymentModes = lazyPage(() => import("@/pages/AdminWalletPaymen
 const AdminWalletLedger = lazyPage(() => import("@/pages/AdminWalletLedger"));
 const AdminWalletLedgerOwner = lazyPage(() => import("@/pages/AdminWalletLedgerOwner"));
 const AdminIstemEquipmentMapping = lazyPage(() => import("@/pages/AdminIstemEquipmentMapping"));
+const AdminEquipmentConfigAudit = lazyPage(() => import("@/pages/AdminEquipmentConfigAudit"));
 const AdminRegistrationRequests = lazyPage(() => import("@/pages/AdminRegistrationRequests"));
 const RegistrationApprovals = lazyPage(() => import("@/pages/RegistrationApprovals"));
 const ProgrammeExtension = lazyPage(() => import("@/pages/ProgrammeExtension"));
@@ -321,6 +322,7 @@ export default function AppRoutes() {
           <Route path="/admin/wallet-ledger" element={<AdminWalletLedger />} />
           <Route path="/admin/wallet-ledger/:ownerId" element={<AdminWalletLedgerOwner />} />
           <Route path="/admin/istem-equipment" element={<ErrorBoundary fallbackTitle="I-STEM equipment mapping" backPath="/dashboard"><AdminIstemEquipmentMapping /></ErrorBoundary>} />
+          <Route path="/admin/equipment-config-audit" element={<ErrorBoundary fallbackTitle="Equipment configuration audit trail" backPath="/dashboard"><AdminEquipmentConfigAudit /></ErrorBoundary>} />
           <Route path="/admin/insights/equipment" element={<AdminEquipmentOverview />} />
           <Route path="/admin/insights/users" element={<AdminUsersOverview />} />
           <Route path="/admin/insights/cancellations" element={<AdminCancellationsDashboard />} />

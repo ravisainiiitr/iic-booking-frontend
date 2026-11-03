@@ -164,6 +164,7 @@ import { MySpendingLimitNotice } from "@/components/wallet/MySpendingLimitNotice
 import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import type { RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { BookingDetailCard, PortalFeedbackForm, RescheduleSlotPicker } from "@/components/booking/lazyBookingExtras";
+import OicRequestRegistration from "@/components/booking/OicRequestRegistration";
 import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,
@@ -408,6 +409,10 @@ interface EquipmentDetail {
   equipment_id: number;
   code: string;
   name: string;
+  /** Main Admin switch: home department books unmarked slots, other departments the slots marked for them. */
+  department_slot_reservation_enabled?: boolean;
+  /** Main Admin switch: the OIC may register requests in their own name, with no charge. */
+  oic_request_registration_enabled?: boolean;
   /** Equipment Group alternatives active for this equipment (env flag + group switch). */
   group_alternatives_enabled?: boolean;
   /** Initial state of "Automatically search and allocate alternate equipment" (off = ask the user first). */
@@ -1287,6 +1292,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     if (equipmentCatalogOnly) setAdminManageMode(null);
   }, [equipmentCatalogOnly]);
   const [adminBookForUserId, setAdminBookForUserId] = useState<string | null>(null);
+  /** OIC registers the selected slots as a request in their own name (equipment switch on). */
+  const [oicRegistration, setOicRegistration] = useState(false);
   const [rewardPointsToRedeem, setRewardPointsToRedeem] = useState<string>("");
   const [rewardSummary, setRewardSummary] = useState<{
     points_balance: string;
@@ -1482,10 +1489,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
     const isHome =
       userDepartmentId != null && Number(userDepartmentId) === Number(eqDept);
-    const weekSlots = (equipmentDetail?.daily_slots || []) as DailySlot[];
-    const policyActive =
-      Boolean(slot.home_department_only) ||
-      weekSlots.some((s) => Boolean(s.home_department_only));
+    const policyActive = equipmentDetail?.department_slot_reservation_enabled === true;
     if (!policyActive) return true;
 
     if (slot.home_department_only) {
@@ -7247,6 +7251,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     };
 
     const attemptForFollowUp = buildAttemptSnapshot();
+    const oicRegistrationActive = oicRegistration && equipmentDetail?.oic_request_registration_enabled === true;
     setAttemptSlotFallback(null);
     setAttemptSlotAlternatives(null);
     setIsSubmittingBooking(true);
@@ -7364,7 +7369,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           book_even_if_single_slot_available: bookingAsExternalTarget ? false : bookEvenIfSingleSlotAvailable,
               ...(isRushReliefMode ? { rush_relief: true } : {}),
           ...(bookAnyAvailableSlots && !bookingAsExternalTarget ? { visible_week_start: format(weekStart, "yyyy-MM-dd"), visible_week_end: format(weekEnd, "yyyy-MM-dd") } : {}),
-          ...(isAdminOrOIC() && adminBookForUserId ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(isAdminOrOIC() && adminBookForUserId && !oicRegistrationActive ? { user_id: Number(adminBookForUserId) } : {}),
+          ...(oicRegistrationActive ? { oic_registration: true } : {}),
           ...(alternativeOf && alternativeOf.forEquipmentId === Number(selectedEquipment.id)
             ? { alternative_of_equipment_id: alternativeOf.equipmentId }
             : {}),
@@ -8862,12 +8868,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                     <SelectItem value="AVAILABLE" className="text-base">Available</SelectItem>
                                     <SelectItem value="NOT_AVAILABLE" className="text-base">Not Available</SelectItem>
                                     <SelectItem value="RESERVED_EXTERNAL" className="text-base">Reserved for External</SelectItem>
-                                    <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
-                                      Reserve for non-home department
-                                    </SelectItem>
-                                    <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
-                                      Clear non-home reservation (home dept)
-                                    </SelectItem>
+                                    {equipmentDetail?.department_slot_reservation_enabled && (
+                                      <>
+                                        <SelectItem value={HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                                          Reserved for non-home department
+                                        </SelectItem>
+                                        <SelectItem value={CLEAR_HOME_DEPARTMENT_ONLY_VALUE} className="text-base">
+                                          Clear non-home reservation (home dept)
+                                        </SelectItem>
+                                      </>
+                                    )}
                                     <SelectItem value={RESCHEDULE_OPERATION_VALUE} className="text-base">Reschedule</SelectItem>
                                     <SelectItem value={BULK_EMAIL_OPERATION_VALUE} className="text-base">
                                       <span className="flex items-center gap-2">
@@ -8887,7 +8897,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                                   newSlotStatus === CLEAR_HOME_DEPARTMENT_ONLY_VALUE) && (
                                   <p className="text-sm text-muted-foreground max-w-lg">
                                     Marked slots: reserved for non-home department users. Other slots: home department
-                                    only (while any upcoming reserved mark exists). Unbooked reserved slots open to all
+                                    only. Unbooked reserved slots open to all
                                     departments within the equipment&apos;s Reschedule Hours Threshold before start.
                                     Quotas still apply.
                                   </p>
@@ -9578,6 +9588,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                         </Button>
                       </div>
                     )}
+                    {String(userType || "").toLowerCase() === "manager" &&
+                      equipmentDetail?.oic_request_registration_enabled &&
+                      selectedEquipment && (
+                        <OicRequestRegistration
+                          equipmentId={selectedEquipment.id}
+                          active={oicRegistration}
+                          onActiveChange={setOicRegistration}
+                          refreshKey={isSubmittingBooking ? 1 : 0}
+                        />
+                      )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label className="text-sm font-medium">User type</Label>
