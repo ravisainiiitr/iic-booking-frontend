@@ -138,3 +138,16 @@ describe("I-STEM mapping page", () => {
     expect(screen.getByText(/I-STEM not answering/)).toBeTruthy();
   });
 });
+
+describe("I-STEM institute", () => {
+  it("shows the institute named in I-STEM's token", async () => {
+    const { apiClient } = await import("@/lib/api");
+    const api = apiClient as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    api.getIstemEquipmentMappings.mockResolvedValue({ data: { istem_connected: true, all_departments: true, equipment: [], departments: [] } });
+    api.getIstemDepartmentMappings.mockResolvedValue({ data: { istem_departments: [], portal_departments: [],
+      istem_source: { live: true, read_at: "2026-11-03T05:00:00Z", problem: "", institute_id: "213" } } });
+    api.getIstemEquipmentSuggestions.mockResolvedValue({ data: { department_id: null, istem_total: 0, equipment: [] } });
+    render(<MemoryRouter><AdminIstemEquipmentMapping /></MemoryRouter>);
+    expect(await screen.findByText(/I-STEM connected · institute 213/)).toBeTruthy();
+  });
+});
