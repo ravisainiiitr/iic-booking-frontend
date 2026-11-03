@@ -6,10 +6,13 @@ import { MemoryRouter } from "react-router-dom";
 const state = vi.hoisted(() => ({
   api: {
     getIstemEquipmentMappings: vi.fn(),
+    getIstemDepartmentMappings: vi.fn(),
+    getIstemEquipmentSuggestions: vi.fn(),
+    saveIstemEquipmentMappingsBulk: vi.fn(),
+    saveIstemDepartmentMappings: vi.fn(),
     searchIstemEquipment: vi.fn(),
-    getIstemEquipmentSuggestions: vi.fn(async () => ({ data: { department_id: null, istem_total: 0, equipment: [] } })),
     saveIstemEquipmentMapping: vi.fn(),
-    verifyIstemEquipmentMappings: vi.fn(),
+    getIstemEquipmentListing: vi.fn(),
   },
 }));
 
@@ -18,7 +21,8 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: 1, user
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
-import AdminIstemEquipmentMapping, { filterRows } from "./AdminIstemEquipmentMapping";
+import AdminIstemEquipmentMapping from "./AdminIstemEquipmentMapping";
+import { confidence, filterInstruments, sourceNote } from "@/components/istem/mappingModel";
 import type { IstemMappingEquipmentRow } from "@/lib/api";
 
 const xrf: IstemMappingEquipmentRow = {
@@ -31,66 +35,106 @@ const xrf: IstemMappingEquipmentRow = {
   },
 };
 const fesem: IstemMappingEquipmentRow = {
-  equipment_id: 45, code: "FESEM", name: "FESEM", department: { id: 2, name: "Physics" }, requires_istem_fbr: true,
-  input_fields: [{ key: "B", label: "Samples" }], open_istem_bookings: 0, mapping: null,
+  equipment_id: 45, code: "FESEM-01", name: "Field Emission SEM", department: { id: 1, name: "IIC" }, requires_istem_fbr: true,
+  input_fields: [{ key: "A", label: "Samples" }], open_istem_bookings: 0, mapping: null,
 };
-const raman: IstemMappingEquipmentRow = { ...fesem, equipment_id: 46, code: "RAMAN", name: "Raman", requires_istem_fbr: false };
+const raman: IstemMappingEquipmentRow = { ...fesem, equipment_id: 46, code: "RAMAN", name: "Raman", department: { id: 2, name: "Physics" }, requires_istem_fbr: false };
+
+const LIVE = { live: true, read_at: "2026-11-03T05:00:00Z", problem: "" };
 
 function renderPage() {
   return render(<MemoryRouter><AdminIstemEquipmentMapping /></MemoryRouter>);
 }
 
-describe("I-STEM equipment mapping", () => {
+describe("I-STEM mapping helpers", () => {
+  it("filters, rates and explains", () => {
+    expect(filterInstruments([xrf, fesem, raman], "todo").map((r) => r.code)).toEqual(["FESEM-01", "RAMAN"]);
+    expect(filterInstruments([xrf, fesem], "all", "38750").map((r) => r.code)).toEqual(["XRF"]);
+    expect(confidence(0.95).label).toBe("Certain");
+    expect(confidence(0.75).label).toBe("Likely");
+    expect(confidence(0.5).label).toBe("Possible");
+    expect(sourceNote(LIVE)).toBe("");
+    expect(sourceNote({ live: false, read_at: null, problem: "I-STEM's server is not answering at the moment (it is run by IISc)." }))
+      .toContain("Showing I-STEM's list as read earlier");
+  });
+});
+
+describe("I-STEM mapping page", () => {
   beforeEach(() => {
-    state.api.getIstemEquipmentMappings.mockResolvedValue({
-      data: { istem_connected: true, all_departments: true, equipment: [xrf, fesem, raman] },
-    });
+    state.api.getIstemEquipmentMappings.mockResolvedValue({ data: {
+      istem_connected: true, all_departments: true, equipment: [xrf, fesem, raman],
+      departments: [
+        { id: 1, name: "IIC", total: 2, mapped: 1, fbr_unmapped: 1, istem_department_ids: [] },
+        { id: 2, name: "Physics", total: 1, mapped: 0, fbr_unmapped: 0, istem_department_ids: ["171"] },
+      ],
+    } });
+    state.api.getIstemDepartmentMappings.mockResolvedValue({ data: {
+      istem_source: LIVE, portal_departments: [{ id: 1, name: "IIC" }, { id: 2, name: "Physics" }],
+      istem_departments: [
+        { istem_department_id: "164", equipment_count: 12, sample_equipment: ["FESEM", "XRF"], locations: ["Analytical Section -1, IIC"], department: null, suggested: { id: 1, name: "IIC", instruments: 1 } },
+        { istem_department_id: "171", equipment_count: 3, sample_equipment: ["Raman"], locations: [], department: { id: 2, name: "Physics" }, suggested: null },
+      ],
+    } });
+    state.api.getIstemEquipmentSuggestions.mockResolvedValue({ data: {
+      department_id: 1, istem_total: 15, istem_source: LIVE,
+      equipment: [{
+        equipment_id: 45, code: "FESEM-01", name: "Field Emission SEM", department: { id: 1, name: "IIC" }, requires_istem_fbr: true,
+        input_fields: [{ key: "A", label: "Samples" }], default_sample_key: "A", istem_departments: [], confident: true,
+        candidates: [{ equipment_id: "38751", equipment_name: "Field Emission Scanning Electron Microscope (FESEM)", score: 0.95, reasons: ["model", "name"], mapped_to: [] }],
+      }],
+    } });
   });
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-  it("filters instruments that need mapping, are mapped, or match a department", () => {
-    const rows = [xrf, fesem, raman];
-    expect(filterRows(rows, "needs", "", "__all__").map((r) => r.code)).toEqual(["FESEM"]);
-    expect(filterRows(rows, "mapped", "", "__all__").map((r) => r.code)).toEqual(["XRF"]);
-    expect(filterRows(rows, "all", "38750", "__all__").map((r) => r.code)).toEqual(["XRF"]);
-    expect(filterRows(rows, "all", "", "2").map((r) => r.code)).toEqual(["FESEM", "RAMAN"]);
-    expect(filterRows([{ ...xrf, mapping: { ...xrf.mapping!, remote_found: false } }], "not_found", "", "__all__")).toHaveLength(1);
-  });
-
-  it("lists instruments with their I-STEM status", async () => {
+  it("opens on the first department with work, with its instruments and the best I-STEM match", async () => {
     renderPage();
+    const items = await screen.findAllByTestId("department-item");
+    expect(items).toHaveLength(2);
+    expect(within(items[0]).getByText("Not linked to I-STEM")).toBeTruthy();
+    expect(within(items[1]).getByText("I-STEM dept 171")).toBeTruthy();
     const rows = await screen.findAllByTestId("istem-mapping-row");
-    expect(rows).toHaveLength(3);
-    expect(within(rows[0]).getByText("38750")).toBeTruthy();
+    expect(rows).toHaveLength(2);
     expect(within(rows[0]).getByText("Found on I-STEM")).toBeTruthy();
-    expect(within(rows[1]).getByRole("button", { name: "Map" })).toBeTruthy();
+    expect(await within(rows[1]).findByText("Field Emission Scanning Electron Microscope (FESEM)")).toBeTruthy();
+    expect(within(rows[1]).getByText("Certain")).toBeTruthy();
+    expect(state.api.getIstemEquipmentSuggestions).toHaveBeenCalledWith("1", false);
   });
 
-  it("maps an instrument by picking it from the I-STEM search", async () => {
-    state.api.searchIstemEquipment.mockResolvedValue({
-      data: { results: [{ equipment_id: "41001", equipment_name: "Field Emission SEM", mapped_to: [] }] },
-    });
-    state.api.saveIstemEquipmentMapping.mockResolvedValue({ data: { mapping: {}, warnings: [], checked: true } });
+  it("accepts a suggestion with one click", async () => {
+    state.api.saveIstemEquipmentMappingsBulk.mockResolvedValue({ data: { results: [{ equipment_id: 45, ok: true, warnings: [] }], saved: 1, failed: 0, checked: true } });
     renderPage();
     const rows = await screen.findAllByTestId("istem-mapping-row");
-    fireEvent.click(within(rows[1]).getByRole("button", { name: "Map" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Search/ }));
-    fireEvent.click(await screen.findByText("Field Emission SEM"));
-    fireEvent.click(screen.getByRole("button", { name: /Save mapping/ }));
-    await waitFor(() => expect(state.api.saveIstemEquipmentMapping).toHaveBeenCalledWith(45, {
-      istem_equipment_id: "41001", sample_count_input_key: "", is_active: true, notes: "",
-    }));
-    expect(state.api.searchIstemEquipment).toHaveBeenCalledWith("FESEM");
+    fireEvent.click(await within(rows[1]).findByRole("button", { name: /Accept/ }));
+    await waitFor(() => expect(state.api.saveIstemEquipmentMappingsBulk).toHaveBeenCalledWith([
+      { equipment_id: 45, istem_equipment_id: "38751", sample_count_input_key: "A" },
+    ]));
   });
 
-  it("locks the I-STEM ID while bookings are open on I-STEM", async () => {
-    state.api.getIstemEquipmentMappings.mockResolvedValue({
-      data: { istem_connected: false, all_departments: false, equipment: [{ ...xrf, open_istem_bookings: 2 }] },
-    });
+  it("accepts all certain matches of the department", async () => {
+    state.api.saveIstemEquipmentMappingsBulk.mockResolvedValue({ data: { results: [], saved: 1, failed: 0, checked: true } });
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-    expect((screen.getByLabelText("I-STEM equipment ID") as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/2 booking\(s\) are still open on I-STEM/)).toBeTruthy();
-    expect(screen.getByText(/its equipment list cannot be searched/)).toBeTruthy();
+    const button = await screen.findByRole("button", { name: "Accept all certain (1)" });
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(button);
+    await waitFor(() => expect(state.api.saveIstemEquipmentMappingsBulk).toHaveBeenCalledTimes(1));
+  });
+
+  it("switches department from the list", async () => {
+    renderPage();
+    const items = await screen.findAllByTestId("department-item");
+    fireEvent.click(items[1]);
+    expect(await screen.findByRole("heading", { name: "Physics" })).toBeTruthy();
+    await waitFor(() => expect(state.api.getIstemEquipmentSuggestions).toHaveBeenCalledWith("2", false));
+    expect(screen.getAllByTestId("linked-istem-department")).toHaveLength(1);
+  });
+
+  it("explains when I-STEM is not answering and the saved list is used", async () => {
+    state.api.getIstemEquipmentSuggestions.mockResolvedValue({ data: {
+      department_id: 1, istem_total: 15, equipment: [],
+      istem_source: { live: false, read_at: "2026-11-03T05:00:00Z", problem: "I-STEM's server is not answering at the moment (it is run by IISc)." },
+    } });
+    renderPage();
+    expect(await screen.findByText(/Mappings can still be saved/)).toBeTruthy();
+    expect(screen.getByText(/I-STEM not answering/)).toBeTruthy();
   });
 });
