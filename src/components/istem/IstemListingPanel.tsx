@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
 import { apiClient, type IstemEquipmentSearchRow } from "@/lib/api";
+import { sourceNote } from "./mappingModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +16,7 @@ export default function IstemListingPanel({ connected }: { connected: boolean })
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState("");
   const [unmappedOnly, setUnmappedOnly] = useState(false);
+  const [note, setNote] = useState("");
 
   const load = useCallback(async (refresh = false) => {
     setLoading(true);
@@ -26,6 +28,7 @@ export default function IstemListingPanel({ connected }: { connected: boolean })
     }
     setError("");
     setRows(res.data.equipment);
+    setNote(sourceNote(res.data.istem_source));
   }, []);
 
   useEffect(() => { if (connected) void load(); }, [connected, load]);
@@ -57,6 +60,7 @@ export default function IstemListingPanel({ connected }: { connected: boolean })
         {rows ? <span className="text-xs text-muted-foreground">{mapped} of {rows.length} mapped on the portal</span> : null}
       </div>
       {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
+      {note ? <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{note}</p> : null}
       {rows ? (
         <div className="overflow-x-auto rounded-lg border">
           <Table>

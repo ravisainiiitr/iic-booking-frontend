@@ -4456,6 +4456,15 @@ export interface IstemDepartmentProgress {
   total: number;
   mapped: number;
   fbr_unmapped: number;
+  /** I-STEM departments linked to this portal department. */
+  istem_department_ids?: string[];
+}
+
+/** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface IstemSource {
+  live: boolean;
+  read_at: string | null;
+  problem: string;
 }
 
 export interface IstemEquipmentMappingList {
@@ -8226,7 +8235,7 @@ class ApiClient {
 
   /** Active I-STEM equipment of the institute whose name contains ``q`` (read from I-STEM). */
   async searchIstemEquipment(q: string) {
-    return this.request<{ results: IstemEquipmentSearchRow[] }>(
+    return this.request<{ results: IstemEquipmentSearchRow[]; istem_source?: IstemSource }>(
       `/istem/equipment-mappings/search/?q=${encodeURIComponent(q)}`, { method: 'GET' });
   }
 
@@ -8241,7 +8250,7 @@ class ApiClient {
 
   /** I-STEM's equipment list for the institute, each entry with the portal instruments mapped to it. */
   async getIstemEquipmentListing(refresh = false) {
-    return this.request<{ equipment: IstemEquipmentSearchRow[]; total: number; mapped: number }>(
+    return this.request<{ equipment: IstemEquipmentSearchRow[]; total: number; mapped: number; istem_source?: IstemSource }>(
       `/istem/equipment-mappings/istem-listing/${refresh ? '?refresh=1' : ''}`, { method: 'GET' });
   }
 
@@ -8252,13 +8261,13 @@ class ApiClient {
     if (equipmentId) params.set('equipment_id', String(equipmentId));
     if (refresh) params.set('refresh', '1');
     const qs = params.toString();
-    return this.request<{ department_id: number | null; istem_total: number; equipment: IstemSuggestionRow[] }>(
+    return this.request<{ department_id: number | null; istem_total: number; equipment: IstemSuggestionRow[]; istem_source?: IstemSource }>(
       `/istem/equipment-mappings/suggestions/${qs ? `?${qs}` : ''}`, { method: 'GET' });
   }
 
   /** Main Admin: I-STEM departments (from its equipment list) and the portal department each is mapped to. */
   async getIstemDepartmentMappings(refresh = false) {
-    return this.request<{ istem_departments: IstemDepartmentRow[]; portal_departments: { id: number; name: string }[] }>(
+    return this.request<{ istem_departments: IstemDepartmentRow[]; portal_departments: { id: number; name: string }[]; istem_source?: IstemSource }>(
       `/istem/department-mappings/${refresh ? '?refresh=1' : ''}`, { method: 'GET' });
   }
 
