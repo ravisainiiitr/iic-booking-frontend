@@ -4578,11 +4578,14 @@ export interface IstemEquipmentSearchRow {
 /** An I-STEM department (I-STEM sends its number only) and the portal department it is mapped to. */
 export interface IstemDepartmentRow {
   istem_department_id: string;
+  /** Name from I-STEM's Departments list ("" when I-STEM has not been read). */
+  name?: string;
   equipment_count: number;
   sample_equipment: string[];
   locations: string[];
   department: { id: number; name: string } | null;
-  suggested: { id: number; name: string; instruments: number } | null;
+  /** by "instruments": portal departments of instruments already mapped to its equipment; by "name": similar name. */
+  suggested: { id: number; name: string; instruments: number; by?: "instruments" | "name"; score?: number } | null;
 }
 
 export interface IstemEquipmentMappingSave {
