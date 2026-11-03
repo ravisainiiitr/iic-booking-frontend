@@ -392,6 +392,12 @@ export default function GlobalSearchDialog({ open, onOpenChange, openToken, init
                           <ModeInactivePill info={modeInactiveOf(e)!} />
                         ) : null}
                         {gatedIds.has(Number(e.id)) ? <TrainingRequiredBadge /> : null}
+                        {(e as { test?: boolean }).test ? (
+                          <span className="shrink-0 rounded-full border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300"
+                            title="Marked as test data: users do not see it in search">
+                            Test
+                          </span>
+                        ) : null}
                       </p>
                       <p className={SECONDARY}>
                         {e.code}

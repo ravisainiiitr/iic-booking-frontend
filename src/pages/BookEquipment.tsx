@@ -166,6 +166,7 @@ import type { RescheduleBookingHolder } from "@/components/RescheduleSlotPicker"
 import { BookingDetailCard, PortalFeedbackForm, RescheduleSlotPicker } from "@/components/booking/lazyBookingExtras";
 import OicRequestRegistration from "@/components/booking/OicRequestRegistration";
 import { NEXT_DAY_SUFFIX, isNextDayRow, orderByOperatingDay, startsWhenEnds } from "@/lib/operatingDay";
+import { slotIsAutoPickable } from "@/lib/slotAutoPick";
 import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,
@@ -5178,21 +5179,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
     // If only one slot is needed (including tolerance), select only one slot
     if (minSlotsNeeded <= 1) {
-      // Find the first available slot (admin/OIC: allow past and non-BOOKED)
-      const availableSlot = equipmentDetail.daily_slots.find(slot => {
-        const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-        if (isAdminOrOIC()) {
-          if (isBookedSlot) return false;
-        } else {
-          if (!isDailySlotSelectableForUserBooking(slot)) return false;
-        }
-        const slotDate = startOfDay(parseISO(slot.date));
-        const slotTime = timeKeyFromDailySlot(slot);
-        const slotDateTime = new Date(slotDate);
-        const [hours, minutes] = slotTime.split(':').map(Number);
-        slotDateTime.setHours(hours, minutes || 0, 0, 0);
-        return (isAdminOrOIC() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime);
-      });
+      // The first slot still to come that may be picked automatically (never a past or closed slot, for staff too).
+      const availableSlot = [...equipmentDetail.daily_slots]
+        .sort((a, b) => parseISO(a.start_datetime).getTime() - parseISO(b.start_datetime).getTime())
+        .find((slot) => isAutoPickable(slot));
 
       if (availableSlot) {
         const slotDate = startOfDay(parseISO(availableSlot.date));
@@ -5222,21 +5212,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     let bestSlotChain: TimeSlot[] = [];
     let bestTotalMinutes = 0;
 
-    // Try each available slot as a potential starting point (in chronological order). Admin/OIC: allow past and non-BOOKED.
+    // Try each slot still to come as a starting point (in chronological order); never a past or closed slot.
     for (const slot of sortedDailySlots) {
-      const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-      if (isAdminOrOIC()) {
-        if (isBookedSlot) continue;
-      } else {
-        if (!isDailySlotSelectableForUserBooking(slot)) continue;
-      }
+      if (!isAutoPickable(slot)) continue;
       const slotDate = startOfDay(parseISO(slot.date));
       const slotTime = timeKeyFromDailySlot(slot);
-      const slotDateTime = new Date(slotDate);
-      const [hours, minutes] = slotTime.split(':').map(Number);
-      slotDateTime.setHours(hours, minutes || 0, 0, 0);
-      if (!isAdminOrOIC() && slotDateTime < new Date()) continue;
-      if (isSlotBooked(slotDate, slotTime)) continue;
       
       // Try building consecutive slots from this starting slot
       const testSlot: TimeSlot = {
@@ -5259,7 +5239,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           break;
         }
         
-        const nextSlot = findNextConsecutiveSlot([currentSlot]);
+        const nextSlot = findNextConsecutiveSlot([currentSlot], true);
         if (!nextSlot) {
           break; // No more consecutive slots
         }
@@ -5598,7 +5578,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
 
   // Find the next consecutive slot after the last selected slot.
   // Uses (1) date+time string match, then (2) "next in sorted list" so it works regardless of API datetime format.
-  const findNextConsecutiveSlot = (selectedSlots: TimeSlot[]): TimeSlot | null => {
+  const findNextConsecutiveSlot = (selectedSlots: TimeSlot[], strict = false): TimeSlot | null => {
     if (selectedSlots.length === 0 || !equipmentDetail?.daily_slots) return null;
 
     const sortedSlots = [...selectedSlots].sort((a, b) => {
@@ -5616,6 +5596,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     );
 
     const matchByDateTime = (slot: DailySlot): boolean => {
+      if (strict && !isAutoPickable(slot)) return false;
       const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
       if (isAdminOrOIC()) {
         if (isBookedSlot || (lastSlotId != null && slot.id === lastSlotId)) return false;
@@ -5643,9 +5624,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       if (currentIndex >= 0 && currentIndex + 1 < sortedByStart.length) {
         const candidate = sortedByStart[currentIndex + 1];
         const candidateBooked = candidate.status === "BOOKED" || !!candidate.booking_id;
-        const candidateOk = isAdminOrOIC()
-          ? !candidateBooked
-          : isDailySlotSelectableForUserBooking(candidate);
+        const candidateOk = strict
+          ? isAutoPickable(candidate)
+          : isAdminOrOIC()
+            ? !candidateBooked
+            : isDailySlotSelectableForUserBooking(candidate);
         if (candidateOk && candidate.id !== lastSlotId) {
           const slotStart = parseISO(candidate.start_datetime);
           const slotDate = startOfDay(parseISO(candidate.date));
@@ -5693,9 +5676,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     let currentSlot = firstSlot;
     let totalMinutes = getSlotDurationMinutes(currentSlot);
     
-    // Continue selecting consecutive slots until we've covered the minimum required time
+    // Continue selecting consecutive slots until we've covered the minimum required time. A slot that may be picked
+    // automatically is only extended with such slots; staff choosing a past or closed slot by hand keep the old rule.
+    const strictChain = isAutoPickable(firstSlot.slotData);
     while (allSlots.length < minSlotsNeeded) {
-      const nextSlot = findNextConsecutiveSlot([currentSlot]);
+      const nextSlot = findNextConsecutiveSlot([currentSlot], strictChain);
       if (!nextSlot || isSlotBooked(nextSlot.date, nextSlot.time)) {
         // No more consecutive slots available
         break;
@@ -5753,6 +5738,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     return true; // Continuous slots are available
   };
 
+  /**
+   * Slots the page may pick by itself (auto-select, consecutive extension, split booking): still to come by their real
+   * start (not ``slot.date``, which is the operating day), not booked, and open - Available, or Reserved (External)
+   * when staff book for an external user. Staff may still click any other slot by hand.
+   */
+  const isAutoPickable = (slot: DailySlot | undefined | null): boolean => {
+    if (!slot || !isDailySlotSelectableForUserBooking(slot)) return false;
+    if (!slotIsAutoPickable(slot, { forExternal: bookingAsExternalTarget, externalOpen: slotBookableByExternalUser(slot) })) return false;
+    return !isSlotBooked(startOfDay(parseISO(slot.date)), timeKeyFromDailySlot(slot));
+  };
+
   // Find random available slots (non-consecutive) when consecutive slots aren't available
   const findRandomAvailableSlots = (requiredMinutes: number, excludeSlots: TimeSlot[] = []): TimeSlot[] => {
     if (!equipmentDetail?.daily_slots) return [];
@@ -5769,26 +5765,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     const excludeSlotIds = new Set(excludeSlots.map(s => s.slotId));
     
     equipmentDetail.daily_slots.forEach(slot => {
-      const isBookedSlot = slot.status === "BOOKED" || !!slot.booking_id;
-      if (isAdminOrOIC()) {
-        if (isBookedSlot || excludeSlotIds.has(slot.id)) return;
-      } else {
-        if (!isDailySlotSelectableForUserBooking(slot) || excludeSlotIds.has(slot.id)) return;
-      }
+      if (excludeSlotIds.has(slot.id) || !isAutoPickable(slot)) return;
       const slotDate = startOfDay(parseISO(slot.date));
       const slotTime = timeKeyFromDailySlot(slot);
-      const slotDateTime = new Date(slotDate);
-      const [hours, minutes] = slotTime.split(':').map(Number);
-      slotDateTime.setHours(hours, minutes || 0, 0, 0);
-      if ((isAdminOrOIC() || slotDateTime >= new Date()) && !isSlotBooked(slotDate, slotTime)) {
-        availableSlots.push({
-          date: slotDate,
-          time: slotTime,
-          isBooked: false,
-          slotId: slot.id,
-          slotData: slot,
-        });
-      }
+      availableSlots.push({
+        date: slotDate,
+        time: slotTime,
+        isBooked: false,
+        slotId: slot.id,
+        slotData: slot,
+      });
     });
     
     // Sort by datetime to get a consistent order
