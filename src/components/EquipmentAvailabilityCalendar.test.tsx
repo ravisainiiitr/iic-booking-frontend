@@ -134,3 +134,30 @@ describe("EquipmentAvailabilityCalendar", () => {
     expect(card?.textContent).toContain("Recovery date not yet announced");
   });
 });
+
+describe("EquipmentAvailabilityCalendar operating day", () => {
+  it("starts the rows at the operating day start and marks next-morning rows", async () => {
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const wed = addDays(monday, 2);
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, wed, { status: "AVAILABLE", slot_open_time: "03:00:00", start_datetime: "2099-01-01T03:00:00+05:30" }),
+          slot(2, wed, { status: "AVAILABLE", slot_open_time: "09:00:00", start_datetime: "2099-01-01T09:00:00+05:30" }),
+          slot(3, wed, { status: "AVAILABLE", slot_open_time: "15:00:00", start_datetime: "2099-01-01T15:00:00+05:30" }),
+          slot(4, wed, { status: "AVAILABLE", slot_open_time: "21:00:00", start_datetime: "2099-01-01T21:00:00+05:30" }),
+        ],
+        slot_master_times: ["03:00:00", "09:00:00", "15:00:00", "21:00:00"],
+        slot_duration_minutes: 360,
+        operating_day_start: "09:00",
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    const labels = await screen.findAllByText(/^\d\d:\d\d – \d\d:\d\d/);
+    expect(labels.map((l) => l.textContent)).toEqual([
+      "09:00 – 15:00", "15:00 – 21:00", "21:00 – 03:00", "03:00 – 09:00 (+1 day)",
+    ]);
+  });
+});

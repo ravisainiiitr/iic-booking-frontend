@@ -2779,6 +2779,8 @@ export interface OicEquipmentSettings {
   slot_window_reference_time: string | null;
   weekly_view_time_from: string | null;
   weekly_view_time_to: string | null;
+  /** "HH:MM" when the operating day does not start at midnight (Main Admin only); null = calendar days. */
+  operating_day_start?: string | null;
   external_slot_quota_percent: number;
   booking_not_utilize_window_hours: number;
   /** Deprecated, replaced by the results deadline; kept for older payloads. */
@@ -7081,6 +7083,8 @@ class ApiClient {
       /** Weekly view time filter (from equipment settings). Only slots within this window are returned. */
       weekly_view_time_from?: string | null;
       weekly_view_time_to?: string | null;
+      /** Operating day start ("HH:MM"): grid rows start here and wrap round; null = 00:00. */
+      operating_day_start?: string | null;
       weekly_view_max_rows?: number | null;
       weekly_view_default_days?: number | null;
       /** First date (YYYY-MM-DD) of visible window for internal users; null = no restriction. */
