@@ -165,6 +165,7 @@ import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import type { RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { BookingDetailCard, PortalFeedbackForm, RescheduleSlotPicker } from "@/components/booking/lazyBookingExtras";
 import OicRequestRegistration from "@/components/booking/OicRequestRegistration";
+import { NEXT_DAY_SUFFIX, isNextDayRow, orderByOperatingDay } from "@/lib/operatingDay";
 import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,
@@ -409,6 +410,8 @@ interface EquipmentDetail {
   equipment_id: number;
   code: string;
   name: string;
+  /** Operating day start ("HH:MM[:SS]"): weekly rows start here and wrap round; null = calendar days. */
+  operating_day_start?: string | null;
   /** Main Admin switch: home department books unmarked slots, other departments the slots marked for them. */
   department_slot_reservation_enabled?: boolean;
   /** Main Admin switch: the OIC may register requests in their own name, with no charge. */
@@ -2385,7 +2388,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       if (data?.slots) setStatusChangeSlots(data.slots);
       else setStatusChangeSlots([]);
       const times = data?.slot_master_times && data.slot_master_times.length > 0
-        ? data.slot_master_times.map(formatTimeForDisplay).sort()
+        ? orderByOperatingDay(data.slot_master_times.map(formatTimeForDisplay), equipmentDetail?.operating_day_start)
         : [];
       setStatusChangeSlotMasterTimes(times);
       setStatusChangeHolidays(data?.holidays ?? {});
@@ -2440,7 +2443,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           times = detailTimes.map((t) => formatTimeForDisplay(String(t)));
         }
       }
-      times = [...new Set(times.map((t) => normalizeSlotGridTimeKey(t)).filter(Boolean))].sort();
+      times = orderByOperatingDay(
+        [...new Set(times.map((t) => normalizeSlotGridTimeKey(t)).filter(Boolean))],
+        equipmentDetail?.operating_day_start,
+      );
       setStatusChangeSlotMasterTimes(times);
       setStatusChangeHolidays(data?.holidays ?? {});
     } catch {
@@ -2695,8 +2701,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                 .map((s) => timeKeyFromDailySlot(s))
             )
           ).sort();
-    if (slotVisibilityScope !== "user" || !statusChangeSlots?.length) return base;
-    return base.filter((time) => {
+    const ordered = orderByOperatingDay(base, equipmentDetail?.operating_day_start);
+    if (slotVisibilityScope !== "user" || !statusChangeSlots?.length) return ordered;
+    return ordered.filter((time) => {
       const rowSlots = statusChangeSlots.filter((s) => timeKeyFromDailySlot(s) === time);
       return rowSlots.length === 0 || rowSlots.some((s) => !isOutsideVisibilityWindow(s));
     });
@@ -5955,7 +5962,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       }
     });
     
-    const sortedTimes = Array.from(uniqueTimes).sort();
+    const sortedTimes = orderByOperatingDay(Array.from(uniqueTimes), equipmentDetail?.operating_day_start);
     // If we have slots, return them; otherwise fallback to default
     return sortedTimes.length > 0 ? sortedTimes : [];
   };
@@ -5964,9 +5971,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
   const getWeeklyRowKeysAndLabels = (): { key: string; label: string }[] => {
     const hideTime = getEffectiveWeeklyViewDisplay() === "SLOT_ID";
     const fromSlotMasters = equipmentDetail?.slot_master_times && equipmentDetail.slot_master_times.length > 0
-      ? [...new Set(equipmentDetail.slot_master_times.map((t) => normalizeSlotGridTimeKey(formatTimeForDisplay(String(t)))))]
-          .filter(Boolean)
-          .sort()
+      ? orderByOperatingDay(
+          [...new Set(equipmentDetail.slot_master_times.map((t) => normalizeSlotGridTimeKey(formatTimeForDisplay(String(t)))))]
+            .filter(Boolean),
+          equipmentDetail?.operating_day_start,
+        )
       : [];
     const fromSlots = getTimeSlotsFromDailySlots();
     const fromWindow = getTimeSlotsFromEquipmentWindow(
@@ -5987,7 +5996,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     );
     return timeSlots.map((t, index) => ({
       key: t,
-      label: hideTime ? `Slot ${index + 1}` : slotTimeRangeLabel(t, rowEndTimes.get(t), slotDuration),
+      label: hideTime
+        ? `Slot ${index + 1}`
+        : `${slotTimeRangeLabel(t, rowEndTimes.get(t), slotDuration)}${isNextDayRow(t, equipmentDetail?.operating_day_start) ? NEXT_DAY_SUFFIX : ""}`,
     }));
   };
 

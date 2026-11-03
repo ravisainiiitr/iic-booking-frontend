@@ -19,6 +19,7 @@ import { useOptionalAuth } from "@/contexts/AuthContext";
 import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
 import { publicDisruptionLines } from "@/lib/disruptions";
 import { resolveSlotCell, slotCalendarLegend, slotCalendarPalette, type HolidayEntry } from "@/lib/slotCalendarDisplay";
+import { NEXT_DAY_SUFFIX, isNextDayRow, orderByOperatingDay } from "@/lib/operatingDay";
 import {
   isOutsideVisibilityWindow,
   restrictedSlotHint,
@@ -67,18 +68,19 @@ function isFutureAvailable(slot: CalendarSlot, now: Date): boolean {
   }
 }
 
-function formatRowLabel(timeKey: string, durationMinutes: number): string {
+function formatRowLabel(timeKey: string, durationMinutes: number, dayStart?: string | null): string {
   const [h, m] = timeKey.split(":").map((v) => parseInt(v, 10));
   const endM = h * 60 + m + Math.max(1, durationMinutes || 60);
   const end = `${String(Math.floor(endM / 60) % 24).padStart(2, "0")}:${String(endM % 60).padStart(2, "0")}`;
-  return `${timeKey} – ${end}`;
+  return `${timeKey} – ${end}${isNextDayRow(timeKey, dayStart) ? NEXT_DAY_SUFFIX : ""}`;
 }
 
 function buildRowKeys(payload: SlotsPayload): string[] {
+  const dayStart = payload.operating_day_start;
   const fromMasters = (payload.slot_master_times ?? []).map(normalizeTimeKey).filter(Boolean);
-  if (fromMasters.length > 0) return [...new Set(fromMasters)].sort();
+  if (fromMasters.length > 0) return orderByOperatingDay([...new Set(fromMasters)], dayStart);
   const fromSlots = (payload.slots as CalendarSlot[]).map(slotTimeKey).filter(Boolean);
-  if (fromSlots.length > 0) return [...new Set(fromSlots)].sort();
+  if (fromSlots.length > 0) return orderByOperatingDay([...new Set(fromSlots)], dayStart);
   const start = normalizeTimeKey(payload.slot_start_time);
   const end = normalizeTimeKey(payload.slot_end_time);
   const step = payload.slot_duration_minutes || 60;
@@ -380,7 +382,7 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
           timeHeader={weeklyViewDisplay === "SLOT_ID" ? "Slot position" : "Time"}
           rows={rowKeys.map((timeKey, index) => ({
             key: timeKey,
-            label: weeklyViewDisplay === "SLOT_ID" ? `Slot ${index + 1}` : formatRowLabel(timeKey, slotDuration),
+            label: weeklyViewDisplay === "SLOT_ID" ? `Slot ${index + 1}` : formatRowLabel(timeKey, slotDuration, payload?.operating_day_start),
           }))}
           renderCell={renderCell}
           singleDayOnMobile

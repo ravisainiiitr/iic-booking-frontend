@@ -29,7 +29,7 @@ type IntField =
   | "sample_submission_lead_hours"
   | "sample_collect_deadline_hours";
 
-type TimeField = "slot_window_reference_time" | "weekly_view_time_from" | "weekly_view_time_to";
+type TimeField = "slot_window_reference_time" | "weekly_view_time_from" | "weekly_view_time_to" | "operating_day_start";
 
 type DepthField =
   | "waitlist_queue_depth"
@@ -175,6 +175,7 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     slot_window_reference_time: settings.slot_window_reference_time ?? "",
     weekly_view_time_from: settings.weekly_view_time_from ?? "",
     weekly_view_time_to: settings.weekly_view_time_to ?? "",
+    operating_day_start: settings.operating_day_start ?? "",
     external_slot_quota_percent: String(settings.external_slot_quota_percent ?? 0),
     booking_not_utilize_window_hours: String(settings.booking_not_utilize_window_hours ?? 0),
     results_deadline_value: String(settings.results_deadline_value ?? 0),
@@ -211,6 +212,7 @@ function toPayload(
     payload.slot_window_reference_weekday =
       draft.slot_window_reference_weekday === NO_WEEKDAY ? null : Number(draft.slot_window_reference_weekday);
     payload.slot_window_reference_time = draft.slot_window_reference_time || null;
+    payload.operating_day_start = draft.operating_day_start || null;
   }
   for (const field of DEPTH_FIELDS) {
     if (draft[field.key].trim() === saved[field.key].trim()) continue;
@@ -719,6 +721,22 @@ export default function OICEquipmentSettings() {
                         Only slots in this range are shown to regular users. Leave both empty for no limit. Admin and
                         OIC always see the full week.
                       </p>
+                      <div className="space-y-1.5 sm:max-w-xs">
+                        <Label htmlFor="oic-setting-operating-day-start">Operating day starts at (24h)</Label>
+                        <Input
+                          id="oic-setting-operating-day-start"
+                          type="time"
+                          value={draft.operating_day_start}
+                          disabled={!canEditSlotWindowReference}
+                          onChange={(e) => setField("operating_day_start", e.target.value)}
+                        />
+                        {fieldError("operating_day_start")}
+                        <p className="text-xs text-muted-foreground">
+                          For a cycle that runs past midnight, e.g. 09:00 for 09:00 → 09:00 next day: the weekly view
+                          starts at this time and slots before it show as the next morning of the same column. Leave
+                          empty for calendar days.{canEditSlotWindowReference ? "" : " Only the Main Administrator can change this."}
+                        </p>
+                      </div>
                       {renderIntFields("external")}
                     </CardContent>
                   </Card>
