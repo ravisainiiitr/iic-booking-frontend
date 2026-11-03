@@ -165,7 +165,7 @@ import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
 import type { RescheduleBookingHolder } from "@/components/RescheduleSlotPicker";
 import { BookingDetailCard, PortalFeedbackForm, RescheduleSlotPicker } from "@/components/booking/lazyBookingExtras";
 import OicRequestRegistration from "@/components/booking/OicRequestRegistration";
-import { NEXT_DAY_SUFFIX, isNextDayRow, orderByOperatingDay } from "@/lib/operatingDay";
+import { NEXT_DAY_SUFFIX, isNextDayRow, orderByOperatingDay, startsWhenEnds } from "@/lib/operatingDay";
 import { publishWorkspaceTitle } from "@/lib/workspaceTitle";
 import {
   Dialog,
@@ -5622,11 +5622,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       } else {
         if (!isDailySlotSelectableForUserBooking(slot) || (lastSlotId != null && slot.id === lastSlotId)) return false;
       }
-      const slotDateStr = typeof slot.date === "string"
-        ? (slot.date.includes("T") ? parseIsoDateAndTime(slot.date).dateStr : slot.date.slice(0, 10))
-        : "";
-      const slotStartTimeStr = slot.start_datetime ? parseIsoDateAndTime(slot.start_datetime).timeStr : "";
-      if (slotDateStr !== lastEnd.dateStr || slotStartTimeStr !== lastEnd.timeStr) return false;
+      // Its real start must be the last slot's end. Not ``slot.date``: with an operating day start (e.g. 09:00) the
+      // 03:00 slot of Wednesday's cycle is dated Wednesday but starts on Thursday.
+      if (!startsWhenEnds(slot.start_datetime, lastSlot.slotData?.end_datetime)) return false;
       if (!isAdminOrOIC()) {
         const slotStart = parseISO(slot.start_datetime);
         if (slotStart.getTime() < new Date().getTime()) return false;
