@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   api: {
     getIstemEquipmentMappings: vi.fn(),
     searchIstemEquipment: vi.fn(),
+    getIstemEquipmentSuggestions: vi.fn(async () => ({ data: { department_id: null, istem_total: 0, equipment: [] } })),
     saveIstemEquipmentMapping: vi.fn(),
     verifyIstemEquipmentMappings: vi.fn(),
   },
