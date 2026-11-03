@@ -4461,6 +4461,59 @@ export interface IstemDepartmentProgress {
 }
 
 /** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface OicRegisteredRequest {
+  booking_id: number;
+  reference: string;
+  status: string;
+  status_display: string;
+  start_time: string | null;
+  end_time: string | null;
+  notes: string;
+  created_at: string;
+}
+
+export interface EquipmentConfigAuditRow {
+  id: number;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  object_type: string;
+  object_label: string;
+  action: string;
+  action_label: string;
+  setting: string;
+  setting_label: string;
+  previous_value: string;
+  new_value: string;
+  changed_by_id: number | null;
+  changed_by: string;
+  changed_by_role: string;
+  changed_by_department: string;
+  is_system: boolean;
+  source: string;
+  source_label: string;
+  changed_at: string;
+  object_id?: string;
+  process?: string;
+  reference?: string;
+}
+
+export interface EquipmentConfigAuditPage {
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+  results: EquipmentConfigAuditRow[];
+  sources: { value: string; label: string }[];
+  actions: { value: string; label: string }[];
+}
+
+export interface EquipmentConfigAuditFacets {
+  equipment: { id: number; code: string; name: string }[];
+  users: { id: number; name: string }[];
+  settings: { value: string; label: string }[];
+}
+
 export interface IstemSource {
   live: boolean;
   read_at: string | null;
@@ -11532,6 +11585,30 @@ class ApiClient {
     });
   }
 
+  /** OIC: requests registered for this equipment (403 when the switch is off or the user is not its OIC). */
+  async getOicRegisteredRequests(equipmentId: string | number) {
+    return this.request<{ allowed: boolean; equipment_id: number; results: OicRegisteredRequest[] }>(
+      `/equipments/${equipmentId}/oic-requests/`,
+    );
+  }
+
+  /** Main Administrator: equipment configuration audit trail. */
+  async getEquipmentConfigAudit(params: Record<string, string | number | undefined>) {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "") q.set(k, String(v));
+    });
+    return this.request<EquipmentConfigAuditPage>(`/equipment-config-audit/?${q.toString()}`);
+  }
+
+  async getEquipmentConfigAuditDetail(id: number) {
+    return this.request<EquipmentConfigAuditRow>(`/equipment-config-audit/${id}/`);
+  }
+
+  async getEquipmentConfigAuditFacets() {
+    return this.request<EquipmentConfigAuditFacets>(`/equipment-config-audit/facets/`);
+  }
+
   async bookEquipment(equipmentId: string | number, data: {
     start_time?: string;
     end_time?: string;
@@ -11541,6 +11618,8 @@ class ApiClient {
     input_values?: Record<string, unknown>;
     /** Admin only: book on behalf of this user id */
     user_id?: number | string;
+    /** OIC of equipment with "Allow OIC to Register Equipment Requests": book in own name, no charge. */
+    oic_registration?: boolean;
     /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
     slot_ids?: number[];
     /** When true, create booking in HOLD status (no wallet debit); used for urgent request "Select Slot" flow */
