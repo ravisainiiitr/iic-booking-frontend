@@ -114,6 +114,7 @@ import CallButton from "@/components/calls/CallButton";
 import LiveFeedPanel from "@/components/livefeed/LiveFeedPanel";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
+import BookingStatusOverrideDialog, { STATUS_OVERRIDE_SOURCES } from "@/components/booking/BookingStatusOverrideDialog";
 
 const LabOutreachDialog = lazy(() => import("@/components/booking/LabOutreachDialog"));
 
@@ -2915,6 +2916,18 @@ export function BookingDetailCard({
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   {isFabrication ? "Mark complete" : "Complete"}
                 </Button>
+              )}
+              {normalizedCurrentUserType === "admin" &&
+                bookingPk != null &&
+                STATUS_OVERRIDE_SOURCES.has(booking.status.toUpperCase()) && (
+                <BookingStatusOverrideDialog
+                  bookingId={bookingPk}
+                  bookingRef={booking.virtual_booking_id || `#${booking.booking_id}`}
+                  onChanged={() => {
+                    void refreshBookingDetail({ silent: true });
+                    onUpdated();
+                  }}
+                />
               )}
               {!isHold && fabricationWorkflow?.can_reject && bookingPk != null && (
                 <FabricationRejectDialog
