@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
     saveIstemDepartmentMappings: vi.fn(),
     searchIstemEquipment: vi.fn(),
     saveIstemEquipmentMapping: vi.fn(),
+    getIstemInstitute: vi.fn(),
+    saveIstemInstitute: vi.fn(),
   },
 }));
 
@@ -100,6 +102,9 @@ describe("I-STEM mapping page", () => {
     } });
     state.api.saveIstemEquipmentMappingsBulk.mockResolvedValue({ data: { results: [{ equipment_id: 45, ok: true, warnings: [] }], saved: 1, failed: 0, checked: true } });
     state.api.saveIstemDepartmentMappings.mockResolvedValue({ data: { saved: 2, removed: 0 } });
+    state.api.getIstemInstitute.mockResolvedValue({ data: {
+      institute_id: "213", source: "token", token_institute_id: "213", user_entity: "IN", saved: null, can_set: true, problem: "",
+    } });
   });
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
@@ -148,6 +153,21 @@ describe("I-STEM mapping page", () => {
     await waitFor(() => expect(state.api.saveIstemEquipmentMappingsBulk).toHaveBeenCalledWith([
       { equipment_id: 45, istem_equipment_id: "38751", sample_count_input_key: "A" },
     ]));
+  });
+
+  it("asks the Main Admin for the institute when I-STEM's sign-in names none, then reads the list again", async () => {
+    state.api.getIstemInstitute
+      .mockResolvedValueOnce({ data: { institute_id: null, source: "", token_institute_id: null, user_entity: "DP", saved: null, can_set: true, problem: "" } })
+      .mockResolvedValue({ data: { institute_id: "213", source: "portal", token_institute_id: null, user_entity: "DP", saved: { institute_id: "213", set_at: "2026-11-04T05:00:00Z", set_by: "Demo Admin" }, can_set: true, problem: "" } });
+    state.api.saveIstemInstitute.mockResolvedValue({ data: { institute_id: "213", departments: 34, warnings: [] } });
+    renderPage();
+    const card = await screen.findByTestId("istem-institute-card");
+    fireEvent.change(within(card).getByLabelText("I-STEM institute ID"), { target: { value: "213" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Check and save" }));
+    await waitFor(() => expect(state.api.saveIstemInstitute).toHaveBeenCalledWith("213"));
+    await waitFor(() => expect(screen.queryByTestId("istem-institute-card")).toBeNull());
+    expect(await screen.findByText(/institute 213 \(set on portal\)/)).toBeTruthy();
+    await waitFor(() => expect(state.api.getIstemEquipmentListing.mock.calls.length).toBeGreaterThanOrEqual(2));
   });
 
   it("says why when I-STEM's list cannot be read", async () => {
