@@ -4514,6 +4514,16 @@ export interface EquipmentConfigAuditFacets {
   settings: { value: string; label: string }[];
 }
 
+export interface BookingStatusOverrideOptions {
+  booking_id: number;
+  current_status: string;
+  current_status_label: string;
+  allowed: boolean;
+  refusal: string;
+  reason_min_length: number;
+  targets: { value: string; label: string; help: string }[];
+}
+
 export interface IstemSource {
   live: boolean;
   read_at: string | null;
@@ -10137,6 +10147,26 @@ class ApiClient {
     }>(`/bookings/${bookingId}/refund/`, {
       method: 'POST',
       body: JSON.stringify({ notes }),
+    });
+  }
+
+  /** Main Administrator: statuses that may be set on a booking in a disruption outcome. */
+  async getBookingStatusOverride(bookingId: number) {
+    return this.request<BookingStatusOverrideOptions>(`/bookings/${bookingId}/status-override/`);
+  }
+
+  /** Main Administrator: set the right status on a booking whose disruption outcome was recorded by mistake. */
+  async overrideBookingStatus(bookingId: number, payload: { status: string; reason: string; notify_user: boolean }) {
+    return this.request<{
+      message: string;
+      booking_id: number;
+      previous_status: string;
+      status: string;
+      event_id: number;
+      user_notified: boolean;
+    }>(`/bookings/${bookingId}/status-override/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
