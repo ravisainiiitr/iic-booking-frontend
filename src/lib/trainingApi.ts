@@ -74,8 +74,14 @@ import type {
   AuthorisedUser,
   BulkGrantResult,
   GrandfatherResult,
+  EquipmentTrainerRow,
+  EquipmentTrainers,
   ManagedAuthorisationEquipment,
   MyAuthorisations,
+  SupervisedSession,
+  SupervisionAction,
+  SupervisionScope,
+  SupervisorOption,
 } from "@/lib/trainingAuthTypes";
 
 const BASE = "/v1/training/";
@@ -367,4 +373,16 @@ export const trainingApi = {
   ) => post<GrandfatherResult>(`authorisation/equipment/${equipmentId}/grandfather/`, input),
   authorisationAwardAction: (id: number, action: "revoke" | "renew", input: { reason: string; months?: number }) =>
     post<TrainingAward>(`authorisation/awards/${id}/${action}/`, input),
+  // Beginner / Expert competency
+  equipmentTrainers: (equipmentId: number) => get<EquipmentTrainers>(`authorisation/equipment/${equipmentId}/trainers/`),
+  designateTrainer: (equipmentId: number, userId: number, note = "") =>
+    post<EquipmentTrainerRow>(`authorisation/equipment/${equipmentId}/trainers/`, { user_id: userId, note }),
+  removeTrainer: (id: number, reason: string) => post<EquipmentTrainerRow>(`authorisation/trainers/${id}/remove/`, { reason }),
+  equipmentSupervisors: (equipmentId: number) =>
+    get<Results<SupervisorOption>>(`authorisation/equipment/${equipmentId}/supervisors/`),
+  requestAssessment: (equipmentId: number, message = "") =>
+    post<AuthorisationRequest>("authorisation/assessment-requests/", { equipment_id: equipmentId, message }),
+  supervisedSessions: (scope: SupervisionScope = "mine") => get<Results<SupervisedSession>>("authorisation/supervision/", { scope }),
+  supervisionAction: (id: number, action: SupervisionAction, note = "") =>
+    post<SupervisedSession>(`authorisation/supervision/${id}/${action}/`, { note }),
 };

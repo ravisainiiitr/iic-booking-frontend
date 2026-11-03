@@ -4,7 +4,8 @@ import { Award, ClipboardList, GraduationCap, ShieldCheck, Users } from "lucide-
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RequestTrainingDialog } from "@/components/training/AuthorisationGateCard";
+import { RequestAssessmentDialog, RequestTrainingDialog } from "@/components/training/AuthorisationGateCard";
+import { SupervisionPanel } from "@/components/training/CompetencyPanels";
 import { CertificateDialog } from "@/components/training/CertificateDialog";
 import { AwardsTable } from "@/components/training/CertificationsTable";
 import { formatDate, formatDateTime, formatWindow } from "@/components/training/trainingHelpers";
@@ -21,7 +22,15 @@ import { useTrainingAvailability } from "@/components/training/useTrainingAvaila
 import { trainingApi } from "@/lib/trainingApi";
 import type { AuthorisationRequest, MyAuthorisationEquipment, MyAuthorisations as MyAuthorisationsData } from "@/lib/trainingAuthTypes";
 
-function EquipmentRow({ row, onRequest }: { row: MyAuthorisationEquipment; onRequest: (row: MyAuthorisationEquipment) => void }) {
+function EquipmentRow({
+  row,
+  onRequest,
+  onAssess,
+}: {
+  row: MyAuthorisationEquipment;
+  onRequest: (row: MyAuthorisationEquipment) => void;
+  onAssess: (row: MyAuthorisationEquipment) => void;
+}) {
   const req = row.open_request;
   return (
     <li className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -31,22 +40,36 @@ function EquipmentRow({ row, onRequest }: { row: MyAuthorisationEquipment; onReq
             {row.equipment.name}
           </Link>
           <span className="text-xs text-muted-foreground">{row.equipment.code}</span>
-          <StatusChip kind="authorisation" status={row.status} label={row.status_label} />
+          {row.two_level && row.stage_label ? (
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200">
+              {row.stage_label}
+            </span>
+          ) : (
+            <StatusChip kind="authorisation" status={row.status} label={row.status_label} />
+          )}
         </p>
         <p className="text-xs text-muted-foreground">
-          {row.valid_until && (row.status === "AUTHORISED" || row.status === "EXPIRING")
+          {row.two_level && row.stage !== "EXPERT" && row.message
+            ? row.message
+            : row.valid_until && (row.status === "AUTHORISED" || row.status === "EXPIRING")
             ? `${row.level_name} · valid until ${formatDate(row.valid_until)}`
             : row.message || `Needs ${row.level_name}`}
         </p>
         {req ? (
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Request {req.reference}: {req.status_label}
+            {req.kind === "ASSESSMENT" ? "Expert assessment" : "Request"} {req.reference}: {req.status_label}
             {req.status === "SCHEDULED" && req.scheduled_start
               ? ` · ${formatWindow(req.scheduled_start, req.scheduled_end)}${req.location ? ` at ${req.location}` : ""}`
               : ""}
           </p>
         ) : null}
       </div>
+      {row.can_request_assessment ? (
+        <Button type="button" size="sm" onClick={() => onAssess(row)} className="shrink-0 gap-1.5">
+          <GraduationCap className="h-4 w-4" aria-hidden />
+          Request Expert assessment
+        </Button>
+      ) : null}
       {row.can_request ? (
         <Button type="button" size="sm" variant={row.allowed ? "outline" : "default"} onClick={() => onRequest(row)} className="shrink-0 gap-1.5">
           <GraduationCap className="h-4 w-4" aria-hidden />
@@ -169,6 +192,7 @@ export default function MyAuthorisations() {
   const [data, setData] = useState<MyAuthorisationsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [requestFor, setRequestFor] = useState<MyAuthorisationEquipment | null>(null);
+  const [assessFor, setAssessFor] = useState<MyAuthorisationEquipment | null>(null);
   const [openAward, setOpenAward] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -187,6 +211,7 @@ export default function MyAuthorisations() {
   }, [allowed, load]);
 
   const blocked = (data?.equipment ?? []).filter((r) => !r.allowed).length;
+  const hasTwoLevel = (data?.equipment ?? []).some((r) => r.two_level);
 
   return (
     <TrainingPageFrame
@@ -226,7 +251,7 @@ export default function MyAuthorisations() {
             ) : (
               <ul className="divide-y divide-border/60">
                 {data.equipment.map((row) => (
-                  <EquipmentRow key={row.equipment.equipment_id} row={row} onRequest={setRequestFor} />
+                  <EquipmentRow key={row.equipment.equipment_id} row={row} onRequest={setRequestFor} onAssess={setAssessFor} />
                 ))}
               </ul>
             )}
@@ -239,6 +264,28 @@ export default function MyAuthorisations() {
               <RequestsTable rows={data.requests} onChanged={() => void load()} />
             )}
           </SectionCard>
+
+          {hasTwoLevel ? (
+            <SectionCard
+              title="Supervised sessions"
+              description="Your Beginner bookings made under supervision, and the supervisor's record of each session."
+              icon={<Users className="h-4 w-4" />}
+              bodyClassName="p-0 overflow-x-auto"
+            >
+              <SupervisionPanel scope="mine" emptyText="No supervised bookings yet." />
+            </SectionCard>
+          ) : null}
+
+          {hasTwoLevel ? (
+            <SectionCard
+              title="Sessions you supervise"
+              description="Beginners who named you as supervisor: confirm, then record each session."
+              icon={<Users className="h-4 w-4" />}
+              bodyClassName="p-0 overflow-x-auto"
+            >
+              <SupervisionPanel scope="supervising" emptyText="Nobody has named you as supervisor." />
+            </SectionCard>
+          ) : null}
 
           {data?.certifications.length ? (
             <SectionCard title="Certificates" icon={<Award className="h-4 w-4" />} bodyClassName="p-0">
@@ -255,6 +302,15 @@ export default function MyAuthorisations() {
               equipmentId={requestFor.equipment.equipment_id}
               equipmentName={requestFor.equipment.name}
               reasonRequired={requestFor.status === "SUSPENDED" || requestFor.status === "REVOKED"}
+              onDone={() => void load()}
+            />
+          ) : null}
+          {assessFor ? (
+            <RequestAssessmentDialog
+              open
+              onOpenChange={(v) => !v && setAssessFor(null)}
+              equipmentId={assessFor.equipment.equipment_id}
+              equipmentName={assessFor.equipment.name}
               onDone={() => void load()}
             />
           ) : null}

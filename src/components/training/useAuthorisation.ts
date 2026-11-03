@@ -94,7 +94,7 @@ export function useAuthorisationStatus(equipmentId: number | null | undefined, o
   }, [equipmentId, userId, tick]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  /** Required and not allowed: booking would be refused. */
-  const blocked = Boolean(status && status.required && !status.allowed && !status.staff_bypass);
+  /** Required and not allowed: booking would be refused. A Beginner may still book with a supervisor. */
+  const blocked = Boolean(status && status.required && !status.allowed && !status.staff_bypass && !status.supervised_only);
   return { status, loading, blocked, reload };
 }

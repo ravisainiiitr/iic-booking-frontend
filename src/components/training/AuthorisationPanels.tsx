@@ -588,6 +588,9 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
     validity_months: String(setting.validity_months),
     grace_completed_bookings: String(setting.grace_completed_bookings),
     grace_months: String(setting.grace_months),
+    competency_levels: Boolean(setting.competency_levels),
+    beginner_supervised_allowed: setting.beginner_supervised_allowed !== false,
+    expert_requires_oic_approval: setting.expert_requires_oic_approval !== false,
     note: setting.note,
   });
   const [reason, setReason] = useState("");
@@ -607,6 +610,9 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
       validity_months: Number(form.validity_months),
       grace_completed_bookings: Number(form.grace_completed_bookings || 0),
       grace_months: Number(form.grace_months),
+      competency_levels: form.competency_levels,
+      beginner_supervised_allowed: form.beginner_supervised_allowed,
+      expert_requires_oic_approval: form.expert_requires_oic_approval,
       note: form.note,
       reason,
     };
@@ -675,6 +681,51 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
           </div>
           <p className="text-xs text-muted-foreground">0 = no grace. Users in grace can book but are asked to get trained.</p>
         </div>
+      </div>
+      <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <Label htmlFor="auth-two-level" className="text-base font-semibold">
+              Beginner and Expert levels
+            </Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Approving training (induction) makes a student a Beginner, who books only with a supervisor. An Expert
+              assessment then allows independent use. Off: approving training authorises independent use directly.
+            </p>
+          </div>
+          <Switch
+            id="auth-two-level"
+            checked={form.competency_levels}
+            disabled={!canEdit}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, competency_levels: v }))}
+          />
+        </div>
+        {form.competency_levels ? (
+          <>
+            <div className="flex items-start justify-between gap-4">
+              <Label htmlFor="auth-supervised" className="text-sm font-normal">
+                Beginners may make supervised bookings (Lab staff or a designated trainer named on the booking)
+              </Label>
+              <Switch
+                id="auth-supervised"
+                checked={form.beginner_supervised_allowed}
+                disabled={!canEdit}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, beginner_supervised_allowed: v }))}
+              />
+            </div>
+            <div className="flex items-start justify-between gap-4">
+              <Label htmlFor="auth-oic-approval" className="text-sm font-normal">
+                A pass recorded by a trainer or Lab Operator needs the OIC's approval
+              </Label>
+              <Switch
+                id="auth-oic-approval"
+                checked={form.expert_requires_oic_approval}
+                disabled={!canEdit}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, expert_requires_oic_approval: v }))}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="auth-note">Note (shown to staff)</Label>

@@ -2,6 +2,25 @@ import type { TrainingAudience, TrainingAward, TrainingEquipmentRef, TrainingUse
 
 /** Booking API error code when the equipment needs authorisation the user does not hold. */
 export const AUTHORISATION_GATE_CODE = "AUTHORISATION_REQUIRED";
+/** Booking API error code when a Beginner books without an eligible supervisor. */
+export const SUPERVISION_REQUIRED_CODE = "SUPERVISION_REQUIRED";
+
+/** Beginner / Expert competency stage on a two-level equipment. */
+export type CompetencyStage =
+  | "NOT_TRAINED"
+  | "TRAINING_REQUESTED"
+  | "TRAINING_SCHEDULED"
+  | "BEGINNER"
+  | "ASSESSMENT_PENDING"
+  | "EXPERT"
+  | "GRACE"
+  | "EXPIRED"
+  | "SUSPENDED"
+  | "REVOKED";
+
+export interface SupervisorOption extends TrainingUserRef {
+  role: "Staff" | "Trainer";
+}
 
 export type AuthorisationStatusCode =
   | "NOT_REQUIRED"
@@ -17,9 +36,14 @@ export type AuthorisationAppliesTo = "INTERNAL" | "ALL";
 
 export type AuthorisationRequestStatus = "PENDING" | "SCHEDULED" | "APPROVED" | "REJECTED" | "WITHDRAWN";
 
+export type AuthorisationRequestKind = "TRAINING" | "ASSESSMENT";
+
 export interface AuthorisationRequestBrief {
   id: number;
   reference: string;
+  /** TRAINING (induction) or ASSESSMENT (Expert assessment on a two-level equipment). */
+  kind?: AuthorisationRequestKind;
+  kind_label?: string;
   status: AuthorisationRequestStatus;
   status_label: string;
   scheduled_start: string | null;
@@ -46,6 +70,16 @@ export interface AuthorisationStatus {
   message: string;
   /** Staff booking for someone else: the gate is bypassed and recorded. */
   staff_bypass?: boolean;
+  /** Beginner (supervised) / Expert (independent) levels apply on this equipment. */
+  two_level?: boolean;
+  stage?: CompetencyStage;
+  stage_label?: string;
+  independent?: boolean;
+  /** Beginner: may book only with a supervisor chosen from ``supervisors``. */
+  supervised_only?: boolean;
+  beginner_since?: string | null;
+  can_request_assessment?: boolean;
+  supervisors?: SupervisorOption[];
 }
 
 export interface AuthorisationRequest extends AuthorisationRequestBrief {
@@ -81,6 +115,10 @@ export interface AuthorisationSetting {
   validity_months: number;
   grace_completed_bookings: number;
   grace_months: number;
+  /** Beginner (supervised) then Expert (independent) levels. */
+  competency_levels?: boolean;
+  beginner_supervised_allowed?: boolean;
+  expert_requires_oic_approval?: boolean;
   note: string;
   updated_at: string | null;
   updated_by: string | null;
@@ -95,7 +133,16 @@ export interface ManagedAuthorisationEquipment extends AuthorisationSetting {
 export type AuthorisationSettingInput = Partial<
   Pick<
     AuthorisationSetting,
-    "required" | "applies_to" | "min_level_code" | "validity_months" | "grace_completed_bookings" | "grace_months" | "note"
+    | "required"
+    | "applies_to"
+    | "min_level_code"
+    | "validity_months"
+    | "grace_completed_bookings"
+    | "grace_months"
+    | "competency_levels"
+    | "beginner_supervised_allowed"
+    | "expert_requires_oic_approval"
+    | "note"
   >
 > & { reason?: string };
 
@@ -153,4 +200,47 @@ export interface MyAuthorisations {
   certifications: TrainingAward[];
   requests: AuthorisationRequest[];
   supervisor: SupervisorAuthorisations | null;
+}
+
+export interface EquipmentTrainerRow {
+  id: number;
+  user: TrainingUserRef;
+  is_active: boolean;
+  /** Active and the trainer still holds valid Expert authorisation. */
+  valid: boolean;
+  authorisation_valid_until: string | null;
+  designated_by: string | null;
+  designated_at: string | null;
+  removed_at: string | null;
+  remove_reason: string;
+  note: string;
+}
+
+export interface EquipmentTrainers {
+  results: EquipmentTrainerRow[];
+  staff: SupervisorOption[];
+  can_configure: boolean;
+}
+
+export type SupervisionStatus = "REQUESTED" | "CONFIRMED" | "DECLINED" | "ATTENDED" | "NO_SHOW" | "CANCELLED";
+export type SupervisionAction = "confirm" | "decline" | "attended" | "no_show";
+export type SupervisionScope = "mine" | "supervising" | "equipment";
+
+export interface SupervisedSession {
+  id: number;
+  booking_id: number;
+  booking_reference: string;
+  equipment: TrainingEquipmentRef;
+  student: TrainingUserRef;
+  supervisor: TrainingUserRef;
+  status: SupervisionStatus;
+  status_label: string;
+  start: string | null;
+  end: string | null;
+  response_note: string;
+  remarks: string;
+  recorded_by: string | null;
+  recorded_at: string | null;
+  can_respond: boolean;
+  can_record: boolean;
 }

@@ -300,7 +300,7 @@ import { useDisruptionPrompt } from "@/components/disruptions/useDisruptionPromp
 import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
 import { AuthorisationGateCard } from "@/components/training/AuthorisationGateCard";
 import { useAuthorisationStatus } from "@/components/training/useAuthorisation";
-import { AUTHORISATION_GATE_CODE } from "@/lib/trainingAuthTypes";
+import { AUTHORISATION_GATE_CODE, SUPERVISION_REQUIRED_CODE } from "@/lib/trainingAuthTypes";
 import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { EXTERNAL_REFERENCE_MAX_LENGTH, slotOperationLabel } from "@/lib/slotOperations";
 import { usePeakWindow } from "@/hooks/use-peak-window";
@@ -6132,6 +6132,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     authGateSelf || authGateForUserId ? (equipmentDetail?.equipment_id ?? null) : null,
     { userId: authGateForUserId },
   );
+  /** Beginner on a Beginner / Expert equipment: the supervisor named on the booking. */
+  const [bookingSupervisorId, setBookingSupervisorId] = useState<number | null>(null);
+  const needsSupervisor = Boolean(authGateSelf && authGate.status?.supervised_only);
 
   /** Institute Admin, OIC and Department Administrator must pick "Book slots for a user" before the booking form. */
   const requiresBookModeBeforeForm = (): boolean => {
@@ -7231,7 +7234,13 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       return;
     }
 
+    if (needsSupervisor && !bookingSupervisorId) {
+      toast.error("Choose a supervisor: as a Beginner you may book this equipment only under supervision.");
+      return;
+    }
+
     const fabricationBookExtras: Partial<Parameters<typeof apiClient.bookEquipment>[1]> = {
+      ...(needsSupervisor && bookingSupervisorId ? { supervisor_id: bookingSupervisorId } : {}),
       ...(equipmentDetail?.profile_type === "PRINT_3D"
         ? printAnalysisBatchId
           ? { print_analysis_batch_id: printAnalysisBatchId }
@@ -7409,7 +7418,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
           return;
         }
         if (res.error) {
-          if (res.errorCode === AUTHORISATION_GATE_CODE) authGate.reload();
+          if (res.errorCode === AUTHORISATION_GATE_CODE || res.errorCode === SUPERVISION_REQUIRED_CODE) authGate.reload();
           const errRes = res as { error: string; waitlist_position?: number; waitlist_code?: string; waitlist_full?: boolean };
           const failedBody = res.data as unknown as { slot_alternatives?: TemplateSlotAlternative[] } | undefined;
           await reportUnsuccessfulBooking(errRes, {
@@ -7950,6 +7959,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
               equipmentName={selectedEquipment.name}
               onChanged={authGate.reload}
               subjectName={authGateForUserId ? adminBookForUserInfo?.email || "This user" : undefined}
+              supervisorId={bookingSupervisorId}
+              onSupervisorChange={setBookingSupervisorId}
             />
           </div>
         ) : null}

@@ -11680,6 +11680,8 @@ class ApiClient {
     input_values?: Record<string, unknown>;
     /** Admin only: book on behalf of this user id */
     user_id?: number | string;
+    /** Beginner on a Beginner / Expert equipment: the eligible supervisor for this booking. */
+    supervisor_id?: number;
     /** OIC of equipment with "Allow OIC to Register Equipment Requests": book in own name, no charge. */
     oic_registration?: boolean;
     /** When provided, create one booking for exactly these slot IDs (faster, single entry in My Bookings) */
