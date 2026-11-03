@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Download, FileSpreadsheet, FileText, IndianRupee, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, FileText, IndianRupee, Loader2, Search, X } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -61,6 +62,21 @@ function pickDefaultDepartmentId(depts: DeptOption[]): string {
   return String((iic ?? depts[0]).id);
 }
 
+function departmentLabel(eq: AnalysisEquipment): string {
+  return eq.internal_department_code || eq.internal_department_name || "";
+}
+
+/** Every word of the search must appear in the equipment's name, code or department. */
+export function matchesChargeSearch(eq: AnalysisEquipment, search: string): boolean {
+  const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = [eq.name, eq.code, eq.internal_department_name, eq.internal_department_code]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return words.every((w) => text.includes(w));
+}
+
 export default function AnalysisCharges() {
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<DeptOption[]>([]);
@@ -71,6 +87,12 @@ export default function AnalysisCharges() {
   /** null = all user types; [] = none selected */
   const [selectedUserTypes, setSelectedUserTypes] = useState<string[] | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
+  /** Equipment of every department, for the search across departments. */
+  const [allEquipments, setAllEquipments] = useState<AnalysisEquipment[]>([]);
+  const [search, setSearch] = useState("");
+  /** Search results the user has unticked. */
+  const [searchExcluded, setSearchExcluded] = useState<number[]>([]);
+  const searching = search.trim().length > 0;
 
   const selectedDepartment = useMemo(
     () => departments.find((d) => String(d.id) === departmentId) ?? null,
@@ -78,10 +100,11 @@ export default function AnalysisCharges() {
   );
 
   const departmentTitle = useMemo(() => {
+    if (searching) return `Search results for "${search.trim()}"`;
     if (!selectedDepartment) return "";
     const name = selectedDepartment.name || "Department";
     return selectedDepartment.code ? `${name} (${selectedDepartment.code})` : name;
-  }, [selectedDepartment]);
+  }, [selectedDepartment, searching, search]);
 
   const loadCatalog = useCallback(async (deptId: string) => {
     if (!deptId) {
@@ -129,6 +152,9 @@ export default function AnalysisCharges() {
         }
         const depts = Array.isArray(res.data.departments) ? res.data.departments : [];
         setDepartments(depts);
+        setAllEquipments(
+          Array.isArray(res.data.equipments) ? (res.data.equipments as AnalysisEquipment[]) : []
+        );
         const defaultId = pickDefaultDepartmentId(depts);
         setDepartmentId(defaultId);
         setBootstrapped(true);
@@ -149,10 +175,28 @@ export default function AnalysisCharges() {
     void loadCatalog(departmentId);
   }, [bootstrapped, departmentId, loadCatalog]);
 
+  const searchMatches = useMemo(
+    () => (searching ? allEquipments.filter((e) => matchesChargeSearch(e, search)) : []),
+    [allEquipments, search, searching]
+  );
+
+  /** Equipment offered in the checklist: the department's, or the search results. */
+  const listedEquipments = searching ? searchMatches : equipments;
+
+  const isEquipmentChecked = (id: number) =>
+    searching ? !searchExcluded.includes(id) : selectedEquipmentIds.includes(id);
+
   const visibleEquipments = useMemo(() => {
+    if (searching) {
+      const excluded = new Set(searchExcluded);
+      // Results can come from several departments, so name the department in the table.
+      return searchMatches
+        .filter((e) => !excluded.has(Number(e.equipment_id)))
+        .map((e) => (departmentLabel(e) ? { ...e, name: `${e.name} (${departmentLabel(e)})` } : e));
+    }
     const idSet = new Set(selectedEquipmentIds);
     return equipments.filter((e) => idSet.has(Number(e.equipment_id)));
-  }, [equipments, selectedEquipmentIds]);
+  }, [equipments, selectedEquipmentIds, searching, searchMatches, searchExcluded]);
 
   const filterUserTypes = useMemo(() => {
     if (selectedUserTypes === null) return null;
@@ -168,6 +212,10 @@ export default function AnalysisCharges() {
   const pivotTable = useMemo(() => pivotAnalysisChargeRows(tableRows), [tableRows]);
 
   const toggleEquipment = (id: number, checked: boolean) => {
+    if (searching) {
+      setSearchExcluded((prev) => (checked ? prev.filter((x) => x !== id) : [...prev, id]));
+      return;
+    }
     setSelectedEquipmentIds((prev) => {
       if (checked) return prev.includes(id) ? prev : [...prev, id];
       return prev.filter((x) => x !== id);
@@ -187,8 +235,22 @@ export default function AnalysisCharges() {
     });
   };
 
-  const allEquipmentSelected =
-    equipments.length > 0 && selectedEquipmentIds.length === equipments.length;
+  const allEquipmentSelected = searching
+    ? searchMatches.length > 0 && searchExcluded.length === 0
+    : equipments.length > 0 && selectedEquipmentIds.length === equipments.length;
+
+  const toggleAllEquipment = () => {
+    if (searching) {
+      setSearchExcluded(allEquipmentSelected ? searchMatches.map((e) => Number(e.equipment_id)) : []);
+      return;
+    }
+    setSelectedEquipmentIds(allEquipmentSelected ? [] : equipments.map((e) => Number(e.equipment_id)));
+  };
+
+  const changeSearch = (value: string) => {
+    setSearch(value);
+    setSearchExcluded([]);
+  };
   const allUserTypesSelected = selectedUserTypes === null;
   const noUserTypesSelected = selectedUserTypes !== null && selectedUserTypes.length === 0;
 
@@ -251,12 +313,48 @@ export default function AnalysisCharges() {
         </div>
 
         <section className="mb-6 rounded-xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+          <div className="mb-4 space-y-1.5">
+            <Label htmlFor="ac-search">Search equipment</Label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="ac-search"
+                type="text"
+                value={search}
+                onChange={(e) => changeSearch(e.target.value)}
+                placeholder="Search by equipment name, code or department, e.g. XRD, FESEM, Raman"
+                className="pl-9 pr-9"
+                autoComplete="off"
+              />
+              {searching ? (
+                <button
+                  type="button"
+                  onClick={() => changeSearch("")}
+                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+            {searching ? (
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                {searchMatches.length === 0
+                  ? "No equipment matches your search."
+                  : `${searchMatches.length} equipment found across all departments.`}{" "}
+                Clear the search to browse by department.
+              </p>
+            ) : null}
+          </div>
           <div className="grid gap-4 lg:grid-cols-12">
             <div className="space-y-2 lg:col-span-3">
               <Label htmlFor="ac-dept">Department</Label>
               <Select
                 value={departmentId || undefined}
-                onValueChange={setDepartmentId}
+                onValueChange={(v) => {
+                  changeSearch("");
+                  setDepartmentId(v);
+                }}
                 disabled={!departments.length}
               >
                 <SelectTrigger id="ac-dept">
@@ -275,18 +373,14 @@ export default function AnalysisCharges() {
 
             <div className="space-y-2 lg:col-span-5">
               <div className="flex items-center justify-between gap-2">
-                <Label>Equipment</Label>
+                <Label>{searching ? "Matching equipment" : "Equipment"}</Label>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  disabled={loading || equipments.length === 0}
-                  onClick={() =>
-                    setSelectedEquipmentIds(
-                      allEquipmentSelected ? [] : equipments.map((e) => Number(e.equipment_id))
-                    )
-                  }
+                  disabled={loading || listedEquipments.length === 0}
+                  onClick={toggleAllEquipment}
                 >
                   {allEquipmentSelected ? "Clear all" : "Select all"}
                 </Button>
@@ -294,15 +388,17 @@ export default function AnalysisCharges() {
               <div className="max-h-44 overflow-y-auto rounded-lg border border-border/60 bg-muted/20 p-2">
                 {loading ? (
                   <p className="px-2 py-3 text-sm text-muted-foreground">Loading equipment…</p>
-                ) : equipments.length === 0 ? (
+                ) : listedEquipments.length === 0 ? (
                   <p className="px-2 py-3 text-sm text-muted-foreground">
-                    No equipment with published charges for this department.
+                    {searching
+                      ? "No equipment matches your search."
+                      : "No equipment with published charges for this department."}
                   </p>
                 ) : (
                   <ul className="space-y-1.5">
-                    {equipments.map((eq) => {
+                    {listedEquipments.map((eq) => {
                       const id = Number(eq.equipment_id);
-                      const checked = selectedEquipmentIds.includes(id);
+                      const checked = isEquipmentChecked(id);
                       return (
                         <li
                           key={id}
@@ -318,6 +414,11 @@ export default function AnalysisCharges() {
                             className="cursor-pointer text-sm font-medium leading-snug text-foreground"
                           >
                             {eq.name}
+                            {searching && departmentLabel(eq) ? (
+                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                {departmentLabel(eq)}
+                              </span>
+                            ) : null}
                           </label>
                         </li>
                       );
@@ -408,7 +509,7 @@ export default function AnalysisCharges() {
             <Loader2 className="h-5 w-5 animate-spin" />
             Loading charges…
           </div>
-        ) : !departmentId ? (
+        ) : !departmentId && !searching ? (
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
             Select a department to view analysis charges.
           </div>
@@ -416,13 +517,15 @@ export default function AnalysisCharges() {
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
             {noUserTypesSelected
               ? "Select one or more user types to view charges."
-              : "Select one or more equipment to view charges by user category."}
+              : searching && searchMatches.length === 0
+                ? "No equipment matches your search. Try a shorter word or the equipment code."
+                : "Select one or more equipment to view charges by user category."}
           </div>
         ) : (
           <section className="charges-print-area overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
             <div className="border-b border-border/60 bg-gradient-to-r from-primary/[0.07] via-card to-card px-4 py-5 sm:px-6">
               <p className="text-xs font-semibold uppercase tracking-[0.08em] text-primary">
-                Department
+                {searching ? "Search" : "Department"}
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                 {departmentTitle}
