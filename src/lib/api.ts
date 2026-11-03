@@ -4524,6 +4524,17 @@ export interface BookingStatusOverrideOptions {
   targets: { value: string; label: string; help: string }[];
 }
 
+export interface IstemInstituteStatus {
+  institute_id: string | null;
+  /** "token": named by I-STEM's sign-in; "portal": saved by the Main Admin; "": unknown. */
+  source: "token" | "portal" | "";
+  token_institute_id: string | null;
+  user_entity: string;
+  saved: { institute_id: string; set_at: string; set_by: string } | null;
+  can_set: boolean;
+  problem: string;
+}
+
 export interface IstemSource {
   live: boolean;
   read_at: string | null;
@@ -8334,6 +8345,18 @@ class ApiClient {
   }
 
   /** Main Admin: I-STEM departments (from its equipment list) and the portal department each is mapped to. */
+  /** The I-STEM institute in use: the one I-STEM's token names, else the one the Main Admin saved. */
+  async getIstemInstitute() {
+    return this.request<IstemInstituteStatus>('/istem/institute/', { method: 'GET' });
+  }
+
+  /** Main Admin: save the I-STEM institute (checked on I-STEM first). */
+  async saveIstemInstitute(instituteId: string) {
+    return this.request<{ institute_id: string; departments: number | null; warnings: string[] }>('/istem/institute/', {
+      method: 'PUT', body: JSON.stringify({ institute_id: instituteId }),
+    });
+  }
+
   async getIstemDepartmentMappings(refresh = false) {
     return this.request<{ istem_departments: IstemDepartmentRow[]; portal_departments: { id: number; name: string }[]; istem_source?: IstemSource }>(
       `/istem/department-mappings/${refresh ? '?refresh=1' : ''}`, { method: 'GET' });

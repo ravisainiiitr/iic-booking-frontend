@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import ConfidencePill from "@/components/istem/ConfidencePill";
 import IstemDepartmentLinking from "@/components/istem/IstemDepartmentLinking";
+import IstemInstituteCard from "@/components/istem/IstemInstituteCard";
 import IstemEquipmentPicker from "@/components/istem/IstemEquipmentPicker";
 import IstemListingPanel from "@/components/istem/IstemListingPanel";
 import IstemMappingDialog from "@/components/istem/IstemMappingDialog";
@@ -24,6 +25,7 @@ import {
   type IstemDepartmentRow,
   type IstemEquipmentMappingList,
   type IstemEquipmentSearchRow,
+  type IstemInstituteStatus,
   type IstemMappingEquipmentRow,
   type IstemSource,
   type IstemSuggestionRow,
@@ -52,7 +54,10 @@ function Progress({ value, total }: { value: number; total: number }) {
   );
 }
 
-function IstemStatus({ connected, source }: { connected: boolean; source?: IstemSource | null }) {
+function IstemStatus({ connected, source, institute }: { connected: boolean; source?: IstemSource | null; institute?: IstemInstituteStatus | null }) {
+  const instituteText = institute?.institute_id
+    ? ` · institute ${institute.institute_id}${institute.source === "portal" ? " (set on portal)" : ""}`
+    : source?.institute_id ? ` · institute ${source.institute_id}` : "";
   if (!connected) {
     return <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-muted-foreground"><WifiOff className="h-3.5 w-3.5" />I-STEM not connected</span>;
   }
@@ -61,11 +66,11 @@ function IstemStatus({ connected, source }: { connected: boolean; source?: Istem
       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
         title={sourceNote(source)}>
         <AlertTriangle className="h-3.5 w-3.5" />I-STEM not answering · list from {readAt(source.read_at) || "earlier"}
-        {source.institute_id ? ` · institute ${source.institute_id}` : ""}
+        {instituteText}
       </span>
     );
   }
-  return <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" title="The institute is the one I-STEM names when the portal signs in."><Wifi className="h-3.5 w-3.5" />I-STEM connected{source?.institute_id ? ` · institute ${source.institute_id}` : ""}</span>;
+  return <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" title="The institute is the one I-STEM names when the portal signs in."><Wifi className="h-3.5 w-3.5" />I-STEM connected{instituteText}</span>;
 }
 
 function MappingState({ row }: { row: IstemMappingEquipmentRow }) {
@@ -103,6 +108,8 @@ export default function AdminIstemEquipmentMapping() {
   const [editing, setEditing] = useState<IstemMappingEquipmentRow | null>(null);
   const [busy, setBusy] = useState<string>("");
   const [listOpen, setListOpen] = useState(false);
+  const [institute, setInstitute] = useState<IstemInstituteStatus | null>(null);
+  const [changingInstitute, setChangingInstitute] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,7 +146,13 @@ export default function AdminIstemEquipmentMapping() {
     }));
   }, [data?.all_departments]);
 
+  const loadInstitute = useCallback(async () => {
+    const res = await apiClient.getIstemInstitute();
+    if (res.data) setInstitute(res.data);
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (data?.istem_connected && !institute) void loadInstitute(); }, [data, institute, loadInstitute]);
   // On arrival: I-STEM's whole equipment list, and (Main Admin) its departments.
   useEffect(() => {
     if (!data?.istem_connected) return;
@@ -247,6 +260,15 @@ export default function AdminIstemEquipmentMapping() {
     await Promise.all([load(), loadIstemDepartments()]);
   };
 
+  const instituteSaved = async () => {
+    setChangingInstitute(false);
+    setSuggestions({});
+    setIstem(null);
+    setListing(null);
+    await loadInstitute();
+  };
+  const needsInstitute = Boolean(institute && !institute.institute_id && institute.can_set);
+
   const visibleDepartments = departments.filter((d) => d.name.toLowerCase().includes(departmentText.trim().toLowerCase()));
   const listingProblem = listing?.error || istem?.error || "";
 
@@ -262,7 +284,10 @@ export default function AdminIstemEquipmentMapping() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {data ? <IstemStatus connected={data.istem_connected} source={source} /> : null}
+            {data ? <IstemStatus connected={data.istem_connected} source={source} institute={institute} /> : null}
+            {institute?.can_set && institute.source === "portal" && !changingInstitute ? (
+              <Button variant="ghost" size="sm" onClick={() => setChangingInstitute(true)}>Change institute</Button>
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => setListOpen(true)} disabled={!data?.istem_connected}>
               <List className="mr-1.5 h-4 w-4" />I-STEM's list
             </Button>
@@ -273,7 +298,11 @@ export default function AdminIstemEquipmentMapping() {
         </header>
 
         {error ? <p className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800" role="alert">{error}</p> : null}
-        {data?.istem_connected && listingProblem ? (
+        {institute && (needsInstitute || changingInstitute) ? (
+          <IstemInstituteCard status={institute} onSaved={() => void instituteSaved()}
+            onCancel={changingInstitute ? () => setChangingInstitute(false) : undefined} />
+        ) : null}
+        {needsInstitute ? null : data?.istem_connected && listingProblem ? (
           <p className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200" role="alert">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><span>{listingProblem}</span>
           </p>
