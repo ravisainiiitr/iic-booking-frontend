@@ -4462,6 +4462,13 @@ export interface IstemEquipmentVerifyResult {
   missing: string[];
 }
 
+export interface WhatsAppOptIn {
+  available: boolean;
+  opted_in: boolean;
+  phone: string;
+  opted_in_at: string | null;
+}
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -5551,6 +5558,15 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  }
+
+  /** WhatsApp notifications: the user's opt-in (``available`` is false while the portal's WhatsApp is off). */
+  async getWhatsAppOptIn() {
+    return this.request<WhatsAppOptIn>('/whatsapp/me/');
+  }
+
+  async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string }) {
+    return this.request<WhatsAppOptIn>('/whatsapp/me/', { method: 'PUT', body: JSON.stringify(body) });
   }
 
   /** Phones signed in through the IIC Booking app (each can be signed out remotely). */
