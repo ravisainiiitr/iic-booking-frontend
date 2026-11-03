@@ -198,8 +198,24 @@ const Header = ({ variant = "default" }: HeaderProps) => {
             <GlobalSearchButton wideFrom="xl" tone={glass ? "light" : "default"} />
             {isAuthenticated ? (
               <>
-                <BackToDashboardButton />
-                <NotificationBell />
+                <BackToDashboardButton
+                  className={
+                    glass
+                      ? "border border-white/35 bg-white/10 text-white shadow-sm backdrop-blur-sm hover:bg-white/20 hover:text-white focus-visible:ring-white focus-visible:ring-offset-0"
+                      : undefined
+                  }
+                />
+                {/* Over the homepage photo the bell is white like the rest of the header (its own styles are for the
+                    light bar). */}
+                <span
+                  className={
+                    glass
+                      ? "contents [&_button]:text-white [&_button:hover]:bg-white/15 [&_button:hover]:text-white [&_button:focus-visible]:ring-white"
+                      : "contents"
+                  }
+                >
+                  <NotificationBell />
+                </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
