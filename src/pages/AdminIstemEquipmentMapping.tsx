@@ -11,11 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DepartmentMatching from "@/components/istem/DepartmentMatching";
+import IstemListingPanel from "@/components/istem/IstemListingPanel";
+import IstemDepartmentsPanel from "@/components/istem/IstemDepartmentsPanel";
 import {
   apiClient,
   type IstemEquipmentMappingList,
   type IstemEquipmentSearchRow,
   type IstemMappingEquipmentRow,
+  type IstemSuggestionRow,
 } from "@/lib/api";
 
 export type MappingFilter = "all" | "needs" | "mapped" | "not_found" | "unmapped";
@@ -88,9 +93,23 @@ function MappingDialog({ row, connected, onClose, onSaved }: {
   const [notes, setNotes] = useState(row.mapping?.notes ?? "");
   const [query, setQuery] = useState(row.name);
   const [results, setResults] = useState<IstemEquipmentSearchRow[] | null>(null);
+  const [suggested, setSuggested] = useState<IstemSuggestionRow | null>(null);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const locked = row.open_istem_bookings > 0 && Boolean(row.mapping?.istem_equipment_id);
+
+  // Suggestions appear on opening: the instrument's I-STEM department searched by serial, model, short name and name.
+  useEffect(() => {
+    if (!connected) return;
+    let cancelled = false;
+    apiClient.getIstemEquipmentSuggestions(undefined, false, row.equipment_id).then((res) => {
+      if (cancelled || res.error || !res.data) return;
+      const found = res.data.equipment[0] ?? null;
+      setSuggested(found);
+      if (found?.confident && !row.mapping?.istem_equipment_id && found.candidates[0]) setIstemId(found.candidates[0].equipment_id);
+    });
+    return () => { cancelled = true; };
+  }, [connected, row.equipment_id, row.mapping?.istem_equipment_id]);
 
   const search = async () => {
     setSearching(true);
@@ -132,9 +151,33 @@ function MappingDialog({ row, connected, onClose, onSaved }: {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {connected && suggested?.candidates.length ? (
+            <div className="space-y-1.5" data-testid="istem-suggestions">
+              <Label>Suggested from I-STEM</Label>
+              <ul className="divide-y rounded-md border">
+                {suggested.candidates.map((c) => (
+                  <li key={c.equipment_id}>
+                    <button type="button" onClick={() => setIstemId(c.equipment_id)}
+                      className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left hover:bg-muted ${istemId === c.equipment_id ? "bg-primary/10" : ""}`}>
+                      <span>
+                        <span className="block text-sm font-medium">{c.equipment_name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {Math.round(c.score * 100)}% · {c.reasons.join(", ")}{c.location ? ` · ${c.location}` : ""}
+                        </span>
+                        {c.mapped_to.length ? (
+                          <span className="block text-xs text-amber-700">Already mapped to {c.mapped_to.map((m) => m.name).join(", ")}</span>
+                        ) : null}
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground">{c.equipment_id}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {connected ? (
             <div className="space-y-2">
-              <Label htmlFor="istem-search">Search I-STEM equipment</Label>
+              <Label htmlFor="istem-search">Or search I-STEM equipment</Label>
               <div className="flex gap-2">
                 <Input id="istem-search" value={query} onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void search(); } }}
@@ -236,6 +279,7 @@ export default function AdminIstemEquipmentMapping() {
   const [text, setText] = useState("");
   const [departmentId, setDepartmentId] = useState(ALL_DEPARTMENTS);
   const [editing, setEditing] = useState<IstemMappingEquipmentRow | null>(null);
+  const [tab, setTab] = useState("instruments");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,6 +371,54 @@ export default function AdminIstemEquipmentMapping() {
               ))}
             </section>
 
+            {data.all_departments && (data.departments?.length ?? 0) > 1 ? (
+              <section aria-label="Departments" className="space-y-2">
+                <h2 className="text-sm font-semibold">By department</h2>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {data.departments!.map((d) => {
+                    const pct = d.total ? Math.round((d.mapped / d.total) * 100) : 0;
+                    const active = departmentId === String(d.id);
+                    return (
+                      <button key={String(d.id)} type="button" data-testid="department-progress"
+                        className={`rounded-lg border bg-card p-3 text-left transition hover:border-primary ${active ? "border-primary ring-1 ring-primary" : ""}`}
+                        onClick={() => { setTab("instruments"); setDepartmentId(active || d.id == null ? ALL_DEPARTMENTS : String(d.id)); }}>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-sm font-medium">{d.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{d.mapped} / {d.total} mapped</span>
+                        </div>
+                        <div className="mt-2 h-1.5 rounded-full bg-muted">
+                          <div className="h-1.5 rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                        </div>
+                        {d.fbr_unmapped ? (
+                          <div className="mt-1 text-xs text-amber-700">{d.fbr_unmapped} with I-STEM FBR bookings not mapped</div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="flex h-auto flex-wrap justify-start">
+                <TabsTrigger value="instruments">Instruments</TabsTrigger>
+                <TabsTrigger value="match">Match a department</TabsTrigger>
+                <TabsTrigger value="istem">I-STEM listing</TabsTrigger>
+                {data.all_departments ? <TabsTrigger value="departments">Departments</TabsTrigger> : null}
+              </TabsList>
+              {data.all_departments ? (
+                <TabsContent value="departments">
+                  <IstemDepartmentsPanel connected={data.istem_connected} onSaved={() => void load()} />
+                </TabsContent>
+              ) : null}
+              <TabsContent value="match">
+                <DepartmentMatching departments={data.departments ?? []} allDepartments={data.all_departments}
+                  connected={data.istem_connected} onSaved={() => void load()} />
+              </TabsContent>
+              <TabsContent value="istem">
+                <IstemListingPanel connected={data.istem_connected} />
+              </TabsContent>
+              <TabsContent value="instruments" className="space-y-3">
             <section className="flex flex-wrap gap-2">
               <Input className="w-full sm:w-64" placeholder="Search instrument or I-STEM ID" value={text}
                 onChange={(e) => setText(e.target.value)} aria-label="Search instruments" />
@@ -397,6 +489,8 @@ export default function AdminIstemEquipmentMapping() {
                 </TableBody>
               </Table>
             </div>
+              </TabsContent>
+            </Tabs>
           </>
         ) : loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>

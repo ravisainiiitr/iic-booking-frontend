@@ -4450,16 +4450,65 @@ export interface IstemMappingEquipmentRow {
   mapping: IstemEquipmentMappingInfo | null;
 }
 
+export interface IstemDepartmentProgress {
+  id: number | null;
+  name: string;
+  total: number;
+  mapped: number;
+  fbr_unmapped: number;
+}
+
 export interface IstemEquipmentMappingList {
   istem_connected: boolean;
   all_departments: boolean;
   equipment: IstemMappingEquipmentRow[];
+  departments?: IstemDepartmentProgress[];
+}
+
+/** A department's unmapped instrument with up to three I-STEM equipment of a similar name (score 0..1). */
+export interface IstemSuggestionRow {
+  equipment_id: number;
+  code: string;
+  name: string;
+  department: { id: number; name: string } | null;
+  requires_istem_fbr: boolean;
+  input_fields: { key: string; label: string }[];
+  default_sample_key: string;
+  /** I-STEM departments searched (those mapped to the instrument's department); empty = the whole institute list. */
+  istem_departments: string[];
+  candidates: (IstemEquipmentSearchRow & { score: number; reasons: string[] })[];
+  /** The top match is certain enough to save without choosing. */
+  confident: boolean;
+}
+
+export interface IstemBulkMappingResult {
+  results: { equipment_id: number | null; ok: boolean; error?: string; warnings?: string[] }[];
+  saved: number;
+  failed: number;
+  checked: boolean;
 }
 
 export interface IstemEquipmentSearchRow {
   equipment_id: string;
   equipment_name: string;
   mapped_to: { equipment_id: number; name: string }[];
+  /** From I-STEM's Equipment List ("" when I-STEM has none). */
+  abbr?: string;
+  make?: string;
+  model?: string;
+  serial?: string;
+  location?: string;
+  department_id?: string;
+}
+
+/** An I-STEM department (I-STEM sends its number only) and the portal department it is mapped to. */
+export interface IstemDepartmentRow {
+  istem_department_id: string;
+  equipment_count: number;
+  sample_equipment: string[];
+  locations: string[];
+  department: { id: number; name: string } | null;
+  suggested: { id: number; name: string; instruments: number } | null;
 }
 
 export interface IstemEquipmentMappingSave {
@@ -8188,6 +8237,43 @@ class ApiClient {
 
   async verifyIstemEquipmentMappings() {
     return this.request<IstemEquipmentVerifyResult>('/istem/equipment-mappings/verify/', { method: 'POST' });
+  }
+
+  /** I-STEM's equipment list for the institute, each entry with the portal instruments mapped to it. */
+  async getIstemEquipmentListing(refresh = false) {
+    return this.request<{ equipment: IstemEquipmentSearchRow[]; total: number; mapped: number }>(
+      `/istem/equipment-mappings/istem-listing/${refresh ? '?refresh=1' : ''}`, { method: 'GET' });
+  }
+
+  /** A department's unmapped instruments with likely I-STEM equipment by name (department admins: their own). */
+  async getIstemEquipmentSuggestions(departmentId?: string, refresh = false, equipmentId?: number) {
+    const params = new URLSearchParams();
+    if (departmentId) params.set('department_id', departmentId);
+    if (equipmentId) params.set('equipment_id', String(equipmentId));
+    if (refresh) params.set('refresh', '1');
+    const qs = params.toString();
+    return this.request<{ department_id: number | null; istem_total: number; equipment: IstemSuggestionRow[] }>(
+      `/istem/equipment-mappings/suggestions/${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  }
+
+  /** Main Admin: I-STEM departments (from its equipment list) and the portal department each is mapped to. */
+  async getIstemDepartmentMappings(refresh = false) {
+    return this.request<{ istem_departments: IstemDepartmentRow[]; portal_departments: { id: number; name: string }[] }>(
+      `/istem/department-mappings/${refresh ? '?refresh=1' : ''}`, { method: 'GET' });
+  }
+
+  async saveIstemDepartmentMappings(mappings: { istem_department_id: string; department_id: number | null }[]) {
+    return this.request<{ saved: number; removed: number }>('/istem/department-mappings/', {
+      method: 'PUT', body: JSON.stringify({ mappings }),
+    });
+  }
+
+  async saveIstemEquipmentMappingsBulk(
+    mappings: { equipment_id: number; istem_equipment_id: string; sample_count_input_key: string }[],
+  ) {
+    return this.request<IstemBulkMappingResult>('/istem/equipment-mappings/bulk/', {
+      method: 'POST', body: JSON.stringify({ mappings }),
+    });
   }
 
   /** Main Admin / Dept Admin: Users overview (opened from the dashboard's Active users card). */
