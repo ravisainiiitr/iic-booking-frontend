@@ -4528,6 +4528,8 @@ export interface IstemSource {
   live: boolean;
   read_at: string | null;
   problem: string;
+  /** I-STEM institute named in the token response (IIT Roorkee: 213); the list covers that institute only. */
+  institute_id?: string | null;
 }
 
 export interface IstemEquipmentMappingList {

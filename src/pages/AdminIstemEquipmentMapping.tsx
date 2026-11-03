@@ -64,10 +64,11 @@ function IstemStatus({ connected, source }: { connected: boolean; source?: Istem
       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
         title={sourceNote(source)}>
         <AlertTriangle className="h-3.5 w-3.5" />I-STEM not answering · list from {readAt(source.read_at) || "earlier"}
+        {source.institute_id ? ` · institute ${source.institute_id}` : ""}
       </span>
     );
   }
-  return <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"><Wifi className="h-3.5 w-3.5" />I-STEM connected</span>;
+  return <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" title="The institute is the one I-STEM names when the portal signs in."><Wifi className="h-3.5 w-3.5" />I-STEM connected{source?.institute_id ? ` · institute ${source.institute_id}` : ""}</span>;
 }
 
 function MappedStatus({ row }: { row: IstemMappingEquipmentRow }) {
