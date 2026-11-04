@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RichTextContent } from "@/components/RichTextContent";
 import {
   FLASH_ROTATE_MS,
   FLASH_TONE_LABELS,
   FLASH_TONE_STYLES,
   dismissFlash,
+  flashHasBlocks,
   readDismissedFlash,
   sanitizeFlashHtml,
   type PublicFlashMessage,
@@ -115,7 +117,9 @@ export function EquipmentFlashBanner({
 
   const tone = FLASH_TONE_STYLES[current.tone] ?? FLASH_TONE_STYLES.INFO;
   const html = sanitizeFlashHtml(current.message);
-  const canExpand = overflow > 0 && (isMobile || reduced);
+  const hasBlocks = flashHasBlocks(current.message);
+  // Several paragraphs, a list or a heading: the pill shows one line; expanding shows the full formatting.
+  const canExpand = hasBlocks || (overflow > 0 && (isMobile || reduced));
   const tickerStyle = ticker
     ? ({
         "--flash-ticker-shift": `-${overflow + TICKER_GAP_PX}px`,
@@ -181,7 +185,11 @@ export function EquipmentFlashBanner({
               )}
               style={tickerStyle}
             >
-              <span dangerouslySetInnerHTML={{ __html: html }} />
+              {expanded && hasBlocks ? (
+                <RichTextContent value={current.message} className="flash-rich text-sm font-normal" />
+              ) : (
+                <span dangerouslySetInnerHTML={{ __html: html }} />
+              )}
               {current.link_url ? (
                 <>
                   {" "}

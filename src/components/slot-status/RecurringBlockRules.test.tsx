@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: { getToken: () => "tok" } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -60,6 +60,12 @@ const slotTimes = [
   { time: "14:00", end_time: "15:00", name: "Slot 2" },
 ];
 
+beforeAll(() => {
+  Element.prototype.scrollIntoView ??= () => {};
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.releasePointerCapture ??= () => {};
+});
+
 describe("RecurringBlockRules", () => {
   beforeEach(() => {
     vi.spyOn(slotBlockRulesApi, "list").mockResolvedValue({
@@ -104,6 +110,65 @@ describe("RecurringBlockRules", () => {
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Repeat block saved")).toBeTruthy();
+  });
+
+  it("repeats any operation of the Select operation list, e.g. Scheduled Maintenance", async () => {
+    const preview = vi.spyOn(slotBlockRulesApi, "preview").mockResolvedValue({ preview: summary });
+    const create = vi.spyOn(slotBlockRulesApi, "create").mockResolvedValue({
+      rule: { ...rule, slot_status: "SCHEDULED_MAINT", slot_status_display: "Scheduled Maintenance", label: "" },
+      result: { ...summary, blocked_count: 5 },
+    });
+    render(<RecurringBlockRules equipmentId={12} />);
+
+    await screen.findByText("No repeat blocks on this equipment.");
+    fireEvent.click(screen.getByRole("button", { name: "Repeat block…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Wed" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    const trigger = screen.getByRole("combobox", { name: "Repeat block operation" });
+    expect(trigger.textContent).toContain("Other Reasons");
+    fireEvent.click(trigger);
+    const labels = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(labels).toEqual([
+      "Other Reasons",
+      "Under Maintenance",
+      "Scheduled Maintenance",
+      "Operator Absent",
+      "Not Available",
+      "Reserved for External",
+    ]);
+    fireEvent.click(screen.getByRole("option", { name: "Scheduled Maintenance" }));
+    expect(screen.queryByLabelText("Other Reasons label (optional)")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Reason (optional)"), { target: { value: "Monthly service" } });
+    expect(screen.getByText(/recorded in the disruption log/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText(/will be marked Scheduled Maintenance now/);
+    expect(preview.mock.calls[0][1]).toMatchObject({ slot_status: "SCHEDULED_MAINT", label: "Monthly service" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm: mark Scheduled Maintenance" }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][1]).toMatchObject({ slot_status: "SCHEDULED_MAINT", weekdays: [2] });
+  });
+
+  it("hides the label for Not Available and lists each rule with its operation", async () => {
+    vi.spyOn(slotBlockRulesApi, "list").mockResolvedValue({
+      equipment: { id: 12, code: "XRD", name: "XRD" },
+      slot_times: slotTimes,
+      rules: [{ ...rule, slot_status: "OPERATOR_ABSENT", slot_status_display: "Operator Absent" }],
+    });
+    const preview = vi.spyOn(slotBlockRulesApi, "preview").mockResolvedValue({ preview: summary });
+    render(<RecurringBlockRules equipmentId={12} />);
+
+    expect((await screen.findByTestId("repeat-rule-status")).textContent).toBe("Operator Absent");
+    fireEvent.click(screen.getByRole("button", { name: "Repeat block…" }));
+    fireEvent.change(screen.getByLabelText("Other Reasons label (optional)"), { target: { value: "kept out" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Repeat block operation" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Not Available" }));
+    expect(screen.queryByLabelText(/label \(optional\)|Reason \(optional\)/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mon" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await waitFor(() => expect(preview).toHaveBeenCalledTimes(1));
+    expect(preview.mock.calls[0][1]).toMatchObject({ slot_status: "NOT_AVAILABLE", label: "" });
   });
 
   it("asks before removing and shows how many future slots open up", async () => {

@@ -51,6 +51,35 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("EquipmentFlashBanner rich text", () => {
+  it("shows one line and expands a message with paragraphs and a list to its full formatting", () => {
+    render(
+      <EquipmentFlashBanner
+        reducedMotion
+        messages={[
+          {
+            id: 91,
+            message:
+              '<p><strong>NMR</strong> is open for routine samples.</p><ul><li>TXI probe: email a week ahead</li></ul>',
+            tone: "NOTICE",
+            end_at: null,
+            until_changed: true,
+            link_url: "",
+            link_label: "",
+          },
+        ]}
+      />,
+    );
+    const text = screen.getByTestId("equipment-flash-text");
+    expect(text.textContent).toContain("NMR is open for routine samples. • TXI probe: email a week ahead");
+    expect(text.querySelector("ul")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show the full message" }));
+    expect(screen.getByTestId("equipment-flash-text").querySelector("ul li")?.textContent).toBe(
+      "TXI probe: email a week ahead",
+    );
+  });
+});
+
 describe("EquipmentFlashBanner", () => {
   it("renders an accessible polite status with sanitised bold, italic and links only", () => {
     render(

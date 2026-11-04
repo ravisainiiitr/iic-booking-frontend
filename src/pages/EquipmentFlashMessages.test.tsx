@@ -15,8 +15,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: state.api }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
-vi.mock("@/components/flashMessages/FlashMessageEditor", () => ({
-  FlashMessageEditor: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+vi.mock("@/components/RichTextEditor", () => ({
+  RichTextEditor: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
     <textarea aria-label="Message" value={value} onChange={(e) => onChange(e.target.value)} />
   ),
 }));
@@ -64,7 +64,7 @@ const listResponse = {
   tones: [],
   audiences: [],
   user_types: [{ value: "student", label: "IITR Student" }],
-  limits: { message_max_chars: 300, max_duration_days: 30, max_start_ahead_days: 90, link_label_max_chars: 40 },
+  limits: { message_max_chars: 300, max_duration_days: null, max_start_ahead_days: null, link_label_max_chars: 40 },
 };
 
 beforeAll(() => {
@@ -132,7 +132,7 @@ describe("EquipmentFlashMessages", () => {
     const dialog = await screen.findByTestId("flash-message-dialog");
     expect(within(dialog).getByText("New flash message")).toBeTruthy();
     expect(within(dialog).getByText("Type a message to see how it will look.")).toBeTruthy();
-    expect(within(dialog).getByLabelText("Also show on all modes of this instrument")).toBeTruthy();
+    expect(within(dialog).getByLabelText(/Also show on each mode/)).toBeTruthy();
 
     fireEvent.change(within(dialog).getByLabelText("Message"), { target: { value: "Lab closed <strong>Friday</strong>" } });
     const preview = within(dialog).getByRole("status");
@@ -165,5 +165,44 @@ describe("EquipmentFlashMessages", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
     await waitFor(() => expect(state.api.createFlashMessage).toHaveBeenCalledTimes(1));
     expect(state.api.createFlashMessage.mock.calls[0][0]).toMatchObject({ equipment: 3, duplicated_from: 11, tone: "NOTICE" });
+  });
+
+  it("publishes a message that runs until changed (no end date)", async () => {
+    renderPage("/equipment-flash-messages?equipment=3&new=1");
+    const dialog = await screen.findByTestId("flash-message-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Message"), { target: { value: "TXI probe: email a week ahead" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Until changed" }));
+    expect(within(dialog).getByTestId("flash-end-preview").textContent).toContain("Until changed");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
+    await waitFor(() => expect(state.api.createFlashMessage).toHaveBeenCalledTimes(1));
+    expect(state.api.createFlashMessage.mock.calls[0][0]).toMatchObject({ equipment: 3, end_at: null });
+  });
+
+  it("accepts a custom end more than 30 days ahead", async () => {
+    renderPage("/equipment-flash-messages?equipment=3&new=1");
+    const dialog = await screen.findByTestId("flash-message-dialog");
+    fireEvent.change(within(dialog).getByLabelText("Message"), { target: { value: "Open for routine samples" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Custom" }));
+    const next = new Date();
+    next.setFullYear(next.getFullYear() + 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dmy = `${pad(next.getDate())}-${pad(next.getMonth() + 1)}-${next.getFullYear()}`;
+    const ends = within(dialog).getByLabelText("Ends") as HTMLInputElement;
+    fireEvent.change(ends, { target: { value: dmy } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Publish" }));
+    await waitFor(() => expect(state.api.createFlashMessage).toHaveBeenCalledTimes(1));
+    const payload = state.api.createFlashMessage.mock.calls[0][0];
+    expect((new Date(payload.end_at).getTime() - Date.now()) / 86400000).toBeGreaterThan(300);
+    expect(screen.queryByText(/at most 30 days/)).toBeNull();
+  });
+
+  it("shows Until changed in the list and offers no Extend for it", async () => {
+    state.api.getFlashMessages.mockResolvedValue({
+      data: { ...listResponse, results: [{ ...record, end_at: null, until_changed: true }] },
+    });
+    renderPage();
+    expect(await screen.findByText("Until changed")).toBeTruthy();
+    const menu = await openRowMenu();
+    expect(within(menu).queryByRole("menuitem", { name: /3 days/ })).toBeNull();
   });
 });

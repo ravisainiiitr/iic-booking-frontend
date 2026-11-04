@@ -13,6 +13,29 @@ export const slotBlockRulesBase = (equipmentId: number | string) =>
 
 export const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
+/** Statuses a repeat block may give (empty slots only), in the order of the Select operation list. */
+export interface RuleStatusOption {
+  value: string;
+  label: string;
+}
+
+export const RULE_STATUS_OPTIONS: RuleStatusOption[] = [
+  { value: "BLOCKED", label: "Other Reasons" },
+  { value: "UNDER_MAINTENANCE", label: "Under Maintenance" },
+  { value: "SCHEDULED_MAINT", label: "Scheduled Maintenance" },
+  { value: "OPERATOR_ABSENT", label: "Operator Absent" },
+  { value: "NOT_AVAILABLE", label: "Not Available" },
+  { value: "RESERVED_EXTERNAL", label: "Reserved for External" },
+];
+
+/** Statuses recorded as a disruption: the label is kept as its reason. */
+export const RULE_DISRUPTION_STATUSES = new Set(["UNDER_MAINTENANCE", "SCHEDULED_MAINT", "OPERATOR_ABSENT"]);
+
+export function ruleStatusLabel(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
+  const v = value || "BLOCKED";
+  return options.find((o) => o.value === v)?.label ?? RULE_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v;
+}
+
 export interface SlotTimeOption {
   time: string;
   end_time: string;
@@ -79,6 +102,9 @@ export interface SlotBlockRule {
   start_date: string;
   end_date: string;
   label: string;
+  /** Status the rule gives its slots; BLOCKED = Other Reasons. */
+  slot_status?: string;
+  slot_status_display?: string;
   is_active: boolean;
   created_at: string | null;
   created_by_name: string;
@@ -94,6 +120,7 @@ export interface SlotBlockRule {
 export interface SlotBlockRuleList {
   equipment: { id: number; code: string; name: string };
   slot_times: SlotTimeOption[];
+  status_options?: RuleStatusOption[];
   rules: SlotBlockRule[];
   removed_rules?: SlotBlockRule[];
 }
@@ -104,6 +131,8 @@ export interface SlotBlockRuleInput {
   start_date: string;
   end_date: string;
   label: string;
+  /** Default BLOCKED (Other Reasons). */
+  slot_status?: string;
 }
 
 export class SlotBlockRulesApiError extends Error {
