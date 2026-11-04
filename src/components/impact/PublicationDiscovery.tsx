@@ -27,6 +27,14 @@ export function PublicationDiscovery({ onUse }: { onUse: (s: PublicationSuggesti
     void load();
   }, [load]);
 
+  // The dashboard ORCID banner links to #find-my-papers: bring this card into view with the ORCID field focused.
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hash !== "#find-my-papers") return;
+    const el = document.getElementById("find-my-papers");
+    el?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    document.getElementById("orcid")?.focus();
+  }, []);
+
   const save = async () => {
     setBusy(true);
     const res = await impactApi.setOrcid(draft);
@@ -46,7 +54,7 @@ export function PublicationDiscovery({ onUse }: { onUse: (s: PublicationSuggesti
   };
 
   return (
-    <Card>
+    <Card id="find-my-papers" className="scroll-mt-20">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Sparkles className="h-5 w-5 text-primary" aria-hidden />
