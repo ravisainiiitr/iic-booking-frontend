@@ -371,7 +371,7 @@ export const trainingApi = {
     equipmentId: number,
     input: { min_bookings: number; months: number; confirm: string; user_ids?: number[]; validity_months?: number },
   ) => post<GrandfatherResult>(`authorisation/equipment/${equipmentId}/grandfather/`, input),
-  authorisationAwardAction: (id: number, action: "revoke" | "renew", input: { reason: string; months?: number }) =>
+  authorisationAwardAction: (id: number, action: "revoke" | "renew" | "downgrade", input: { reason: string; months?: number }) =>
     post<TrainingAward>(`authorisation/awards/${id}/${action}/`, input),
   // Beginner / Expert competency
   equipmentTrainers: (equipmentId: number) => get<EquipmentTrainers>(`authorisation/equipment/${equipmentId}/trainers/`),
