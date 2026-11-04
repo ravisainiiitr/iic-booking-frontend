@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, BookOpenCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import ClaimFacilityEvidencePanel, { type ClaimFacilityEvidence } from "@/components/impact/ClaimFacilityEvidence";
 
 type ReviewClaim = {
   id: number;
@@ -28,6 +29,7 @@ type ReviewClaim = {
   created_at: string | null;
   equipments: Array<{ id: number; code: string; name: string }>;
   submitted_by: { id: number; name: string; email: string; department?: string | null } | null;
+  facility_evidence?: ClaimFacilityEvidence[];
 };
 
 export default function PublicationClaimsReview() {
@@ -179,6 +181,7 @@ export default function PublicationClaimsReview() {
                   <span className="font-medium">Instruments: </span>
                   {c.equipments.map((e) => `${e.code} (${e.name})`).join("; ")}
                 </p>
+                <ClaimFacilityEvidencePanel evidence={c.facility_evidence} />
                 <div className="space-y-1.5">
                   <Label htmlFor={`reject-${c.id}`}>Rejection reason (if rejecting)</Label>
                   <Textarea
