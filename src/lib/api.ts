@@ -88,6 +88,7 @@ import type {
   FlashMessageListResponse,
   FlashMessagePayload,
   FlashMessageRecord,
+  PublicFlashMessage,
 } from "@/lib/flashMessages";
 import type {
   OicBulkAssignment,
@@ -16558,6 +16559,15 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ days }),
     });
+  }
+
+  /** Live flash messages of one equipment for this viewer (anyone); `includeBase: false` = its own only. */
+  async getPublicFlashMessages(equipmentId: number | string, options: { includeBase?: boolean } = {}) {
+    const qs = new URLSearchParams({ equipment: String(equipmentId) });
+    if (options.includeBase === false) qs.set('include_base', '0');
+    return this.request<{ equipment_id: number; messages: PublicFlashMessage[]; can_manage: boolean }>(
+      `/equipments/flash-messages/public/?${qs.toString()}`,
+    );
   }
 
   async getDisruption(id: number) {

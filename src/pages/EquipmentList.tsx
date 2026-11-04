@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
+import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
+import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
@@ -130,6 +132,31 @@ const EquipmentList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const familyParam = Number(searchParams.get("family"));
   const expandedParentId = Number.isInteger(familyParam) && familyParam > 0 ? familyParam : null;
+  const [familyFlash, setFamilyFlash] = useState<{
+    parentId: number;
+    messages: PublicFlashMessage[];
+    canManage: boolean;
+  } | null>(null);
+
+  // The page listing all modes of an instrument shows the base instrument's flash messages (facility notices).
+  useEffect(() => {
+    if (expandedParentId == null) {
+      setFamilyFlash(null);
+      return;
+    }
+    let cancelled = false;
+    void apiClient.getPublicFlashMessages(expandedParentId, { includeBase: false }).then((res) => {
+      if (cancelled) return;
+      setFamilyFlash(
+        res.data
+          ? { parentId: expandedParentId, messages: res.data.messages ?? [], canManage: Boolean(res.data.can_manage) }
+          : null,
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [expandedParentId]);
   const setExpandedParentId = useCallback(
     (parentId: number | null, replace = false) => {
       setSearchParams(
@@ -503,6 +530,15 @@ const EquipmentList = () => {
             <span>Showing all modes of this instrument.</span>
             <Button type="button" size="sm" variant="outline" onClick={() => setExpandedParentId(null)}>Back to all</Button>
           </div>
+        ) : null}
+        {expandedParentId != null && familyFlash && familyFlash.parentId === expandedParentId ? (
+          <EquipmentFlashArea
+            equipmentId={expandedParentId}
+            messages={familyFlash.messages}
+            canManage={familyFlash.canManage}
+            inline
+            fallbackClassName="mb-4"
+          />
         ) : null}
 
         <div className="mb-5 flex flex-col gap-2.5 md:flex-row md:items-center md:gap-3">

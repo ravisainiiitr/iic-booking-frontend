@@ -1,4 +1,4 @@
-import DOMPurify from "dompurify";
+import { instructionToHtml, richTextToPlain } from "@/lib/richText";
 
 export type FlashTone = "INFO" | "NOTICE" | "IMPORTANT" | "SUCCESS";
 export type FlashAudience = "ALL" | "INTERNAL" | "EXTERNAL" | "USER_TYPES";
@@ -9,7 +9,9 @@ export interface PublicFlashMessage {
   id: number;
   message: string;
   tone: FlashTone;
-  end_at: string;
+  /** null: runs until changed. */
+  end_at: string | null;
+  until_changed?: boolean;
   link_url: string;
   link_label: string;
   from_base_instrument?: boolean;
@@ -30,7 +32,9 @@ export interface FlashMessageRecord {
   tone: FlashTone;
   tone_display: string;
   start_at: string;
-  end_at: string;
+  /** null: runs until changed. */
+  end_at: string | null;
+  until_changed?: boolean;
   is_active: boolean;
   status: FlashStatus;
   status_display: string;
@@ -75,8 +79,10 @@ export interface FlashMessageOptions {
   user_types: { value: string; label: string }[];
   limits: {
     message_max_chars: number;
-    max_duration_days: number;
-    max_start_ahead_days: number;
+    /** null: no limit (any future date, or Until changed). */
+    max_duration_days: number | null;
+    max_start_ahead_days: number | null;
+    max_extend_days?: number;
     link_label_max_chars: number;
   };
   can_filter_department?: boolean;
@@ -95,7 +101,8 @@ export interface FlashMessagePayload {
   message?: string;
   tone?: FlashTone;
   start_at?: string | null;
-  end_at?: string;
+  /** null: Until changed. */
+  end_at?: string | null;
   is_active?: boolean;
   audience?: FlashAudience;
   audience_user_types?: string[];
@@ -105,7 +112,7 @@ export interface FlashMessagePayload {
   duplicated_from?: number;
 }
 
-export const FLASH_MESSAGE_MAX_CHARS = 300;
+export const FLASH_MESSAGE_MAX_CHARS = 2000;
 export const FLASH_ROTATE_MS = 6000;
 
 export const FLASH_TONE_LABELS: Record<FlashTone, string> = {
@@ -170,34 +177,43 @@ export const FLASH_DURATION_PRESETS: { key: string; label: string; days: number 
   { key: "1w", label: "1 week", days: 7 },
 ];
 
-let purifier: ReturnType<typeof DOMPurify> | null = null;
+/** "Show for" key of a message without an end. */
+export const FLASH_UNTIL_CHANGED = "until_changed";
 
-/** Bold, italic and links only (mirrors `flash_message_service.sanitize_flash_html`). */
+/** The message's full rich text (same formatting as the Important Instruction), sanitised. */
+export function flashRichHtml(html: string | null | undefined): string {
+  return instructionToHtml(html);
+}
+
+/** The message on one line for the pill: inline formatting (bold, colours, links) kept, blocks joined. */
 export function sanitizeFlashHtml(html: string | null | undefined): string {
-  if (!html) return "";
-  if (typeof window === "undefined") return "";
-  if (!purifier) {
-    purifier = DOMPurify(window);
-    purifier.addHook("afterSanitizeAttributes", (node) => {
-      if (node.tagName === "A") {
-        node.setAttribute("target", "_blank");
-        node.setAttribute("rel", "noopener noreferrer");
-      }
-    });
-  }
-  return purifier.sanitize(html.replace(/<\/?(p|div|br|li|ul|ol|h[1-6])(\s[^>]*)?\/?>/gi, " "), {
-    ALLOWED_TAGS: ["strong", "b", "em", "i", "a"],
-    ALLOWED_ATTR: ["href", "target", "rel"],
-    ALLOWED_URI_REGEXP: /^(https?:|mailto:)/i,
-  }).replace(/\s+/g, " ").trim();
+  const rich = flashRichHtml(html);
+  if (!rich) return "";
+  return rich
+    .replace(/<li(\s[^>]*)?>/gi, " • ")
+    .replace(/<\/?(p|div|br|li|ul|ol|h[1-6])(\s[^>]*)?\/?>/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True when the message has more than one paragraph, a list or a heading (worth expanding). */
+export function flashHasBlocks(html: string | null | undefined): boolean {
+  const rich = flashRichHtml(html);
+  if (!rich) return false;
+  return /<(ul|ol|h[1-6])[\s>]/i.test(rich) || (rich.match(/<p[\s>]/gi) ?? []).length > 1;
 }
 
 export function flashPlainText(html: string | null | undefined): string {
   if (!html) return "";
-  if (typeof document === "undefined") return html.replace(/<[^>]*>/g, "");
-  const el = document.createElement("div");
-  el.innerHTML = sanitizeFlashHtml(html);
-  return (el.textContent || "").replace(/\s+/g, " ").trim();
+  return richTextToPlain(html).replace(/\s+/g, " ").trim();
+}
+
+/** "Until changed" or the end as text. */
+export function flashEndLabel(
+  msg: { end_at: string | null; until_changed?: boolean },
+  format: (iso: string) => string,
+): string {
+  return msg.until_changed || !msg.end_at ? "Until changed" : format(msg.end_at);
 }
 
 const DISMISS_KEY = "iic.flashMessages.dismissed";

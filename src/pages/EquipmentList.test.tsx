@@ -27,11 +27,14 @@ const CATALOG = [
   row(1, "XPS", "Spectroscopy", "1500.00", "sample"),
   row(2, "FE-SEM", "Microscopy", "800.00", "hour"),
   row(3, "Raman", "Spectroscopy", null, null),
+  { ...row(10, "NMR", "Spectroscopy", null, null), enable_multi_mode: true },
+  { ...row(11, "TXI Probe", "Spectroscopy", null, null), parent_equipment: 10 },
 ];
 
 const mocks = vi.hoisted(() => ({
   getEquipments: vi.fn(),
   automationFeatures: vi.fn(),
+  getPublicFlashMessages: vi.fn(),
   embedded: false,
   auth: { user: { id: 1, user_type: "student" } as unknown, isAuthenticated: true },
 }));
@@ -62,6 +65,7 @@ vi.mock("@/lib/api", () => ({
     getCurrentUser: vi.fn(async () => ({ data: { id: 1 } })),
     getEquipments: mocks.getEquipments,
     automationFeatures: mocks.automationFeatures,
+    getPublicFlashMessages: mocks.getPublicFlashMessages,
     getEquipmentImageProxyPath: (id: number) => `/img/${id}`,
   },
 }));
@@ -81,6 +85,8 @@ beforeEach(() => {
   mocks.auth = { user: { id: 1, user_type: "student" }, isAuthenticated: true };
   mocks.automationFeatures.mockReset();
   mocks.automationFeatures.mockResolvedValue({ data: { instrument_finder: false, smart_slots: false } });
+  mocks.getPublicFlashMessages.mockReset();
+  mocks.getPublicFlashMessages.mockResolvedValue({ data: { equipment_id: 10, messages: [], can_manage: false } });
 });
 
 afterEach(() => cleanup());
@@ -118,6 +124,39 @@ const renderList = (entry: string) =>
   );
 
 describe("Equipment catalog page", () => {
+  it("shows the instrument's flash messages on the page listing all its modes", async () => {
+    mocks.getPublicFlashMessages.mockResolvedValue({
+      data: {
+        equipment_id: 10,
+        messages: [
+          {
+            id: 7,
+            message: "<p>NMR Facility is open for routine samples.</p>",
+            tone: "INFO",
+            end_at: null,
+            until_changed: true,
+            link_url: "",
+            link_label: "",
+          },
+        ],
+        can_manage: false,
+      },
+    });
+    renderList("/equipment?dept=all&family=10");
+
+    expect((await screen.findByTestId("equipment-flash-text")).textContent).toContain(
+      "NMR Facility is open for routine samples.",
+    );
+    expect(mocks.getPublicFlashMessages).toHaveBeenCalledWith(10, { includeBase: false });
+    expect(screen.getByText("Showing all modes of this instrument.")).toBeTruthy();
+  });
+
+  it("does not ask for flash messages on the full catalog", async () => {
+    renderList("/equipment?dept=all");
+    await screen.findByText("XPS");
+    expect(mocks.getPublicFlashMessages).not.toHaveBeenCalled();
+  });
+
   it("shows from-prices for the viewer and hides unknown ones", async () => {
     renderList("/equipment?dept=all");
     expect(await screen.findByText("from ₹1,500/sample")).toBeTruthy();

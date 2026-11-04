@@ -273,7 +273,7 @@ export default function EquipmentFlashMessages() {
                           <div className="font-medium leading-tight">{r.equipment_name}</div>
                           <div className="text-xs text-muted-foreground">
                             {r.equipment_code}
-                            {r.show_on_modes ? " · also on all modes" : ""}
+                            {r.show_on_modes ? " · also on each mode" : ""}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -291,7 +291,9 @@ export default function EquipmentFlashMessages() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-xs">
                           <div>{formatDMYTime(r.start_at)}</div>
-                          <div className="text-muted-foreground">to {formatDMYTime(r.end_at)}</div>
+                          <div className="text-muted-foreground">
+                            {r.until_changed || !r.end_at ? "Until changed" : `to ${formatDMYTime(r.end_at)}`}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold", FLASH_STATUS_STYLES[r.status])}>
@@ -332,13 +334,17 @@ export default function EquipmentFlashMessages() {
                               <DropdownMenuItem onSelect={() => runAction(r, "toggle")}>
                                 <Power className="mr-2 h-4 w-4" /> {r.is_active ? "Turn off" : "Turn on"}
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Extend by</DropdownMenuLabel>
-                              {FLASH_DURATION_PRESETS.map((p) => (
-                                <DropdownMenuItem key={p.key} onSelect={() => runAction(r, "extend", p.days)}>
-                                  <CalendarPlus className="mr-2 h-4 w-4" /> {p.label}
-                                </DropdownMenuItem>
-                              ))}
+                              {r.until_changed || !r.end_at ? null : (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Extend by</DropdownMenuLabel>
+                                  {FLASH_DURATION_PRESETS.map((p) => (
+                                    <DropdownMenuItem key={p.key} onSelect={() => runAction(r, "extend", p.days)}>
+                                      <CalendarPlus className="mr-2 h-4 w-4" /> {p.label}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

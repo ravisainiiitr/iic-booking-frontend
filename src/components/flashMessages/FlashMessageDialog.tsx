@@ -16,6 +16,7 @@ import {
   FLASH_MESSAGE_MAX_CHARS,
   FLASH_TONE_LABELS,
   FLASH_TONE_STYLES,
+  FLASH_UNTIL_CHANGED,
   addDays,
   flashPlainText,
   localInputToIso,
@@ -27,8 +28,8 @@ import {
   type FlashTone,
 } from "@/lib/flashMessages";
 import { cn } from "@/lib/utils";
+import { RichTextEditor } from "@/components/RichTextEditor";
 import { EquipmentFlashBanner } from "./EquipmentFlashBanner";
-import { FlashMessageEditor } from "./FlashMessageEditor";
 
 const TONES: FlashTone[] = ["INFO", "NOTICE", "IMPORTANT", "SUCCESS"];
 const AUDIENCES: FlashAudience[] = ["ALL", "INTERNAL", "EXTERNAL", "USER_TYPES"];
@@ -72,10 +73,13 @@ function initialState(mode: FlashDialogMode): FormState {
     linkLabel: src?.link_label ?? "",
   };
   if (mode.kind === "edit") {
-    base.preset = "custom";
+    const untilChanged = mode.record.until_changed || !mode.record.end_at;
+    base.preset = untilChanged ? FLASH_UNTIL_CHANGED : "custom";
     base.startLater = new Date(mode.record.start_at).getTime() > now.getTime();
     base.start = toLocalInputValue(mode.record.start_at);
-    base.end = toLocalInputValue(mode.record.end_at);
+    base.end = untilChanged ? toLocalInputValue(addDays(now, 7)) : toLocalInputValue(mode.record.end_at);
+  } else if (src && (src.until_changed || !src.end_at)) {
+    base.preset = FLASH_UNTIL_CHANGED;
   }
   return base;
 }
@@ -106,13 +110,14 @@ export function FlashMessageDialog({
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
   const maxChars = options?.limits.message_max_chars ?? FLASH_MESSAGE_MAX_CHARS;
-  const maxDays = options?.limits.max_duration_days ?? 30;
+  const untilChanged = form.preset === FLASH_UNTIL_CHANGED;
   const equipmentOptions = options?.equipment_options ?? [];
   const selectedEquipment = equipmentOptions.find((e) => String(e.id) === form.equipment);
   const plainLength = flashPlainText(form.message).length;
 
   const startDate = form.startLater && form.start ? new Date(form.start) : new Date();
   const endDate = useMemo(() => {
+    if (form.preset === FLASH_UNTIL_CHANGED) return null;
     const presetDays = FLASH_DURATION_PRESETS.find((p) => p.key === form.preset)?.days;
     if (presetDays) return addDays(form.startLater && form.start ? new Date(form.start) : new Date(), presetDays);
     return form.end ? new Date(form.end) : null;
@@ -126,23 +131,27 @@ export function FlashMessageDialog({
               id: -1,
               message: form.message,
               tone: form.tone,
-              end_at: endDate?.toISOString() ?? "",
+              end_at: endDate?.toISOString() ?? null,
+              until_changed: untilChanged,
               link_url: form.linkUrl.trim(),
               link_label: form.linkLabel.trim(),
             },
           ]
         : [],
-    [form.message, form.tone, form.linkUrl, form.linkLabel, endDate],
+    [form.message, form.tone, form.linkUrl, form.linkLabel, endDate, untilChanged],
   );
 
   const validate = (): string | null => {
     if (mode.kind === "create" && !form.equipment) return "Choose the equipment.";
     if (!plainLength) return "Enter the message.";
     if (plainLength > maxChars) return `Keep the message under ${maxChars} characters.`;
-    if (!endDate || Number.isNaN(endDate.getTime())) return "Choose when the message should end.";
-    if (endDate.getTime() <= startDate.getTime()) return "The end must be after the start.";
-    if (endDate.getTime() - Math.max(startDate.getTime(), Date.now()) > (maxDays * 24 * 60 + 1) * 60 * 1000) {
-      return `A flash message can run for at most ${maxDays} days.`;
+    if (form.startLater && (!form.start || Number.isNaN(new Date(form.start).getTime()))) {
+      return "Choose when the message should start.";
+    }
+    if (!untilChanged) {
+      if (!endDate || Number.isNaN(endDate.getTime())) return "Choose when the message should end, or Until changed.";
+      if (endDate.getTime() <= startDate.getTime()) return "The end must be after the start.";
+      if (endDate.getTime() <= Date.now()) return "The end must be in the future.";
     }
     if (form.audience === "USER_TYPES" && form.userTypes.length === 0) return "Choose at least one user type.";
     if (form.linkUrl.trim() && !/^https?:\/\/\S+$/i.test(form.linkUrl.trim())) {
@@ -160,7 +169,7 @@ export function FlashMessageDialog({
     const payload: FlashMessagePayload = {
       message: form.message,
       tone: form.tone,
-      end_at: endDate!.toISOString(),
+      end_at: untilChanged ? null : endDate!.toISOString(),
       is_active: form.isActive,
       audience: form.audience,
       audience_user_types: form.audience === "USER_TYPES" ? form.userTypes : [],
@@ -199,7 +208,8 @@ export function FlashMessageDialog({
         <DialogHeader>
           <DialogTitle>{mode.kind === "edit" ? "Edit flash message" : "New flash message"}</DialogTitle>
           <DialogDescription>
-            A short message at the top of the equipment page and its booking page. It disappears on its own when it ends.
+            A message at the top of the equipment page and its booking page and, for an instrument with modes, the page
+            listing all its modes. It hides on its own when it ends, or runs until you change or switch it off.
           </DialogDescription>
         </DialogHeader>
 
@@ -236,7 +246,16 @@ export function FlashMessageDialog({
                 {plainLength}/{maxChars}
               </span>
             </div>
-            <FlashMessageEditor value={form.message} onChange={(v) => set("message", v)} invalid={plainLength > maxChars} />
+            <RichTextEditor
+              value={form.message}
+              onChange={(v) => set("message", v)}
+              placeholder="Message for users, e.g. Sample submission closes at 4 PM today"
+              ariaLabel="Flash message"
+            />
+            <p className="text-xs text-muted-foreground">
+              Same formatting as the Important Instruction: headings, lists, bold, colours, highlight, sizes, fonts,
+              alignment and links. The bar shows the first line; users can expand longer messages.
+            </p>
           </div>
 
           <fieldset className="space-y-1.5">
@@ -265,7 +284,11 @@ export function FlashMessageDialog({
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Show for</legend>
             <div className="flex flex-wrap gap-2">
-              {[...FLASH_DURATION_PRESETS, { key: "custom", label: "Custom", days: 0 }].map((p) => (
+              {[
+                ...FLASH_DURATION_PRESETS,
+                { key: "custom", label: "Custom", days: 0 },
+                { key: FLASH_UNTIL_CHANGED, label: "Until changed", days: 0 },
+              ].map((p) => (
                 <Button
                   key={p.key}
                   type="button"
@@ -303,12 +326,20 @@ export function FlashMessageDialog({
                   <DateTimeInput value={form.end} onValueChange={(v) => set("end", v)} aria-label="Ends" />
                 ) : (
                   <p className="text-sm" data-testid="flash-end-preview">
-                    {endDate ? endDate.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                    {untilChanged
+                      ? "Until changed or switched off"
+                      : endDate
+                        ? endDate.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+                        : "—"}
                   </p>
                 )}
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">Up to {maxDays} days. Expired messages hide on their own.</p>
+            <p className="text-xs text-muted-foreground">
+              {untilChanged
+                ? "Stays on until you edit it, end it or switch it off."
+                : "Any future date and time. Expired messages hide on their own."}
+            </p>
           </fieldset>
 
           <div className="space-y-1.5">
@@ -372,7 +403,10 @@ export function FlashMessageDialog({
             <div className="flex items-start gap-2 rounded-md border bg-muted/20 p-2.5">
               <Checkbox id="flash-modes" checked={form.showOnModes} onCheckedChange={(v) => set("showOnModes", v === true)} />
               <Label htmlFor="flash-modes" className="font-normal leading-snug">
-                Also show on all modes of this instrument
+                Also show on each mode&apos;s own page
+                <span className="block text-xs text-muted-foreground">
+                  It always shows on this instrument&apos;s page and on the page listing all its modes.
+                </span>
               </Label>
             </div>
           ) : null}
