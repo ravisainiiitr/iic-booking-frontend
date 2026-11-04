@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { trainingApi } from "@/lib/trainingApi";
 import type { AuthorisationStatus } from "@/lib/trainingAuthTypes";
 import { cn } from "@/lib/utils";
+import { SupervisorPicker } from "./CompetencyPanels";
 import { formatDate, formatWindow } from "./trainingHelpers";
 import { PromptDialog, StatusChip, runTrainingAction } from "./trainingUi";
 
@@ -59,7 +60,41 @@ export function RequestTrainingDialog({
   );
 }
 
+export function RequestAssessmentDialog({
+  open,
+  onOpenChange,
+  equipmentId,
+  equipmentName,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  equipmentId: number;
+  equipmentName: string;
+  onDone?: () => void;
+}) {
+  return (
+    <PromptDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Request Expert assessment"
+      description={`Ask the trainers of ${equipmentName} to assess you for independent use. A pass recorded by a trainer is approved by the OIC.`}
+      label="Message (optional)"
+      placeholder="Supervised sessions so far, techniques you have practised…"
+      required={false}
+      confirmLabel="Send request"
+      onConfirm={async (text) => {
+        const res = await runTrainingAction(trainingApi.requestAssessment(equipmentId, text), "Assessment request sent");
+        if (res.error) return false;
+        onDone?.();
+        return true;
+      }}
+    />
+  );
+}
+
 function statusLine(status: AuthorisationStatus): string {
+  if (status.two_level && status.stage && status.stage !== "EXPERT" && status.message) return status.message;
   const until = status.valid_until ? formatDate(status.valid_until) : "";
   switch (status.status) {
     case "AUTHORISED":
@@ -87,6 +122,8 @@ export function AuthorisationGateCard({
   onChanged,
   subjectName,
   className,
+  supervisorId = null,
+  onSupervisorChange,
 }: {
   status: AuthorisationStatus;
   equipmentId: number;
@@ -95,9 +132,14 @@ export function AuthorisationGateCard({
   /** Staff booking for someone else: whose status this is. */
   subjectName?: string;
   className?: string;
+  /** Beginner booking: the chosen supervisor (shown as a picker when ``onSupervisorChange`` is given). */
+  supervisorId?: number | null;
+  onSupervisorChange?: (id: number | null) => void;
 }) {
   const [requestOpen, setRequestOpen] = useState(false);
-  const blocked = !status.allowed;
+  const [assessmentOpen, setAssessmentOpen] = useState(false);
+  const supervised = Boolean(status.supervised_only);
+  const blocked = !status.allowed && !supervised;
   const staffView = Boolean(subjectName);
   const req = status.open_request;
   const Icon = blocked ? ShieldAlert : ShieldCheck;
@@ -119,7 +161,16 @@ export function AuthorisationGateCard({
           aria-hidden
         />
         <h3 className="font-semibold text-foreground">Authorisation required</h3>
-        <StatusChip kind="authorisation" status={status.status} label={status.status_label} />
+        {status.two_level && status.stage_label ? (
+          <span
+            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-800 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200"
+            data-testid="competency-stage"
+          >
+            {status.stage_label}
+          </span>
+        ) : (
+          <StatusChip kind="authorisation" status={status.status} label={status.status_label} />
+        )}
       </div>
       {staffView ? (
         <p className="mt-1.5 text-foreground">
@@ -131,14 +182,25 @@ export function AuthorisationGateCard({
       )}
       {req ? (
         <p className="mt-1.5 text-xs text-muted-foreground">
-          Training request {req.reference}: <StatusChip kind="authRequest" status={req.status} label={req.status_label} className="mx-1" />
+          {req.kind === "ASSESSMENT" ? "Expert assessment request" : "Training request"} {req.reference}: <StatusChip kind="authRequest" status={req.status} label={req.status_label} className="mx-1" />
           {req.status === "SCHEDULED" && req.scheduled_start
             ? `${formatWindow(req.scheduled_start, req.scheduled_end)}${req.location ? ` at ${req.location}` : ""}`
             : "waiting for the OIC or Lab Operator."}
         </p>
       ) : null}
+      {supervised && !staffView && onSupervisorChange ? (
+        <div className="mt-2.5">
+          <SupervisorPicker supervisors={status.supervisors ?? []} value={supervisorId} onChange={onSupervisorChange} />
+        </div>
+      ) : null}
       {!staffView ? (
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          {status.can_request_assessment ? (
+            <Button type="button" size="sm" variant={supervised ? "outline" : "default"} onClick={() => setAssessmentOpen(true)} className="gap-1.5">
+              <GraduationCap className="h-4 w-4" aria-hidden />
+              Request Expert assessment
+            </Button>
+          ) : null}
           {status.can_request ? (
             <Button type="button" size="sm" onClick={() => setRequestOpen(true)} className="gap-1.5">
               <GraduationCap className="h-4 w-4" aria-hidden />
@@ -156,6 +218,13 @@ export function AuthorisationGateCard({
         equipmentId={equipmentId}
         equipmentName={equipmentName}
         reasonRequired={status.status === "SUSPENDED" || status.status === "REVOKED"}
+        onDone={onChanged}
+      />
+      <RequestAssessmentDialog
+        open={assessmentOpen}
+        onOpenChange={setAssessmentOpen}
+        equipmentId={equipmentId}
+        equipmentName={equipmentName}
         onDone={onChanged}
       />
     </section>

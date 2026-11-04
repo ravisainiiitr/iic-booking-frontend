@@ -11,6 +11,7 @@ import {
   SettingsPanel,
   liveExplanation,
 } from "@/components/training/AuthorisationPanels";
+import { SupervisionPanel, TrainersPanel } from "@/components/training/CompetencyPanels";
 import { resetGatedEquipment } from "@/components/training/useAuthorisation";
 import { EmptyState, LoadingBlock, ModuleUnavailable, SectionCard, TrainingPageFrame } from "@/components/training/trainingUi";
 import { useTrainingAvailability } from "@/components/training/useTrainingAvailability";
@@ -18,7 +19,7 @@ import { trainingApi } from "@/lib/trainingApi";
 import type { ManagedAuthorisationEquipment } from "@/lib/trainingAuthTypes";
 import { cn } from "@/lib/utils";
 
-const TABS = ["requests", "users", "settings", "grandfather"] as const;
+const TABS = ["requests", "users", "trainers", "supervision", "settings", "grandfather"] as const;
 type Tab = (typeof TABS)[number];
 
 function GateChip({ row }: { row: ManagedAuthorisationEquipment }) {
@@ -132,6 +133,8 @@ export default function TrainingAuthorisations() {
             <TabsList className="h-auto flex-wrap justify-start">
               <TabsTrigger value="requests">Requests{current.open_requests ? ` (${current.open_requests})` : ""}</TabsTrigger>
               <TabsTrigger value="users">Authorised users</TabsTrigger>
+              {current.competency_levels ? <TabsTrigger value="trainers">Trainers</TabsTrigger> : null}
+              {current.competency_levels ? <TabsTrigger value="supervision">Supervised sessions</TabsTrigger> : null}
               <TabsTrigger value="settings">Booking gate</TabsTrigger>
               <TabsTrigger value="grandfather">Grandfathering</TabsTrigger>
             </TabsList>
@@ -146,6 +149,17 @@ export default function TrainingAuthorisations() {
                 equipmentCode={current.equipment.code}
                 validityMonths={current.validity_months}
                 onChanged={refresh}
+              />
+            </TabsContent>
+            <TabsContent value="trainers" className="mt-3">
+              <TrainersPanel key={current.equipment.equipment_id} equipmentId={current.equipment.equipment_id} onChanged={refresh} />
+            </TabsContent>
+            <TabsContent value="supervision" className="mt-3">
+              <SupervisionPanel
+                key={current.equipment.equipment_id}
+                scope="equipment"
+                equipmentId={current.equipment.equipment_id}
+                emptyText="No Beginner has booked this equipment under supervision yet."
               />
             </TabsContent>
             <TabsContent value="settings" className="mt-3">
