@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History } from "lucide-react";
+import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, QrCode as QrCodeIcon } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
@@ -2674,6 +2674,36 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white">Open My Publications</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "equipment_qr_codes",
+      label: "Equipment QR Codes",
+      path: "/equipment-qr-codes",
+      visible: Boolean(userTypeStr === "admin" || userTypeStr === "manager"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-300 dark:hover:border-slate-700"
+              onClick={() => openWorkspace("/equipment-qr-codes", "Equipment QR Codes")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-lg">
+                    <QrCodeIcon className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment QR Codes</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Download, print and share QR codes that open each instrument's public page
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-slate-800 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-slate-800 hover:bg-slate-900 text-white">Open Equipment QR Codes</Button>
               </CardContent>
             </Card>
       ),
