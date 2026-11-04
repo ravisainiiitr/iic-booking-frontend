@@ -11,13 +11,16 @@ const api = vi.hoisted(() => ({
   requestAssessment: vi.fn(),
   supervisedSessions: vi.fn(),
   supervisionAction: vi.fn(),
+  authorisedUsers: vi.fn(),
+  authorisationAwardAction: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: { getToken: () => "tok" } }));
 vi.mock("@/lib/trainingApi", () => ({ trainingApi: api }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { AuthorisationGateCard } from "./AuthorisationGateCard";
+import { AuthorisationGateCard, CompetencyProgress } from "./AuthorisationGateCard";
+import { AuthorisedUsersPanel } from "./AuthorisationPanels";
 import { SupervisionPanel } from "./CompetencyPanels";
 import { resetGatedEquipment, useAuthorisationStatus } from "./useAuthorisation";
 
@@ -150,5 +153,38 @@ describe("SupervisionPanel", () => {
     render(<SupervisionPanel scope="mine" />);
     expect(await screen.findByText("Good handling")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull();
+  });
+});
+
+describe("Minimum supervised sessions, Beginner expiry and downgrade", () => {
+  it("shows sessions towards the Expert assessment and when Beginner status ends", () => {
+    render(<CompetencyProgress status={{ ...beginner, supervised_sessions_done: 1, supervised_sessions_required: 2, beginner_valid_until: "2027-05-04T00:00:00Z" }} />);
+    const text = screen.getByTestId("competency-progress").textContent ?? "";
+    expect(text).toContain("Supervised sessions: 1 of 2 completed before the Expert assessment");
+    expect(text).toContain("Beginner until");
+  });
+
+  it("lets the OIC downgrade an Expert to Beginner with a reason", async () => {
+    const expert = {
+      id: 40, user: { id: 3, name: "Student One" }, equipment: { equipment_id: 7, name: "XRD", code: "XRD1" },
+      level: "EXPERT", level_name: "Expert (independent)", level_rank: 15, status: "ACTIVE", status_label: "Active",
+      awarded_at: "2026-10-01T00:00:00Z", valid_until: "2027-10-01T00:00:00Z", source_event_id: null,
+      expiring: false, supervisor: null, source: "assessment", awarded_by: null,
+    };
+    api.authorisedUsers.mockResolvedValue({ data: { results: [expert] } });
+    api.authorisationAwardAction.mockResolvedValue({ data: { ...expert, id: 41, level: "BEGINNER" } });
+    render(<AuthorisedUsersPanel equipmentId={7} equipmentName="XRD" equipmentCode="XRD1" validityMonths={24} twoLevel onChanged={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Downgrade to Beginner" }));
+    expect(await screen.findByText(/can book only with a supervisor/)).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Unsafe handling" } });
+    fireEvent.click(screen.getByRole("button", { name: "Downgrade" }));
+    await waitFor(() => expect(api.authorisationAwardAction).toHaveBeenCalledWith(40, "downgrade", { reason: "Unsafe handling", months: undefined }));
+  });
+
+  it("has no downgrade on single-step equipment", async () => {
+    api.authorisedUsers.mockResolvedValue({ data: { results: [] } });
+    render(<AuthorisedUsersPanel equipmentId={7} equipmentName="XRD" equipmentCode="XRD1" validityMonths={24} onChanged={vi.fn()} />);
+    await waitFor(() => expect(api.authorisedUsers).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Downgrade to Beginner" })).toBeNull();
   });
 });
