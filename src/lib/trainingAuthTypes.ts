@@ -78,6 +78,11 @@ export interface AuthorisationStatus {
   /** Beginner: may book only with a supervisor chosen from ``supervisors``. */
   supervised_only?: boolean;
   beginner_since?: string | null;
+  /** Beginner status ends here; induction must then be renewed or repeated. */
+  beginner_valid_until?: string | null;
+  /** Completed supervised sessions since becoming Beginner, and how many the Expert assessment needs. */
+  supervised_sessions_done?: number;
+  supervised_sessions_required?: number;
   can_request_assessment?: boolean;
   supervisors?: SupervisorOption[];
 }
@@ -119,6 +124,10 @@ export interface AuthorisationSetting {
   competency_levels?: boolean;
   beginner_supervised_allowed?: boolean;
   expert_requires_oic_approval?: boolean;
+  /** Supervised sessions a Beginner must complete before asking for the Expert assessment (0 = none). */
+  min_supervised_sessions?: number;
+  /** How long Beginner status lasts, in months. */
+  beginner_validity_months?: number;
   note: string;
   updated_at: string | null;
   updated_by: string | null;
@@ -142,6 +151,8 @@ export type AuthorisationSettingInput = Partial<
     | "competency_levels"
     | "beginner_supervised_allowed"
     | "expert_requires_oic_approval"
+    | "min_supervised_sessions"
+    | "beginner_validity_months"
     | "note"
   >
 > & { reason?: string };

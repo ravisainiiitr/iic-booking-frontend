@@ -409,24 +409,33 @@ const SOURCE_LABELS: Record<string, string> = {
   certificate: "Certificate",
 };
 
+const ACTION_TEXT = {
+  revoke: { title: "Revoke authorisation", confirm: "Revoke", done: "Authorisation revoked" },
+  renew: { title: "Renew authorisation", confirm: "Renew", done: "Authorisation renewed" },
+  downgrade: { title: "Downgrade to Beginner", confirm: "Downgrade", done: "Downgraded to Beginner" },
+} as const;
+
 export function AuthorisedUsersPanel({
   equipmentId,
   equipmentName,
   equipmentCode,
   validityMonths,
+  twoLevel = false,
   onChanged,
 }: {
   equipmentId: number;
   equipmentName: string;
   equipmentCode: string;
   validityMonths: number;
+  /** Beginner / Expert levels are on: Experts can be downgraded to Beginner. */
+  twoLevel?: boolean;
   onChanged: () => void;
 }) {
   const [rows, setRows] = useState<AuthorisedUser[] | null>(null);
   const [includeClosed, setIncludeClosed] = useState(false);
   const [filter, setFilter] = useState("");
   const [grantOpen, setGrantOpen] = useState(false);
-  const [acting, setActing] = useState<{ award: AuthorisedUser; action: "revoke" | "renew" } | null>(null);
+  const [acting, setActing] = useState<{ award: AuthorisedUser; action: "revoke" | "renew" | "downgrade" } | null>(null);
   const [renewMonths, setRenewMonths] = useState("");
 
   const load = useCallback(async () => {
@@ -517,6 +526,11 @@ export function AuthorisedUsersPanel({
                           Renew
                         </Button>
                       ) : null}
+                      {twoLevel && (a.level_rank ?? 0) >= 10 && ["ACTIVE", "DORMANT", "SUSPENDED"].includes(a.status) ? (
+                        <Button type="button" size="sm" variant="outline" onClick={() => setActing({ award: a, action: "downgrade" })}>
+                          Downgrade to Beginner
+                        </Button>
+                      ) : null}
                       {a.status !== "REVOKED" ? (
                         <Button type="button" size="sm" variant="ghost" className="text-destructive" onClick={() => setActing({ award: a, action: "revoke" })}>
                           Revoke
@@ -534,16 +548,18 @@ export function AuthorisedUsersPanel({
       <PromptDialog
         open={acting !== null}
         onOpenChange={(v) => !v && setActing(null)}
-        title={acting?.action === "revoke" ? "Revoke authorisation" : "Renew authorisation"}
+        title={acting ? ACTION_TEXT[acting.action].title : ""}
         description={
           acting
             ? acting.action === "revoke"
               ? `${acting.award.user.name} can no longer book ${equipmentName} on their own. They are told, with your reason.`
+              : acting.action === "downgrade"
+              ? `${acting.award.user.name} becomes a Beginner on ${equipmentName}: they can book only with a supervisor, their trainer role ends, and supervised sessions are counted again before a new Expert assessment. Bookings already made are not changed. Only the OIC can do this; they are told, with your reason.`
               : `Extends ${acting.award.user.name}'s authorisation from its current expiry (or today).`
             : undefined
         }
-        confirmLabel={acting?.action === "revoke" ? "Revoke" : "Renew"}
-        destructive={acting?.action === "revoke"}
+        confirmLabel={acting ? ACTION_TEXT[acting.action].confirm : ""}
+        destructive={acting?.action !== "renew"}
         onConfirm={async (reason) => {
           if (!acting) return false;
           const res = await runTrainingAction(
@@ -551,7 +567,7 @@ export function AuthorisedUsersPanel({
               reason,
               months: acting.action === "renew" ? monthsOrUndefined(renewMonths) : undefined,
             }),
-            acting.action === "revoke" ? "Authorisation revoked" : "Authorisation renewed",
+            ACTION_TEXT[acting.action].done,
           );
           if (res.error) return false;
           done();
@@ -591,6 +607,8 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
     competency_levels: Boolean(setting.competency_levels),
     beginner_supervised_allowed: setting.beginner_supervised_allowed !== false,
     expert_requires_oic_approval: setting.expert_requires_oic_approval !== false,
+    min_supervised_sessions: String(setting.min_supervised_sessions ?? 2),
+    beginner_validity_months: String(setting.beginner_validity_months ?? 6),
     note: setting.note,
   });
   const [reason, setReason] = useState("");
@@ -613,6 +631,12 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
       competency_levels: form.competency_levels,
       beginner_supervised_allowed: form.beginner_supervised_allowed,
       expert_requires_oic_approval: form.expert_requires_oic_approval,
+      ...(form.competency_levels
+        ? {
+            min_supervised_sessions: Number(form.min_supervised_sessions || 0),
+            beginner_validity_months: Number(form.beginner_validity_months),
+          }
+        : {}),
       note: form.note,
       reason,
     };
@@ -722,6 +746,36 @@ export function SettingsPanel({ setting, onSaved }: { setting: AuthorisationSett
                 checked={form.expert_requires_oic_approval}
                 disabled={!canEdit}
                 onCheckedChange={(v) => setForm((f) => ({ ...f, expert_requires_oic_approval: v }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="auth-min-sessions" className="text-sm font-normal">
+                Supervised sessions a Beginner must complete before asking for the Expert assessment (0 = none)
+              </Label>
+              <Input
+                id="auth-min-sessions"
+                type="number"
+                min={0}
+                max={20}
+                className="w-20"
+                disabled={!canEdit}
+                value={form.min_supervised_sessions}
+                onChange={(e) => setForm((f) => ({ ...f, min_supervised_sessions: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="auth-beginner-months" className="text-sm font-normal">
+                Beginner status lasts (months); then the induction must be renewed
+              </Label>
+              <Input
+                id="auth-beginner-months"
+                type="number"
+                min={1}
+                max={MONTHS_MAX}
+                className="w-20"
+                disabled={!canEdit}
+                value={form.beginner_validity_months}
+                onChange={(e) => setForm((f) => ({ ...f, beginner_validity_months: e.target.value }))}
               />
             </div>
           </>

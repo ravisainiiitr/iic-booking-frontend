@@ -7,6 +7,21 @@ import type { AuthorisationStatus } from "@/lib/trainingAuthTypes";
 import { cn } from "@/lib/utils";
 import { SupervisorPicker } from "./CompetencyPanels";
 import { formatDate, formatWindow } from "./trainingHelpers";
+
+/** Beginner: supervised sessions towards the Expert assessment, and when Beginner status ends. */
+export function CompetencyProgress({ status, className }: { status: AuthorisationStatus; className?: string }) {
+  const need = status.supervised_sessions_required ?? 0;
+  const done = status.supervised_sessions_done ?? 0;
+  const parts: string[] = [];
+  if (need > 0) parts.push(`Supervised sessions: ${Math.min(done, need)} of ${need} completed${done >= need ? "" : " before the Expert assessment"}`);
+  if (status.beginner_valid_until) parts.push(`Beginner until ${formatDate(status.beginner_valid_until)}`);
+  if (!parts.length) return null;
+  return (
+    <p className={cn("text-xs text-muted-foreground", className)} data-testid="competency-progress">
+      {parts.join(" · ")}
+    </p>
+  );
+}
 import { PromptDialog, StatusChip, runTrainingAction } from "./trainingUi";
 
 /** Small "Training required" pill for equipment cards and search results. */
@@ -188,6 +203,7 @@ export function AuthorisationGateCard({
             : "waiting for the OIC or Lab Operator."}
         </p>
       ) : null}
+      {supervised ? <CompetencyProgress status={status} className="mt-1.5" /> : null}
       {supervised && !staffView && onSupervisorChange ? (
         <div className="mt-2.5">
           <SupervisorPicker supervisors={status.supervisors ?? []} value={supervisorId} onChange={onSupervisorChange} />

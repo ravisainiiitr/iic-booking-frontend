@@ -4,7 +4,7 @@ import { Award, ClipboardList, GraduationCap, ShieldCheck, Users } from "lucide-
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RequestAssessmentDialog, RequestTrainingDialog } from "@/components/training/AuthorisationGateCard";
+import { CompetencyProgress, RequestAssessmentDialog, RequestTrainingDialog } from "@/components/training/AuthorisationGateCard";
 import { SupervisionPanel } from "@/components/training/CompetencyPanels";
 import { CertificateDialog } from "@/components/training/CertificateDialog";
 import { AwardsTable } from "@/components/training/CertificationsTable";
@@ -55,6 +55,7 @@ function EquipmentRow({
             ? `${row.level_name} · valid until ${formatDate(row.valid_until)}`
             : row.message || `Needs ${row.level_name}`}
         </p>
+        {row.two_level && row.supervised_only ? <CompetencyProgress status={row} className="mt-0.5" /> : null}
         {req ? (
           <p className="mt-0.5 text-xs text-muted-foreground">
             {req.kind === "ASSESSMENT" ? "Expert assessment" : "Request"} {req.reference}: {req.status_label}

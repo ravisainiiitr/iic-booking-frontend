@@ -151,6 +151,7 @@ export default function TrainingAuthorisations() {
                 equipmentName={current.equipment.name}
                 equipmentCode={current.equipment.code}
                 validityMonths={current.validity_months}
+                twoLevel={Boolean(current.competency_levels)}
                 onChanged={refresh}
               />
             </TabsContent>

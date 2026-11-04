@@ -241,6 +241,14 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Training authorisations",
     description: "Training requests, authorised users, the booking gate and grandfathering per equipment.",
   },
+  "/impact-report": {
+    title: "Funder impact report",
+    description: "Use, users, publications and people trained per funding agency and scheme.",
+  },
+  "/upkeep": {
+    title: "Equipment upkeep",
+    description: "Maintenance and calibration schedule, uptime against target and early warnings.",
+  },
   "/training/duty": { title: "Operator Duty", description: "Allocate certified operators fairly, track confirmations and hours operated." },
   "/my-duty": { title: "My Operator Duty", description: "Confirm duty, check in and out, and see your hours." },
   "/admin-settings/training": { title: "Training Policy" },
@@ -2845,6 +2853,66 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <Button className="w-full bg-teal-700 hover:bg-teal-800 text-white">Open authorisations</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "funder_impact_report",
+      label: "Funder impact report",
+      path: "/impact-report",
+      visible: Boolean(isAdmin || isDeptAdmin || userTypeStr === "manager"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/impact-report")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg">
+                    <BarChart3 className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Funder impact report</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Use, users, publications and people trained per funding agency and scheme
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open report</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "equipment_upkeep",
+      label: "Equipment upkeep",
+      path: "/upkeep",
+      visible: Boolean(isOperatorOrManager || isDeptAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-primary/25 dark:hover:border-primary/40"
+              onClick={() => openWorkspace("/upkeep")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg">
+                    <Wrench className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Equipment upkeep</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Maintenance and calibration schedule, uptime against target and early warnings
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-brand hover:bg-brand/90 text-white">Open upkeep</Button>
               </CardContent>
             </Card>
       ),

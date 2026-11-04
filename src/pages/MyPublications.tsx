@@ -21,6 +21,8 @@ import { ArrowLeft, BookOpen, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { StandaloneOnly } from "@/components/PageShell";
+import { AcknowledgementCheck, PublicationDiscovery } from "@/components/impact/PublicationDiscovery";
+import type { PublicationSuggestion } from "@/lib/impactApi";
 
 type ClaimRow = {
   id: number;
@@ -153,6 +155,19 @@ export default function MyPublications() {
     setSelectedEq((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
+
+  const useSuggestion = (s: PublicationSuggestion) => {
+    setForm((f) => ({
+      ...f,
+      doi: s.doi || f.doi,
+      title: s.title || f.title,
+      authors: s.authors || f.authors,
+      journal: s.journal || f.journal,
+      year: s.year != null ? String(s.year) : f.year,
+    }));
+    toast.success("Filled from the suggested paper. Select the instruments used and submit.");
+    window.scrollTo?.({ top: 0, behavior: "smooth" });
   };
 
   const lookupDoi = async () => {
@@ -413,12 +428,16 @@ export default function MyPublications() {
               ) : null}
             </div>
 
+            <AcknowledgementCheck equipmentIds={selectedEq} />
+
             <Button onClick={submit} disabled={submitting} className="w-full sm:w-auto">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Submit for review
             </Button>
           </CardContent>
         </Card>
+
+        <PublicationDiscovery onUse={useSuggestion} />
 
         <Card>
           <CardHeader>
