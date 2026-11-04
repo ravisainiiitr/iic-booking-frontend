@@ -36,6 +36,7 @@ export const SEARCH_PAGES: SearchPage[] = [
   { path: "/equipment-waitlist", title: "Equipment waitlist", keywords: "waitlist queue", audience: "staff" },
   { path: "/change-slot-status", title: "Change slot status", keywords: "block slots maintenance", audience: "staff" },
   { path: "/disruptions", title: "Disruptions", keywords: "breakdown maintenance outage", audience: "staff" },
+  { path: "/my-authorisations", title: "Online learning", keywords: "online learning module quiz sop safety video induction e-learning", audience: "signed_in" },
   { path: "/training/authorisations", title: "Training authorisations", keywords: "authorised users training requests grandfather gate", audience: "staff" },
   { path: "/reports", title: "Reports", keywords: "statistics revenue usage export", audience: "staff" },
   { path: "/admin/insights/users", title: "Users overview", keywords: "people accounts users", audience: "admin" },

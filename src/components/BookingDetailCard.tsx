@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import BookingEventHistory from "@/components/BookingEventHistory";
+import { BookingLogbook } from "@/components/learning/BookingLogbook";
 import BookingLabMessages from "@/components/BookingLabMessages";
 import BookingUserInputs from "@/components/BookingUserInputs";
 import { OperatorJobSheet } from "@/components/booking/OperatorJobSheet";
@@ -4010,6 +4011,7 @@ export function BookingDetailCard({
                   {bookingPk != null ? (
                     <BookingEventHistory bookingId={bookingPk} onEventAdded={onUpdated} />
                   ) : null}
+                  {bookingPk != null && !isJobSheetView ? <BookingLogbook bookingId={Number(bookingPk)} /> : null}
                 </div>
               )}
             </div>

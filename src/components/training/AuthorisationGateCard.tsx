@@ -208,6 +208,9 @@ export function AuthorisationGateCard({
             </Button>
           ) : null}
           <Button type="button" size="sm" variant="outline" asChild>
+            <Link to={`/learning/${equipmentId}`}>Online learning</Link>
+          </Button>
+          <Button type="button" size="sm" variant="outline" asChild>
             <Link to="/my-authorisations">My authorisations</Link>
           </Button>
         </div>
