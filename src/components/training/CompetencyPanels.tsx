@@ -193,7 +193,7 @@ export function TrainersPanel({ equipmentId, onChanged }: { equipmentId: number;
               placeholder="Name or email of an Expert user"
               aria-label="Search people"
             />
-            <Button type="button" variant="outline" onClick={() => void search()} disabled={searching}>
+            <Button type="button" variant="outline" onClick={() => void search()} disabled={searching} aria-label="Search">
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             </Button>
           </div>
