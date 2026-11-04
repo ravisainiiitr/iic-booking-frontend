@@ -65,6 +65,11 @@ function EquipmentRow({
           </p>
         ) : null}
       </div>
+      {!row.allowed ? (
+        <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
+          <Link to={`/learning/${row.equipment.equipment_id}`}>Online learning</Link>
+        </Button>
+      ) : null}
       {row.can_request_assessment ? (
         <Button type="button" size="sm" onClick={() => onAssess(row)} className="shrink-0 gap-1.5">
           <GraduationCap className="h-4 w-4" aria-hidden />

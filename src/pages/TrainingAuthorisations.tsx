@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -119,6 +119,9 @@ export default function TrainingAuthorisations() {
                 </Select>
               </div>
               <GateChip row={current} />
+              <Link to={`/learning/${current.equipment.equipment_id}`} className="text-sm font-medium text-primary hover:underline">
+                Online learning
+              </Link>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
               {liveExplanation(current)} Needs {current.min_level_name}; certificates last {current.validity_months} months
