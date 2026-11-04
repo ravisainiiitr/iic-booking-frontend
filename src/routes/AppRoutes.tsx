@@ -175,6 +175,7 @@ const TrainingNominations = lazyPage(() => import("@/pages/TrainingNominations")
 const MyTrainings = lazyPage(() => import("@/pages/MyTrainings"));
 const MyAuthorisations = lazyPage(() => import("@/pages/MyAuthorisations"));
 const TrainingAuthorisations = lazyPage(() => import("@/pages/TrainingAuthorisations"));
+const FunderImpactReport = lazyPage(() => import("@/pages/FunderImpactReport"));
 const EquipmentUpkeep = lazyPage(() => import("@/pages/EquipmentUpkeep"));
 const TrainingWorkspace = lazyPage(() => import("@/pages/TrainingWorkspace"));
 const TrainingAttendance = lazyPage(() => import("@/pages/TrainingAttendance"));
@@ -285,6 +286,7 @@ export default function AppRoutes() {
           <Route path="/my-trainings" element={<MyTrainings />} />
           <Route path="/my-authorisations" element={<MyAuthorisations />} />
           <Route path="/training/authorisations" element={<TrainingAuthorisations />} />
+          <Route path="/impact-report" element={<FunderImpactReport />} />
           <Route path="/upkeep" element={<EquipmentUpkeep />} />
           <Route path="/my-duty" element={<MyDuty />} />
           <Route path="/duty/respond" element={<DutyRespond />} />

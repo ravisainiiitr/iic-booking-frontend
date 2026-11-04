@@ -30,6 +30,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     icon: BarChart3,
     items: [
       "reports_statistics",
+      "funder_impact_report",
       "equipment_overview",
       "users_overview",
       "cancellations_dashboard",
