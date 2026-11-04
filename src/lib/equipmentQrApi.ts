@@ -29,9 +29,19 @@ export interface PublicEquipment {
     embed_url: string;
   };
   enquiry_address: string;
+  contacts: PublicContact[];
   public_url: string;
   booking_path: string;
   charges_path: string;
+}
+
+export interface PublicContact {
+  role: "Officer In-charge" | "Lab Operator" | string;
+  name: string;
+  email: string;
+  phones: string[];
+  office: string;
+  photo_url: string;
 }
 
 export interface QrRow {

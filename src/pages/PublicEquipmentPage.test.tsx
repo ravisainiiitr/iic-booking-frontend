@@ -44,6 +44,10 @@ export function equipment(over: Partial<PublicEquipment> = {}): PublicEquipment 
       embed_url: "https://www.google.com/maps?q=29.86%2C77.89&z=17&output=embed",
     },
     enquiry_address: "IIC Office, Room 101",
+    contacts: [
+      { role: "Officer In-charge", name: "Prof. Asha Rao", email: "oic@example.ac.in", phones: ["+91 11111 22222"], office: "Room 5, IIC", photo_url: "" },
+      { role: "Lab Operator", name: "Ravi Kumar", email: "lab@example.ac.in", phones: ["01332-285000", "+91 33333 44444"], office: "", photo_url: "https://equip.iitr.ac.in/api/users/9/profile-picture/" },
+    ],
     public_url: "https://equip.iitr.ac.in/equipment/38",
     booking_path: "/book-equipment?equipment_id=38",
     charges_path: "/analysis-charges",
@@ -83,13 +87,13 @@ describe("public equipment page (QR landing)", () => {
     expect(screen.queryByText(/continue|open equipment/i)).toBeNull();
     expect(screen.queryByTestId("full-equipment-profile")).toBeNull();
     expect(screen.getByTestId("public-status").textContent).toBe("Operational");
-    expect(screen.getByText("Institute Instrumentation Centre", { selector: "p.font-medium" })).toBeTruthy();
-    // Sections and quick actions
-    for (const name of ["Overview", "Technical Details", "Booking and Charges", "How to Reach", "Contact and Support"]) {
+    expect(screen.getAllByText("Institute Instrumentation Centre").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Book This Equipment/ })).toBeTruthy();
+    for (const name of ["Overview", "Technical Details", "Booking and Charges", "How to Reach", "Lab Contacts"]) {
       expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy();
     }
     const quick = screen.getByRole("navigation", { name: "Quick actions" });
-    for (const label of ["Book This Equipment", "How to Reach", "Technical Details", "View Charges", "Contact Laboratory"]) {
+    for (const label of ["How to Reach", "Technical Details", "View Charges", "Contact Laboratory"]) {
       expect(within(quick).getByText(label)).toBeTruthy();
     }
     expect(screen.getByText("Manufacturer")).toBeTruthy();
@@ -144,7 +148,58 @@ describe("public equipment page (QR landing)", () => {
     expect(screen.getByTestId("no-directions")).toBeTruthy();
     expect(screen.queryByText("Directions")).toBeNull();
     expect(document.querySelector("img[alt='Field Emission SEM']")).toBeNull();
-    expect(screen.getByText(/Laboratory contacts are shown to signed-in users/)).toBeTruthy();
+    expect(screen.queryByText("Before you book")).toBeNull();
+  });
+
+  it("lab contacts are shown to everyone with tap-to-call and email links", async () => {
+    api.publicEquipment.mockResolvedValue({ data: equipment(), status: 200 });
+    renderAt("/equipment/38");
+    const cards = await screen.findAllByTestId("lab-contact");
+    expect(cards).toHaveLength(2);
+    expect(within(cards[0]).getByText("Prof. Asha Rao")).toBeTruthy();
+    expect(within(cards[0]).getByText("Officer In-charge")).toBeTruthy();
+    expect(within(cards[0]).getByText("AR")).toBeTruthy(); // initials when there is no photo
+    expect(within(cards[0]).getByText("Room 5, IIC")).toBeTruthy();
+    expect(within(cards[1]).getByText("+91 33333 44444").closest("a")?.getAttribute("href")).toBe("tel:+913333344444");
+    expect(within(cards[1]).getByText("01332-285000").closest("a")?.getAttribute("href")).toBe("tel:01332285000");
+    expect(within(cards[1]).getByText("lab@example.ac.in").closest("a")?.getAttribute("href")).toBe("mailto:lab@example.ac.in");
+    expect(cards[1].querySelector("img")?.getAttribute("src")).toBe("https://equip.iitr.ac.in/api/users/9/profile-picture/");
+    expect(screen.queryByText(/Sign in for lab contacts/)).toBeNull();
+    const sticky = screen.getByRole("navigation", { name: "Equipment actions" });
+    expect(sticky.hasAttribute("data-floating-clearance")).toBe(true);  // the assistant button rises above it
+    expect(within(sticky).getByText("Call").closest("a")?.getAttribute("href")).toBe("tel:+911111122222");
+  });
+
+  it("long descriptions fold behind Show more and stored text becomes lists and rows", async () => {
+    const description = "Talos F200X is a scanning TEM.\n\nApplications:\n" + "Material Science, Chemical Engineering. ".repeat(20);
+    api.publicEquipment.mockResolvedValue({
+      data: equipment({
+        description,
+        specifications: [
+          { label: "General Information:", value: "Make- THERMOFISHER\nModel- TALOS F200X\nYear of Installation- 2024" },
+          { label: "Specifications:", value: "1) Acceleration Voltage 200 kV\n2) Source: X-FEG\n3) Point resolution 0.24 nm" },
+        ],
+      }),
+      status: 200,
+    });
+    renderAt("/equipment/38");
+    const more = await screen.findByRole("button", { name: "Show more" });
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    expect(screen.getByRole("button", { name: "Show less" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 3, name: "Applications" })).toBeTruthy();
+    expect(screen.getByText("General Information")).toBeTruthy();  // label without the trailing colon
+    expect(screen.getByText("Year of Installation").tagName).toBe("DT");
+    expect(screen.getByText("2024").tagName).toBe("DD");
+    expect(screen.getByText("Acceleration Voltage 200 kV").closest("li")).toBeTruthy();
+  });
+
+  it("the formatted important instruction is rendered as formatted text, not raw HTML", async () => {
+    api.publicEquipment.mockResolvedValue({ data: equipment({ important_instruction: "<p><strong>Dry</strong> samples only</p>" }), status: 200 });
+    renderAt("/equipment/38");
+    await screen.findByText("Before you book");
+    expect(screen.getByText("Dry").tagName).toBe("STRONG");
+    expect(screen.queryByText(/<strong>/)).toBeNull();
   });
 
   it("unavailable equipment pauses booking", async () => {
