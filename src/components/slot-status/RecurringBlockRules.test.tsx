@@ -133,6 +133,7 @@ describe("RecurringBlockRules", () => {
       "Under Maintenance",
       "Scheduled Maintenance",
       "Operator Absent",
+      "Available",
       "Not Available",
       "Reserved for External",
     ]);
@@ -171,6 +172,81 @@ describe("RecurringBlockRules", () => {
     expect(preview.mock.calls[0][1]).toMatchObject({ slot_status: "NOT_AVAILABLE", label: "" });
   });
 
+  it("repeats Available to open Saturdays, and explains the one-off operations", async () => {
+    const preview = vi.spyOn(slotBlockRulesApi, "preview").mockResolvedValue({ preview: summary });
+    const create = vi.spyOn(slotBlockRulesApi, "create").mockResolvedValue({
+      rule: { ...rule, slot_status: "AVAILABLE", slot_status_display: "Available", label: "" },
+      result: { ...summary, blocked_count: 5 },
+    });
+    render(<RecurringBlockRules equipmentId={12} />);
+
+    await screen.findByText("No repeat blocks on this equipment.");
+    fireEvent.click(screen.getByRole("button", { name: "Repeat block…" }));
+    expect(screen.getByTestId("repeat-one-off-note").textContent).toContain(
+      "Create booking, Booking Not Utilized, Reschedule and Bulk email act once on a booking",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sat" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Repeat block operation" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Available" }));
+    expect(screen.getByTestId("repeat-rule-effect").textContent).toContain("Not Available slots (e.g. Saturdays");
+    expect(screen.queryByLabelText(/label \(optional\)|Reason \(optional\)/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText(/will be opened \(Available\) now/);
+    expect(preview.mock.calls[0][1]).toMatchObject({ slot_status: "AVAILABLE", label: "", weekdays: [5] });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm: open slots" }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0][1]).toMatchObject({ slot_status: "AVAILABLE" });
+  });
+
+  it("offers the non-home reservation when the server lists it, and says what removing does", async () => {
+    vi.spyOn(slotBlockRulesApi, "list").mockResolvedValue({
+      equipment: { id: 12, code: "XRD", name: "XRD" },
+      slot_times: slotTimes,
+      status_options: [
+        { value: "BLOCKED", label: "Other Reasons" },
+        { value: "AVAILABLE", label: "Available" },
+        { value: "HOME_DEPARTMENT_ONLY", label: "Reserved for non-home department" },
+        { value: "CLEAR_HOME_DEPT", label: "Clear non-home reservation (home dept)" },
+      ],
+      rules: [
+        { ...rule, slot_status: "HOME_DEPARTMENT_ONLY", slot_status_display: "Reserved for non-home department" },
+      ],
+    });
+    vi.spyOn(slotBlockRulesApi, "get").mockResolvedValue({
+      rule: {
+        ...rule,
+        slot_status: "HOME_DEPARTMENT_ONLY",
+        removal_preview: { will_unblock_count: 3, kept_by_other_rule_count: 0, unchanged_count: 0 },
+      },
+    });
+    const preview = vi.spyOn(slotBlockRulesApi, "preview").mockResolvedValue({ preview: summary });
+    render(<RecurringBlockRules equipmentId={12} />);
+
+    expect((await screen.findByTestId("repeat-rule-status")).textContent).toBe("Reserved for non-home department");
+    fireEvent.click(screen.getByRole("button", { name: "Repeat block…" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Repeat block operation" }));
+    expect((await screen.findAllByRole("option")).map((o) => o.textContent)).toEqual([
+      "Other Reasons",
+      "Available",
+      "Reserved for non-home department",
+      "Clear non-home reservation (home dept)",
+    ]);
+    fireEvent.click(screen.getByRole("option", { name: "Reserved for non-home department" }));
+    expect(screen.getByTestId("repeat-rule-effect").textContent).toContain("reserved for users outside the home");
+    fireEvent.click(screen.getByRole("button", { name: "Tue" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    await screen.findByText(/will be reserved for non-home department now/);
+    expect(preview.mock.calls[0][1]).toMatchObject({ slot_status: "HOME_DEPARTMENT_ONLY", label: "" });
+    expect(screen.getByRole("button", { name: "Confirm: reserve for non-home department" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Remove repeat block: Every Mon & Thu/ }));
+    await screen.findByText("3 future slots");
+    expect(screen.getByText(/will no longer be reserved for non-home department\./)).toBeTruthy();
+  });
+
   it("asks before removing and shows how many future slots open up", async () => {
     vi.spyOn(slotBlockRulesApi, "list").mockResolvedValue({
       equipment: { id: 12, code: "XRD", name: "XRD" },
@@ -190,7 +266,8 @@ describe("RecurringBlockRules", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Remove repeat block: Every Mon & Thu/ }));
     expect(await screen.findByText("Remove this repeat block?")).toBeTruthy();
     await screen.findByText("4 future slots");
-    expect(screen.getByText(/stay blocked because another repeat block/)).toBeTruthy();
+    expect(screen.getByText(/stay as they are because another repeat/)).toBeTruthy();
+    expect(screen.getByText(/will be unblocked and open for booking again/)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Remove repeat block" }));
     await waitFor(() => expect(remove).toHaveBeenCalledWith(12, 7));

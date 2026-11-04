@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { slotTimeRangeLabel } from "@/lib/slotTimeRange";
 import {
+  ONE_OFF_OPERATIONS,
   RULE_DISRUPTION_STATUSES,
   RULE_STATUS_OPTIONS,
   WEEKDAY_LABELS,
@@ -29,7 +30,11 @@ import {
   formatRuleDate,
   plural,
   presetRange,
+  ruleActionVerb,
+  ruleConfirmLabel,
+  ruleEffectText,
   ruleStatusLabel,
+  ruleUndoText,
   slotBlockRulesApi,
   type RangePreset,
   type RulePlanSummary,
@@ -142,9 +147,9 @@ function SkippedOtherTable({ rows, total }: { rows: SkippedOtherSlot[]; total: n
 }
 
 /** Counts plus the skipped lists, used for the preview and for the result after Confirm. */
-function PlanSummary({ summary, done, statusLabel }: { summary: RulePlanSummary; done?: boolean; statusLabel?: string }) {
+function PlanSummary({ summary, done, verb }: { summary: RulePlanSummary; done?: boolean; verb?: string }) {
   const blocked = done ? summary.blocked_count ?? summary.to_block_count : summary.to_block_count;
-  const marked = statusLabel ? `marked ${statusLabel}` : "blocked";
+  const marked = verb || "blocked";
   return (
     <div className="space-y-2 text-sm">
       <ul className="space-y-1">
@@ -255,6 +260,7 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
   );
   const statusOptions = data?.status_options?.length ? data.status_options : RULE_STATUS_OPTIONS;
   const statusLabel = ruleStatusLabel(slotStatus, statusOptions);
+  const actionVerb = ruleActionVerb(slotStatus, statusOptions);
   const inputKey = JSON.stringify(input);
 
   useEffect(() => {
@@ -291,12 +297,11 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
       const res = await slotBlockRulesApi.create(equipmentId, input);
       const r = res.result;
       toast.success(
-        `Repeat block saved: ${plural(r.blocked_count ?? r.to_block_count, "slot")} ` +
-          `${slotStatus === "BLOCKED" ? "blocked" : `marked ${statusLabel}`}, ` +
+        `Repeat block saved: ${plural(r.blocked_count ?? r.to_block_count, "slot")} ${actionVerb}, ` +
           `${plural(r.skipped_booked_count, "booked slot")} skipped.`,
       );
       setLastResult(r);
-      setLastStatusLabel(slotStatus === "BLOCKED" ? null : statusLabel);
+      setLastStatusLabel(actionVerb);
       setPreview(null);
       setFormOpen(false);
       setWeekdays([]);
@@ -324,7 +329,7 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
     setRemoving(true);
     try {
       const res = await slotBlockRulesApi.remove(equipmentId, removeTarget.id);
-      toast.success(`Repeat block removed: ${plural(res.result.unblocked_count, "future slot")} unblocked.`);
+      toast.success(`Repeat block removed: ${plural(res.result.unblocked_count, "future slot")} changed back.`);
       setRemoveTarget(null);
       await load();
       await onChanged?.();
@@ -350,8 +355,9 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
         </h3>
         {rules.length > 0 && <Badge variant="secondary">{plural(rules.length, "active rule")}</Badge>}
         <p className="text-xs text-muted-foreground">
-          Give the same slots a status every week, e.g. Other Reasons or Scheduled Maintenance every Mon &amp; Thu at
-          10:00. Future slots get it as they are created. Booked slots are never touched.
+          Repeat an operation on the same slots every week, e.g. Other Reasons or Scheduled Maintenance every Mon &amp;
+          Thu at 10:00, or open Saturdays as Available. Future slots get it as they are created. Booked slots are never
+          touched.
         </p>
         <Button
           size="sm"
@@ -386,7 +392,7 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                 Dismiss
               </Button>
             </div>
-            <PlanSummary summary={lastResult} done statusLabel={lastStatusLabel ?? undefined} />
+            <PlanSummary summary={lastResult} done verb={lastStatusLabel ?? undefined} />
           </div>
         )}
 
@@ -554,13 +560,15 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
               )}
             </div>
             {slotStatus !== "BLOCKED" && (
-              <p className="text-xs text-muted-foreground">
-                {RULE_DISRUPTION_STATUSES.has(slotStatus)
-                  ? `Empty matching slots become ${statusLabel} and are recorded in the disruption log.`
-                  : `Empty matching slots become ${statusLabel}.`}{" "}
-                Booked slots are skipped and their bookings are not changed.
+              <p className="text-xs text-muted-foreground" data-testid="repeat-rule-effect">
+                {ruleEffectText(slotStatus, statusOptions)} Booked slots are skipped and their bookings are not
+                changed.
               </p>
             )}
+            <p className="text-xs text-muted-foreground" data-testid="repeat-one-off-note">
+              {ONE_OFF_OPERATIONS.join(", ").replace(/, ([^,]*)$/, " and $1")} act once on a booking, so they cannot
+              repeat: use Select Operation at the bottom of the page for those.
+            </p>
 
             {!preview ? (
               <div className="flex flex-wrap gap-2">
@@ -577,11 +585,11 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                 <h4 className="text-sm font-semibold">
                   Preview: {statusLabel} · {describeRule(input)}
                 </h4>
-                <PlanSummary summary={preview} statusLabel={slotStatus === "BLOCKED" ? undefined : statusLabel} />
+                <PlanSummary summary={preview} verb={actionVerb} />
                 <div className="flex flex-wrap gap-2 pt-1">
                   <Button size="sm" className={SMALL_BUTTON_CLASS} disabled={creating} onClick={confirmCreate}>
                     {creating && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden />}
-                    {slotStatus === "BLOCKED" ? "Confirm and block" : `Confirm: mark ${statusLabel}`}
+                    {ruleConfirmLabel(slotStatus, statusOptions)}
                   </Button>
                   <Button
                     size="sm"
@@ -665,15 +673,12 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                 <ul className="list-disc space-y-1 pl-5">
                   <li>
                     <strong>{plural(removal?.will_unblock_count ?? 0, "future slot")}</strong> will{" "}
-                    {(removeTarget?.slot_status || "BLOCKED") === "BLOCKED"
-                      ? "be unblocked"
-                      : `no longer be ${ruleStatusLabel(removeTarget?.slot_status, statusOptions)}`}{" "}
-                    and open for booking again.
+                    {ruleUndoText(removeTarget?.slot_status, statusOptions)}.
                   </li>
                   {(removal?.kept_by_other_rule_count ?? 0) > 0 && (
                     <li>
-                      {plural(removal?.kept_by_other_rule_count ?? 0, "slot")} stay blocked because another repeat block
-                      covers them.
+                      {plural(removal?.kept_by_other_rule_count ?? 0, "slot")} stay as they are because another repeat
+                      block covers them.
                     </li>
                   )}
                   {(removal?.unchanged_count ?? 0) > 0 && (
@@ -682,7 +687,7 @@ export default function RecurringBlockRules({ equipmentId, onChanged }: Recurrin
                       they are.
                     </li>
                   )}
-                  <li>Past slots and slots blocked by hand are not changed. No new slots will be blocked.</li>
+                  <li>Past slots and slots changed by hand are not changed. New slots will no longer be changed.</li>
                 </ul>
               </div>
             </AlertDialogDescription>

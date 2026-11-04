@@ -13,7 +13,10 @@ export const slotBlockRulesBase = (equipmentId: number | string) =>
 
 export const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
-/** Statuses a repeat block may give (empty slots only), in the order of the Select operation list. */
+/**
+ * Operations a repeat block may repeat, in the order of the Select operation list. The server's list
+ * (status_options) also has the two non-home reservation rules when Department-Based Slot Reservation is on.
+ */
 export interface RuleStatusOption {
   value: string;
   label: string;
@@ -24,6 +27,7 @@ export const RULE_STATUS_OPTIONS: RuleStatusOption[] = [
   { value: "UNDER_MAINTENANCE", label: "Under Maintenance" },
   { value: "SCHEDULED_MAINT", label: "Scheduled Maintenance" },
   { value: "OPERATOR_ABSENT", label: "Operator Absent" },
+  { value: "AVAILABLE", label: "Available" },
   { value: "NOT_AVAILABLE", label: "Not Available" },
   { value: "RESERVED_EXTERNAL", label: "Reserved for External" },
 ];
@@ -31,9 +35,74 @@ export const RULE_STATUS_OPTIONS: RuleStatusOption[] = [
 /** Statuses recorded as a disruption: the label is kept as its reason. */
 export const RULE_DISRUPTION_STATUSES = new Set(["UNDER_MAINTENANCE", "SCHEDULED_MAINT", "OPERATOR_ABSENT"]);
 
+export const RESERVE_NON_HOME = "HOME_DEPARTMENT_ONLY";
+export const CLEAR_NON_HOME = "CLEAR_HOME_DEPT";
+
+/** Select operation entries that act on a booking once, so they cannot repeat. */
+export const ONE_OFF_OPERATIONS = ["Create booking", "Booking Not Utilized", "Reschedule", "Bulk email"];
+
+const RULE_LABEL_FALLBACK: Record<string, string> = {
+  [RESERVE_NON_HOME]: "Reserved for non-home department",
+  [CLEAR_NON_HOME]: "Clear non-home reservation (home dept)",
+};
+
 export function ruleStatusLabel(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
   const v = value || "BLOCKED";
-  return options.find((o) => o.value === v)?.label ?? RULE_STATUS_OPTIONS.find((o) => o.value === v)?.label ?? v;
+  return (
+    options.find((o) => o.value === v)?.label ??
+    RULE_STATUS_OPTIONS.find((o) => o.value === v)?.label ??
+    RULE_LABEL_FALLBACK[v] ??
+    v
+  );
+}
+
+/** What the rule does to a slot, e.g. "blocked", "marked Scheduled Maintenance", "opened (Available)". */
+export function ruleActionVerb(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
+  const v = value || "BLOCKED";
+  if (v === "BLOCKED") return "blocked";
+  if (v === "AVAILABLE") return "opened (Available)";
+  if (v === RESERVE_NON_HOME) return "reserved for non-home department";
+  if (v === CLEAR_NON_HOME) return "cleared of the non-home reservation";
+  return `marked ${ruleStatusLabel(v, options)}`;
+}
+
+/** Confirm button text for a new rule. */
+export function ruleConfirmLabel(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
+  const v = value || "BLOCKED";
+  if (v === "BLOCKED") return "Confirm and block";
+  if (v === "AVAILABLE") return "Confirm: open slots";
+  if (v === RESERVE_NON_HOME) return "Confirm: reserve for non-home department";
+  if (v === CLEAR_NON_HOME) return "Confirm: clear non-home reservation";
+  return `Confirm: mark ${ruleStatusLabel(v, options)}`;
+}
+
+/** What removing the rule does to its future slots ("… future slots will <this>."). */
+export function ruleUndoText(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
+  const v = value || "BLOCKED";
+  if (v === "BLOCKED") return "be unblocked and open for booking again";
+  if (v === "AVAILABLE") return "be Not Available again";
+  if (v === RESERVE_NON_HOME) return "no longer be reserved for non-home department";
+  if (v === CLEAR_NON_HOME) return "be reserved for non-home department again";
+  return `no longer be ${ruleStatusLabel(v, options)} and open for booking again`;
+}
+
+/** One line under the Select operation dropdown: which slots the rule changes. */
+export function ruleEffectText(value: string | null | undefined, options: RuleStatusOption[] = RULE_STATUS_OPTIONS) {
+  const v = value || "BLOCKED";
+  if (v === "AVAILABLE") {
+    return (
+      "Matching Not Available slots (e.g. Saturdays or holidays) open for booking, and new ones open as they are " +
+      "created. Nothing opens while the equipment is under repair."
+    );
+  }
+  if (v === RESERVE_NON_HOME) {
+    return "Matching slots, in any status, are reserved for users outside the home department.";
+  }
+  if (v === CLEAR_NON_HOME) return "The non-home reservation is cleared from matching slots.";
+  const label = ruleStatusLabel(v, options);
+  return RULE_DISRUPTION_STATUSES.has(v)
+    ? `Empty matching slots become ${label} and are recorded in the disruption log.`
+    : `Empty matching slots become ${label}.`;
 }
 
 export interface SlotTimeOption {
