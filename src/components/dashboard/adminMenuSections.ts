@@ -63,6 +63,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "istem_equipment",
       "change_slot_status",
       "disruption_history",
+      "equipment_upkeep",
       "accessories",
       "3d_print_materials",
       "equipment_lifecycle_expenses",
