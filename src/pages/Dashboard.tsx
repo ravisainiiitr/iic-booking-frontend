@@ -51,6 +51,7 @@ import {
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
+import OrcidPromptBanner from "@/components/impact/OrcidPromptBanner";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -4785,6 +4786,7 @@ const Dashboard = () => {
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         <AndroidAppCard className="mb-4" />
+        <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
