@@ -4537,6 +4537,38 @@ export interface IstemInstituteStatus {
   problem: string;
 }
 
+export interface PublicationQuery {
+  q?: string;
+  equipment_id?: number | null;
+  year?: number | null;
+  sort?: "newest" | "oldest" | "title";
+  page?: number;
+  page_size?: number;
+}
+
+export interface UniquePublication {
+  id: number;
+  title: string;
+  citation: string;
+  url: string;
+  doi: string;
+  year: number | null;
+  equipment: { id: number; name: string; code: string }[];
+  equipment_id: number | null;
+  equipment_name: string;
+  equipment_code: string;
+  record_count: number;
+}
+
+export interface PublicationPage {
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+  results: UniquePublication[];
+  facets: { equipment: { id: number; name: string; code: string; count: number }[]; years: number[] };
+}
+
 export interface IstemSource {
   live: boolean;
   read_at: string | null;
@@ -6232,21 +6264,14 @@ class ApiClient {
   }
 
   /** Public list of equipment-linked publications (home hero link). */
-  async getCmsPublications() {
-    return this.request<{
-      count: number;
-      results: Array<{
-        id: number;
-        title: string;
-        citation: string;
-        url: string;
-        doi: string;
-        year: number | null;
-        equipment_id: number | null;
-        equipment_name: string;
-        equipment_code: string;
-      }>;
-    }>('/cms/publications/');
+  /** Unique publications (each paper once, with every instrument it used); search, filters and pages on the server. */
+  async getCmsPublications(params: PublicationQuery = {}) {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+    });
+    const qs = q.toString();
+    return this.request<PublicationPage>(`/cms/publications/${qs ? `?${qs}` : ""}`);
   }
 
   /** Hero carousel background images (multiple, with autoscroll on frontend). */
