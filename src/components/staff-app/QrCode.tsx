@@ -5,10 +5,14 @@ type Props = {
   size?: number;
   className?: string;
   label: string;
+  /** Light margin in modules; 4 is the QR standard's minimum for printed codes. */
+  quiet?: number;
+  /** Dark module colour; use pure black for print. */
+  fill?: string;
 };
 
 /** QR code drawn as SVG; the encoder is loaded only when a code is shown. */
-export default function QrCode({ value, size = 128, className, label }: Props) {
+export default function QrCode({ value, size = 128, className, label, quiet = 2, fill = "#0f172a" }: Props) {
   const [matrix, setMatrix] = useState<{ count: number; path: string } | null>(null);
 
   useEffect(() => {
@@ -33,11 +37,11 @@ export default function QrCode({ value, size = 128, className, label }: Props) {
   }, [value]);
 
   if (!matrix) return <div className={className} style={{ width: size, height: size }} aria-hidden />;
-  const quiet = 2;
   const box = matrix.count + quiet * 2;
   return (
     <svg
       role="img"
+      data-qr-value={value}
       aria-label={label}
       width={size}
       height={size}
@@ -46,7 +50,7 @@ export default function QrCode({ value, size = 128, className, label }: Props) {
       className={className}
     >
       <rect x={-quiet} y={-quiet} width={box} height={box} fill="#fff" />
-      <path d={matrix.path} fill="#0f172a" />
+      <path d={matrix.path} fill={fill} />
     </svg>
   );
 }
