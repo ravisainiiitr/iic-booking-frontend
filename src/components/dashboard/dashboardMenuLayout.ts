@@ -50,6 +50,7 @@ export const OIC_DASHBOARD_MENU_ORDER = [
   "equipment_settings",
   "booking_attempt_log",
   "reports_statistics",
+  "funder_impact_report",
   NOTIFICATION_SETTINGS_MENU_ID,
   "accessories",
   "publication_claims",
