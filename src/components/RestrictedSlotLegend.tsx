@@ -53,7 +53,7 @@ export default function RestrictedSlotLegend({
             {outsideWindow && usersBlocked && " Others"}
             {usersBlocked && (
               <>
-                {" "}cannot be booked by users because of the multi-mode schedule. Hover a slot to see why.
+                {" "}cannot be booked by users, because of the multi-mode schedule or because a booking gave the slot back within an hour of its start. Hover a slot to see why.
               </>
             )}
           </span>
