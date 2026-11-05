@@ -24,6 +24,7 @@ import {
   type AnalysisChargeExportRow,
 } from "@/lib/analysisChargesExport";
 import { buildAnalysisChargeRowsForEquipment } from "@/lib/analysisChargeRows";
+import { GST_RATE_NOTE } from "@/lib/gstRateNote";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -32,8 +33,7 @@ const serialColClass = "w-10 min-w-[2.5rem] px-1.5 sm:w-14 sm:min-w-[3.5rem] sm:
 const equipmentColClass =
   "left-10 min-w-[8.5rem] max-w-[9.5rem] px-3 sm:left-14 sm:min-w-[12rem] sm:max-w-none sm:px-4";
 
-const GST_TABLE_NOTE =
-  "Note: All rates are exclusive of GST. GST @ 18% will be applicable to external users. No GST is applicable to IIT Roorkee internal users.";
+const GST_TABLE_NOTE = GST_RATE_NOTE;
 
 type DeptOption = { id: number; name: string; code: string; equipment_count: number };
 type UserTypeOption = { code: string; label: string };

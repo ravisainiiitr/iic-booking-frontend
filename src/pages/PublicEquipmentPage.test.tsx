@@ -51,6 +51,18 @@ export function equipment(over: Partial<PublicEquipment> = {}): PublicEquipment 
     public_url: "https://equip.iitr.ac.in/equipment/38",
     booking_path: "/book-equipment?equipment_id=38",
     charges_path: "/analysis-charges",
+    charges: {
+      profile_type: "HOUR",
+      slot_duration_minutes: 60,
+      internal_user_types: ["student", "faculty"],
+      charge_profiles: [
+        { user_type: "student", profile_type: "HOUR", is_active: true, primary_unit_charge: "100.00", display_text: "" },
+        { user_type: "faculty", profile_type: "HOUR", is_active: true, primary_unit_charge: "200.00", display_text: "" },
+        { user_type: "Industry", profile_type: "HOUR", is_active: true, primary_unit_charge: "900.00", display_text: "" },
+      ],
+      input_fields: [],
+      slot_options: [],
+    },
     ...over,
   };
 }
@@ -89,7 +101,7 @@ describe("public equipment page (QR landing)", () => {
     expect(screen.getByTestId("public-status").textContent).toBe("Operational");
     expect(screen.getAllByText("Institute Instrumentation Centre").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /Book This Equipment/ })).toBeTruthy();
-    for (const name of ["Overview", "Technical Details", "Booking and Charges", "How to Reach", "Lab Contacts"]) {
+    for (const name of ["Overview", "Technical Details", "Charges", "Booking", "How to Reach", "Lab Contacts"]) {
       expect(screen.getByRole("heading", { level: 2, name })).toBeTruthy();
     }
     const quick = screen.getByRole("navigation", { name: "Quick actions" });
@@ -99,6 +111,29 @@ describe("public equipment page (QR landing)", () => {
     expect(screen.getByText("Manufacturer")).toBeTruthy();
     expect(screen.getByText("0.8 nm")).toBeTruthy();
     expect(screen.getByText("EDS detector (optional)")).toBeTruthy();
+  });
+
+  it("shows internal and external rates on the page, and View Charges jumps to them", async () => {
+    api.publicEquipment.mockResolvedValue({ data: equipment(), status: 200 });
+    renderAt("/equipment/38");
+    await screen.findByRole("heading", { level: 1, name: "Field Emission SEM" });
+    const quick = screen.getByRole("navigation", { name: "Quick actions" });
+    expect(within(quick).getByText("View Charges").closest("a")?.getAttribute("href")).toBe("#charges");
+
+    const iitr = within(screen.getByRole("region", { name: "IIT Roorkee users" }));
+    expect(iitr.getAllByTestId("charge-rate").length).toBe(2);
+    expect(iitr.getAllByTestId("charge-rate").map((c) => c.textContent).join(" ")).toMatch(/100.*200|200.*100/);
+    const external = within(screen.getByRole("region", { name: "External users" }));
+    expect(external.getByTestId("charge-rate").textContent).toContain("900");
+    expect(screen.getByText(/All rates are exclusive of GST/)).toBeTruthy();
+    expect(document.querySelector('a[href="/analysis-charges"]')).toBeNull();
+  });
+
+  it("says so when no rates are published", async () => {
+    api.publicEquipment.mockResolvedValue({ data: equipment({ charges: null }) });
+    renderAt("/equipment/38");
+    expect(await screen.findByText(/have not been published yet/)).toBeTruthy();
+    expect(screen.queryByTestId("charge-rate")).toBeNull();
   });
 
   it("keeps the full equipment page for signed-in users", async () => {
