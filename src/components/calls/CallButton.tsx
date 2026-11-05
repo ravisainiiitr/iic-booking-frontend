@@ -19,7 +19,8 @@ type Props = {
 };
 
 /**
- * "Call Lab Operator" / "Call OIC" / "Call Accounts In Charge" for one booking, instrument or invoice. Shows nothing
+ * "Call Lab Operator" / "Call OIC" / "Call Accounts In Charge" for one booking, instrument or invoice, and "Call user"
+ * for the lab staff of a booking. Shows nothing
  * unless calling is open to the user and the role has someone configured. With several eligible people it offers a
  * short labelled choice; when nobody can be reached it points to the Officer In Charge or a support ticket.
  */
@@ -43,17 +44,26 @@ export default function CallButton({ context, id, role, label, reason = "", clas
   const reachable = entry.people.filter((p) => p.available);
   const start = (calleeId?: number) => void engine.call(context, id, role, calleeId, reason);
 
+  if (options?.silent_hours && role !== "user") {
+    return (
+      <p className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", className)}>
+        <Phone className="h-3.5 w-3.5" aria-hidden /> {options.silent_hours.message}
+      </p>
+    );
+  }
+
   if (reachable.length === 0) {
     return (
       <p className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", className)}>
-        <Phone className="h-3.5 w-3.5" aria-hidden /> {entry.label} cannot take calls right now.
+        <Phone className="h-3.5 w-3.5" aria-hidden />
+        {role === "user" ? `${entry.people[0]!.name} is not on the portal or the app, so cannot take a call right now.` : `${entry.label} cannot take calls right now.`}
         {entry.fallback === "oic" && role !== "oic" ? (
           <button type="button" className="font-medium text-primary hover:underline" disabled={busy} onClick={() => void engine.call(context, id, "oic", undefined, reason)}>
             Call the Officer In Charge instead
           </button>
-        ) : (
+        ) : entry.fallback === "ticket" ? (
           <Link to="/tickets" className="font-medium text-primary hover:underline">Raise a support ticket</Link>
-        )}
+        ) : null}
       </p>
     );
   }
