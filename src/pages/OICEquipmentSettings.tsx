@@ -89,7 +89,7 @@ const INT_FIELDS: Array<{ key: IntField; label: string; hint: string; max: numbe
   {
     key: "booking_not_utilize_window_hours",
     label: "Booking Not Utilize Window (hours)",
-    hint: "Hours after the last slot ends before staff may mark Booking Not Utilized (no refund). 0 hides this action.",
+    hint: "Hours after the last slot ends before staff may mark Booking Not Utilized (no refund). Leave blank to never mark bookings as not utilized.",
     max: 8760,
     section: "booking",
   },
@@ -177,8 +177,10 @@ function toDraft(settings: OicEquipmentSettings): Draft {
     weekly_view_time_to: settings.weekly_view_time_to ?? "",
     operating_day_start: settings.operating_day_start ?? "",
     external_slot_quota_percent: String(settings.external_slot_quota_percent ?? 0),
-    booking_not_utilize_window_hours: String(settings.booking_not_utilize_window_hours ?? 0),
-    results_deadline_value: String(settings.results_deadline_value ?? 0),
+    booking_not_utilize_window_hours: settings.booking_not_utilize_window_hours
+      ? String(settings.booking_not_utilize_window_hours)
+      : "",
+    results_deadline_value: settings.results_deadline_value ? String(settings.results_deadline_value) : "",
     results_deadline_unit: settings.results_deadline_unit === "HOURS" ? "HOURS" : "WORKING_DAYS",
     show_results_deadline_to_users: Boolean(settings.show_results_deadline_to_users),
     results_overdue_after_hours: String(settings.results_overdue_after_hours ?? RESULTS_OVERDUE_HOURS.default),
@@ -226,7 +228,9 @@ function toPayload(
   for (const field of INT_FIELDS) {
     const raw = draft[field.key].trim();
     const value = Number(raw);
-    if (raw === "" || !Number.isInteger(value)) {
+    if (raw === "" && field.key === "booking_not_utilize_window_hours") {
+      payload[field.key] = 0;
+    } else if (raw === "" || !Number.isInteger(value)) {
       errors[field.key] = "Enter a whole number.";
     } else if (value < 0 || value > field.max) {
       errors[field.key] = `Enter a value between 0 and ${field.max}.`;
@@ -237,7 +241,7 @@ function toPayload(
   const deadlineRaw = draft.results_deadline_value.trim();
   const deadline = Number(deadlineRaw);
   const deadlineMax = RESULTS_DEADLINE_MAX[draft.results_deadline_unit];
-  if (deadlineRaw === "" || !Number.isInteger(deadline)) {
+  if (!Number.isInteger(deadline)) {
     errors.results_deadline_value = "Enter a whole number.";
   } else if (deadline < 0 || deadline > deadlineMax) {
     errors.results_deadline_value = `Enter a value between 0 and ${deadlineMax}.`;
@@ -786,8 +790,8 @@ export default function OICEquipmentSettings() {
                             after, below). If the sample is still with the lab and no results are
                             shared, the booking enters the Operator Absent flow (user chooses refund or reschedule); if
                             the run was abandoned after work started, the user gets a full refund. Use Extend results
-                            deadline on a booking for a genuine delay (it also moves the results overdue time). 0 = no
-                            deadline (no automatic safeguard).
+                            deadline on a booking for a genuine delay (it also moves the results overdue time). Leave blank
+                            for no deadline: bookings are never marked Operator Absent or Operator Unavailable automatically.
                           </p>
                           {fieldError("results_deadline_value")}
                           {fieldError("results_deadline_unit")}

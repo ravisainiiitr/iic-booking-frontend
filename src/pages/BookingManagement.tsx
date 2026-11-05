@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { UrgentBadge } from "@/components/booking/UrgentBadge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -104,6 +105,7 @@ interface Booking extends BookingRef {
   }>;
   status: string;
   status_display: string;
+  is_urgent?: boolean;
   /** Stored status, or RESULTS_PENDING / RESULT_OVERDUE (derived by the backend). */
   list_status?: string;
   auto_reschedule?: AutoReschedulePayload | null;
@@ -210,6 +212,7 @@ const BookingManagement = () => {
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
+  const [urgentOnly, setUrgentOnly] = useState(false);
   const [ordering, setOrdering] = useState<string>("");
   const [equipmentList, setEquipmentList] = useState<
     Array<{ equipment_id: number; name: string; code: string; department_id: number | null }>
@@ -334,6 +337,7 @@ const BookingManagement = () => {
   const listFilters = (): BookingListFilters => {
     const params: BookingListFilters = { ordering: ordering || DEFAULT_ORDERING };
     if (statusFilter !== "all") params.list_status = statusFilter;
+    if (urgentOnly) params.urgent = true;
     if (searchTerm) params.search = searchTerm;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
@@ -404,6 +408,7 @@ const BookingManagement = () => {
   const canLoadBookings = !authLoading && isAuthenticated && user?.id != null && isOperatorOrManager;
   const filterKey = JSON.stringify([
     statusFilter,
+    urgentOnly,
     searchTerm,
     startDate,
     endDate,
@@ -451,6 +456,7 @@ const BookingManagement = () => {
     setSupervisorNameTerm("");
     setUserTypeFilter("all");
     setIstemFbrFilter("all");
+    setUrgentOnly(false);
     setOrdering("");
     closeDetail();
     setClearNonce((n) => n + 1);
@@ -635,6 +641,8 @@ const BookingManagement = () => {
               departmentOptions={
                 isMainAdmin ? departmentList.map((d) => ({ value: String(d.id), label: d.name })) : undefined
               }
+              urgentOnly={urgentOnly}
+              onUrgentOnlyChange={withCloseDetail(setUrgentOnly)}
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
@@ -758,6 +766,7 @@ const BookingManagement = () => {
                           >
                             <span className="md:truncate">{booking.status_display}</span>
                           </Badge>
+                          {booking.is_urgent && <UrgentBadge className="ml-1" />}
                         </TableCell>
                         <TableCell className={CELL_CLASS} title={booking.equipment_name || undefined}>
                           <EquipmentLink id={booking.equipment}>

@@ -163,3 +163,17 @@ describe("Equipment Configuration: results overdue time", () => {
     expect(payload.show_results_countdown_to_users).toBe(true);
   });
 });
+
+describe("Equipment Configuration: blank windows", () => {
+  it("saves a blank Booking Not Utilize Window and Results deadline as off", async () => {
+    renderAs("manager");
+    const window = await screen.findByLabelText("Booking Not Utilize Window (hours)");
+    fireEvent.change(window, { target: { value: "" } });
+    fireEvent.change(document.getElementById("oic-setting-results-deadline") as HTMLElement, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save changes/ }));
+    await waitFor(() => expect(api.update).toHaveBeenCalledTimes(1));
+    const payload = api.update.mock.calls[0][1] as Record<string, unknown>;
+    expect(payload.booking_not_utilize_window_hours).toBe(0);
+    expect(payload.results_deadline_value).toBe(0);
+  });
+});

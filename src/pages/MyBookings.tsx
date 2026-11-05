@@ -5,6 +5,7 @@ import { isCalendarSyncUserType, isExternalBookingUserType, isInternalRateUserTy
 import { formatSampleSummary, type SampleSummary } from "@/lib/sampleCount";
 import { slotSpanLabel } from "@/lib/slotTimeRange";
 import { LabQuestionBadge } from "@/components/booking/LabQuestionBadge";
+import { UrgentBadge } from "@/components/booking/UrgentBadge";
 import { CalendarSyncDialog } from "@/components/CalendarSyncDialog";
 import { WorkspaceHeaderActions } from "@/components/WorkspaceHeaderActions";
 import { formatPrintWeightGrams } from "@/components/Print3DBookingPanel";
@@ -181,6 +182,7 @@ interface Booking extends BookingRef {
   require_istem_fbr?: boolean;
   istem_automatic?: { automatic: true; step: string } | null;
   repeat_sample_request_status?: string | null;
+  is_urgent?: boolean;
   repeat_sample_enabled?: boolean;
   source_booking_id?: number | null;
   created_at: string;
@@ -429,6 +431,7 @@ const MyBookings = () => {
   const [ratingDraft, setRatingDraft] = useState<Record<string, { stars: number; feedback: string }>>({});
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [urgentOnly, setUrgentOnly] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -742,7 +745,7 @@ const MyBookings = () => {
   // page 1; fetchBookings ignores responses that a newer request has overtaken.
   const [clearFiltersNonce, setClearFiltersNonce] = useState(0);
   const filterKey = JSON.stringify([
-    statusFilter, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce, pageSize,
+    statusFilter, urgentOnly, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce, pageSize,
   ]);
   const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
@@ -761,6 +764,7 @@ const MyBookings = () => {
 
   const clearBookingFilters = () => {
     setStatusFilter("all");
+    setUrgentOnly(false);
     setStartDate("");
     setEndDate("");
     setSearchQuery("");
@@ -786,6 +790,7 @@ const MyBookings = () => {
     const params: BookingListFilters = {};
     // "Waitlisted" is applied client-side after merging waitlist entries (Export sends it; see exportFilters).
     if (status !== "all" && status !== "WAITLISTED") params.list_status = status;
+    if (urgentOnly) params.urgent = true;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (searchTerm) params.search = searchTerm;
@@ -822,7 +827,7 @@ const MyBookings = () => {
       } else if (response.data && response.data.bookings) {
         let list = response.data.bookings as unknown as Booking[];
         let waitlistEntries: Booking[] = [];
-        if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
+        if (!isAccountsFinanceUser && !urgentOnly && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
           if (seq !== fetchSeqRef.current) return;
           if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
@@ -1715,6 +1720,8 @@ const MyBookings = () => {
                   equipment={equipmentFilter}
                   onEquipmentChange={setEquipmentFilter}
                   equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
+                  urgentOnly={urgentOnly}
+                  onUrgentOnlyChange={setUrgentOnly}
                   onClear={clearBookingFilters}
                   actions={
                     <>
@@ -1736,7 +1743,7 @@ const MyBookings = () => {
               </CardHeader>
               {!loading && bookings.length === 0 ? (
               <CardContent className="py-12 text-center">
-                {statusFilter !== "all" || startDate || endDate || searchTerm || (equipmentFilter && equipmentFilter !== "all") ? (
+                {statusFilter !== "all" || urgentOnly || startDate || endDate || searchTerm || (equipmentFilter && equipmentFilter !== "all") ? (
                   <>
                     <p className="text-muted-foreground mb-4">No bookings match your filters</p>
                     <Button variant="outline" onClick={clearBookingFilters}>
@@ -1818,9 +1825,12 @@ const MyBookings = () => {
                           ₹{Number(booking.total_charge).toFixed(2)}
                         </TableCell>
                         <TableCell>
-                          <Badge className={getStatusColor(bookingBadgeStatus(booking))}>
-                            {booking.status_display}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge className={getStatusColor(bookingBadgeStatus(booking))}>
+                              {booking.status_display}
+                            </Badge>
+                            {booking.is_urgent && <UrgentBadge />}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex flex-wrap justify-center gap-1">
@@ -1853,9 +1863,12 @@ const MyBookings = () => {
                         <li key={booking.booking_id} className="space-y-2 p-4">
                           <div className="flex items-start justify-between gap-2">
                             {renderBookingIdButton(booking, true)}
-                            <Badge className={`mt-2 shrink-0 ${getStatusColor(bookingBadgeStatus(booking))}`}>
-                              {booking.status_display}
-                            </Badge>
+                            <div className="mt-2 flex shrink-0 flex-wrap justify-end gap-1">
+                              <Badge className={getStatusColor(bookingBadgeStatus(booking))}>
+                                {booking.status_display}
+                              </Badge>
+                              {booking.is_urgent && <UrgentBadge />}
+                            </div>
                           </div>
                           <p className="break-words font-medium">{booking.equipment_name}</p>
                           {renderSampleSummary(booking)}
