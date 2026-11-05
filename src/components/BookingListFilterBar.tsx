@@ -36,8 +36,6 @@ type BookingListFilterBarProps = {
   moreFilters?: ReactNode;
   moreFiltersActiveCount?: number;
   /** Show only bookings made through an approved urgent request. */
-  urgentOnly?: boolean;
-  onUrgentOnlyChange?: (value: boolean) => void;
   /** Extra controls after Clear (e.g. Export). */
   actions?: ReactNode;
 };
@@ -62,8 +60,6 @@ export function BookingListFilterBar({
   onClear,
   moreFilters,
   moreFiltersActiveCount = 0,
-  urgentOnly = false,
-  onUrgentOnlyChange,
   actions,
 }: BookingListFilterBarProps) {
   return (
@@ -137,18 +133,6 @@ export function BookingListFilterBar({
           ))}
         </SelectContent>
       </Select>
-      {onUrgentOnlyChange ? (
-        <Button
-          type="button"
-          variant={urgentOnly ? "default" : "outline"}
-          size="sm"
-          className="h-9 shrink-0"
-          aria-pressed={urgentOnly}
-          onClick={() => onUrgentOnlyChange(!urgentOnly)}
-        >
-          Urgent only
-        </Button>
-      ) : null}
       {moreFilters ? (
         <Popover>
           <PopoverTrigger asChild>

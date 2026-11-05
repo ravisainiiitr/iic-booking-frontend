@@ -75,6 +75,8 @@ import {
 } from "@/lib/bookingDeadlines";
 import {
   RESULT_OVERDUE_STATUS,
+  URGENT_FILTER_OPTION,
+  statusFilterParams,
   RESULTS_PENDING_STATUS,
   bookingBadgeStatus,
   bookingStatusBadgeClass,
@@ -296,6 +298,7 @@ const DEFAULT_PAGE_SIZE = 50;
 
 const MY_BOOKING_STATUS_OPTIONS = [
   { value: "all", label: "All status" },
+  URGENT_FILTER_OPTION,
   { value: RESULT_OVERDUE_STATUS, label: "Result Overdue" },
   { value: RESULTS_PENDING_STATUS, label: "Pending" },
   { value: "BOOKED", label: "Booked" },
@@ -431,7 +434,6 @@ const MyBookings = () => {
   const [ratingDraft, setRatingDraft] = useState<Record<string, { stars: number; feedback: string }>>({});
   const [chargeRecalcActionLoading, setChargeRecalcActionLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [urgentOnly, setUrgentOnly] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -745,7 +747,7 @@ const MyBookings = () => {
   // page 1; fetchBookings ignores responses that a newer request has overtaken.
   const [clearFiltersNonce, setClearFiltersNonce] = useState(0);
   const filterKey = JSON.stringify([
-    statusFilter, urgentOnly, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce, pageSize,
+    statusFilter, startDate, endDate, searchTerm, equipmentFilter, ordering, clearFiltersNonce, pageSize,
   ]);
   const loadedFilterKeyRef = useRef(filterKey);
   useEffect(() => {
@@ -764,7 +766,6 @@ const MyBookings = () => {
 
   const clearBookingFilters = () => {
     setStatusFilter("all");
-    setUrgentOnly(false);
     setStartDate("");
     setEndDate("");
     setSearchQuery("");
@@ -787,10 +788,8 @@ const MyBookings = () => {
 
   /** Server-side filters, search and sort on screen; shared by the list and Export. */
   const listFilters = (status: string = statusFilter, effectiveOrdering: string = ordering): BookingListFilters => {
-    const params: BookingListFilters = {};
     // "Waitlisted" is applied client-side after merging waitlist entries (Export sends it; see exportFilters).
-    if (status !== "all" && status !== "WAITLISTED") params.list_status = status;
-    if (urgentOnly) params.urgent = true;
+    const params: BookingListFilters = status === "WAITLISTED" ? {} : statusFilterParams(status);
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (searchTerm) params.search = searchTerm;
@@ -827,7 +826,7 @@ const MyBookings = () => {
       } else if (response.data && response.data.bookings) {
         let list = response.data.bookings as unknown as Booking[];
         let waitlistEntries: Booking[] = [];
-        if (!isAccountsFinanceUser && !urgentOnly && (status === "all" || status === "WAITLISTED")) {
+        if (!isAccountsFinanceUser && (status === "all" || status === "WAITLISTED")) {
           const waitlistRes = await apiClient.getMyWaitlistEntries();
           if (seq !== fetchSeqRef.current) return;
           if (!waitlistRes.error && Array.isArray(waitlistRes.data?.entries)) {
@@ -1720,8 +1719,6 @@ const MyBookings = () => {
                   equipment={equipmentFilter}
                   onEquipmentChange={setEquipmentFilter}
                   equipmentOptions={equipmentList.map((eq) => ({ value: String(eq.equipment_id), label: eq.name || eq.code }))}
-                  urgentOnly={urgentOnly}
-                  onUrgentOnlyChange={setUrgentOnly}
                   onClear={clearBookingFilters}
                   actions={
                     <>
@@ -1743,7 +1740,7 @@ const MyBookings = () => {
               </CardHeader>
               {!loading && bookings.length === 0 ? (
               <CardContent className="py-12 text-center">
-                {statusFilter !== "all" || urgentOnly || startDate || endDate || searchTerm || (equipmentFilter && equipmentFilter !== "all") ? (
+                {statusFilter !== "all" || startDate || endDate || searchTerm || (equipmentFilter && equipmentFilter !== "all") ? (
                   <>
                     <p className="text-muted-foreground mb-4">No bookings match your filters</p>
                     <Button variant="outline" onClick={clearBookingFilters}>
