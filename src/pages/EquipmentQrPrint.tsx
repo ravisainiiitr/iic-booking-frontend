@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Printer } from "lucide-react";
+import { ArrowLeft, CalendarDays, Coins, Globe, Loader2, MapPin, Microscope, Printer, QrCode as QrIcon, Settings, Smartphone, Users } from "lucide-react";
+import mainBuilding from "@/assets/iitr-main-building.webp";
 import QrCode from "@/components/staff-app/QrCode";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,19 +9,20 @@ import { INSTITUTION } from "@/lib/institutionIdentity";
 import { equipmentQrApi, shortUrl, type QrRow } from "@/lib/equipmentQrApi";
 import { cn } from "@/lib/utils";
 import { QR_MANAGER_TYPES } from "@/pages/EquipmentQrCodes";
+import { EQUIPMENT_QR_CSS, qrNameSize } from "@/pages/equipmentQrCardStyles";
 
 type Layout = "a4" | "cards";
 
-const PRINT_CSS = `
-@page { size: A4 portrait; margin: 10mm; }
-@media print {
-  html, body { background: #fff !important; }
-  .qr-sheet { box-shadow: none !important; border: 0 !important; margin: 0 !important; }
-  .qr-a4 { break-after: page; page-break-after: always; height: 270mm; }
-  .qr-a4:last-child { break-after: auto; page-break-after: auto; }
-  .qr-card { break-inside: avoid; page-break-inside: avoid; }
-}
-`;
+/** What the card's QR code leads to; all of these are on the public equipment page. */
+const CARD_FEATURES = [
+  { label: "Specifications", Icon: Settings },
+  { label: "Charges", Icon: Coins },
+  { label: "Booking", Icon: CalendarDays },
+  { label: "Directions", Icon: MapPin },
+  { label: "Contact Information", Icon: Users },
+];
+
+const SMALL_CARDS_PER_SHEET = 4;
 
 export function parseIds(raw: string | null): number[] {
   return Array.from(new Set((raw || "").split(",").map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0))).slice(0, 200);
@@ -62,7 +64,7 @@ export default function EquipmentQrPrint() {
 
   return (
     <div className="min-h-screen bg-slate-100 print:bg-white">
-      <style>{PRINT_CSS}</style>
+      <style>{EQUIPMENT_QR_CSS}</style>
       <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-white px-4 py-2 print:hidden" data-testid="print-toolbar">
         <Button variant="ghost" size="sm" onClick={() => navigate("/equipment-qr-codes")}>
           <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden /> Equipment QR Codes
@@ -87,60 +89,98 @@ export default function EquipmentQrPrint() {
           <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> Preparing cards…
         </div>
       ) : (
-        <div
-          className={cn(
-            "mx-auto py-6 print:py-0",
-            layout === "a4" ? "max-w-[210mm] space-y-6 print:space-y-0" : "grid max-w-[210mm] grid-cols-2 gap-[6mm] px-[4mm] print:px-0",
-          )}
-        >
-          {rows.map((r) => (
-            <QrCard key={r.equipment_id} row={r} layout={layout} />
-          ))}
-        </div>
+        <QrSheets rows={rows} layout={layout} />
       )}
     </div>
   );
 }
 
-export function QrCard({ row, layout }: { row: QrRow; layout: Layout }) {
-  const big = layout === "a4";
+/** One A4 sheet per sign, or four small cards per sheet. */
+export function QrSheets({ rows, layout }: { rows: QrRow[]; layout: Layout }) {
+  const perSheet = layout === "a4" ? 1 : SMALL_CARDS_PER_SHEET;
+  const sheets: QrRow[][] = [];
+  for (let i = 0; i < rows.length; i += perSheet) sheets.push(rows.slice(i, i + perSheet));
   return (
-    <article
-      data-testid="qr-card"
-      className={cn(
-        "qr-sheet flex flex-col items-center bg-white text-center text-black shadow-sm",
-        big ? "qr-a4 min-h-[270mm] justify-between border p-[14mm]" : "qr-card border border-black/60 p-[6mm]",
-      )}
-    >
-      <header className={cn("flex w-full items-center gap-3 border-b-2 border-[#1e4d8c]", big ? "pb-[6mm]" : "pb-[3mm]")}>
-        <img src={INSTITUTION.logoPath} alt={INSTITUTION.logoAlt} className={big ? "h-[22mm] w-[22mm]" : "h-[12mm] w-[12mm]"} />
-        <div className="min-w-0 text-left">
-          <p className={cn("font-bold text-[#1e4d8c]", big ? "text-[16pt]" : "text-[9pt]")}>{INSTITUTION.name}</p>
-          {row.department ? <p className={cn("font-semibold", big ? "text-[13pt]" : "text-[8pt]")}>{row.department.name}</p> : null}
+    <div className="qrp-sheets">
+      {sheets.map((sheet) => (
+        <section key={sheet[0].equipment_id} className={cn("qrp-sheet", layout === "cards" && "qrp-sheet--small")}>
+          {sheet.map((r) => (
+            <QrCard key={r.equipment_id} row={r} layout={layout} />
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+export function QrCard({ row, layout }: { row: QrRow; layout: Layout }) {
+  const makeModel = [row.make, row.model].filter(Boolean).join(" · ");
+  return (
+    <article data-testid="qr-card" className={cn("qrp", layout === "cards" && "qrp--small")}>
+      <svg className="qrp-waves" viewBox="0 0 190 90" preserveAspectRatio="none" fill="none" stroke="currentColor" strokeWidth="0.25" aria-hidden>
+        {[0, 3, 6, 9, 12, 15].map((d) => (
+          <path key={d} d={`M0 ${70 - d} C40 ${30 - d} 70 ${80 - d} 110 ${50 - d} S170 ${10 + d} 190 ${25 - d}`} />
+        ))}
+      </svg>
+
+      <header className="qrp-head">
+        <img className="qrp-building" src={mainBuilding} alt="" />
+        <div className="qrp-logo">
+          <img src={INSTITUTION.logoPath} alt={INSTITUTION.logoAlt} />
         </div>
+        <div className="qrp-head-text">
+          <p className="qrp-institute">{INSTITUTION.name}</p>
+          {row.department ? <p className="qrp-dept">{row.department.name}</p> : null}
+        </div>
+        <svg className="qrp-curve" viewBox="0 0 190 20" preserveAspectRatio="none" aria-hidden>
+          <path fill="#fdc531" d="M0 12C30 1 60-1 90 5S160 15 190 2V20H0Z" />
+          <path fill="#f1f6ff" d="M0 17C30 4 60 1 90 6S160 16 190 6V20H0Z" />
+        </svg>
       </header>
 
-      <div className={cn("w-full", big ? "py-[6mm]" : "py-[3mm]")}>
-        <h2 className={cn("font-bold leading-tight", big ? "text-[26pt]" : "text-[12pt]")}>{row.name}</h2>
-        {row.make || row.model ? (
-          <p className={cn("mt-1 text-slate-700", big ? "text-[13pt]" : "text-[8pt]")}>{[row.make, row.model].filter(Boolean).join(" · ")}</p>
-        ) : null}
+      <div className="qrp-body">
+        <div className="qrp-title">
+          <div className="qrp-title-icon">
+            <Microscope aria-hidden />
+          </div>
+          <div className="qrp-title-text">
+            <h2 className={`qrp-name qrp-name--${qrNameSize(row.name)}`}>{row.name}</h2>
+            {makeModel ? <p className="qrp-model">{makeModel}</p> : null}
+          </div>
+        </div>
+
+        <div className="qrp-qr">
+          <div className="qrp-qr-panel">
+            <QrCode value={row.public_url} quiet={4} fill="#000000" size={layout === "a4" ? 480 : 220} label={`QR code for ${row.name}`} className="qrp-code" />
+            <span className="qrp-corner qrp-corner--tl" />
+            <span className="qrp-corner qrp-corner--tr" />
+            <span className="qrp-corner qrp-corner--bl" />
+            <span className="qrp-corner qrp-corner--br" />
+          </div>
+        </div>
+
+        <div className="qrp-scan">
+          <div className="qrp-phone" aria-hidden>
+            <Smartphone strokeWidth={1.6} />
+            <QrIcon strokeWidth={2} />
+          </div>
+          <p className="qrp-scan-text">Scan with your phone camera to view equipment information</p>
+        </div>
+
+        <ul className="qrp-features">
+          {CARD_FEATURES.map(({ label, Icon }) => (
+            <li key={label} className="qrp-feature">
+              <Icon aria-hidden />
+              <span>{label}</span>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <QrCode
-        value={row.public_url}
-        quiet={4}
-        fill="#000000"
-        size={big ? 480 : 220}
-        label={`QR code for ${row.name}`}
-        className={big ? "h-[120mm] w-[120mm]" : "h-[52mm] w-[52mm]"}
-      />
-
-      <div className={cn("w-full", big ? "pt-[6mm]" : "pt-[2mm]")}>
-        <p className={cn("font-bold", big ? "text-[20pt]" : "text-[10pt]")}>Scan with your phone camera to view equipment information</p>
-        <p className={cn("text-slate-700", big ? "mt-1 text-[12pt]" : "text-[7pt]")}>View Specifications • Charges • Booking • Directions</p>
-        <p className={cn("font-mono text-slate-800", big ? "mt-[4mm] text-[12pt]" : "mt-1 text-[7pt]")}>{shortUrl(row.public_url)}</p>
-      </div>
+      <footer className="qrp-foot">
+        <Globe aria-hidden />
+        <p className="qrp-url">{shortUrl(row.public_url)}</p>
+      </footer>
     </article>
   );
 }
