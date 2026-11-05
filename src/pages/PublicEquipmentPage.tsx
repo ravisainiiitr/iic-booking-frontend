@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { BackButton } from "@/components/BackButton";
+import PublicEquipmentCharges from "@/components/equipment/PublicEquipmentCharges";
 import IITRBanner from "@/components/IITRBanner";
 import { RichTextContent } from "@/components/RichTextContent";
 import { apiClient } from "@/lib/api";
@@ -239,7 +240,7 @@ function EquipmentContent({ eq, onBook, onShare }: { eq: PublicEquipment; onBook
   const actions = [
     { href: "#how-to-reach", label: "How to Reach", icon: Navigation },
     technical ? { href: "#technical-details", label: "Technical Details", icon: Cpu } : null,
-    { href: "#booking-and-charges", label: "View Charges", icon: IndianRupee },
+    { href: "#charges", label: "View Charges", icon: IndianRupee },
     { href: "#contact", label: "Contact Laboratory", icon: Phone },
   ].filter(Boolean) as Array<{ href: string; label: string; icon: typeof MapPin }>;
 
@@ -354,18 +355,18 @@ function EquipmentContent({ eq, onBook, onShare }: { eq: PublicEquipment; onBook
 
       {technical ? <TechnicalDetails eq={eq} /> : null}
 
-      <Section id="booking-and-charges" title="Booking and Charges" icon={IndianRupee}>
+      <Section id="charges" title="Charges" icon={IndianRupee}>
+        <PublicEquipmentCharges name={eq.name} charges={eq.charges} />
+      </Section>
+
+      <Section id="booking" title="Booking" icon={CalendarCheck}>
         <p className="text-[0.95rem] leading-relaxed text-slate-700 dark:text-slate-200">
-          Sign in to book a slot on this portal. Charges depend on your user category (internal, academic or industry)
-          and are listed for every instrument on the analysis charges page.
+          Sign in to book a slot on this portal.
         </p>
         <div className="mt-4 grid gap-2 sm:flex">
           <button type="button" onClick={onBook} disabled={!operational} className={primaryBtn}>
             <CalendarCheck className="h-4 w-4" aria-hidden /> Sign in to book
           </button>
-          <Link to={eq.charges_path} className={secondaryBtn}>
-            <IndianRupee className="h-4 w-4" aria-hidden /> View charges
-          </Link>
           <Link to="/user-guide" className={cn(secondaryBtn, "border-transparent bg-transparent hover:bg-slate-100 dark:bg-transparent")}>
             Booking help
           </Link>

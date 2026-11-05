@@ -33,6 +33,15 @@ export interface PublicEquipment {
   public_url: string;
   booking_path: string;
   charges_path: string;
+  /** Rates for every user category of this equipment; null when none are published. */
+  charges: {
+    profile_type: string;
+    slot_duration_minutes: number | null;
+    internal_user_types: string[];
+    charge_profiles: Array<Record<string, unknown>>;
+    input_fields: Array<{ field_key?: string | null; options?: unknown; user_type?: string }>;
+    slot_options: Array<Record<string, unknown>>;
+  } | null;
 }
 
 export interface PublicContact {
