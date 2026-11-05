@@ -58,6 +58,38 @@ describe("CallButton", () => {
     expect((await screen.findByRole("link", { name: "Raise a support ticket" })).getAttribute("href")).toBe("/tickets");
   });
 
+  it("lets lab staff call the booking user, and says so plainly when the user cannot be reached", async () => {
+    const engine = setup([{ role: "user", label: "Booking user", people: [{ id: 7, name: "Asha Rao", available: true }], fallback: "" }]);
+    render(<MemoryRouter><CallButton context="booking" id={5} role="user" label="Call user" /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "Call user: Asha Rao" }));
+    expect(engine.call).toHaveBeenCalledWith("booking", 5, "user", 7, "");
+    cleanup();
+    setup([{ role: "user", label: "Booking user", people: [{ id: 7, name: "Asha Rao", available: false }], fallback: "" }]);
+    render(<MemoryRouter><CallButton context="booking" id={5} role="user" label="Call user" /></MemoryRouter>);
+    expect(await screen.findByText(/Asha Rao is not on the portal or the app/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Raise a support ticket" })).toBeNull();
+  });
+
+  it("explains silent hours instead of offering a call", async () => {
+    const engine = setup([role("operator", [{ id: 9, name: "A", available: true }])]);
+    (ctx.value as { loadOptions: ReturnType<typeof vi.fn> }).loadOptions.mockResolvedValue({
+      enabled: true,
+      roles: [role("operator", [{ id: 9, name: "A", available: true }])],
+      silent_hours: { active: true, until: null, message: "Calls to the lab are off until Mon 9 Nov at 9:00 AM." },
+    });
+    render(<MemoryRouter><CallButton context="booking" id={5} role="operator" label="Call Lab Operator" /></MemoryRouter>);
+    expect(await screen.findByText(/Calls to the lab are off until Mon 9 Nov/)).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(engine.call).not.toHaveBeenCalled();
+  });
+
+  it("shows nothing to someone the server does not offer the booking user to", async () => {
+    setup([role("operator", [{ id: 9, name: "A", available: true }])]);
+    const { container } = render(<MemoryRouter><CallButton context="booking" id={5} role="user" label="Call user" /></MemoryRouter>);
+    await waitFor(() => expect((ctx.value as { loadOptions: ReturnType<typeof vi.fn> }).loadOptions).toHaveBeenCalled());
+    expect(container.innerHTML).toBe("");
+  });
+
   it("shows nothing when calling is off or nobody is configured", async () => {
     setup([role("operator", [])]);
     const { container } = render(<MemoryRouter><CallButton context="booking" id={5} role="operator" /></MemoryRouter>);

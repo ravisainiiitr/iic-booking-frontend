@@ -4,7 +4,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter } from "react-router-dom";
 import BookingManagement from "./BookingManagement";
 
-const api = vi.hoisted(() => ({ getBookings: vi.fn(), exportBookings: vi.fn() }));
+const api = vi.hoisted(() => ({
+  getBookings: vi.fn(),
+  exportBookings: vi.fn(),
+  getCatalogDepartments: vi.fn(),
+  getEquipments: vi.fn(),
+}));
 const auth = vi.hoisted(() => ({ userType: "manager" }));
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -24,6 +29,8 @@ vi.mock("@/lib/api", () => ({
       get: (_t, prop) => {
         if (prop === "getBookings") return api.getBookings;
         if (prop === "exportBookings") return api.exportBookings;
+        if (prop === "getCatalogDepartments") return api.getCatalogDepartments;
+        if (prop === "getEquipments") return api.getEquipments;
         return vi.fn(async () => ({ data: {} }));
       },
     },
@@ -70,8 +77,18 @@ const statusBox = () => screen.getByRole("combobox", { name: "Status" });
 
 beforeEach(() => {
   auth.userType = "manager";
+  Element.prototype.scrollIntoView = vi.fn();
   api.getBookings.mockImplementation(async (params: Params) => page(params));
   api.exportBookings.mockResolvedValue({ rowCount: 25 });
+  api.getCatalogDepartments.mockResolvedValue({ data: { departments: [{ id: 7, name: "Physics" }, { id: 8, name: "Chemistry" }] } });
+  api.getEquipments.mockResolvedValue({
+    data: {
+      equipments: [
+        { equipment_id: 1, name: "XPS", code: "XPS", internal_department: 7 },
+        { equipment_id: 2, name: "NMR", code: "NMR", internal_department: 8 },
+      ],
+    },
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -88,6 +105,56 @@ afterEach(() => {
 });
 
 describe("View Booking (staff) live filters", { timeout: 20_000 }, () => {
+  it("offers the Department filter to the Main Administrator only", async () => {
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(screen.queryByRole("combobox", { name: "Department" })).toBeNull();
+    expect(api.getCatalogDepartments).not.toHaveBeenCalled();
+    cleanup();
+
+    auth.userType = "dept_admin";
+    renderPage();
+    await screen.findByText("XPS202600001");
+    expect(screen.queryByRole("combobox", { name: "Department" })).toBeNull();
+    cleanup();
+
+    auth.userType = "admin";
+    renderPage();
+    await screen.findByRole("combobox", { name: "Department" });
+    expect(api.getCatalogDepartments).toHaveBeenCalledWith({ availableOnly: true });
+  });
+
+  it("filters by department, narrows the equipment list, and Clear resets it", async () => {
+    auth.userType = "admin";
+    renderPage();
+    await screen.findByText("XPS202600001");
+    await waitFor(() => expect(api.getCatalogDepartments).toHaveBeenCalled());
+    await act(async () => {});
+
+    const choose = async (name: string, option: string) => {
+      const box = screen.getByRole("combobox", { name });
+      fireEvent.keyDown(box, { key: "ArrowDown" });
+      fireEvent.click(await screen.findByRole("option", { name: option }));
+    };
+
+    await choose("Equipment", "NMR");
+    await waitFor(() => expect(lastCall().equipment_id).toBe("2"));
+
+    await choose("Department", "Physics");
+    await waitFor(() => expect(lastCall().equipment_department_id).toBe("7"));
+    // NMR belongs to Chemistry, so choosing Physics drops it.
+    expect(lastCall().equipment_id).toBeUndefined();
+
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Equipment" }), { key: "ArrowDown" });
+    await screen.findByRole("option", { name: "XPS" });
+    expect(screen.queryByRole("option", { name: "NMR" })).toBeNull();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("option", { name: "XPS" })).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    await waitFor(() => expect(lastCall().equipment_department_id).toBeUndefined());
+  });
+
   it("has no Apply button and keeps Clear", async () => {
     renderPage();
     await screen.findByText("XPS202600001");

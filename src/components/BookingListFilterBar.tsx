@@ -28,6 +28,10 @@ type BookingListFilterBarProps = {
   equipment: string;
   onEquipmentChange: (value: string) => void;
   equipmentOptions: BookingListFilterOption[];
+  /** Shown only when departmentOptions is given. */
+  department?: string;
+  onDepartmentChange?: (value: string) => void;
+  departmentOptions?: BookingListFilterOption[];
   onClear?: () => void;
   moreFilters?: ReactNode;
   moreFiltersActiveCount?: number;
@@ -52,6 +56,9 @@ export function BookingListFilterBar({
   equipment,
   onEquipmentChange,
   equipmentOptions,
+  department,
+  onDepartmentChange,
+  departmentOptions,
   onClear,
   moreFilters,
   moreFiltersActiveCount = 0,
@@ -62,7 +69,7 @@ export function BookingListFilterBar({
   return (
     <form
       role="search"
-      className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap"
+      className={`flex w-full flex-wrap items-center gap-2 ${departmentOptions ? "xl:flex-nowrap" : "lg:flex-nowrap"}`}
       onSubmit={(e) => e.preventDefault()}
     >
       <div className="relative w-full min-w-[8rem] lg:w-auto lg:flex-[2_1_12rem]">
@@ -102,6 +109,21 @@ export function BookingListFilterBar({
         onChange={(e) => onEndDateChange(e.target.value)}
         className="w-[9.5rem] min-w-[8rem] lg:w-auto lg:flex-[1_1_9rem]" inputClassName="h-9"
       />
+      {departmentOptions ? (
+        <Select value={department || "all"} onValueChange={onDepartmentChange}>
+          <SelectTrigger className="h-9 w-[13rem] min-w-[7rem] lg:w-auto lg:flex-[1.5_1_11rem]" aria-label="Department">
+            <SelectValue placeholder="All departments" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All departments</SelectItem>
+            {departmentOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
       <Select value={equipment || "all"} onValueChange={onEquipmentChange}>
         <SelectTrigger className="h-9 w-[13rem] min-w-[7rem] lg:w-auto lg:flex-[1.5_1_11rem]" aria-label="Equipment">
           <SelectValue placeholder="All equipment" />

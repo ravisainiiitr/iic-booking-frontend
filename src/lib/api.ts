@@ -2467,7 +2467,7 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
-export type CallRole = "operator" | "oic" | "accounts";
+export type CallRole = "operator" | "oic" | "accounts" | "user";
 export type CallContextType = "booking" | "equipment" | "invoice";
 export type CallStatus = "ringing" | "accepted" | "ended" | "declined" | "missed" | "busy" | "cancelled" | "failed";
 
@@ -2622,6 +2622,18 @@ export interface CallOptions {
     /** When nobody in this role can be reached: "oic" (call the Officer In Charge) or "ticket". */
     fallback: "" | "oic" | "ticket";
   }>;
+  /** Set when silent hours stop this person calling the instrument's staff right now. */
+  silent_hours?: { active: boolean; until: string | null; message: string } | null;
+}
+
+export interface CallSilentHours {
+  enabled: boolean;
+  office_start: string;
+  office_end: string;
+  silent_weekends: boolean;
+  silent_holidays: boolean;
+  active_now?: boolean;
+  follows_base_equipment?: boolean;
 }
 
 export interface CallConfig {
@@ -4291,6 +4303,8 @@ export interface CopilotUsage {
 export type BookingListFilters = {
   user_id?: string | number;
   equipment_id?: string | number;
+  /** Department that owns the equipment */
+  equipment_department_id?: string | number;
   booking_id?: number;
   status?: string;
   start_date?: string;
@@ -4336,6 +4350,9 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.equipment_id) {
     queryParams.append('equipment_id', String(params.equipment_id));
+  }
+  if (params?.equipment_department_id) {
+    queryParams.append('equipment_department_id', String(params.equipment_department_id));
   }
   if (params?.booking_id != null) {
     queryParams.append('booking_id', String(params.booking_id));
@@ -6235,7 +6252,8 @@ class ApiClient {
     }>(endpoint);
   }
 
-  async getCatalogDepartments() {
+  /** `availableOnly`: departments users can find on the portal, even when an administrator is asking. */
+  async getCatalogDepartments(options?: { availableOnly?: boolean }) {
     return this.request<{
       departments: Array<{
         id: number;
@@ -6244,7 +6262,7 @@ class ApiClient {
         equipment_count: number;
       }>;
       unassigned_count: number;
-    }>('/equipments/catalog-departments/');
+    }>(`/equipments/catalog-departments/${options?.availableOnly ? '?available=1' : ''}`);
   }
 
   // CMS (public read-only for main page and menu)
@@ -13224,6 +13242,14 @@ class ApiClient {
 
   async getCallHistory() {
     return this.request<{ results: CallInfo[] }>("/calls/");
+  }
+
+  async getCallSilentHours(equipmentId: number) {
+    return this.request<CallSilentHours>(`/calls/silent-hours/${equipmentId}/`);
+  }
+
+  async saveCallSilentHours(equipmentId: number, body: CallSilentHours) {
+    return this.request<CallSilentHours>(`/calls/silent-hours/${equipmentId}/`, { method: "PUT", body: JSON.stringify(body) });
   }
 
   async registerCallDevice(body: { platform: "android" | "ios"; device_id: string; token: string; app_version?: string }) {
