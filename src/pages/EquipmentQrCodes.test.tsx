@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type { QrList, QrRow } from "@/lib/equipmentQrApi";
 
@@ -18,6 +18,7 @@ vi.mock("sonner", () => ({ toast }));
 
 import EquipmentQrCodes, { printUrl } from "./EquipmentQrCodes";
 import EquipmentQrPrint, { parseIds } from "./EquipmentQrPrint";
+import { qrNameSize } from "./equipmentQrCardStyles";
 
 const row = (id: number, name: string, over: Partial<QrRow> = {}): QrRow => ({
   equipment_id: id, code: `EQ${id}`, name, make: "Zeiss", model: "M1", category: "", status: "ACTIVE",
@@ -158,11 +159,44 @@ describe("QR print cards", () => {
     expect(card.textContent).toContain("Institute Instrumentation Centre");
     expect(card.textContent).toContain("Scan with your phone camera to view equipment information");
     expect(card.textContent).toContain("equip.iitr.ac.in/equipment/38");
-    expect(card.querySelector("img")?.getAttribute("src")).toBe("/IITR_Logo.png");
+    expect(within(card).getByAltText(/logo/i).getAttribute("src")).toBe("/IITR_Logo.png");
     await waitFor(() => expect(card.querySelector("svg[data-qr-value]")?.getAttribute("data-qr-value")).toBe("https://equip.iitr.ac.in/equipment/38"));
     expect(screen.getByTestId("print-toolbar").className).toContain("print:hidden");
     expect(document.querySelector("style")?.textContent).toContain("@page");
     expect(card.querySelector("button")).toBeNull();  // no controls inside the printed card
+    for (const label of ["Specifications", "Charges", "Booking", "Directions", "Contact Information"]) {
+      expect(within(card).getByText(label)).toBeTruthy();
+    }
+  });
+
+  it("shows the equipment's own department, and none when it has no department", async () => {
+    const lab = { ...row(77, "CNC Lathe"), department: { id: 5, name: "Rethink ! The Tinkering Lab", code: "TL" } };
+    api.list.mockResolvedValue({ data: list([lab, { ...row(78, "No Department"), department: null }, row(38, "FE-SEM")]) });
+    renderPage("/equipment-qr-codes/print?ids=77,78,38");
+    const [tinkering, none, iic] = await screen.findAllByTestId("qr-card");
+    expect(tinkering.querySelector(".qrp-dept")?.textContent).toBe("Rethink ! The Tinkering Lab");
+    expect(none.querySelector(".qrp-dept")).toBeNull();
+    expect(iic.textContent).not.toContain("Tinkering");
+  });
+
+  it("puts one sign on each A4 sheet and four small cards on each sheet", async () => {
+    const rows = [38, 39, 40, 41, 42].map((id) => row(id, `Instrument ${id}`));
+    api.list.mockResolvedValue({ data: list(rows) });
+    const a4 = renderPage("/equipment-qr-codes/print?layout=a4&ids=38,39,40,41,42");
+    await screen.findAllByTestId("qr-card");
+    expect(document.querySelectorAll(".qrp-sheet").length).toBe(5);
+    a4.unmount();
+    renderPage("/equipment-qr-codes/print?layout=cards&ids=38,39,40,41,42");
+    expect((await screen.findAllByTestId("qr-card")).length).toBe(5);
+    expect(document.querySelectorAll(".qrp-sheet").length).toBe(2);
+  });
+
+  it("shrinks long names in steps so the longest allowed name still fits", () => {
+    expect(qrNameSize("FE-SEM")).toBe("xl");
+    expect(qrNameSize("x".repeat(40))).toBe("lg");
+    expect(qrNameSize("x".repeat(80))).toBe("md");
+    expect(qrNameSize("x".repeat(120))).toBe("sm");
+    expect(qrNameSize("x".repeat(255))).toBe("xs");
   });
 
   it("other roles cannot open the print view", async () => {
