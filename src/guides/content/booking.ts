@@ -86,7 +86,7 @@ export function bookSection(g: Gate): GuideSection {
       g.only(WALLET_MEMBERS, "Your supervisor's spending limit, if set, is checked before the booking is made."),
     ]),
     tips: compact([
-      "If no slot is free, tick Join the waitlist (when offered). You are told your place in the queue.",
+      "If no slot is free, tick Join the waitlist (when offered). You are told your place in the queue. If a booking gives a slot back more than 48 hours before it starts, the queue gets it automatically, in order. From 48 hours down to just over 1 hour before, nobody is placed automatically and you are emailed that it is free to book. In the last hour it shows Not Available.",
       g.when(g.flags.assistant, "After a failed booking, click Ask the IITR Assistant under Need help? for the reason and the next step."),
     ]),
   };

@@ -192,6 +192,7 @@ export function waitlistConfirmSection(g: Gate): GuideSection {
       "Any unbooked slot can be used, including weekends, holidays, closed, blocked and maintenance slots.",
       "The charge is debited from the user's wallet.",
       "Waitlisted users are confirmed automatically only into slots freed when a booking is cancelled or rescheduled. Slots lab staff open (marked Available, maintenance ended or equipment back to Operational) are never used automatically; use Confirm manually to place someone there.",
+      "What happens to a slot a booking gives back depends on the time left until it starts. More than 48 hours: the next waitlisted users get it automatically, in queue order. 48 hours down to just over 1 hour: nobody is placed automatically, and users active on the waitlist are emailed that it is free. 1 hour or less: users see Not Available and cannot book it until it starts, when it shows No booking. You can still book it for a user or use Confirm manually at any time, and Clear queue still works.",
       "Automatic confirmation and joining the waitlist follow the user's weekly and monthly limits, counted in the week and month of the slot. A user whose limit would be exceeded is not added to the waitlist; if already waiting, they are skipped (they stay waitlisted, with the reason shown) and the slot goes to the next person in the queue.",
     ],
   };
@@ -235,7 +236,7 @@ export function slotStatusSection(g: Gate): GuideSection {
       }),
       g.only(["oic", "admin"], {
         title: "Read the week",
-        body: "The week uses the same colours and labels as the booking calendar, and a free slot whose time has passed shows No booking. Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window or closed by the multi-mode schedule; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
+        body: "The week uses the same colours and labels as the booking calendar, and a free slot whose time has passed shows No booking. Hatched slots with a lock are ones users cannot book or see, for example outside the user visibility window closed by the multi-mode schedule, or given back by a booking within an hour of its start; hover one to see why. A weekend or holiday slot you mark Available shows as Available, with a small dot in the corner.",
       }),
       g.only(["oic"], {
         title: "From your dashboard",
