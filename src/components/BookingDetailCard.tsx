@@ -1814,6 +1814,7 @@ export function BookingDetailCard({
                 hasInputValues ? <BookingUserInputs {...bookingUserInputsProps} variant="editButtonOnly" /> : null
               }
             />
+            {bookingPk ? <CallButton context="booking" id={bookingPk} role="user" label="Call user" className="mt-2 print:hidden" /> : null}
           </CardHeader>
         ) : (
         <CardHeader>
@@ -1844,6 +1845,8 @@ export function BookingDetailCard({
                   nameClassName="font-semibold"
                   userId={booking.user}
                 />
+                {/* Offered by the server only to the Lab Operator and Officer In Charge of this instrument. */}
+                {bookingPk ? <CallButton context="booking" id={bookingPk} role="user" label="Call user" className="mt-2 ml-[3.25rem] print:hidden" /> : null}
                 {booking.wallet_owner_name && (
                   <div className="flex items-center gap-1.5 text-base text-muted-foreground mt-2 ml-[3.25rem]">
                     <UserCheck className="h-4 w-4 shrink-0" />

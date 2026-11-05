@@ -2467,7 +2467,7 @@ export interface DashboardMenuGroup {
   items: string[];
 }
 
-export type CallRole = "operator" | "oic" | "accounts";
+export type CallRole = "operator" | "oic" | "accounts" | "user";
 export type CallContextType = "booking" | "equipment" | "invoice";
 export type CallStatus = "ringing" | "accepted" | "ended" | "declined" | "missed" | "busy" | "cancelled" | "failed";
 
