@@ -4504,6 +4504,42 @@ export interface IstemDepartmentProgress {
 }
 
 /** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface OicRequestAuditRow {
+  id: number;
+  created_at: string;
+  action: string;
+  action_display: string;
+  equipment_id: number;
+  equipment_code: string;
+  equipment_name: string;
+  department_name: string;
+  booking_id: number | null;
+  booking_reference: string;
+  event_type: string;
+  previous_status: string;
+  new_status: string;
+  route: string;
+  detail: string;
+  actor_id: number | null;
+  actor_label: string;
+  actor_email: string;
+  actor_role: string;
+  actor_department: string;
+  is_system: boolean;
+  source: string;
+  ip_address: string;
+  user_agent: string;
+}
+
+export interface OicRequestAuditPage {
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+  results: OicRequestAuditRow[];
+  actions: Array<{ value: string; label: string }>;
+}
+
 export interface OicRegisteredRequest {
   booking_id: number;
   reference: string;
@@ -11722,6 +11758,36 @@ class ApiClient {
   }
 
   /** Main Administrator: equipment configuration audit trail. */
+  private oicRequestAuditQuery(params: Record<string, string | number | undefined>) {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== "") q.set(k, String(v));
+    });
+    return q;
+  }
+
+  async getOicRequestAudit(params: Record<string, string | number | undefined>) {
+    return this.request<OicRequestAuditPage>(`/oic-request-audit/?${this.oicRequestAuditQuery(params).toString()}`);
+  }
+
+  async downloadOicRequestAuditCsv(params: Record<string, string | number | undefined>): Promise<{ error?: string }> {
+    const q = this.oicRequestAuditQuery({ ...params, export: "csv" });
+    const res = await fetch(`${this.baseURL}/oic-request-audit/?${q.toString()}`, {
+      headers: { Authorization: `Token ${this.getToken()}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "oic-request-audit.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
   async getEquipmentConfigAudit(params: Record<string, string | number | undefined>) {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {

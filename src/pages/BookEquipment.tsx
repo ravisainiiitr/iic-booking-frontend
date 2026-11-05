@@ -417,6 +417,7 @@ interface EquipmentDetail {
   department_slot_reservation_enabled?: boolean;
   /** Main Admin switch: the OIC may register requests in their own name, with no charge. */
   oic_request_registration_enabled?: boolean;
+  oic_requests_only?: boolean;
   /** Equipment Group alternatives active for this equipment (env flag + group switch). */
   group_alternatives_enabled?: boolean;
   /** Initial state of "Automatically search and allocate alternate equipment" (off = ask the user first). */
@@ -4845,6 +4846,44 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     }
   }, [inputFieldValues, sampleSets, sampleSetLimitError, numericInputLimitError, sampleSetFieldError, selectedEquipment, equipmentDetail, loadingCharge, chargeCalculated, chargeCalculationFailed, calculateCharge, adminManageMode, adminBookForUserId, repeatSourceBooking, repeatSourceLoading, searchParams, bookingAsExternalTarget, sampleReturnAfterAnalysis, printAnalysisId, printAnalysisBatchId, laserCutBatchId, fabricationKey, isCalculateChargesFlow, chargeEstimateUserType, calculateHiddenFieldKeys]);
 
+  const oicRequestsOnly = equipmentDetail?.oic_requests_only === true;
+  const isOicUser = String(userType ?? "").toLowerCase() === "manager";
+  /** An OIC request is free and in the OIC's own name, so it needs no selected user and no charge calculation. */
+  const oicRequestActive =
+    isOicUser &&
+    adminManageMode === "book" &&
+    !isCalculateChargesFlow &&
+    !isTemplateFlow &&
+    (oicRequestsOnly || (oicRegistration && equipmentDetail?.oic_request_registration_enabled === true));
+  const oicNoChargeAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!oicRequestActive) {
+      if (oicNoChargeAppliedRef.current) {
+        oicNoChargeAppliedRef.current = false;
+        lastCalculatedValuesRef.current = "";
+        setCalculatedCharge(null);
+        setChargeCalculated(false);
+        setShowSlots(false);
+        setSelectedSlots([]);
+      }
+      return;
+    }
+    if (missingStep1Fields.length > 0) return;
+    oicNoChargeAppliedRef.current = true;
+    if (oicRequestsOnly) setAdminBookForUserId(null);
+    setChargeCalculationFailed(false);
+    setChargeErrorRaw(null);
+    setCalculatedCharge({
+      total_charge: "0.00",
+      total_time_minutes: equipmentDetail?.slot_duration_minutes ?? 0,
+      charge_breakdown: [{ description: "OIC request: no charge", amount: 0 }],
+      show_charge_breakdown: true,
+    } as NonNullable<typeof calculatedCharge>);
+    setChargeCalculated(true);
+    setShowSlots(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oicRequestActive, oicRequestsOnly, missingStep1Fields.length, equipmentDetail?.slot_duration_minutes, chargeCalculated]);
+
   // Fetch slots for the current week (forceRefetch = true skips cache so Step 3 calendar shows updated statuses after Change slot status).
   // Optional weekStartOverride: use after Change slot status so booking Step 3 loads the same Mon–Sun week as the status week grid (avoids stale currentWeekStart).
   const fetchSlotsForWeek = useCallback(async (forceRefetch?: boolean, weekStartOverride?: Date) => {
@@ -7255,7 +7294,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     };
 
     const attemptForFollowUp = buildAttemptSnapshot();
-    const oicRegistrationActive = oicRegistration && equipmentDetail?.oic_request_registration_enabled === true;
+    const oicRegistrationActive = oicRequestActive;
     setAttemptSlotFallback(null);
     setAttemptSlotAlternatives(null);
     setIsSubmittingBooking(true);
@@ -8059,10 +8098,12 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                 onClick={() => setAdminManageMode('book')}
               >
                 <CardHeader>
-                  <CardTitle className="text-lg">Book slots for a user</CardTitle>
+                  <CardTitle className="text-lg">{oicRequestsOnly ? "Raise an OIC request" : "Book slots for a user"}</CardTitle>
                   <CardDescription>
-                    Select a user and book slots on their behalf. Charge is calculated for the selected user.
-                    {String(userType ?? "").toLowerCase() === "dept_admin"
+                    {oicRequestsOnly
+                      ? "This equipment takes requests only from Officers In-charge in its department."
+                      : "Select a user and book slots on their behalf. Charge is calculated for the selected user."}
+                    {!oicRequestsOnly && String(userType ?? "").toLowerCase() === "dept_admin"
                       ? " Limited to equipment in your assigned department."
                       : ""}
                   </CardDescription>
@@ -9594,17 +9635,23 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                         </Button>
                       </div>
                     )}
-                    {String(userType || "").toLowerCase() === "manager" &&
-                      equipmentDetail?.oic_request_registration_enabled &&
+                    {isOicUser &&
+                      (equipmentDetail?.oic_request_registration_enabled || oicRequestsOnly) &&
                       selectedEquipment && (
                         <OicRequestRegistration
                           equipmentId={selectedEquipment.id}
-                          active={oicRegistration}
+                          active={oicRegistration || oicRequestsOnly}
                           onActiveChange={setOicRegistration}
                           refreshKey={isSubmittingBooking ? 1 : 0}
+                          locked={oicRequestsOnly}
                         />
                       )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {oicRequestsOnly && !isOicUser ? (
+                      <p role="status" className="text-sm text-muted-foreground" data-testid="oic-only-notice">
+                        Only an Officer In-charge in this equipment&apos;s department can raise a request for it.
+                      </p>
+                    ) : null}
+                    <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-4", oicRequestsOnly && "hidden")}>
                       <div>
                         <Label className="text-sm font-medium">User type</Label>
                         <Select value={adminUserTypeFilter} onValueChange={setAdminUserTypeFilter}>

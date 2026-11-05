@@ -210,6 +210,7 @@ export type EquipmentFormData = {
   operating_day_start?: string | null;
   /** Main Admin: the OIC may register requests in their own name, with no charge. */
   oic_request_registration_enabled?: boolean;
+  oic_requests_only?: boolean;
   /** Nullable override: null = use user's preference on booking page. */
   auto_slot_selection_default?: boolean | null;
   /** Initial state of the booking page's "auto-allocate alternate equipment" option. Off = ask the user first. */
@@ -584,6 +585,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
     department_slot_reservation_enabled: false,
     operating_day_start: null,
     oic_request_registration_enabled: false,
+    oic_requests_only: false,
     auto_slot_selection_default: null,
     auto_allocate_alternative_default: false,
     weekly_view_display: 'TIME',
@@ -886,6 +888,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
         department_slot_reservation_enabled: d.department_slot_reservation_enabled === true,
         operating_day_start: typeof d.operating_day_start === "string" ? d.operating_day_start.slice(0, 5) : null,
         oic_request_registration_enabled: d.oic_request_registration_enabled === true,
+        oic_requests_only: d.oic_requests_only === true,
         auto_slot_selection_default:
           (d.auto_slot_selection_default === true ? true : d.auto_slot_selection_default === false ? false : null) as boolean | null,
         auto_allocate_alternative_default: d.auto_allocate_alternative_default === true,
@@ -1155,6 +1158,7 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             slot_exchange_enabled: formData.slot_exchange_enabled ?? false,
             department_slot_reservation_enabled: formData.department_slot_reservation_enabled ?? false,
             operating_day_start: formData.operating_day_start ? formData.operating_day_start : null,
+            oic_requests_only: formData.oic_requests_only ?? false,
             oic_request_registration_enabled: formData.oic_request_registration_enabled ?? false,
           }
         : {}),
@@ -3372,6 +3376,26 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-xs text-muted-foreground">
             The Officer In-charge can register a request for the lab&apos;s own work in their own name, with no
             charge.{isMainAdmin ? "" : " Only the Main Admin can change this."}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-start space-x-2">
+        <Checkbox
+          id="oic-requests-only"
+          className="mt-0.5"
+          checked={formData.oic_requests_only ?? false}
+          disabled={!isMainAdmin}
+          onCheckedChange={(checked) =>
+            setFormData((p) => ({ ...p, oic_requests_only: !!checked }))
+          }
+        />
+        <div className="space-y-0.5">
+          <Label htmlFor="oic-requests-only">Only Officers In-charge Can Raise Requests</Label>
+          <p className="text-xs text-muted-foreground">
+            The only way to book this equipment is an OIC request from an Officer In-charge of equipment in the same
+            department. Hidden from everyone else, with every attempt and change in the OIC request audit.
+            {isMainAdmin ? "" : " Only the Main Admin can change this."}
           </p>
         </div>
       </div>

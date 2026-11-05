@@ -15,11 +15,14 @@ export default function OicRequestRegistration({
   active,
   onActiveChange,
   refreshKey = 0,
+  locked = false,
 }: {
   equipmentId: number | string;
   active: boolean;
   onActiveChange: (active: boolean) => void;
   refreshKey?: number;
+  /** The equipment takes OIC requests only, so this is always on. */
+  locked?: boolean;
 }) {
   const [rows, setRows] = useState<OicRegisteredRequest[] | null>(null);
   const [error, setError] = useState("");
@@ -45,15 +48,27 @@ export default function OicRequestRegistration({
         <div className="flex items-start gap-3">
           <ClipboardList className="mt-0.5 h-5 w-5 text-sky-700 dark:text-sky-300" />
           <div>
-            <Label htmlFor="oic-registration" className="text-sm font-semibold">
-              Register as an OIC request
-            </Label>
+            {locked ? (
+              <h3 className="text-sm font-semibold">Raise an OIC request</h3>
+            ) : (
+              <Label htmlFor="oic-registration" className="text-sm font-semibold">
+                Register as an OIC request
+              </Label>
+            )}
             <p className="text-xs text-muted-foreground">
+              {locked
+                ? "This equipment takes requests only from Officers In-charge in its department. "
+                : ""}
               Books the selected slot(s) in your name for the lab&apos;s own work. No charge, no waitlist.
             </p>
+            {locked ? (
+              <a href={`/oic-request-audit?equipment_id=${equipmentId}`} className="mt-1 inline-block text-xs font-medium text-primary hover:underline">
+                View the audit
+              </a>
+            ) : null}
           </div>
         </div>
-        <Switch id="oic-registration" checked={active} onCheckedChange={onActiveChange} />
+        {locked ? null : <Switch id="oic-registration" checked={active} onCheckedChange={onActiveChange} />}
       </div>
 
       <div className="space-y-1.5">
