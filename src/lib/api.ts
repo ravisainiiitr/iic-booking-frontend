@@ -2548,6 +2548,22 @@ export interface UpsHealth {
 }
 
 /** One in-app call (GET/POST /calls/...). No audio is stored. */
+export interface CallPerson {
+  id: number;
+  name: string;
+  photo_url?: string;
+  user_type_label?: string;
+  designation?: string;
+  department?: string;
+}
+
+export interface CallInstrument {
+  equipment_id: number | null;
+  equipment_name: string;
+  equipment_department: string;
+  booking_ref: string;
+}
+
 export interface CallInfo {
   id: string;
   status: CallStatus;
@@ -2555,7 +2571,9 @@ export interface CallInfo {
   direction: "incoming" | "outgoing";
   role: CallRole;
   role_label: string;
-  other: { id: number; name: string };
+  other: CallPerson;
+  /** The instrument behind the call (absent on history rows). */
+  context?: CallInstrument | null;
   context_type: CallContextType;
   context_id: number;
   context_label: string;
