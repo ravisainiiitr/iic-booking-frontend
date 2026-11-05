@@ -3126,17 +3126,18 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
             id="booking-not-utilize-window-hours"
             type="number"
             min={0}
-            placeholder="Default 24, 0 = disabled"
-            value={formData.booking_not_utilize_window_hours ?? ""}
+            placeholder="Blank = never"
+            value={formData.booking_not_utilize_window_hours || ""}
             onChange={(e) => {
               const v = e.target.value.trim();
               setFormData((p) => ({
                 ...p,
-                booking_not_utilize_window_hours: v === "" ? 24 : Math.max(0, parseInt(v, 10) || 0),
+                booking_not_utilize_window_hours: v === "" ? 0 : Math.max(0, parseInt(v, 10) || 0),
               }));
             }}
           />
           <p className="text-muted-foreground text-xs">
+            Leave blank to never mark bookings of this equipment as Booking Not Utilized, automatically or by staff.
             Hours after the last slot ends before a booking can be marked Booking Not Utilized (no refund), only when the sample lifecycle has no update or only &quot;Sample Sent&quot;. Applies to the automatic daily check (never earlier than 24 hours) and to the Lab/OIC/Admin action. Set to 0 to turn Booking Not Utilized off for this equipment.
           </p>
         </div>
@@ -3150,7 +3151,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
               max={formData.results_deadline_unit === "HOURS" ? 720 : 60}
               className="w-28"
               disabled={!canEditResultsDeadline}
-              value={formData.results_deadline_value ?? ""}
+              placeholder="Blank = none"
+              value={formData.results_deadline_value || ""}
               onChange={(e) => {
                 const v = e.target.value.trim();
                 setFormData((p) => ({ ...p, results_deadline_value: v === "" ? 0 : Math.max(0, parseInt(v, 10) || 0) }));
@@ -3183,7 +3185,8 @@ export function EquipmentForm({ initialData, equipmentId, onSave, onCancel, savi
           <p className="text-muted-foreground text-xs">
             Results are due this long after the last slot ends, or after the sample is received (Sample Accepted) if that
             is later; no deadline applies before receipt (working days skip weekends and institute holidays; up to
-            60 working days or 720 hours; 0 = none). Bookings past it show Results deadline passed; it also replaces
+            60 working days or 720 hours). Leave blank for no deadline: bookings of this equipment are then never marked
+            Operator Absent or Operator Unavailable automatically (staff can still mark them). Bookings past it show Results deadline passed; it also replaces
             the old Auto Operator Unavailable / Absent Disruption timers. Users see it only when &quot;Show results
             deadline to users&quot; is on.
             {canEditResultsDeadline ? "" : " Only the Main Admin and the equipment's OIC can change it."}

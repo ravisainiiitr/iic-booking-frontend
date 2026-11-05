@@ -4312,6 +4312,8 @@ export type BookingListFilters = {
    * RESULT_OVERDUE ("Result Overdue"). Unlike `status`, BOOKED excludes bookings that are Pending / Result Overdue.
    */
   list_status?: string;
+  /** Only bookings made through an approved urgent request. */
+  urgent?: boolean;
 };
 
 export type BookingExportFormat = "xlsx" | "csv" | "pdf";
@@ -4323,6 +4325,9 @@ export type ReportExportParams = Record<
 
 export function bookingListFilterQuery(params?: BookingListFilters): URLSearchParams {
   const queryParams = new URLSearchParams();
+  if (params?.urgent) {
+    queryParams.append('urgent', '1');
+  }
   if (params?.results_overdue) {
     queryParams.append('results_overdue', '1');
   }
