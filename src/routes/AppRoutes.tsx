@@ -42,6 +42,7 @@ const UrgentRequestsWallet = lazyPage(() => import("@/pages/UrgentRequestsWallet
 const MyUrgentRequests = lazyPage(() => import("@/pages/MyUrgentRequests"));
 const MyPublications = lazyPage(() => import("@/pages/MyPublications"));
 const PublicationClaimsReview = lazyPage(() => import("@/pages/PublicationClaimsReview"));
+const PublicationMatches = lazyPage(() => import("@/pages/PublicationMatches"));
 const StudentManagement = lazyPage(() => import("@/pages/StudentManagement"));
 const BookingAttemptLogs = lazyPage(() => import("@/pages/BookingAttemptLogs"));
 const EquipmentWaitlist = lazyPage(() => import("@/pages/EquipmentWaitlist"));
@@ -307,6 +308,7 @@ export default function AppRoutes() {
           <Route path="/my-publications" element={<MyPublications />} />
           <Route path="/rewards" element={<Rewards />} />
           <Route path="/publication-claims" element={<PublicationClaimsReview />} />
+          <Route path="/publication-matches" element={<ErrorBoundary fallbackTitle="Publication matches" backPath="/dashboard"><PublicationMatches /></ErrorBoundary>} />
           <Route path="/student-management" element={<StudentManagement />} />
           <Route path="/booking-attempt-logs" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />
           <Route path="/booking-attempt-logs/" element={<ErrorBoundary fallbackTitle="Booking Attempt Log" backPath="/dashboard"><BookingAttemptLogs /></ErrorBoundary>} />

@@ -2679,6 +2679,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "publication_matches",
+      label: "Publication matches",
+      path: "/publication-matches",
+      visible: Boolean(userTypeStr === "admin" || userTypeStr === "dept_admin"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-sky-200 dark:hover:border-sky-800"
+              onClick={() => openWorkspace("/publication-matches", "Publication matches")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-indigo-700 text-white shadow-lg">
+                    <BookmarkCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Publication matches</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Approve papers found automatically that acknowledge your facilities
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-sky-700 hover:bg-sky-800 text-white">Review matches</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "equipment_qr_codes",
       label: "Equipment QR Codes",
       path: "/equipment-qr-codes",
