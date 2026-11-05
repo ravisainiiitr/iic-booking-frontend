@@ -205,12 +205,16 @@ const BookingManagement = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [equipmentFilter, setEquipmentFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [userNameFilter, setUserNameFilter] = useState("");
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
   const [ordering, setOrdering] = useState<string>("");
-  const [equipmentList, setEquipmentList] = useState<Array<{ equipment_id: number; name: string; code: string }>>([]);
+  const [equipmentList, setEquipmentList] = useState<
+    Array<{ equipment_id: number; name: string; code: string; department_id: number | null }>
+  >([]);
+  const [departmentList, setDepartmentList] = useState<Array<{ id: number; name: string }>>([]);
   const [overrideBooking, setOverrideBooking] = useState<Booking | null>(null);
   const [detailBooking, setDetailBooking] = useState<Booking | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -225,6 +229,7 @@ const BookingManagement = () => {
   const isOperator = userTypeStr === 'operator';
   const isLabInchargeUser = isOperator;
   const isDeptAdmin = userTypeStr === 'dept_admin';
+  const isMainAdmin = userTypeStr === 'admin';
   const isManagerOrAdmin =
     userTypeStr === 'manager' || userTypeStr === 'admin' || isDeptAdmin;
   const isOperatorOrManager = isOperator || isManagerOrAdmin;
@@ -333,6 +338,7 @@ const BookingManagement = () => {
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
     if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
+    if (isMainAdmin && departmentFilter !== "all") params.equipment_department_id = departmentFilter;
     if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
     if (!isLabInchargeUser && supervisorNameTerm) params.supervisor_name = supervisorNameTerm;
     if (!isLabInchargeUser && userTypeFilter && userTypeFilter !== "all") params.user_type_filter = userTypeFilter;
@@ -379,11 +385,19 @@ const BookingManagement = () => {
             equipment_id: e.equipment_id,
             name: e.name || e.code || "",
             code: e.code || "",
+            department_id: e.internal_department ?? null,
           }))
         );
       }
     }).catch(() => {});
   }, [isOperatorOrManager, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isMainAdmin || !isAuthenticated) return;
+    apiClient.getCatalogDepartments({ availableOnly: true }).then((res) => {
+      setDepartmentList(res.data?.departments ?? []);
+    }).catch(() => {});
+  }, [isMainAdmin, isAuthenticated]);
 
   // Filters and rows per page apply as soon as they change (search and name boxes after a short pause):
   // any change goes back to page 1, and fetchBookings ignores responses that a newer request has overtaken.
@@ -394,6 +408,7 @@ const BookingManagement = () => {
     startDate,
     endDate,
     equipmentFilter,
+    departmentFilter,
     userNameTerm,
     supervisorNameTerm,
     userTypeFilter,
@@ -429,6 +444,7 @@ const BookingManagement = () => {
     setStartDate("");
     setEndDate("");
     setEquipmentFilter("all");
+    setDepartmentFilter("all");
     setUserNameFilter("");
     setUserNameTerm("");
     setSupervisorNameFilter("");
@@ -606,7 +622,19 @@ const BookingManagement = () => {
               onEndDateChange={withCloseDetail(setEndDate)}
               equipment={equipmentFilter}
               onEquipmentChange={withCloseDetail(setEquipmentFilter)}
-              equipmentOptions={(equipmentList || []).map((eq) => ({ value: String(eq.equipment_id), label: eq.name }))}
+              equipmentOptions={(equipmentList || [])
+                .filter((eq) => departmentFilter === "all" || String(eq.department_id) === departmentFilter)
+                .map((eq) => ({ value: String(eq.equipment_id), label: eq.name }))}
+              department={departmentFilter}
+              onDepartmentChange={(value) => {
+                // The chosen equipment may not belong to the new department.
+                setDepartmentFilter(value);
+                setEquipmentFilter("all");
+                closeDetail();
+              }}
+              departmentOptions={
+                isMainAdmin ? departmentList.map((d) => ({ value: String(d.id), label: d.name })) : undefined
+              }
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
