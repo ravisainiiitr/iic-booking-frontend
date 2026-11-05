@@ -83,6 +83,43 @@ describe("CallScreen", () => {
     expect(engine.decline).toHaveBeenCalled();
   });
 
+  const incoming = (call: Record<string, unknown>) => ({ phase: "incoming", call, outcome: "", message: "", muted: false, speaker: false, connectedAt: null });
+
+  it("shows who is calling and about which instrument", () => {
+    const call = {
+      ...callInfo,
+      reason: "Sample question",
+      other: { id: 3, name: "Asha Rao", photo_url: "https://portal.example/api/users/3/profile-picture/", user_type_label: "Student", designation: "PhD scholar", department: "Chemistry" },
+      context: { equipment_id: 44, equipment_name: "X-Ray Fluorescence (XRF)", equipment_department: "Central Facility", booking_ref: "IICX1" },
+    };
+    render(<MemoryRouter><CallScreen engine={{} as never} state={incoming(call) as never} /></MemoryRouter>);
+    expect((screen.getByRole("img", { name: "Photo of Asha Rao" }) as HTMLImageElement).src).toBe(call.other.photo_url);
+    expect(screen.getByRole("heading", { name: "Asha Rao" })).toBeTruthy();
+    expect(screen.getByText("PhD scholar · Chemistry")).toBeTruthy();
+    expect(screen.getByText("For the Lab Operator")).toBeTruthy();
+    expect(screen.getByText("X-Ray Fluorescence (XRF)")).toBeTruthy();
+    expect(screen.getByText("Central Facility")).toBeTruthy();
+    expect(screen.getByText("Booking IICX1")).toBeTruthy();
+    expect(screen.getByText(/Sample question/)).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Answer" }));
+  });
+
+  it("falls back to initials when the photo is missing or broken, and to the label without an instrument", () => {
+    const photo = { ...callInfo, other: { id: 3, name: "Asha Rao", photo_url: "https://portal.example/broken.jpg" } };
+    render(<MemoryRouter><CallScreen engine={{} as never} state={incoming(photo) as never} /></MemoryRouter>);
+    fireEvent.error(screen.getByRole("img", { name: "Photo of Asha Rao" }));
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("AR")).toBeTruthy();
+    expect(screen.getByText("About")).toBeTruthy();
+    expect(screen.getByText("Booking IICX1")).toBeTruthy();
+  });
+
+  it("names the instrument during the call", () => {
+    const call = { ...callInfo, context: { equipment_id: 44, equipment_name: "XRF", equipment_department: "", booking_ref: "" } };
+    render(<MemoryRouter><CallScreen engine={{} as never} state={{ phase: "connecting", call, outcome: "", message: "", muted: false, speaker: false, connectedAt: null } as never} /></MemoryRouter>);
+    expect(screen.getByText("Lab Operator · XRF")).toBeTruthy();
+  });
+
   it("in a call: mute, speaker and end", () => {
     const engine = { toggleMute: vi.fn(), toggleSpeaker: vi.fn(), hangUp: vi.fn() };
     render(<MemoryRouter><CallScreen engine={engine as never} state={{ phase: "in_call", call: callInfo, outcome: "", message: "", muted: false, speaker: false, connectedAt: Date.now() } as never} /></MemoryRouter>);

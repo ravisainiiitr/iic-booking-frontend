@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Mic, MicOff, Phone, PhoneIncoming, PhoneOff, Volume2, X } from "lucide-react";
+import { Microscope, Mic, MicOff, Phone, PhoneOff, Volume2, X } from "lucide-react";
 
+import type { CallInfo } from "@/lib/api";
 import type { CallEngine, CallState } from "@/lib/callEngine";
 import { OUTCOME_TEXT } from "@/lib/callEngine";
 import { cn } from "@/lib/utils";
@@ -59,10 +60,88 @@ function useRingtone(active: boolean) {
   }, [active]);
 }
 
+/** The person's photo, or their initials when there is none or it does not load. */
+function CallAvatar({ name, photoUrl, className, pulse = false }: { name: string; photoUrl?: string; className: string; pulse?: boolean }) {
+  const [failedUrl, setFailedUrl] = useState("");
+  const showPhoto = Boolean(photoUrl) && failedUrl !== photoUrl;
+  return (
+    <span className={cn("relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 font-semibold",
+      pulse && "ring-4 ring-emerald-400/70 motion-safe:animate-pulse", className)}>
+      {showPhoto ? (
+        <img src={photoUrl} alt={`Photo of ${name}`} className="h-full w-full object-cover" onError={() => setFailedUrl(photoUrl ?? "")} />
+      ) : (
+        initials(name) || <Phone className="h-1/2 w-1/2" aria-hidden />
+      )}
+    </span>
+  );
+}
+
+function personLine(person: CallInfo["other"] | undefined) {
+  return [person?.designation || person?.user_type_label, person?.department].filter(Boolean).join(" · ");
+}
+
+/** What the call is about, as one line: the instrument when known, else the server's label. */
+function aboutLine(call: CallInfo | null) {
+  return call?.context?.equipment_name || call?.context_label || "";
+}
+
+/** Someone is calling: full screen on phones (including inside the app), a larger card on desktop. */
+function IncomingCall({ call, name, engine }: { call: CallInfo | null; name: string; engine: CallEngine }) {
+  const answerRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    answerRef.current?.focus();
+  }, []);
+  const instrument = call?.context?.equipment_name || "";
+  const about = instrument || call?.context_label || "";
+  const facts = [call?.context?.equipment_department, call?.context?.booking_ref ? `Booking ${call.context.booking_ref}` : ""].filter(Boolean);
+  return (
+    <div
+      role="alertdialog"
+      aria-live="polite"
+      aria-label={`Incoming call from ${name}`}
+      data-testid="call-screen"
+      className="fixed inset-0 z-[70] sm:inset-auto sm:bottom-4 sm:right-4 sm:w-[24rem]"
+    >
+      <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-slate-900 via-slate-900 to-sky-950 px-6 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2.5rem,env(safe-area-inset-top))] text-white shadow-2xl sm:h-auto sm:rounded-2xl sm:border sm:border-white/10 sm:p-5">
+        <div className="flex flex-1 flex-col items-center justify-center text-center sm:flex-none">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Incoming call</p>
+          {call?.role_label ? <p className="mt-1 text-sm text-white/70">For the {call.role_label}</p> : null}
+          <CallAvatar name={name} photoUrl={call?.other.photo_url} pulse className="mt-6 h-36 w-36 text-4xl sm:mt-4 sm:h-20 sm:w-20 sm:text-2xl" />
+          <h2 className="mt-5 max-w-full break-words text-2xl font-semibold leading-tight sm:mt-3 sm:text-lg">{name || "Portal user"}</h2>
+          {personLine(call?.other) ? <p className="mt-1 max-w-full break-words text-sm text-white/80">{personLine(call?.other)}</p> : null}
+          {about ? (
+            <div className="mt-6 w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-left sm:mt-4 sm:p-3">
+              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-white/60">
+                <Microscope className="h-3.5 w-3.5" aria-hidden /> {instrument ? "Instrument" : "About"}
+              </p>
+              <p className="mt-1 break-words font-semibold leading-snug">{about}</p>
+              {facts.map((fact) => <p key={fact} className="mt-0.5 break-words text-sm text-white/70">{fact}</p>)}
+            </div>
+          ) : null}
+          {call?.reason ? <p className="mt-3 w-full break-words text-left text-sm text-white/80">“{call.reason}”</p> : null}
+        </div>
+        <div className="mt-8 grid grid-cols-2 gap-6 sm:mt-5 sm:gap-3">
+          <button type="button" onClick={() => void engine.decline()} className="flex flex-col items-center gap-2 text-sm font-medium focus-visible:outline-none">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 shadow-lg transition-colors hover:bg-rose-500 sm:h-12 sm:w-12">
+              <PhoneOff className="h-7 w-7 sm:h-5 sm:w-5" aria-hidden />
+            </span>
+            Decline
+          </button>
+          <button ref={answerRef} type="button" onClick={() => void engine.accept()} className="group flex flex-col items-center gap-2 text-sm font-medium focus-visible:outline-none">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 shadow-lg transition-colors group-focus-visible:ring-4 group-focus-visible:ring-white/60 hover:bg-emerald-500 sm:h-12 sm:w-12">
+              <Phone className="h-7 w-7 sm:h-5 sm:w-5" aria-hidden />
+            </span>
+            Answer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** The call card: bottom-right on desktop, a bottom sheet on phones. Shown only while a call exists. */
 export default function CallScreen({ state, engine }: { state: CallState; engine: CallEngine }) {
   const [now, setNow] = useState(() => Date.now());
-  const answerRef = useRef<HTMLButtonElement | null>(null);
   useRingtone(state.phase === "incoming");
 
   useEffect(() => {
@@ -71,13 +150,10 @@ export default function CallScreen({ state, engine }: { state: CallState; engine
     return () => window.clearInterval(id);
   }, [state.phase]);
 
-  useEffect(() => {
-    if (state.phase === "incoming") answerRef.current?.focus();
-  }, [state.phase]);
-
   if (state.phase === "idle") return null;
   const call = state.call;
   const name = call?.other.name ?? "";
+  if (state.phase === "incoming") return <IncomingCall call={call} name={name} engine={engine} />;
   const ended = state.phase === "ended";
   const live = state.phase === "in_call" || state.phase === "reconnecting";
   const seconds = live && state.connectedAt ? Math.max(0, Math.floor((now - state.connectedAt) / 1000)) : 0;
@@ -90,23 +166,19 @@ export default function CallScreen({ state, engine }: { state: CallState; engine
 
   return (
     <div
-      role={state.phase === "incoming" ? "alertdialog" : "dialog"}
+      role="dialog"
       aria-live="polite"
-      aria-label={state.phase === "incoming" ? `Incoming call from ${name}` : `Call with ${name}`}
+      aria-label={`Call with ${name}`}
       data-testid="call-screen"
       className="fixed inset-x-0 bottom-0 z-[60] p-3 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:w-[22rem] sm:p-0"
     >
       <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900 text-white shadow-2xl">
         <div className="flex items-center gap-3 p-4">
-          <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-base font-semibold",
-            state.phase === "incoming" && "animate-pulse ring-2 ring-emerald-400/70")}>
-            {initials(name) || <Phone className="h-5 w-5" aria-hidden />}
-          </span>
+          <CallAvatar name={name} photoUrl={call?.other.photo_url} className="h-12 w-12 text-base" />
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{name || "Call"}</p>
-            <p className="truncate text-xs text-white/70">{[call?.role_label, call?.context_label].filter(Boolean).join(" · ")}</p>
+            <p className="truncate text-xs text-white/70">{[call?.role_label, aboutLine(call)].filter(Boolean).join(" · ")}</p>
             <p className={cn("mt-0.5 text-sm", ended && state.outcome !== "completed" ? "text-amber-200" : "text-emerald-200")} role="status">
-              {state.phase === "incoming" ? <PhoneIncoming className="mr-1 inline h-3.5 w-3.5" aria-hidden /> : null}
               {status}
             </p>
           </div>
@@ -117,16 +189,7 @@ export default function CallScreen({ state, engine }: { state: CallState; engine
           ) : null}
         </div>
 
-        {state.phase === "incoming" ? (
-          <div className="grid grid-cols-2 gap-2 border-t border-white/10 p-3">
-            <button type="button" onClick={() => void engine.decline()} className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold hover:bg-rose-500">
-              <PhoneOff className="h-4 w-4" aria-hidden /> Decline
-            </button>
-            <button ref={answerRef} type="button" onClick={() => void engine.accept()} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold hover:bg-emerald-500">
-              <Phone className="h-4 w-4" aria-hidden /> Answer
-            </button>
-          </div>
-        ) : ended ? (
+        {ended ? (
           <div className="flex flex-wrap gap-2 border-t border-white/10 p-3 text-sm">
             <Link to={backTo} onClick={() => engine.dismiss()} className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20">
               {call?.context_type === "equipment" ? "Back to the instrument" : "Back to bookings"}
