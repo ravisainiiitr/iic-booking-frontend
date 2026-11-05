@@ -56,6 +56,15 @@ export function bookingStatusBadgeClass(status: string | null | undefined): stri
 /** Derived by the backend (`list_status`): sample accepted, results not delivered yet / past the results due time. */
 export const RESULTS_PENDING_STATUS = "RESULTS_PENDING";
 export const RESULT_OVERDUE_STATUS = "RESULT_OVERDUE";
+/** Status dropdown choice for bookings made through an approved urgent request; sent as urgent=1, not list_status. */
+export const URGENT_FILTER_STATUS = "URGENT";
+export const URGENT_FILTER_OPTION = { value: URGENT_FILTER_STATUS, label: "Urgent" };
+
+/** List query for a Status dropdown choice. */
+export function statusFilterParams(status: string): { list_status?: string; urgent?: boolean } {
+  if (status === "all") return {};
+  return status === URGENT_FILTER_STATUS ? { urgent: true } : { list_status: status };
+}
 
 /**
  * Status key for the badge colour: Pending / Result Overdue (backend `list_status`) when derived; a 3D print /

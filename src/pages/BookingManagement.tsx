@@ -63,6 +63,8 @@ import { LabQuestionsAwaitingCard } from "@/components/booking/LabQuestionsAwait
 import { useLiveSearchTerm } from "@/hooks/use-live-search";
 import {
   RESULT_OVERDUE_STATUS,
+  URGENT_FILTER_OPTION,
+  statusFilterParams,
   RESULTS_PENDING_STATUS,
   bookingBadgeStatus,
   bookingStatusBadgeClass,
@@ -212,7 +214,6 @@ const BookingManagement = () => {
   const [supervisorNameFilter, setSupervisorNameFilter] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [istemFbrFilter, setIstemFbrFilter] = useState<string>("all");
-  const [urgentOnly, setUrgentOnly] = useState(false);
   const [ordering, setOrdering] = useState<string>("");
   const [equipmentList, setEquipmentList] = useState<
     Array<{ equipment_id: number; name: string; code: string; department_id: number | null }>
@@ -335,9 +336,7 @@ const BookingManagement = () => {
 
   /** Filters, search and sort on screen; shared by the list and Export so both show the same bookings. */
   const listFilters = (): BookingListFilters => {
-    const params: BookingListFilters = { ordering: ordering || DEFAULT_ORDERING };
-    if (statusFilter !== "all") params.list_status = statusFilter;
-    if (urgentOnly) params.urgent = true;
+    const params: BookingListFilters = { ordering: ordering || DEFAULT_ORDERING, ...statusFilterParams(statusFilter) };
     if (searchTerm) params.search = searchTerm;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
@@ -408,7 +407,6 @@ const BookingManagement = () => {
   const canLoadBookings = !authLoading && isAuthenticated && user?.id != null && isOperatorOrManager;
   const filterKey = JSON.stringify([
     statusFilter,
-    urgentOnly,
     searchTerm,
     startDate,
     endDate,
@@ -456,7 +454,6 @@ const BookingManagement = () => {
     setSupervisorNameTerm("");
     setUserTypeFilter("all");
     setIstemFbrFilter("all");
-    setUrgentOnly(false);
     setOrdering("");
     closeDetail();
     setClearNonce((n) => n + 1);
@@ -469,6 +466,7 @@ const BookingManagement = () => {
 
   const statusOptions = [
     { value: "all", label: "All status" },
+    URGENT_FILTER_OPTION,
     { value: RESULT_OVERDUE_STATUS, label: "Result Overdue" },
     { value: RESULTS_PENDING_STATUS, label: "Pending" },
     { value: "BOOKED", label: "Booked" },
@@ -641,8 +639,6 @@ const BookingManagement = () => {
               departmentOptions={
                 isMainAdmin ? departmentList.map((d) => ({ value: String(d.id), label: d.name })) : undefined
               }
-              urgentOnly={urgentOnly}
-              onUrgentOnlyChange={withCloseDetail(setUrgentOnly)}
               onClear={handleClearFilters}
               moreFilters={moreFilters}
               moreFiltersActiveCount={moreFiltersActiveCount}
