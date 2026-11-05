@@ -50,6 +50,7 @@ import ModeInactiveNotice, { ModeInactivePill } from "@/components/modeAvailabil
 import { bookingPathFor, isMultiModeEquipment, type ModeInactive } from "@/lib/modeAvailability";
 import { Badge } from "@/components/ui/badge";
 import CallButton from "@/components/calls/CallButton";
+import CallSilentHoursCard from "@/components/calls/CallSilentHoursCard";
 import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -1142,6 +1143,7 @@ const EquipmentProfile = () => {
                           <CallButton context="equipment" id={Number(id)} role="oic" label="Call OIC" />
                         </div>
                       ) : null}
+                      {id && equipment.flash_messages_can_manage ? <CallSilentHoursCard equipmentId={Number(id)} /> : null}
                       <div className="space-y-3">
                         <h4 className="text-base font-semibold text-foreground">Officer in-charge</h4>
                         {brochureManagers.length > 0

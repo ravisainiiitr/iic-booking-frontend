@@ -2622,6 +2622,18 @@ export interface CallOptions {
     /** When nobody in this role can be reached: "oic" (call the Officer In Charge) or "ticket". */
     fallback: "" | "oic" | "ticket";
   }>;
+  /** Set when silent hours stop this person calling the instrument's staff right now. */
+  silent_hours?: { active: boolean; until: string | null; message: string } | null;
+}
+
+export interface CallSilentHours {
+  enabled: boolean;
+  office_start: string;
+  office_end: string;
+  silent_weekends: boolean;
+  silent_holidays: boolean;
+  active_now?: boolean;
+  follows_base_equipment?: boolean;
 }
 
 export interface CallConfig {
@@ -13219,6 +13231,14 @@ class ApiClient {
 
   async getCallHistory() {
     return this.request<{ results: CallInfo[] }>("/calls/");
+  }
+
+  async getCallSilentHours(equipmentId: number) {
+    return this.request<CallSilentHours>(`/calls/silent-hours/${equipmentId}/`);
+  }
+
+  async saveCallSilentHours(equipmentId: number, body: CallSilentHours) {
+    return this.request<CallSilentHours>(`/calls/silent-hours/${equipmentId}/`, { method: "PUT", body: JSON.stringify(body) });
   }
 
   async registerCallDevice(body: { platform: "android" | "ios"; device_id: string; token: string; app_version?: string }) {

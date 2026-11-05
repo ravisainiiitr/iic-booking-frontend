@@ -44,6 +44,14 @@ export default function CallButton({ context, id, role, label, reason = "", clas
   const reachable = entry.people.filter((p) => p.available);
   const start = (calleeId?: number) => void engine.call(context, id, role, calleeId, reason);
 
+  if (options?.silent_hours && role !== "user") {
+    return (
+      <p className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", className)}>
+        <Phone className="h-3.5 w-3.5" aria-hidden /> {options.silent_hours.message}
+      </p>
+    );
+  }
+
   if (reachable.length === 0) {
     return (
       <p className={cn("flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground", className)}>

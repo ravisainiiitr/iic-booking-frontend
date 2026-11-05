@@ -70,6 +70,19 @@ describe("CallButton", () => {
     expect(screen.queryByRole("link", { name: "Raise a support ticket" })).toBeNull();
   });
 
+  it("explains silent hours instead of offering a call", async () => {
+    const engine = setup([role("operator", [{ id: 9, name: "A", available: true }])]);
+    (ctx.value as { loadOptions: ReturnType<typeof vi.fn> }).loadOptions.mockResolvedValue({
+      enabled: true,
+      roles: [role("operator", [{ id: 9, name: "A", available: true }])],
+      silent_hours: { active: true, until: null, message: "Calls to the lab are off until Mon 9 Nov at 9:00 AM." },
+    });
+    render(<MemoryRouter><CallButton context="booking" id={5} role="operator" label="Call Lab Operator" /></MemoryRouter>);
+    expect(await screen.findByText(/Calls to the lab are off until Mon 9 Nov/)).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(engine.call).not.toHaveBeenCalled();
+  });
+
   it("shows nothing to someone the server does not offer the booking user to", async () => {
     setup([role("operator", [{ id: 9, name: "A", available: true }])]);
     const { container } = render(<MemoryRouter><CallButton context="booking" id={5} role="user" label="Call user" /></MemoryRouter>);
