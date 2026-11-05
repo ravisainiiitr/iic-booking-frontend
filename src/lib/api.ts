@@ -4291,6 +4291,8 @@ export interface CopilotUsage {
 export type BookingListFilters = {
   user_id?: string | number;
   equipment_id?: string | number;
+  /** Department that owns the equipment */
+  equipment_department_id?: string | number;
   booking_id?: number;
   status?: string;
   start_date?: string;
@@ -4331,6 +4333,9 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.equipment_id) {
     queryParams.append('equipment_id', String(params.equipment_id));
+  }
+  if (params?.equipment_department_id) {
+    queryParams.append('equipment_department_id', String(params.equipment_department_id));
   }
   if (params?.booking_id != null) {
     queryParams.append('booking_id', String(params.booking_id));
@@ -6230,7 +6235,8 @@ class ApiClient {
     }>(endpoint);
   }
 
-  async getCatalogDepartments() {
+  /** `availableOnly`: departments users can find on the portal, even when an administrator is asking. */
+  async getCatalogDepartments(options?: { availableOnly?: boolean }) {
     return this.request<{
       departments: Array<{
         id: number;
@@ -6239,7 +6245,7 @@ class ApiClient {
         equipment_count: number;
       }>;
       unassigned_count: number;
-    }>('/equipments/catalog-departments/');
+    }>(`/equipments/catalog-departments/${options?.availableOnly ? '?available=1' : ''}`);
   }
 
   // CMS (public read-only for main page and menu)
