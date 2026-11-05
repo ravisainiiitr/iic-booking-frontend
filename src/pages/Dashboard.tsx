@@ -52,6 +52,7 @@ import {
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
 import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
 import OrcidPromptBanner from "@/components/impact/OrcidPromptBanner";
+import AuthorConfirmPrompt from "@/components/impact/AuthorConfirmPrompt";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
 import AndroidAppCard from "@/components/staff-app/AndroidAppCard";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
@@ -2709,6 +2710,36 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "author_confirmations",
+      label: "Confirm author records",
+      path: "/author-confirmations",
+      visible: Boolean(userTypeStr === "admin" || userTypeStr === "dept_admin"),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-violet-200 dark:hover:border-violet-800"
+              onClick={() => openWorkspace("/author-confirmations", "Confirm author records")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg">
+                    <UserCheck className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Confirm author records</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Pick the right OpenAlex record for faculty who share a name, so their papers are scanned
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-indigo-600 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full bg-violet-700 hover:bg-violet-800 text-white">Confirm records</Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "equipment_qr_codes",
       label: "Equipment QR Codes",
       path: "/equipment-qr-codes",
@@ -4847,6 +4878,7 @@ const Dashboard = () => {
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         <AndroidAppCard className="mb-4" />
         <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
+        <AuthorConfirmPrompt userType={userTypeStr} className="mb-4" />
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
           <Card className="dashboard-notice-card dashboard-notice-primary mb-6 border-2 border-primary/80 bg-gradient-to-r from-primary/5 via-primary/5 to-accent/5 dark:from-primary/20 dark:via-primary/15 dark:to-accent/10 shadow-lg shadow-primary/20">
