@@ -65,7 +65,7 @@ export default function PeakWindowGate({ children }: { children: ReactNode }) {
       <ExternalPausedPage
         message={peak.externalPaused ? peak.message : forced?.message || peak.message}
         endsAt={peak.externalPaused ? peak.window?.ends_at ?? null : forced?.endsAt ?? null}
-        onLogout={logout}
+        onLogout={async () => { await logout(); }}
         onCheckAgain={checkAgain}
       />
     );
