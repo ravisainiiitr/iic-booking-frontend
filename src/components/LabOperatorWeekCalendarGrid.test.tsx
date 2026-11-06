@@ -91,6 +91,74 @@ describe("LabOperatorWeekCalendarGrid cells", () => {
     expect(card?.textContent).toContain("Equipment: Powder X-Ray Diffractometer (PXRD) [A]");
   });
 
+  it("shows the details of a slot reserved for an external user on hover", () => {
+    const reservedPayload = {
+      slots: [
+        {
+          id: 4,
+          date: "2099-01-06",
+          slot_open_time: "09:30",
+          start_datetime: "2099-01-06T09:30:00",
+          end_datetime: "2099-01-06T10:00:00",
+          status: "RESERVED_EXTERNAL",
+          status_display: "Reserved for External",
+          external_reference: "FBR-12",
+        },
+      ],
+      slot_duration_minutes: 30,
+    } as unknown as LabWeekCalendarSlotsPayload;
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: reservedPayload });
+    fireEvent.focus(screen.getByText("Reserved for External"));
+    const card = document.body.querySelector("[data-slot-hover-card]");
+    expect(card?.textContent).toContain("Status: Reserved for External");
+    expect(card?.textContent).toContain("I-STEM FBR: FBR-12");
+  });
+
+  it("keeps the hover card on a reserved slot that can be selected", () => {
+    const onToggle = vi.fn();
+    const reservedPayload = {
+      slots: [
+        {
+          id: 5,
+          date: "2099-01-06",
+          slot_open_time: "09:30",
+          start_datetime: "2099-01-06T09:30:00",
+          end_datetime: "2099-01-06T10:00:00",
+          status: "RESERVED_EXTERNAL",
+          status_display: "Reserved for External",
+          external_reference: "FBR-13",
+        },
+      ],
+      slot_duration_minutes: 30,
+    } as unknown as LabWeekCalendarSlotsPayload;
+    renderGrid({
+      weekStartIso: "2099-01-05",
+      slotsPayload: reservedPayload,
+      selection: { selectedIds: new Set<number>(), canSelect: () => true, onToggle },
+    });
+    const cell = screen.getByRole("button", { name: /I-STEM FBR: FBR-13/ });
+    fireEvent.focus(cell);
+    expect(document.body.querySelector("[data-slot-hover-card]")?.textContent).toContain("I-STEM FBR: FBR-13");
+    fireEvent.click(cell);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the I-STEM FBR reference on a booked reserved slot", () => {
+    const bookedReserved = {
+      ...weekPayload,
+      slots: weekPayload.slots.map((s) => (s.id === 3 ? { ...s, external_reference: "FBR-14" } : s)),
+    } as LabWeekCalendarSlotsPayload;
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: bookedReserved });
+    fireEvent.focus(screen.getByRole("button", { name: /Booking ID: B-77/ }));
+    expect(document.body.querySelector("[data-slot-hover-card]")?.textContent).toContain("I-STEM FBR: FBR-14");
+  });
+
+  it("adds no hover card to a free slot", () => {
+    renderGrid({ weekStartIso: "2099-01-05", slotsPayload: weekPayload });
+    fireEvent.focus(screen.getAllByText("Available")[0]);
+    expect(document.body.querySelector("[data-slot-hover-card]")).toBeNull();
+  });
+
   it("shows an open booking in the Pending colour once the lab accepted the sample", () => {
     const pendingPayload = {
       ...weekPayload,

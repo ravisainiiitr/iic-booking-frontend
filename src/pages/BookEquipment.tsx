@@ -110,6 +110,7 @@ import {
 import { useSelectOrOpenClick } from "@/components/slot-calendar/useSelectOrOpenClick";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
+import { describeGroupSlotWindow, slotStatusHoverLines } from "@/lib/slotStatusHover";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
 import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
 import { bookerHoverLines, slotHoldsBooking } from "@/lib/slotBooker";
@@ -381,14 +382,6 @@ interface DailySlot {
   updated_at: string;
 }
 
-function describeGroupSlotWindow(start: string, end: string): string {
-  try {
-    return `${format(parseISO(start), "EEE d MMM yyyy")}, ${slotSpanLabel(parseISO(start), parseISO(end))}`;
-  } catch {
-    return `${start} – ${end}`;
-  }
-}
-
 /** Staff-only slot-status tool; kept out of the booking chunk every user downloads. */
 const RecurringBlockRules = lazyPage(() => import("@/components/slot-status/RecurringBlockRules"));
 
@@ -524,88 +517,6 @@ function parseTimeToMinutes(timeStr: string): number {
 /** Convert HH:mm:ss to HH:mm for display. */
 function formatTimeForDisplay(timeStr: string): string {
   return timeStr.substring(0, 5); // "09:30:00" -> "09:30"
-}
-
-/** Hover lines for booked slots on Change slot status week view (staff). */
-function bookedSlotUserDetailLines(slot: DailySlot): string[] {
-  if (String(slot.status || "").toUpperCase() !== "BOOKED" && !slot.booking_id) return [];
-  const lines: string[] = [];
-  const name = String(slot.booking_user_name || "").trim();
-  if (name) lines.push(`Name: ${name}`);
-  const deptName = String(slot.booking_user_department_name || "").trim();
-  const deptCode = String(slot.booking_user_department_code || "").trim();
-  if (deptName && deptCode) lines.push(`Department: ${deptName} (${deptCode})`);
-  else if (deptName) lines.push(`Department: ${deptName}`);
-  else if (deptCode) lines.push(`Department: ${deptCode}`);
-  const email = String(slot.booking_user_email || "").trim();
-  if (email) lines.push(`Email: ${email}`);
-  const phone = String(slot.booking_user_phone || "").trim();
-  if (phone) lines.push(`Mobile: ${phone}`);
-  if (slot.booking_id != null && String(slot.booking_id).trim() !== "") {
-    lines.push(`Booking ID: ${slot.booking_id}`);
-  }
-  const autoRescheduleNote = String(slot.booking_auto_reschedule_note || "").trim();
-  if (autoRescheduleNote) lines.push(autoRescheduleNote);
-  return lines;
-}
-
-const SLOT_STATUS_HOVER_LABELS: Record<string, string> = {
-  NOT_AVAILABLE: "Not Available",
-  BOOKED: "Booked",
-  BLOCKED: "Blocked (other reasons)",
-  UNDER_MAINTENANCE: "Under Maintenance",
-  SCHEDULED_MAINT: "Scheduled Maintenance",
-  RESERVED_EXTERNAL: "Reserved (External)",
-  OPERATOR_ABSENT: "Operator Absent",
-  BOOKING_NOT_UTILIZED: "Booking Not Utilized",
-  HOLD: "On hold",
-  COMPLETED: "Completed",
-};
-
-/**
- * Staff hover lines for any slot whose status is not plain Available: status, time range,
- * reason (blocked label / holiday / weekend / mode) and, for booked slots, who booked it.
- * Returns [] for Available slots.
- */
-function slotStatusHoverLines(
-  slot: DailySlot | null | undefined,
-  opts: { holidayName?: string; isWeekend?: boolean } = {},
-): string[] {
-  if (!slot) return [];
-  const status = String(slot.status || "").toUpperCase();
-  const statusDisplay = String(slot.status_display || "").trim();
-  const reservedDisplay = status === "AVAILABLE" && statusDisplay !== "" && !statusDisplay.startsWith("Available");
-  const hasBooking = slot.booking_id != null && String(slot.booking_id).trim() !== "";
-  if (status === "AVAILABLE" && !reservedDisplay && !slot.mode_overlay && !hasBooking) return [];
-
-  const lines: string[] = [];
-  const label =
-    (hasBooking && String(slot.booking_status_display || "").trim()) ||
-    statusDisplay ||
-    SLOT_STATUS_HOVER_LABELS[status] ||
-    status.replace(/_/g, " ");
-  lines.push(`Status: ${label}`);
-  if (slot.start_datetime && slot.end_datetime) {
-    lines.push(`Time: ${describeGroupSlotWindow(slot.start_datetime, slot.end_datetime)}`);
-  }
-  const blockedLabel = String(slot.blocked_label || "").trim();
-  if (blockedLabel) lines.push(`Reason: ${blockedLabel}`);
-  const disruptionCategory = String(slot.disruption_reason_category || "").trim();
-  const disruptionReason = String(slot.disruption_reason || "").trim();
-  if (disruptionCategory) lines.push(`Category: ${disruptionCategory}`);
-  if (disruptionReason && disruptionReason !== blockedLabel) lines.push(`Disruption reason: ${disruptionReason}`);
-  const recoveryText = String(slot.disruption_public?.recovery_text || "").trim();
-  if (recoveryText) lines.push(recoveryText);
-  const externalReference = String(slot.external_reference || "").trim();
-  if (externalReference) lines.push(`I-STEM FBR: ${externalReference}`);
-  if (opts.holidayName) {
-    lines.push(`Holiday: ${opts.holidayName}`);
-  } else if (!blockedLabel && status === "NOT_AVAILABLE" && opts.isWeekend) {
-    lines.push("Reason: Weekend");
-  }
-  if (slot.mode_overlay) lines.push(`Mode: ${slot.mode_overlay}`);
-  if (hasBooking || status === "BOOKED") lines.push(...bookedSlotUserDetailLines(slot));
-  return lines;
 }
 
 /** Normalize grid row keys so "9:00" / "09:00:00" / ISO fragments all match `getSlotData` lookups. */
@@ -12004,10 +11915,10 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                             : publicLines.length > 0
                               ? publicLines.join(". ")
                               : slotReason;
-                          // OIC/admin: every non-Available slot explains itself on hover, even when still selectable
+                          // OIC/admin/Lab Operator: every non-Available slot explains itself on hover, even when still selectable
                           // (staff can book over Blocked / Not Available slots, so those cells are not disabled).
                           const staffStatusLines =
-                            isAdminOrOIC() && slotExists && !isSelected
+                            (isAdminOrOIC() || String(userType).toLowerCase() === "operator") && slotExists && !isSelected
                               ? slotStatusHoverLines(slotData, {
                                   holidayName,
                                   isWeekend: isSaturdayCol || isSundayCol,

@@ -1,3 +1,5 @@
+import type { PublicDisruptionInfo } from "@/lib/disruptions";
+
 /** Slot row as returned by GET /equipments/:id/slots/ (aligned with booking Step 3). */
 export interface LabCalendarSlot {
   id: number;
@@ -35,6 +37,12 @@ export interface LabCalendarSlot {
   booking_auto_reschedule_note?: string | null;
   slot_open_time?: string | null;
   blocked_label?: string | null;
+  /** Staff of the equipment only: recorded disruption reason and I-STEM FBR reference. */
+  disruption_reason?: string | null;
+  disruption_reason_category?: string | null;
+  external_reference?: string | null;
+  disruption_public?: PublicDisruptionInfo | null;
+  mode_overlay?: string | null;
 }
 
 export interface LabWeekCalendarSlotsPayload {
