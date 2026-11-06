@@ -296,7 +296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await Promise.race([disableWebPush(), new Promise((resolve) => window.setTimeout(resolve, 2000))]);
       }
       const response = await apiClient.signOut();
-      channelIServerUrl = response.data?.omniport_logout_url;
+      channelIServerUrl = "data" in response ? response.data?.omniport_logout_url : undefined;
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
