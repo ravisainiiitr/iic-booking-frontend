@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -29,7 +29,16 @@ describe("footer policy links", () => {
     expect(screen.getByText("Refund and Cancellation Policy").closest("a")?.getAttribute("href")).toBe("/page/refund-policy");
     expect(screen.getByText("Pricing (Analysis Charges)").closest("a")?.getAttribute("href")).toBe("/analysis-charges");
     expect(screen.getByText(/Roorkee 247667/)).toBeTruthy();
-    expect(screen.queryByText("Privacy Policy")).toBeNull();
+    expect(screen.getByText("Privacy Policy").closest("a")?.getAttribute("href")).toBe("/privacy-policy/");
+    expect(screen.getByText("Data Deletion").closest("a")?.getAttribute("href")).toBe("/data-deletion/");
+  });
+
+  it("links the static privacy policy only, even when a CMS page of that name is published", async () => {
+    getPolicyPages.mockResolvedValue({ data: { pages: [{ slug: "privacy-policy", title: "Privacy Policy" }] } });
+    render(<MemoryRouter><Footer /></MemoryRouter>);
+    await waitFor(() => expect(getPolicyPages).toHaveBeenCalled());
+    await new Promise((done) => setTimeout(done));
+    expect(screen.getAllByText("Privacy Policy").map((el) => el.closest("a")?.getAttribute("href"))).toEqual(["/privacy-policy/"]);
   });
 
   it("shows no policy links when none is published or the request fails", async () => {
