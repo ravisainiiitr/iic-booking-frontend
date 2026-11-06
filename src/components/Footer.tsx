@@ -105,13 +105,27 @@ const Footer = () => {
                   Pricing (Analysis Charges)
                 </Link>
               </li>
-              {policyPages.map((page) => (
-                <li key={page.slug}>
-                  <Link to={`/page/${page.slug}`} className={LINK_CLASS}>
-                    {page.title}
-                  </Link>
-                </li>
-              ))}
+              {/* The official privacy policy is the static page below; a CMS page must not appear as a second one. */}
+              {policyPages
+                .filter((page) => page.slug !== "privacy-policy")
+                .map((page) => (
+                  <li key={page.slug}>
+                    <Link to={`/page/${page.slug}`} className={LINK_CLASS}>
+                      {page.title}
+                    </Link>
+                  </li>
+                ))}
+              {/* Plain links: these are static files served by nginx, outside the React app's routes. */}
+              <li>
+                <a href="/privacy-policy/" className={LINK_CLASS}>
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <a href="/data-deletion/" className={LINK_CLASS}>
+                  Data Deletion
+                </a>
+              </li>
             </ul>
           </div>
 
