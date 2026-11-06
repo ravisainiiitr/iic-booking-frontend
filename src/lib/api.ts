@@ -1,3 +1,4 @@
+import { recordSignInMethod } from "@/lib/channelISignOut";
 import { type BookingRef } from "@/lib/bookingRef";
 import type {
   AutomationLogRow,
@@ -5328,6 +5329,7 @@ class ApiClient {
 
     if (response.data?.token) {
       this.setToken(response.data.token);
+      recordSignInMethod("channel_i");
       // Store user data if provided
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -5473,6 +5475,7 @@ class ApiClient {
       
       if (result.data?.token) {
         this.setToken(result.data.token);
+        recordSignInMethod("password");
         // Store user data if provided
         if (result.data.user) {
           localStorage.setItem('user', JSON.stringify(result.data.user));
@@ -5495,6 +5498,7 @@ class ApiClient {
 
     if (response.data?.token) {
       this.setToken(response.data.token);
+      recordSignInMethod("password");
       // Store user data if provided
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -5763,6 +5767,7 @@ class ApiClient {
     });
     if (response.data?.token) {
       this.setToken(response.data.token);
+      recordSignInMethod("password");
       if (response.data.user) {
         localStorage.setItem('user', JSON.stringify(response.data.user));
       }
@@ -5883,7 +5888,7 @@ class ApiClient {
   async signOut() {
     try {
       // Call the logout API endpoint
-      const response = await this.request<{ message: string }>('/auth/logout/', {
+      const response = await this.request<{ message: string; omniport_logout_url?: string }>('/auth/logout/', {
         method: 'POST',
       });
 

@@ -8,6 +8,7 @@ import { currentOpenWorkspace } from "@/lib/workspaceResume";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
+import { channelILogoutTarget } from "@/lib/channelISignOut";
 import { clearLoginTipsThisLogin } from "@/lib/loginTips";
 import { clearMobilePromptSnooze } from "@/lib/mobileNumber";
 
@@ -288,12 +289,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       /* ignore */
     }
+    let channelIServerUrl: string | undefined;
     try {
       if (localStorage.getItem("web_push_enabled") === "1") {
         const { disableWebPush } = await import("@/lib/webPush");
         await Promise.race([disableWebPush(), new Promise((resolve) => window.setTimeout(resolve, 2000))]);
       }
-      await apiClient.signOut();
+      const response = await apiClient.signOut();
+      channelIServerUrl = response.data?.omniport_logout_url;
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
@@ -307,6 +310,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       apiClient.setToken(null);
       localStorage.removeItem("user");
       setUser(null);
+      // The portal cannot clear another site's sign-in, so the browser has to visit Channel i's own Log out page.
+      const channelITarget = channelILogoutTarget(channelIServerUrl);
+      if (channelITarget) window.location.assign(channelITarget);
     }
   }, []);
 
