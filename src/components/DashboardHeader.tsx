@@ -287,8 +287,8 @@ const DashboardHeader = () => {
 
 
   const handleSignOut = async () => {
-    await logout();
-    navigate("/auth");
+    const { channelISignedOut } = await logout();
+    navigate(channelISignedOut ? "/" : "/auth");
   };
 
   const safeNavigate = (path: string) => {
