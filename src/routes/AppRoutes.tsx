@@ -60,6 +60,7 @@ const DisruptionHistory = lazyPage(() => import("@/pages/DisruptionHistory"));
 const AdminEquipmentOverview = lazyPage(() => import("@/pages/admin-insights/EquipmentOverview"));
 const AdminUsersOverview = lazyPage(() => import("@/pages/admin-insights/UsersOverview"));
 const AdminCancellationsDashboard = lazyPage(() => import("@/pages/admin-insights/CancellationsDashboard"));
+const AdminServiceLevels = lazyPage(() => import("@/pages/admin-insights/ServiceLevels"));
 const EquipmentFlashMessages = lazyPage(() => import("@/pages/EquipmentFlashMessages"));
 const Wallet = lazyPage(() => import("@/pages/Wallet"));
 const WalletSricRecharge = lazyPage(() => import("@/pages/WalletSricRecharge"));
@@ -342,6 +343,7 @@ export default function AppRoutes() {
           <Route path="/admin/insights/equipment" element={<AdminEquipmentOverview />} />
           <Route path="/admin/insights/users" element={<AdminUsersOverview />} />
           <Route path="/admin/insights/cancellations" element={<AdminCancellationsDashboard />} />
+          <Route path="/admin/insights/service-levels" element={<AdminServiceLevels />} />
           <Route path="/admin/identity" element={<IdentityAdministration />} />
           <Route path="/admin/registration-requests" element={<AdminRegistrationRequests />} />
           <Route path="/admin/portal-migration" element={<AdminPortalMigration />} />

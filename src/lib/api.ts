@@ -62,6 +62,7 @@ import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
 import {
   insightQuery,
   type CancellationInsights,
+  type ServiceLevels,
   type EquipmentInsights,
   type DepartmentChoice,
   type InsightParams,
@@ -8486,6 +8487,11 @@ class ApiClient {
   /** Main Admin / Dept Admin: Users overview (opened from the dashboard's Active users card). */
   async getAdminUserInsights(params: InsightParams = {}) {
     return this.request<UserInsights>(`/admin/insights/users/${insightQuery(params)}`, { method: 'GET' });
+  }
+
+  /** Main Admin / Dept Admin: lead time, results turnaround, no-shows and ratings per instrument. */
+  async getAdminServiceLevels(params: InsightParams = {}) {
+    return this.request<ServiceLevels>(`/admin/insights/service-levels/${insightQuery(params)}`, { method: 'GET' });
   }
 
   /** Main Admin / Dept Admin: Cancellations dashboard. */

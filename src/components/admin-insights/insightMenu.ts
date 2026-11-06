@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { CalendarX2, Users, Wrench } from "lucide-react";
+import { CalendarX2, Gauge, Users, Wrench } from "lucide-react";
 import { INSIGHT_PATHS } from "@/lib/adminInsights";
 
 export interface InsightMenuItem {
@@ -32,5 +32,12 @@ export const INSIGHT_MENU: InsightMenuItem[] = [
     path: INSIGHT_PATHS.cancellations,
     description: "Who cancelled, reasons, lead time, refunds and re-booked slots",
     icon: CalendarX2,
+  },
+  {
+    id: "service_levels",
+    label: "Service levels",
+    path: INSIGHT_PATHS.serviceLevels,
+    description: "Booking lead, results turnaround, no-shows, ratings and utilisation per instrument",
+    icon: Gauge,
   },
 ];

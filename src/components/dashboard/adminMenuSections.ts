@@ -34,6 +34,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "equipment_overview",
       "users_overview",
       "cancellations_dashboard",
+      "service_levels",
       "team_calendar",
     ],
   },
