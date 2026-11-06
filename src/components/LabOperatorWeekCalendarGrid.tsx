@@ -4,8 +4,10 @@ import { addDays, format, parseISO, startOfDay } from "date-fns";
 import type { LabCalendarSlot, LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { slotRowEndTimes, slotTimeRangeLabel } from "@/lib/slotTimeRange";
+import { slotStatusHoverLines } from "@/lib/slotStatusHover";
 import {
   contrastTextColor,
+  holidayEntryInfo,
   isAwaitingDisruptionChoice,
   isSlotInPast,
   resolveSlotCell,
@@ -373,6 +375,7 @@ export function LabOperatorWeekCalendarGrid({
         bookingStatusText ? `Status: ${bookingStatusText}` : null,
         slotTimeText ? `Slot: ${slotTimeText}` : null,
         sampleStatusText ? `Sample: ${sampleStatusText}` : null,
+        String(slotData.external_reference || "").trim() ? `I-STEM FBR: ${String(slotData.external_reference).trim()}` : null,
         awaitingChoice && display.hover ? display.hover : null,
         equipmentTitle ? `Equipment: ${equipmentTitle}` : null,
         String(slotData.booking_auto_reschedule_note || "").trim() || null,
@@ -395,39 +398,55 @@ export function LabOperatorWeekCalendarGrid({
       );
     }
 
+    // Same card as the booking calendar: status, time, reason and I-STEM FBR reference of a slot with no booking.
+    const statusLines = slotStatusHoverLines(slotData, {
+      holidayName: holidayEntryInfo(holidays[dateStr]).name,
+      isWeekend: day.getDay() === 0 || day.getDay() === 6,
+    });
+    const hoverTitle = statusLines.length > 0 ? undefined : display.hover;
+
     if (selection && slotData && selection.canSelect(slotData)) {
       const selected = selection.selectedIds.has(slotData.id);
       const when = `${format(day, "EEE d MMM")}, ${rowLabel}`;
       return (
-        <button
-          type="button"
-          aria-pressed={selected}
-          aria-label={`${when}: ${display.label}${selected ? ", selected" : ""}`}
-          title={display.hover}
-          onClick={() => selection.onToggle(slotData)}
-          className={cn(
-            SLOT_CELL_CLASS,
-            "cursor-pointer transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            selected && SLOT_CELL_SELECTED_CLASS,
-          )}
-          style={selected ? undefined : style}
-        >
-          {selected ? (
-            <>
-              <Check className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="truncate">Selected</span>
-            </>
-          ) : (
-            content
-          )}
-        </button>
+        <SlotHoverCard lines={statusLines} boldFirst>
+          <button
+            type="button"
+            aria-pressed={selected}
+            aria-label={`${when}: ${[display.label, ...statusLines].join(". ")}${selected ? ", selected" : ""}`}
+            title={hoverTitle}
+            onClick={() => selection.onToggle(slotData)}
+            className={cn(
+              SLOT_CELL_CLASS,
+              "cursor-pointer transition-all hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected && SLOT_CELL_SELECTED_CLASS,
+            )}
+            style={selected ? undefined : style}
+          >
+            {selected ? (
+              <>
+                <Check className="mr-1 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">Selected</span>
+              </>
+            ) : (
+              content
+            )}
+          </button>
+        </SlotHoverCard>
       );
     }
 
     return (
-      <div className={SLOT_CELL_CLASS} style={style} title={display.hover}>
-        {content}
-      </div>
+      <SlotHoverCard lines={statusLines} boldFirst>
+        <div
+          className={SLOT_CELL_CLASS}
+          style={style}
+          title={hoverTitle}
+          tabIndex={statusLines.length > 0 ? 0 : undefined}
+        >
+          {content}
+        </div>
+      </SlotHoverCard>
     );
   };
 

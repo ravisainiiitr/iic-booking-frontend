@@ -240,7 +240,7 @@ export function slotStatusSection(g: Gate): GuideSection {
       }),
       g.only(["oic"], {
         title: "From your dashboard",
-        body: "On the dashboard week calendar, click upcoming free slots of your equipment to select them, choose Available, Other Reasons (with an optional reason), Under Maintenance, Scheduled Maintenance, Operator Absent, Not Available or Reserved for External under Mark as, and click Apply. The same reason and action-taken prompts appear. Booked slots still open the booking; change booked or past slots here in Change slot status.",
+        body: "On the dashboard week calendar, click upcoming free slots of your equipment to select them, choose Available, Other Reasons (with an optional reason), Under Maintenance, Scheduled Maintenance, Operator Absent, Not Available or Reserved for External under Mark as, and click Apply. The same reason and action-taken prompts appear. Booked slots still open the booking; change booked or past slots here in Change slot status. Hover over a slot here or on the booking calendar to see its status, time, reason and any I-STEM FBR reference.",
       }),
       g.only(["oic", "admin"], {
         title: "Repeat block",
