@@ -2,9 +2,12 @@ import { isNativeApp } from "@/lib/nativeApp";
 
 /**
  * Channel i's own Log out page: it ends the Channel i session, then shows the Channel i sign-in page. It ignores any
- * "next" address, so the user cannot be returned to the portal from there.
+ * "next" address and cannot be framed, so it runs in a small window of its own while the portal returns to its main page.
  */
 export const CHANNEL_I_LOGOUT_URL = "https://channeli.in/auth/logout";
+
+/** Long enough for Channel i's page to load and end the session, on a slow connection too. */
+export const CHANNEL_I_LOGOUT_WINDOW_MS = 6000;
 
 const SIGN_IN_METHOD_KEY = "portal_sign_in_method";
 
@@ -15,6 +18,24 @@ export function recordSignInMethod(method: SignInMethod): void {
     localStorage.setItem(SIGN_IN_METHOD_KEY, method);
   } catch {
     /* storage unavailable: logout then relies on the server's answer alone */
+  }
+}
+
+/** True when this session is known to have signed in through Channel i. */
+export function signedInWithChannelI(): boolean {
+  try {
+    return localStorage.getItem(SIGN_IN_METHOD_KEY) === "channel_i";
+  } catch {
+    return false;
+  }
+}
+
+/** Null when the browser blocks the window; the caller then falls back to leaving for Channel i in this tab. */
+export function openChannelILogoutWindow(url: string = CHANNEL_I_LOGOUT_URL): Window | null {
+  try {
+    return window.open(url, "channel_i_logout", "popup,width=520,height=640");
+  } catch {
+    return null;
   }
 }
 
