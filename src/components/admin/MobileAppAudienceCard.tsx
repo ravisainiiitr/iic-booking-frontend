@@ -13,7 +13,7 @@ function sameSet(a: string[], b: string[]) {
   return a.length === b.length && a.every((x) => b.includes(x));
 }
 
-/** Main Administrator: which user types may sign in through the IIC Booking Android app. */
+/** Main Administrator: which user types may sign in through the IIT Roorkee Equipment Booking Android app. */
 export default function MobileAppAudienceCard() {
   const [settings, setSettings] = useState<MobileAppSettingsPayload | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -64,7 +64,7 @@ export default function MobileAppAudienceCard() {
           Mobile app audience
         </CardTitle>
         <CardDescription>
-          Who may sign in through the IIC Booking app. The website is not affected. Choose Everyone to open the app to all
+          Who may sign in through the IIT Roorkee Equipment Booking app. The website is not affected. Choose Everyone to open the app to all
           users, internal and external. Removing a role signs its phones out within a few minutes.
         </CardDescription>
       </CardHeader>

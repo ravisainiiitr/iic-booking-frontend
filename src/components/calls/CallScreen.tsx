@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Microscope, Mic, MicOff, Phone, PhoneOff, Volume2, X } from "lucide-react";
+import { Microscope, Mic, MicOff, Phone, PhoneCall, PhoneOff, Volume2, X } from "lucide-react";
 
 import type { CallInfo } from "@/lib/api";
 import type { CallEngine, CallState } from "@/lib/callEngine";
 import { OUTCOME_TEXT } from "@/lib/callEngine";
+import { isNativeApp } from "@/lib/nativeApp";
 import { cn } from "@/lib/utils";
+import AppCallScreen from "./AppCallScreen";
 
 const PHASE_TEXT: Record<string, string> = {
   calling: "Calling…",
@@ -61,7 +63,7 @@ function useRingtone(active: boolean) {
 }
 
 /** The person's photo, or their initials when there is none or it does not load. */
-function CallAvatar({ name, photoUrl, className, pulse = false }: { name: string; photoUrl?: string; className: string; pulse?: boolean }) {
+export function CallAvatar({ name, photoUrl, className, pulse = false }: { name: string; photoUrl?: string; className: string; pulse?: boolean }) {
   const [failedUrl, setFailedUrl] = useState("");
   const showPhoto = Boolean(photoUrl) && failedUrl !== photoUrl;
   return (
@@ -152,8 +154,9 @@ export default function CallScreen({ state, engine }: { state: CallState; engine
 
   if (state.phase === "idle") return null;
   const call = state.call;
-  const name = call?.other.name ?? "";
+  const name = call?.other.name ?? state.callingPerson?.name ?? "";
   if (state.phase === "incoming") return <IncomingCall call={call} name={name} engine={engine} />;
+  if (isNativeApp()) return <AppCallScreen state={state} engine={engine} />;
   const ended = state.phase === "ended";
   const live = state.phase === "in_call" || state.phase === "reconnecting";
   const seconds = live && state.connectedAt ? Math.max(0, Math.floor((now - state.connectedAt) / 1000)) : 0;
@@ -191,10 +194,15 @@ export default function CallScreen({ state, engine }: { state: CallState; engine
 
         {ended ? (
           <div className="flex flex-wrap gap-2 border-t border-white/10 p-3 text-sm">
+            {call && ["dropped", "missed", "declined", "busy", "failed"].includes(state.outcome) ? (
+              <button type="button" onClick={() => void engine.callBack()} className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium hover:bg-emerald-500">
+                <PhoneCall className="h-4 w-4" aria-hidden /> {state.outcome === "dropped" ? "Call back" : "Call again"}
+              </button>
+            ) : null}
             <Link to={backTo} onClick={() => engine.dismiss()} className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20">
               {call?.context_type === "equipment" ? "Back to the instrument" : "Back to bookings"}
             </Link>
-            {state.outcome !== "completed" ? (
+            {state.outcome !== "completed" && state.outcome !== "dropped" ? (
               <Link to="/tickets" onClick={() => engine.dismiss()} className="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/20">
                 Raise a support ticket
               </Link>

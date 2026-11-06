@@ -18,6 +18,8 @@ import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import IITRBanner from "@/components/IITRBanner";
 import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import { BackButton } from "@/components/BackButton";
+import { useAppAudience } from "@/lib/appShell";
+import CompactAppHeader from "@/components/staff-app/CompactAppHeader";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
@@ -31,7 +33,7 @@ import iitrLogo128 from "@/assets/iitr-logo-128.webp";
 const WALLET_BALANCE_CACHE_KEY = "wallet_balance_cache_v2";
 const WALLET_BALANCE_CACHE_TTL_MS = 60 * 1000;
 
-const DashboardHeader = () => {
+const WebsiteHeader = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated, refreshUser, logout } = useAuth();
@@ -492,6 +494,13 @@ const DashboardHeader = () => {
     </header>
     </>
   );
+};
+
+/** The website's header. People booking in the app get a compact one: the bottom navigation and Back replace its menu. */
+const DashboardHeader = () => {
+  const audience = useAppAudience();
+  const full = typeof window !== "undefined" && window.location.search.includes("full=1");
+  return audience === "user" && !full ? <CompactAppHeader /> : <WebsiteHeader />;
 };
 
 export default DashboardHeader;

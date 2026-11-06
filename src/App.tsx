@@ -19,12 +19,13 @@ import { CallProvider } from "./components/calls/CallProvider";
 import { UserCardProvider } from "./components/users/UserIdCardLink";
 import { GlobalSearchHost } from "./components/search/GlobalSearch";
 import StaffAppChrome from "./components/staff-app/StaffAppChrome";
-import { useStaffAppShell } from "./lib/staffApp";
+import { useAppAudience } from "./lib/appShell";
 import { isNativeApp } from "./lib/nativeApp";
 
-/** The floating IITR Assistant stays on the website; the staff app keeps the screen uncluttered. */
+/** The floating IITR Assistant stays on the website and with administrators; on a phone it would cover the screen's own actions. */
 function AssistantLauncher() {
-  const staffShell = useStaffAppShell();
+  const audience = useAppAudience();
+  const staffShell = audience === "staff" || audience === "user";
   const { pathname } = useLocation();
   const appScreen = isNativeApp() && (pathname === "/app" || pathname.startsWith("/app/"));
   return staffShell || appScreen ? null : <ResearchCopilotLauncher />;

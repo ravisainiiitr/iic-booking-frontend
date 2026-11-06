@@ -6,7 +6,7 @@
  *
  * Browser APIs are injected so the engine can be tested without a real browser.
  */
-import { apiClient, type CallConfig, type CallContextType, type CallInfo, type CallRole } from "@/lib/api";
+import { apiClient, type CallConfig, type CallContextType, type CallInfo, type CallPerson, type CallRole } from "@/lib/api";
 
 export type CallPhase =
   | "idle"
@@ -18,7 +18,7 @@ export type CallPhase =
   | "reconnecting"
   | "ended"; // final: see outcome
 
-export type CallOutcome = "completed" | "declined" | "missed" | "busy" | "cancelled" | "failed" | "unavailable" | "";
+export type CallOutcome = "completed" | "dropped" | "declined" | "missed" | "busy" | "cancelled" | "failed" | "unavailable" | "";
 
 export interface CallState {
   phase: CallPhase;
@@ -28,6 +28,8 @@ export interface CallState {
   muted: boolean;
   speaker: boolean;
   connectedAt: number | null;
+  /** Who is being called while the server has not created the call yet (a call back knows the person already). */
+  callingPerson?: CallPerson | null;
 }
 
 export interface CallDeps {
@@ -40,10 +42,18 @@ export interface CallDeps {
   setTimer: (fn: () => void, ms: number) => number;
   clearTimer: (id: number) => void;
   platform: string;
+  /** The current sign-in token: app tokens last 24 hours, so a reconnecting socket must not reuse the first one. */
+  getToken?: () => string | null;
 }
 
 const IDLE: CallState = { phase: "idle", call: null, outcome: "", message: "", muted: false, speaker: false, connectedAt: null };
 const ICE_FAIL_MS = 20000;
+/** A connected call that loses audio: ask for a new network path after this long (only the caller asks, so offers never cross). */
+const ICE_RESTART_MS = 3000;
+/** Second attempt, for a phone that has only just moved to another network. */
+const ICE_RESTART_AGAIN_MS = 12000;
+/** Give up and offer Call back. No new call is ever placed automatically: reconnecting stays inside the same call. */
+const RECONNECT_GIVE_UP_MS = 25000;
 
 const OUTCOME_BY_STATUS: Partial<Record<CallInfo["status"], CallOutcome>> = {
   ended: "completed",
@@ -56,6 +66,7 @@ const OUTCOME_BY_STATUS: Partial<Record<CallInfo["status"], CallOutcome>> = {
 
 export const OUTCOME_TEXT: Record<Exclude<CallOutcome, "">, string> = {
   completed: "Call ended",
+  dropped: "Call disconnected",
   declined: "Declined",
   missed: "No answer",
   busy: "Busy on another call",
@@ -85,6 +96,13 @@ export class CallEngine {
   private iceTimer: number | null = null;
   private pingTimer: number | null = null;
   private retryTimer: number | null = null;
+  private reconnectTimers: number[] = [];
+  /** The person hung up while the server was still creating the call: cancel it as soon as it exists. */
+  private abortStart = false;
+  /** The other person's call that arrived while ours was still being created. */
+  private crossedCall: CallInfo | null = null;
+  /** A dropped call the server could not be told about yet (no network): told before the next call or when back online. */
+  private unreportedDrop: string | null = null;
   private closed = false;
 
   constructor(private deps: CallDeps) {}
@@ -124,8 +142,10 @@ export class CallEngine {
   }
 
   private connectSocket() {
-    if (this.closed || !this.token) return;
-    const ws = this.deps.createSocket(`${this.socketUrl}?token=${encodeURIComponent(this.token)}`);
+    const token = this.deps.getToken?.() || this.token;
+    if (this.closed || !token) return;
+    this.token = token;
+    const ws = this.deps.createSocket(`${this.socketUrl}?token=${encodeURIComponent(token)}`);
     this.socket = ws;
     ws.onmessage = (ev) => {
       try {
@@ -136,11 +156,12 @@ export class CallEngine {
     };
     ws.onclose = () => {
       if (this.socket !== ws || this.closed) return;
-      if (this.state.phase === "in_call") this.set({ phase: "reconnecting" });
+      // Audio goes directly between the phones: losing the signalling socket alone does not interrupt the call.
       this.retryTimer = this.deps.setTimer(() => this.connectSocket(), 3000);
     };
     ws.onopen = () => {
-      if (this.state.phase === "reconnecting" && this.peer?.connectionState === "connected") this.set({ phase: "in_call" });
+      if (this.state.phase === "reconnecting") void this.restartIce();
+      void this.resync();
     };
     if (this.pingTimer == null) {
       const ping = () => {
@@ -159,6 +180,11 @@ export class CallEngine {
 
   private onMessage(msg: { type?: string; call?: CallInfo; call_id?: string; payload?: Record<string, unknown> }) {
     if (msg.type === "call.incoming" && msg.call) {
+      if (this.isCrossedCall(msg.call)) {
+        if (this.state.phase === "calling") this.crossedCall = msg.call;
+        else void this.resolveCrossedCalls(msg.call);
+        return;
+      }
       if (this.state.phase !== "idle" && this.state.phase !== "ended") {
         void apiClient.callAction(msg.call.id, "decline"); // already in a call on this device
         return;
@@ -185,20 +211,39 @@ export class CallEngine {
       return;
     }
     const outcome = OUTCOME_BY_STATUS[call.status];
-    if (outcome) this.finish(outcome, "", call);
+    // The other phone gave up on a call that had been connected: that is a drop to call back from, not a failed call.
+    if (outcome === "failed" && this.state.connectedAt != null) this.finish("dropped", "", call);
+    else if (outcome) this.finish(outcome, "", call);
     else this.set({ call });
   }
 
   /** Call someone about a booking / instrument / invoice. */
-  async call(context: CallContextType, id: number, role: CallRole, calleeId?: number, reason = "") {
+  async call(context: CallContextType, id: number, role: CallRole, calleeId?: number, reason = "", person: CallPerson | null = null) {
     if (this.state.phase !== "idle" && this.state.phase !== "ended") return;
-    this.set({ ...IDLE, phase: "calling" });
+    this.set({ ...IDLE, phase: "calling", callingPerson: person });
+    this.abortStart = false;
+    this.crossedCall = null;
+    await this.reportDrop();
     const res = await apiClient.startCall({ context, id, role, callee_id: calleeId, reason, platform: this.deps.platform });
+    if (this.abortStart) {
+      if (res.data?.status === "ringing") void apiClient.callAction(res.data.id, "cancel");
+      return;
+    }
+    const crossed = this.crossedCall as CallInfo | null;
+    this.crossedCall = null;
     if (res.error || !res.data) {
+      if (crossed) {
+        this.set({ ...IDLE, phase: "incoming", call: crossed });
+        return;
+      }
       this.set({ phase: "ended", outcome: "unavailable", message: res.error || OUTCOME_TEXT.unavailable });
       return;
     }
     if (res.data.status === "busy") {
+      if (crossed) {
+        this.set({ ...IDLE, phase: "incoming", call: crossed });
+        return;
+      }
       this.finish("busy", "", res.data);
       return;
     }
@@ -210,6 +255,54 @@ export class CallEngine {
         this.finish("missed");
       }
     }, ringMs);
+    if (crossed) void this.resolveCrossedCalls(crossed);
+  }
+
+  /**
+   * Call the same person back with the same context. A person who rang us is reached through whichever role the
+   * server lists them under for this item; the server decides, so a call it would refuse is never attempted.
+   */
+  async callBack(previous: CallInfo | null = this.state.call): Promise<void> {
+    if (!previous || (this.state.phase !== "idle" && this.state.phase !== "ended")) return;
+    this.abortStart = false;
+    let role: CallRole | undefined = previous.direction === "outgoing" ? previous.role : undefined;
+    if (!role) {
+      this.set({ ...IDLE, phase: "calling", callingPerson: previous.other });
+      const options = await apiClient.getCallOptions(previous.context_type, previous.context_id);
+      if (this.abortStart) {
+        this.abortStart = false;
+        return;
+      }
+      role = options.data?.roles?.find((r) => r.people.some((p) => p.id === previous.other.id))?.role;
+      if (!role) {
+        this.set({
+          ...IDLE,
+          phase: "ended",
+          outcome: "unavailable",
+          call: previous,
+          message: options.error || `${previous.other.name} cannot be called back from here. They can call you again.`,
+        });
+        return;
+      }
+      this.set({ phase: "ended" });
+    }
+    await this.call(previous.context_type, previous.context_id, role, previous.other.id, "", previous.other);
+  }
+
+  /** Our call and theirs crossed: both of us rang the other at the same moment. */
+  private isCrossedCall(incoming: CallInfo): boolean {
+    if (this.state.phase === "calling") return this.state.callingPerson?.id === incoming.other.id;
+    return this.state.phase === "ringing" && this.state.call?.other.id === incoming.other.id;
+  }
+
+  /** Both phones apply the same rule, so exactly one call survives: the one with the lower id. */
+  private async resolveCrossedCalls(incoming: CallInfo) {
+    const ours = this.state.call;
+    if (!ours || this.state.phase !== "ringing" || incoming.id > ours.id) return;
+    this.clearRing();
+    void apiClient.callAction(ours.id, "cancel");
+    this.set({ ...IDLE, phase: "incoming", call: incoming });
+    await this.accept();
   }
 
   async accept() {
@@ -254,6 +347,11 @@ export class CallEngine {
 
   /** Cancel a ringing call or end a connected one. */
   async hangUp() {
+    if (this.state.phase === "calling" && !this.state.call) {
+      this.abortStart = true;
+      this.finish("cancelled");
+      return;
+    }
     const call = this.state.call;
     if (!call || this.state.phase === "idle" || this.state.phase === "ended") return;
     if (this.state.phase === "incoming") return this.decline();
@@ -279,6 +377,31 @@ export class CallEngine {
     if (this.state.phase === "ended") this.set(IDLE);
   }
 
+  /** The phone is back on a network: try again straight away instead of waiting for a timer. */
+  networkBack() {
+    void this.reportDrop();
+    if (this.state.phase === "reconnecting") void this.restartIce();
+    if (this.socket?.readyState !== 1 && !this.closed) {
+      if (this.retryTimer != null) this.deps.clearTimer(this.retryTimer);
+      this.connectSocket();
+    }
+  }
+
+  /** After a gap (socket lost, app in the background) the call may have been decided without us. */
+  async resync() {
+    const call = this.state.call;
+    if (!call || this.state.phase === "idle" || this.state.phase === "ended") return;
+    const res = await apiClient.getCall(call.id);
+    if (res.data && res.data.status !== call.status) this.onUpdate(res.data);
+  }
+
+  private async reportDrop() {
+    const id = this.unreportedDrop;
+    if (!id) return;
+    const res = await apiClient.callAction(id, "fail", { code: "connection_lost" });
+    if (!res.error && this.unreportedDrop === id) this.unreportedDrop = null;
+  }
+
   private async preparePeer() {
     if (this.peer) return;
     this.mic = await this.deps.getMicrophone();
@@ -297,13 +420,51 @@ export class CallEngine {
 
   private onPeerState(state: RTCPeerConnectionState) {
     if (state === "connected") {
+      this.clearReconnect();
       if (this.iceTimer != null) this.deps.clearTimer(this.iceTimer);
       this.set({ phase: "in_call", connectedAt: this.state.connectedAt ?? this.deps.now(), message: "" });
-    } else if (state === "disconnected" && this.state.phase === "in_call") {
-      this.set({ phase: "reconnecting" });
+    } else if ((state === "disconnected" || state === "failed") && this.state.connectedAt != null) {
+      this.beginReconnect();
     } else if (state === "failed") {
       void this.failConnection("ice_failed");
     }
+  }
+
+  /** Audio was lost on a connected call: repair it inside the same call for a short while, then offer Call back. */
+  private beginReconnect() {
+    if (this.state.phase === "reconnecting") return;
+    this.set({ phase: "reconnecting" });
+    this.reconnectTimers = [
+      this.deps.setTimer(() => void this.restartIce(), ICE_RESTART_MS),
+      this.deps.setTimer(() => void this.restartIce(), ICE_RESTART_AGAIN_MS),
+      this.deps.setTimer(() => this.dropCall(), RECONNECT_GIVE_UP_MS),
+    ];
+  }
+
+  private clearReconnect() {
+    this.reconnectTimers.forEach((t) => this.deps.clearTimer(t));
+    this.reconnectTimers = [];
+  }
+
+  private async restartIce() {
+    const peer = this.peer;
+    if (!peer || this.state.call?.direction !== "outgoing" || this.socket?.readyState !== 1) return;
+    if (peer.signalingState !== "stable") return;
+    try {
+      const offer = await peer.createOffer({ iceRestart: true });
+      await peer.setLocalDescription(offer);
+      this.sendSignal({ kind: "offer", sdp: offer.sdp });
+    } catch {
+      /* the next attempt, or giving up, deals with it */
+    }
+  }
+
+  private dropCall() {
+    const call = this.state.call;
+    // The screen must not wait on a network that has just gone: tell the server afterwards.
+    this.unreportedDrop = call?.id ?? null;
+    this.finish("dropped");
+    void this.reportDrop();
   }
 
   private async failConnection(code: string) {
@@ -373,6 +534,7 @@ export class CallEngine {
 
   private finish(outcome: CallOutcome, message = "", call?: CallInfo | null) {
     this.clearRing();
+    this.clearReconnect();
     if (this.iceTimer != null) this.deps.clearTimer(this.iceTimer);
     this.peer?.close();
     this.peer = null;

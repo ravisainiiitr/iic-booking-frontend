@@ -36,7 +36,7 @@ export const oicGuide: RoleGuide = {
           },
           SHOW_ANDROID_APP_BANNER && {
             title: "Android app",
-            body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, pending samples, messages, results overdue, urgent requests and waitlist.",
+            body: "Use Get the Android app on the dashboard to install IIT Roorkee Equipment Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, pending samples, messages, results overdue, urgent requests and waitlist.",
           },
           {
             title: "Book for a user",

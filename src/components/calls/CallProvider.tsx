@@ -34,6 +34,7 @@ function browserDeps(audio: HTMLAudioElement) {
     },
     setSpeaker: (on: boolean) => (isNativeApp() ? setNativeCallAudio(on ? "speaker" : "earpiece") : undefined),
     now: () => Date.now(),
+    getToken: () => apiClient.getToken(),
     setTimer: (fn: () => void, ms: number) => window.setTimeout(fn, ms),
     clearTimer: (id: number) => window.clearTimeout(id),
     platform,
@@ -84,7 +85,16 @@ export function CallProvider({ children }: { children: ReactNode }) {
     window.addEventListener("iic-call-native-end", onNativeEnd);
     window.addEventListener("iic-call-native-mute", onNativeMute);
     window.addEventListener("iic-call-native-unmute", onNativeUnmute);
+    // Moving between networks, or returning from the background, must not leave the call out of step.
+    const onOnline = () => eng.networkBack();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void eng.resync();
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("iic-call-native-end", onNativeEnd);
       window.removeEventListener("iic-call-native-mute", onNativeMute);
       window.removeEventListener("iic-call-native-unmute", onNativeUnmute);

@@ -109,6 +109,7 @@ import {
 } from "@/components/slot-calendar/SlotWeekGrid";
 import { useSelectOrOpenClick } from "@/components/slot-calendar/useSelectOrOpenClick";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
+import { isNativeApp } from "@/lib/nativeApp";
 import { publicDisruptionLines, type PublicDisruptionInfo } from "@/lib/disruptions";
 import { describeGroupSlotWindow, slotStatusHoverLines } from "@/lib/slotStatusHover";
 import RestrictedSlotLegend, { SlotVisibilityScopeToggle } from "@/components/RestrictedSlotLegend";
@@ -9846,7 +9847,8 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                   />
                 )}
 
-                {templatePickerAvailable && !bookingForAnotherUser && equipmentDetail && (
+                {/* In the app the prompt to create a first template is left out: the phone screen goes to the booking itself. */}
+                {templatePickerAvailable && !bookingForAnotherUser && equipmentDetail && (!isNativeApp() || bookingTemplates.length > 0) && (
                   <PeakCollapsible
                     id="template"
                     collapsible={peakCompact}

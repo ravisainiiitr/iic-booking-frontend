@@ -17,7 +17,7 @@ function formatWhen(value: string | null): string {
 }
 
 /**
- * Phones that stay signed in through the IIC Booking app. Shown in a browser only when the
+ * Phones that stay signed in through the IIT Roorkee Equipment Booking app. Shown in a browser only when the
  * user has such phones, so they can sign out a lost one; inside the app it also offers app lock.
  */
 export default function MobileDevicesCard() {
@@ -101,7 +101,7 @@ export default function MobileDevicesCard() {
       <CardHeader className="bg-muted/30 border-b border-border/50">
         <CardTitle className="flex items-center gap-2">
           <Smartphone className="h-5 w-5 text-primary" aria-hidden />
-          IIC Booking app
+          IIT Roorkee Equipment Booking app
         </CardTitle>
         <CardDescription>
           Phones where you stay signed in to the app. Sign out any phone you no longer use or have lost.

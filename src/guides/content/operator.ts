@@ -27,7 +27,7 @@ export const operatorGuide: RoleGuide = {
         },
         SHOW_ANDROID_APP_BANNER && {
           title: "Android app",
-          body: "Use Get the Android app on the dashboard to install IIC Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, samples to receive, messages to answer and results overdue.",
+          body: "Use Get the Android app on the dashboard to install IIT Roorkee Equipment Booking on your phone. Sign in once with OTP and unlock it with your fingerprint or phone PIN; it opens on Today: today's and tomorrow's bookings, samples to receive, messages to answer and results overdue.",
         },
         {
           title: "Urgent bookings",
