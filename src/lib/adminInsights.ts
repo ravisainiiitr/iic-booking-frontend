@@ -669,4 +669,64 @@ export const INSIGHT_PATHS = {
   equipment: "/admin/insights/equipment",
   users: "/admin/insights/users",
   cancellations: "/admin/insights/cancellations",
+  serviceLevels: "/admin/insights/service-levels",
 } as const;
+
+export interface ServiceLevelFigures {
+  bookings: number;
+  carried_out: number;
+  not_utilized: number;
+  no_show_rate: number | null;
+  cancelled: number;
+  cancellation_rate: number | null;
+  lab_stopped: number;
+  lab_stopped_rate: number | null;
+  /** Median days from the booking being made to its first slot. */
+  lead_days: number | null;
+  /** Median hours from the end of the last slot to the first results notice; null when none were timed. */
+  turnaround_hours: number | null;
+  results_timed: number;
+  results_awaited: number;
+  rating: number | null;
+  rated: number;
+}
+
+export interface ServiceLevelRow extends ServiceLevelFigures {
+  equipment_id: number;
+  name: string;
+  code: string;
+  department: string;
+  utilisation: number | null;
+}
+
+export interface ServiceLevelFilters {
+  date_from: string;
+  date_to: string;
+  equipment: string;
+}
+
+export const EMPTY_SERVICE_LEVEL_FILTERS: ServiceLevelFilters = { date_from: "", date_to: "", equipment: "" };
+
+export interface ServiceLevels {
+  scope: "institute" | "department";
+  department: { id: number; name: string } | null;
+  selected_department_id: number | null;
+  departments: DepartmentChoice[];
+  generated_at: string;
+  date_from: string;
+  date_to: string;
+  previous_from: string;
+  previous_to: string;
+  utilisation_period_note: string;
+  summary: ServiceLevelFigures & {
+    utilisation: number | null;
+    instruments: number;
+    previous: ServiceLevelFigures & { utilisation: number | null };
+  };
+  results: ServiceLevelRow[];
+  count: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  options?: { equipment: { id: number; name: string; code: string }[] };
+}

@@ -266,6 +266,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Cancellations",
     description: "Who cancelled, why, how late, what was refunded and whether the freed slots were re-booked.",
   },
+  "/admin/insights/service-levels": {
+    title: "Service levels",
+    description: "How long users wait, how quickly results arrive and how reliably each instrument serves them.",
+  },
 };
 
 /** Main / Department Administrator title for /urgent-requests (OICs keep "Urgent Booking"). */
