@@ -145,7 +145,7 @@ export default function StaffMore() {
 
         {info && (
           <p className="text-center text-xs text-muted-foreground">
-            IIC Booking app {info.appVersion} ({info.appBuild})
+            IIT Roorkee Equipment Booking app {info.appVersion} ({info.appBuild})
           </p>
         )}
       </main>
