@@ -27,7 +27,9 @@ export interface IstemLinkStatus {
   otp_required: boolean;
   email_masked?: string;
   paused_until?: string | null;
-  otp?: { expires_at: string; attempts_left: number };
+  otp?: { expires_at: string; attempts_left: number; whatsapp_masked?: string };
+  /** The user may ask for the OTP on WhatsApp as well, to the mobile number registered on I-STEM. */
+  whatsapp_otp_available?: boolean;
   public_user_id?: string;
   istem_profile?: IstemProfile;
 }
@@ -70,7 +72,11 @@ export const istemLinkApi = {
   status: () => request<IstemLinkStatus>("/"),
   findAccount: (lookup: { email?: string; mobile?: string }) =>
     request<{ message: string; email_masked: string }>("/find-account/", lookup),
-  sendOtp: () => request<{ message: string; email_masked: string; expires_at: string; attempts_left: number }>("/send-otp/", {}),
+  sendOtp: (whatsapp = false) =>
+    request<{ message: string; email_masked: string; whatsapp_masked?: string; expires_at: string; attempts_left: number }>(
+      "/send-otp/",
+      whatsapp ? { whatsapp: true } : {},
+    ),
   verifyOtp: (otp: string) => request<IstemLinkStatus & { message: string }>("/verify-otp/", { otp }),
 };
 
@@ -109,12 +115,13 @@ async function publicRequest<T>(path: string, json?: unknown): Promise<T> {
 export const istemRegisterApi = {
   availability: () => {
     const key = istemTestKey();
-    return publicRequest<{ available: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
+    return publicRequest<{ available: boolean; whatsapp_otp?: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
   },
-  lookup: (email: string, mobile: string) =>
-    publicRequest<{ message: string; token: string; email_masked: string; expires_in: number }>("/lookup/", {
+  lookup: (email: string, mobile: string, whatsapp = false) =>
+    publicRequest<{ message: string; token: string; email_masked: string; whatsapp_masked?: string; expires_in: number }>("/lookup/", {
       email,
       mobile,
+      ...(whatsapp ? { whatsapp: true } : {}),
       ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),
     }),
   verify: (token: string, otp: string) =>

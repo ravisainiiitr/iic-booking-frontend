@@ -4730,6 +4730,10 @@ export interface WhatsAppOptIn {
   opted_in: boolean;
   phone: string;
   opted_in_at: string | null;
+  /** This number has been proved with a WhatsApp code, so sign-in codes also go to it. */
+  phone_verified?: boolean;
+  /** WhatsApp codes can be sent now (switched on, and the template approved at Meta). */
+  codes_available?: boolean;
 }
 
 class ApiClient {
@@ -5834,6 +5838,14 @@ class ApiClient {
 
   async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string }) {
     return this.request<WhatsAppOptIn>('/whatsapp/me/', { method: 'PUT', body: JSON.stringify(body) });
+  }
+
+  async sendWhatsAppVerifyCode() {
+    return this.request<{ sent_to: string; expires_in: number }>('/whatsapp/me/verify/send/', { method: 'POST', body: '{}' });
+  }
+
+  async confirmWhatsAppVerifyCode(otp: string) {
+    return this.request<WhatsAppOptIn>('/whatsapp/me/verify/confirm/', { method: 'POST', body: JSON.stringify({ otp }) });
   }
 
   /** Phones signed in through the IIC Booking app (each can be signed out remotely). */

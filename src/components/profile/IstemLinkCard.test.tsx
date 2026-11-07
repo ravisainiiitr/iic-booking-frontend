@@ -70,4 +70,29 @@ describe("IstemLinkCard", () => {
     expect(await screen.findByText("Linked to I-STEM")).toBeTruthy();
     expect(screen.getByText("Asha Verma · asha@example.com")).toBeTruthy();
   });
+
+  it("offers the code on WhatsApp only when the server allows it", async () => {
+    mockFetch({
+      "/istem/link/": { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in" } },
+    });
+    render(<IstemLinkCard />);
+    await screen.findByText(/Enter the 6-digit OTP sent to/);
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("sends the WhatsApp choice with a resend and shows the second code", async () => {
+    const calls = mockFetch({
+      "/istem/link/": [
+        { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in", whatsapp_otp_available: true } },
+        { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in", whatsapp_otp_available: true,
+          otp: { expires_at: "2026-10-30T10:00:00+05:30", attempts_left: 5, whatsapp_masked: "number ending 10" } } },
+      ],
+      "/send-otp/": { body: { message: "sent", email_masked: "p***@ic.iitr.ac.in", whatsapp_masked: "number ending 10", expires_at: "2026-10-30T10:00:00+05:30", attempts_left: 5 } },
+    });
+    render(<IstemLinkCard />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: /also send a code on WhatsApp/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Send OTP" }));
+    expect(await screen.findByText(/A separate code went on WhatsApp to the number ending 10/)).toBeTruthy();
+    expect(calls.find((c) => c.url.endsWith("/send-otp/"))?.body).toEqual({ whatsapp: true });
+  });
 });

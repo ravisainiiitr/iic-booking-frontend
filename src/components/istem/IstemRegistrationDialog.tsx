@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -32,6 +33,9 @@ export function splitIdentifier(value: string): { email: string; mobile: string 
  *
  * With ``userType`` and ``onSignedIn`` the account is created at once after the OTP (no password, no form) and the
  * user is signed in; the dashboard then asks for whatever is still missing. Without them the form is filled instead.
+ *
+ * With ``whatsappOtp`` the user may tick a box to get a second code on WhatsApp, at the mobile number registered on
+ * I-STEM. It is never ticked for them: that request is the consent to the message.
  */
 export default function IstemRegistrationDialog({
   open,
@@ -39,18 +43,22 @@ export default function IstemRegistrationDialog({
   onVerified,
   userType,
   onSignedIn,
+  whatsappOtp = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onVerified: (result: IstemRegistrationResult) => void;
   userType?: string;
   onSignedIn?: (token: string, user: Record<string, unknown>) => void;
+  whatsappOtp?: boolean;
 }) {
   const direct = Boolean(userType && onSignedIn);
   const [step, setStep] = useState<Step>("ask");
   const [identifier, setIdentifier] = useState("");
   const [token, setToken] = useState("");
   const [masked, setMasked] = useState("");
+  const [alsoWhatsApp, setAlsoWhatsApp] = useState(false);
+  const [whatsappMasked, setWhatsappMasked] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -60,6 +68,8 @@ export default function IstemRegistrationDialog({
     setStep("ask");
     setOtp("");
     setError("");
+    setAlsoWhatsApp(false);
+    setWhatsappMasked("");
   };
 
   const lookup = async () => {
@@ -67,9 +77,10 @@ export default function IstemRegistrationDialog({
     setError("");
     try {
       const { email, mobile } = splitIdentifier(identifier);
-      const sent = await istemRegisterApi.lookup(email, mobile);
+      const sent = await istemRegisterApi.lookup(email, mobile, whatsappOtp && alsoWhatsApp);
       setToken(sent.token);
       setMasked(sent.email_masked);
+      setWhatsappMasked(sent.whatsapp_masked || "");
       setOtp("");
       setStep("otp");
     } catch (e) {
@@ -128,7 +139,9 @@ export default function IstemRegistrationDialog({
                 : "If you have an account on I-STEM, the national facility portal, we can fill in this form from it."
               : step === "details"
                 ? "Enter the email or the mobile number registered on I-STEM. We send a one-time password to the email registered there."
-                : `Enter the 6-digit OTP sent to ${masked}.`}
+                : whatsappMasked
+                  ? `Enter the 6-digit OTP sent to ${masked}, or the one sent on WhatsApp to the ${whatsappMasked}. Either works.`
+                  : `Enter the 6-digit OTP sent to ${masked}.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,6 +157,14 @@ export default function IstemRegistrationDialog({
                 placeholder="name@example.com or 10-digit mobile number"
               />
             </div>
+            {whatsappOtp ? (
+              <div className="flex items-start gap-2">
+                <Checkbox id="istem-reg-whatsapp" checked={alsoWhatsApp} onCheckedChange={(v) => setAlsoWhatsApp(v === true)} className="mt-0.5" />
+                <Label htmlFor="istem-reg-whatsapp" className="text-sm font-normal leading-snug">
+                  Also send a code on WhatsApp to the mobile number registered on I-STEM
+                </Label>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
