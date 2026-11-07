@@ -9,7 +9,8 @@ describe("useOtpCountdown", () => {
   afterEach(() => vi.useRealTimers());
 
   it("counts down and then reports the code has expired", () => {
-    const { result } = renderHook(() => useOtpCountdown(Date.now() + 300_000));
+    const deadline = Date.now() + 300_000;
+    const { result } = renderHook(() => useOtpCountdown(deadline));
     expect(result.current).toEqual({ label: "This code expires in 5:00.", expired: false });
     act(() => { vi.advanceTimersByTime(61_000); });
     expect(result.current.label).toBe("This code expires in 3:59.");
