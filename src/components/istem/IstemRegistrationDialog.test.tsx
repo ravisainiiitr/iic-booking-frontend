@@ -112,7 +112,7 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
     expect(onSignedIn).not.toHaveBeenCalled();
   });
 
-  it("asks for the code on WhatsApp only when the box is ticked, and says where it went", async () => {
+  it("says the OTP also goes on WhatsApp, and where it went", async () => {
     const calls: Array<{ url: string; body: unknown }> = [];
     globalThis.fetch = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
@@ -121,17 +121,15 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
     render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={() => undefined} whatsappOtp />);
     fireEvent.click(screen.getByRole("button", { name: "Yes, use my I-STEM account" }));
     fireEvent.change(screen.getByLabelText("Email or mobile number registered on I-STEM"), { target: { value: "98765 43210" } });
-    const box = screen.getByRole("checkbox", { name: /Also send a code on WhatsApp/ });
-    expect(box.getAttribute("aria-checked")).toBe("false");
-    fireEvent.click(box);
+    expect(screen.getByText(/also goes on WhatsApp to the mobile number registered on I-STEM/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Find my account" }));
-    expect(await screen.findByText(/sent on WhatsApp to the number ending 10/)).toBeTruthy();
-    expect(calls[0].body).toEqual({ email: "", mobile: "9876543210", whatsapp: true });
+    expect(await screen.findByText(/and on WhatsApp to the number ending 10/)).toBeTruthy();
+    expect(calls[0].body).toEqual({ email: "", mobile: "9876543210" });
   });
 
-  it("does not offer WhatsApp while the portal has it off", () => {
+  it("does not mention WhatsApp while the portal has it off", () => {
     render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "Yes, use my I-STEM account" }));
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByText(/WhatsApp/)).toBeNull();
   });
 });
