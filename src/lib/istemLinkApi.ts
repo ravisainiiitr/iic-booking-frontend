@@ -72,10 +72,10 @@ export const istemLinkApi = {
   status: () => request<IstemLinkStatus>("/"),
   findAccount: (lookup: { email?: string; mobile?: string }) =>
     request<{ message: string; email_masked: string }>("/find-account/", lookup),
-  sendOtp: (whatsapp = false) =>
+  sendOtp: () =>
     request<{ message: string; email_masked: string; whatsapp_masked?: string; expires_at: string; attempts_left: number }>(
       "/send-otp/",
-      whatsapp ? { whatsapp: true } : {},
+      {},
     ),
   verifyOtp: (otp: string) => request<IstemLinkStatus & { message: string }>("/verify-otp/", { otp }),
 };
@@ -117,11 +117,10 @@ export const istemRegisterApi = {
     const key = istemTestKey();
     return publicRequest<{ available: boolean; whatsapp_otp?: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
   },
-  lookup: (email: string, mobile: string, whatsapp = false) =>
+  lookup: (email: string, mobile: string) =>
     publicRequest<{ message: string; token: string; email_masked: string; whatsapp_masked?: string; expires_in: number }>("/lookup/", {
       email,
       mobile,
-      ...(whatsapp ? { whatsapp: true } : {}),
       ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),
     }),
   verify: (token: string, otp: string) =>

@@ -3,7 +3,6 @@ import { BadgeCheck, Link2, Loader2, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -34,7 +33,6 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const [lookupBy, setLookupBy] = useState<LookupBy>("email");
   const [value, setValue] = useState("");
   const [otp, setOtp] = useState("");
-  const [alsoWhatsApp, setAlsoWhatsApp] = useState(false);
   const [busy, setBusy] = useState<"find" | "send" | "verify" | null>(null);
   const [searching, setSearching] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -61,10 +59,9 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const sendOtp = async () => {
     setBusy("send");
     try {
-      const sent = await istemLinkApi.sendOtp(Boolean(status?.whatsapp_otp_available) && alsoWhatsApp);
+      const sent = await istemLinkApi.sendOtp();
       toast.success(sent.whatsapp_masked ? `OTP sent to ${sent.email_masked} and on WhatsApp.` : `OTP sent to ${sent.email_masked}.`);
       setOtp("");
-      setAlsoWhatsApp(false);
       setResendIn(60);
       await load();
     } catch (e) {
@@ -157,7 +154,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
               <span>
                 We found your I-STEM account. Enter the 6-digit OTP sent to <strong>{status.email_masked}</strong>, the
                 email registered on I-STEM.
-                {status.otp?.whatsapp_masked ? ` A separate code went on WhatsApp to the ${status.otp.whatsapp_masked}; either works.` : ""}
+                {status.otp?.whatsapp_masked ? ` The same OTP went on WhatsApp to the ${status.otp.whatsapp_masked}.` : status.whatsapp_otp_available && !status.otp ? " It also goes on WhatsApp to the mobile number registered on I-STEM." : ""}
                 {countdown.label ? ` ${countdown.label}` : ""}
               </span>
             </p>
@@ -178,14 +175,6 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
                   <p className="text-xs text-muted-foreground">{status.otp.attempts_left} attempt(s) left.</p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
-                  {status.whatsapp_otp_available ? (
-                    <div className="flex w-full items-start gap-2">
-                      <Checkbox id="istem-link-whatsapp" checked={alsoWhatsApp} onCheckedChange={(v) => setAlsoWhatsApp(v === true)} className="mt-0.5" />
-                      <Label htmlFor="istem-link-whatsapp" className="text-sm font-normal leading-snug">
-                        When I resend, also send a code on WhatsApp to the mobile number registered on I-STEM
-                      </Label>
-                    </div>
-                  ) : null}
                   <Button onClick={verify} disabled={otp.length !== 6 || busy !== null || countdown.expired}>
                     {busy === "verify" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
                     Verify and link
