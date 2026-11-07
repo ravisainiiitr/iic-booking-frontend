@@ -41,6 +41,7 @@ export const SEARCH_PAGES: SearchPage[] = [
   { path: "/upkeep", title: "Equipment upkeep", keywords: "maintenance calibration schedule uptime downtime mtbf mttr breakdown amc alerts", audience: "staff" },
   { path: "/training/authorisations", title: "Training authorisations", keywords: "authorised users training requests grandfather gate", audience: "staff" },
   { path: "/reports", title: "Reports", keywords: "statistics revenue usage export", audience: "staff" },
+  { path: "/admin/operations-audit", title: "Operations audit", keywords: "audit waitlist cleared slot exchange urgent type a b refund who issued", audience: "admin" },
   { path: "/admin/insights/users", title: "Users overview", keywords: "people accounts users", audience: "admin" },
   { path: "/admin/insights/equipment", title: "Equipment overview", keywords: "utilisation usage", audience: "admin" },
   { path: "/admin-settings", title: "Admin settings", keywords: "configuration settings", audience: "admin" },
