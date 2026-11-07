@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { type IstemProfile, istemRegisterApi } from "@/lib/istemLinkApi";
+import { useOtpCountdown } from "@/lib/useOtpCountdown";
 
 export type IstemRegistrationResult = {
   profile: IstemProfile & { mobile?: string; state?: string };
@@ -59,6 +60,8 @@ export default function IstemRegistrationDialog({
   const [masked, setMasked] = useState("");
   const [alsoWhatsApp, setAlsoWhatsApp] = useState(false);
   const [whatsappMasked, setWhatsappMasked] = useState("");
+  const [deadline, setDeadline] = useState<number | null>(null);
+  const countdown = useOtpCountdown(step === "otp" ? deadline : null);
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -81,6 +84,7 @@ export default function IstemRegistrationDialog({
       setToken(sent.token);
       setMasked(sent.email_masked);
       setWhatsappMasked(sent.whatsapp_masked || "");
+      setDeadline(sent.expires_in ? Date.now() + sent.expires_in * 1000 : null);
       setOtp("");
       setStep("otp");
     } catch (e) {
@@ -178,6 +182,10 @@ export default function IstemRegistrationDialog({
           </InputOTP>
         ) : null}
 
+        {countdown.label ? (
+          <p className={countdown.expired ? "text-sm text-destructive" : "text-sm text-muted-foreground"} data-testid="otp-countdown">{countdown.label}</p>
+        ) : null}
+
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
 
         <DialogFooter className="gap-2 sm:gap-2">
@@ -197,7 +205,7 @@ export default function IstemRegistrationDialog({
           ) : (
             <>
               <Button type="button" variant="outline" onClick={() => setStep("details")} disabled={busy}>Back</Button>
-              <Button type="button" onClick={verify} disabled={busy || otp.length !== 6}>
+              <Button type="button" onClick={verify} disabled={busy || otp.length !== 6 || countdown.expired}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
                 {direct ? "Verify and create my account" : "Verify and fill the form"}
               </Button>

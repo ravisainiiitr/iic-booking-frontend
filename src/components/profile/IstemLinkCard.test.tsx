@@ -46,7 +46,7 @@ describe("IstemLinkCard", () => {
         { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in" } },
       ],
       "/find-account/": { body: { message: "found", email_masked: "p***@ic.iitr.ac.in" } },
-      "/send-otp/": { body: { message: "sent", email_masked: "p***@ic.iitr.ac.in", expires_at: "2026-10-30T10:00:00+05:30", attempts_left: 5 } },
+      "/send-otp/": { body: { message: "sent", email_masked: "p***@ic.iitr.ac.in", expires_at: "2099-10-30T10:00:00+05:30", attempts_left: 5 } },
     });
     render(<IstemLinkCard />);
     fireEvent.click(await screen.findByRole("radio", { name: "Mobile number" }));
@@ -85,9 +85,9 @@ describe("IstemLinkCard", () => {
       "/istem/link/": [
         { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in", whatsapp_otp_available: true } },
         { body: { state: "AWAITING_OTP", otp_required: true, linking_available: true, email_masked: "p***@ic.iitr.ac.in", whatsapp_otp_available: true,
-          otp: { expires_at: "2026-10-30T10:00:00+05:30", attempts_left: 5, whatsapp_masked: "number ending 10" } } },
+          otp: { expires_at: "2099-10-30T10:00:00+05:30", attempts_left: 5, whatsapp_masked: "number ending 10" } } },
       ],
-      "/send-otp/": { body: { message: "sent", email_masked: "p***@ic.iitr.ac.in", whatsapp_masked: "number ending 10", expires_at: "2026-10-30T10:00:00+05:30", attempts_left: 5 } },
+      "/send-otp/": { body: { message: "sent", email_masked: "p***@ic.iitr.ac.in", whatsapp_masked: "number ending 10", expires_at: "2099-10-30T10:00:00+05:30", attempts_left: 5 } },
     });
     render(<IstemLinkCard />);
     fireEvent.click(await screen.findByRole("checkbox", { name: /also send a code on WhatsApp/ }));

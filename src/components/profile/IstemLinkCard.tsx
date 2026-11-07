@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useOtpCountdown } from "@/lib/useOtpCountdown";
 import { Label } from "@/components/ui/label";
 import { IstemLinkError, istemLinkApi, type IstemLinkStatus } from "@/lib/istemLinkApi";
 
@@ -37,6 +38,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const [busy, setBusy] = useState<"find" | "send" | "verify" | null>(null);
   const [searching, setSearching] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const countdown = useOtpCountdown(status?.otp?.expires_at ? Date.parse(status.otp.expires_at) : null);
 
   const load = useCallback(async () => {
     try {
@@ -156,7 +158,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
                 We found your I-STEM account. Enter the 6-digit OTP sent to <strong>{status.email_masked}</strong>, the
                 email registered on I-STEM.
                 {status.otp?.whatsapp_masked ? ` A separate code went on WhatsApp to the ${status.otp.whatsapp_masked}; either works.` : ""}
-                {status.otp?.expires_at ? ` It is valid until ${formatWhen(status.otp.expires_at)}.` : ""}
+                {countdown.label ? ` ${countdown.label}` : ""}
               </span>
             </p>
             {paused ? (
@@ -184,7 +186,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
                       </Label>
                     </div>
                   ) : null}
-                  <Button onClick={verify} disabled={otp.length !== 6 || busy !== null}>
+                  <Button onClick={verify} disabled={otp.length !== 6 || busy !== null || countdown.expired}>
                     {busy === "verify" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
                     Verify and link
                   </Button>
