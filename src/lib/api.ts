@@ -7523,36 +7523,6 @@ class ApiClient {
     });
   }
 
-  /** SBIePay: initiate wallet recharge or booking shortfall payment (deprecated — returns 410). */
-  async initiateSbiepayPayment(payload: {
-    purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
-    amount: number | string;
-    department_id: number;
-    booking_id?: number;
-  }) {
-    return this.request<{
-      gateway_url: string;
-      encrypt_trans: string;
-      merchant_order_ref: string;
-      form_method: string;
-      form_fields: Record<string, string>;
-    }>('/payments/sbiepay/initiate/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async getSbiepayTransactionStatus(ref: string) {
-    return this.request<{
-      merchant_order_ref: string;
-      status: string;
-      amount: string;
-      purpose: string;
-      booking_id: number | null;
-      verified_at: string | null;
-    }>(`/payments/sbiepay/status/?ref=${encodeURIComponent(ref)}`);
-  }
-
   async submitPaymentUtr(payload: {
     utr_reference: string;
     amount: number | string;
@@ -7862,26 +7832,6 @@ class ApiClient {
       `/finance/payment-receipts/${receiptId}/process/`,
       { method: 'POST', body: JSON.stringify({ remarks: remarks || '' }) },
     );
-  }
-
-  /** Open SBIePay in a new window via auto-submitting POST form. */
-  submitSbiepayForm(payload: {
-    gateway_url: string;
-    form_fields: Record<string, string>;
-  }) {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payload.gateway_url;
-    form.target = '_self';
-    Object.entries(payload.form_fields).forEach(([k, v]) => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = k;
-      input.value = v;
-      form.appendChild(input);
-    });
-    document.body.appendChild(form);
-    form.submit();
   }
 
   // User roles endpoints
