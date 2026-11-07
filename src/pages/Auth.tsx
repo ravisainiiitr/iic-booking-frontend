@@ -209,6 +209,7 @@ const Auth = () => {
   const [selectedStateUt, setSelectedStateUt] = useState("");
   // Registration with an existing I-STEM account (shown only while the I-STEM API is switched on).
   const [istemRegisterAvailable, setIstemRegisterAvailable] = useState(false);
+  const [istemWhatsappOtp, setIstemWhatsappOtp] = useState(false);
   const [istemDialogOpen, setIstemDialogOpen] = useState(false);
   const [istemAskedForExternal, setIstemAskedForExternal] = useState(false);
   const [istemLinkToken, setIstemLinkToken] = useState<string | null>(null);
@@ -487,7 +488,13 @@ const Auth = () => {
   const signupIsExternal = Boolean(signupKindValue) && !signupIsIitr;
 
   useEffect(() => {
-    istemRegisterApi.availability().then((r) => setIstemRegisterAvailable(r.available)).catch(() => setIstemRegisterAvailable(false));
+    istemRegisterApi
+      .availability()
+      .then((r) => {
+        setIstemRegisterAvailable(r.available);
+        setIstemWhatsappOtp(Boolean(r.whatsapp_otp));
+      })
+      .catch(() => setIstemRegisterAvailable(false));
   }, []);
 
   useEffect(() => {
@@ -1096,6 +1103,7 @@ const Auth = () => {
       <IstemRegistrationDialog
         open={istemDialogOpen}
         onOpenChange={setIstemDialogOpen}
+        whatsappOtp={istemWhatsappOtp}
         onVerified={applyIstemProfile}
         userType={userType ? userType.split("|")[0] : undefined}
         onSignedIn={(token, signedIn) => {

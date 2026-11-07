@@ -111,4 +111,27 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
     expect(await screen.findByText("An account with this email already exists. Sign in instead.")).toBeTruthy();
     expect(onSignedIn).not.toHaveBeenCalled();
   });
+
+  it("asks for the code on WhatsApp only when the box is ticked, and says where it went", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    globalThis.fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return new Response(JSON.stringify({ token: "t1", email_masked: "a***@lab.example.com", whatsapp_masked: "number ending 10", expires_in: 600, message: "sent" }), { status: 200 });
+    }) as unknown as typeof fetch;
+    render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={() => undefined} whatsappOtp />);
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use my I-STEM account" }));
+    fireEvent.change(screen.getByLabelText("Email or mobile number registered on I-STEM"), { target: { value: "98765 43210" } });
+    const box = screen.getByRole("checkbox", { name: /Also send a code on WhatsApp/ });
+    expect(box.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole("button", { name: "Find my account" }));
+    expect(await screen.findByText(/sent on WhatsApp to the number ending 10/)).toBeTruthy();
+    expect(calls[0].body).toEqual({ email: "", mobile: "9876543210", whatsapp: true });
+  });
+
+  it("does not offer WhatsApp while the portal has it off", () => {
+    render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "Yes, use my I-STEM account" }));
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
 });
