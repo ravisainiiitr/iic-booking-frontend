@@ -636,7 +636,7 @@ export default function RechargeWalletDialog({
         amount: order.amount,
         currency: order.currency || "INR",
         ...checkoutBranding((order as { checkout_name?: string }).checkout_name),
-        description: `Wallet recharge — ${selectedDepartment?.name ?? "department"}`,
+        description: (order.payment_purpose || `Wallet recharge for the ${selectedDepartment?.name ?? "department"} sub-wallet`).slice(0, 250),
         order_id: order.order_id,
         handler: async (response: {
           razorpay_order_id: string;

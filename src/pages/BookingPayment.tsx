@@ -36,6 +36,7 @@ export default function BookingPayment() {
   const [breakup, setBreakup] = useState<FeeBreakup | null>(null);
   const [gateway, setGateway] = useState<PaymentGatewayStatus | null>(null);
   const [equipmentImage, setEquipmentImage] = useState("");
+  const [purpose, setPurpose] = useState("");
   const [utr, setUtr] = useState("");
   const [utrSubmitting, setUtrSubmitting] = useState(false);
 
@@ -62,6 +63,7 @@ export default function BookingPayment() {
           setBreakup(preview.data.breakup);
           setGateway(preview.data.gateway);
           setEquipmentImage(preview.data.equipment_image_url || "");
+          setPurpose(preview.data.payment_purpose || "");
         }
       }
     } finally {
@@ -106,7 +108,7 @@ export default function BookingPayment() {
         amount: res.data.amount,
         currency: res.data.currency || "INR",
         ...checkoutBranding(res.data.checkout_name),
-        description: `Booking ${booking.virtual_booking_id || booking.booking_id} — ${booking.equipment_name || "equipment"}`.slice(0, 250),
+        description: `${res.data.payment_purpose || purpose || `Charges for ${booking.equipment_name || "equipment"}`} — booking ${booking.virtual_booking_id || booking.booking_id}`.slice(0, 250),
         order_id: res.data.order_id,
         handler: async (response: {
           razorpay_order_id: string;
@@ -197,7 +199,10 @@ export default function BookingPayment() {
           <CardHeader>
             <CardTitle>Complete payment</CardTitle>
             <CardDescription>
-              {booking?.equipment_name} — {booking?.virtual_booking_id || booking?.booking_id}
+              <span className="block text-base font-medium text-foreground" data-testid="payment-purpose">
+                {purpose || `Analysis charges for '${booking?.equipment_name || "equipment"}'`}
+              </span>
+              Booking {booking?.virtual_booking_id || booking?.booking_id}
             </CardDescription>
             {bookingId ? (
               <CallButton context="invoice" id={Number(bookingId)} role="accounts" label="Payment question? Call Accounts In Charge"
@@ -208,7 +213,7 @@ export default function BookingPayment() {
             <PaymentPurposeImage
               src={equipmentImage}
               alt={booking?.equipment_name || "Equipment"}
-              caption={`You are paying for: ${booking?.equipment_name || "equipment"} — booking ${booking?.virtual_booking_id || booking?.booking_id || ""}`}
+              caption={`You are paying: ${purpose || `charges for ${booking?.equipment_name || "equipment"}`} — booking ${booking?.virtual_booking_id || booking?.booking_id || ""}`}
             />
             <div className="rounded-lg border p-4 space-y-2">
               <div className="flex justify-between">

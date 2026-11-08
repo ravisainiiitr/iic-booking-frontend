@@ -96,7 +96,7 @@ export default function ExternalCheckout() {
       currency: order.currency || "INR",
       order_id: order.order_id,
       ...checkoutBranding(order.checkout_name),
-      description: `Equipment booking: ${c.summary.equipment_name}`.slice(0, 250),
+      description: (order.payment_purpose || c.payment_purpose || `Analysis charges for '${c.summary.equipment_name}'`).slice(0, 250),
       // Close the payment window when the slot hold ends (pay-by time plus one minute of grace).
       ...(c.expires_at
         ? { timeout: Math.max(30, Math.floor((new Date(c.expires_at).getTime() - Date.now()) / 1000)) }

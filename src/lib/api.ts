@@ -4518,6 +4518,7 @@ export interface BookingPaymentPreview {
   booking_reference: string;
   equipment: string;
   equipment_image_url?: string;
+  payment_purpose?: string;
   department: string;
   status: string;
   total_charge: string;
@@ -7510,6 +7511,7 @@ class ApiClient {
       department_id?: number | null;
       mode?: string;
       checkout_name?: string;
+      payment_purpose?: string;
     }>('/payments/razorpay/create-order/', {
       method: 'POST',
       body: JSON.stringify(payload),
