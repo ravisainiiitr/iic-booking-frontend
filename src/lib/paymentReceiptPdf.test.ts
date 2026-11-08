@@ -14,7 +14,7 @@ const receipt: PaymentReceipt = {
   description: "Analysis charges for 'Sample XRD'", booking_reference: "XRD-TEST-0001", equipment: "Sample XRD",
   booking_total: "1180.00", booking_gst: "180.00", razorpay_payment_id: "pay_TEST", razorpay_order_id: "order_TEST",
   method: "upi", bank_reference: "RRN123", settlement_utr: "UTR456", paid_at: "2026-11-08T10:00:00+05:30", status: "Captured",
-  currency: "INR", base_amount: "1180.00", convenience_fee: "23.60", gst_on_fee: "4.25", gst_on_fee_percent: "18", total_paid: "1207.85",
+  currency: "INR", base_amount: "1180.00", convenience_fee: "0", gst_on_fee: "0", gst_on_fee_percent: "18", total_paid: "1180.00",
   payment_mode: "UPI",
   payment_details: [["UPI reference no. (RRN)", "531234567890"], ["UPI transaction ID", "AXL0123456789"],
     ["Payer UPI ID", "sa*******@okhdfcbank"], ["Payer bank / app", "HDFC Bank (Google Pay)"]],

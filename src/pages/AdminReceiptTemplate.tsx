@@ -104,7 +104,7 @@ export function sampleReceipt(v: ReceiptTemplateValues, collectedBy: string): Pa
       show_logo: v.show_logo, show_watermark: v.show_watermark,
     },
     paid_at: new Date().toISOString(), status: "Captured", currency: "INR", base_amount: "1180.00",
-    convenience_fee: "23.60", gst_on_fee: "4.25", gst_on_fee_percent: "18", total_paid: "1207.85",
+    convenience_fee: "0", gst_on_fee: "0", gst_on_fee_percent: "18", total_paid: "1180.00",
   };
 }
 
