@@ -2,7 +2,10 @@ import CallButton from "@/components/calls/CallButton";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
-import { formatINR } from "@/lib/money";
+import { formatINRWithPaise as formatINR } from "@/lib/money";
+import { InstitutionBanner } from "@/components/external/InstitutionBanner";
+import { checkoutBranding, POLICY_LINKS } from "@/lib/institutionIdentity";
+import type { PaymentGatewayStatus } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +33,7 @@ export default function BookingPayment() {
   const [paying, setPaying] = useState(false);
   const [booking, setBooking] = useState<any>(null);
   const [breakup, setBreakup] = useState<FeeBreakup | null>(null);
+  const [gateway, setGateway] = useState<PaymentGatewayStatus | null>(null);
   const [utr, setUtr] = useState("");
   const [utrSubmitting, setUtrSubmitting] = useState(false);
 
@@ -51,21 +55,10 @@ export default function BookingPayment() {
         return;
       }
       if (due > 0) {
-        const feeRes = await apiClient.getPaymentFeeSettings();
-        if (feeRes.data) {
-          const feePct = Number(feeRes.data.fee_percent || 0);
-          const gstPct = Number(feeRes.data.fee_gst_percent || 0);
-          const fee = Math.round(due * feePct) / 100;
-          const feeGst = Math.round(fee * gstPct * 100) / 100;
-          const feeRounded = Math.round(fee * 100) / 100;
-          setBreakup({
-            base_amount: due.toFixed(2),
-            convenience_fee: feeRounded.toFixed(2),
-            fee_gst: feeGst.toFixed(2),
-            total_amount: (due + feeRounded + feeGst).toFixed(2),
-            fee_percent: String(feePct),
-            fee_gst_percent: String(gstPct),
-          });
+        const preview = await apiClient.getBookingPaymentPreview(Number(bookingId));
+        if (preview.data) {
+          setBreakup(preview.data.breakup);
+          setGateway(preview.data.gateway);
         }
       }
     } finally {
@@ -109,8 +102,8 @@ export default function BookingPayment() {
         key: res.data.key || res.data.key_id,
         amount: res.data.amount,
         currency: res.data.currency || "INR",
-        name: "IIC Equipment Booking",
-        description: `Booking payment — ${booking.virtual_booking_id || booking.booking_id}`,
+        ...checkoutBranding(res.data.checkout_name),
+        description: `Booking ${booking.virtual_booking_id || booking.booking_id} — ${booking.equipment_name || "equipment"}`.slice(0, 250),
         order_id: res.data.order_id,
         handler: async (response: {
           razorpay_order_id: string;
@@ -127,13 +120,15 @@ export default function BookingPayment() {
             setPaying(false);
             return;
           }
-          toast.success("Payment successful.");
+          const paidId = verify.data?.payment_id || response.razorpay_payment_id;
+          toast.success("Payment successful.", {
+            action: { label: "Receipt", onClick: () => navigate(`/payments/receipts/${encodeURIComponent(paidId)}`) },
+          });
           navigate(`/bookings/${bookingId}/next-steps`, { replace: true });
         },
         modal: {
           ondismiss: () => setPaying(false),
         },
-        theme: { color: "#1e4d8c" },
       };
       const rzp = new window.Razorpay(options);
       rzp.open();
@@ -188,6 +183,7 @@ export default function BookingPayment() {
     <div className="page-shell">
       <DashboardHeader />
       <main className="container max-w-lg py-5 space-y-6">
+        <InstitutionBanner />
         <StandaloneOnly>
           <Button variant="ghost" onClick={() => navigate("/my-bookings")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -245,10 +241,24 @@ export default function BookingPayment() {
               )}
             </div>
 
-            <Button className="w-full" disabled={paying || due <= 0} onClick={() => void payViaRazorpay()}>
+            {gateway?.test_mode ? (
+              <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                Online payment is in test mode: no real money is taken, and only test accounts can pay online.
+              </p>
+            ) : null}
+            {gateway && !gateway.available && gateway.reason ? (
+              <p className="text-xs text-muted-foreground">{gateway.reason}</p>
+            ) : null}
+            <Button className="w-full" disabled={paying || due <= 0 || (gateway ? !gateway.available : false)} onClick={() => void payViaRazorpay()}>
               <CreditCard className="h-4 w-4 mr-2" />
-              {paying ? "Opening checkout…" : "Pay with Razorpay"}
+              {paying ? "Opening checkout…" : `Pay ${formatINR(Number(breakup?.total_amount || due))} securely with Razorpay`}
             </Button>
+            <p className="text-xs text-muted-foreground">
+              Payment is collected by {checkoutBranding(gateway?.checkout_name).name} for the Indian Institute of Technology Roorkee.
+              Cancellations and refunds follow the{" "}
+              <a href={POLICY_LINKS.refund} className="underline">Cancellation and Refund Policy</a> and the{" "}
+              <a href={POLICY_LINKS.terms} className="underline">Terms and Conditions</a>.
+            </p>
 
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">

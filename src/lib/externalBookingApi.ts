@@ -393,6 +393,8 @@ export interface CheckoutGatewayOrder {
   amount: number;
   currency: string;
   key: string;
+  mode?: string;
+  checkout_name?: string;
   breakup: { base_amount: string; convenience_fee: string; fee_gst: string; total_amount: string };
 }
 

@@ -147,6 +147,11 @@ export default function ExternalCheckoutConfirmation() {
                   View booking
                 </Button>
               ) : null}
+              {paidOnline && c.payment?.razorpay_payment_id ? (
+                <Button variant="outline" onClick={() => navigate(`/payments/receipts/${encodeURIComponent(c.payment!.razorpay_payment_id!)}`)}>
+                  Payment receipt
+                </Button>
+              ) : null}
               {c.state === "awaiting_payment" ? (
                 <Button variant="outline" onClick={() => { setPolls(0); void load(); }}>
                   Check again
