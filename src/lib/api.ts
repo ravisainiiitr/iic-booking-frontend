@@ -4517,6 +4517,7 @@ export interface PaymentGatewayStatus {
 export interface BookingPaymentPreview {
   booking_reference: string;
   equipment: string;
+  equipment_image_url?: string;
   department: string;
   status: string;
   total_charge: string;

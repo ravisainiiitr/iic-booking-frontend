@@ -351,6 +351,8 @@ export interface BookingCheckout {
   id: string;
   state: CheckoutState;
   state_label: string;
+  /** The equipment's photo for the payment page ("" when it has none). */
+  equipment_image_url?: string;
   summary: {
     equipment_id: number;
     equipment_name: string;
