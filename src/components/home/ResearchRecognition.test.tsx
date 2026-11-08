@@ -194,10 +194,38 @@ describe("Acknowledgement list in the hero", () => {
     expect(rows[0]).toContain("2 publications");
     expect(rows[1]).toContain("1 publication");
     expect(screen.getByRole("heading", { name: "Researcher 3" })).toBeTruthy();  // the month's card stays on top
-    const scroller = screen.getByTestId("spotlight-scroll");
-    scroller.scrollBy = vi.fn();
-    fireEvent.click(screen.getByRole("button", { name: "Scroll the list on" }));
-    expect(scroller.scrollBy).toHaveBeenCalledWith({ top: 160, behavior: "smooth" });
+    const track = screen.getByTestId("acknowledgers-track");
+    expect(track.className).toContain("flex");  // one horizontal row, never a growing column
+    fireEvent.click(screen.getByRole("button", { name: "Next name in the list" }));
+    expect(track.getAttribute("data-index")).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Previous name in the list" }));
+    expect(track.getAttribute("data-index")).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "Previous name in the list" }));
+    expect(track.getAttribute("data-index")).toBe("1");  // from the first, back to the last
+  });
+
+  it("slides one name along each second-long move, holds two seconds, and loops", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
+      api.getAcknowledgers.mockResolvedValue({ data: { results: [
+        person(7, { user_id: 7 }), person(8, { user_id: 8 })] } });
+      render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+      const track = await screen.findByTestId("acknowledgers-track");
+      expect(track.getAttribute("data-index")).toBe("0");
+      expect(track.style.transition).toContain("1000ms");
+      await act(async () => { vi.advanceTimersByTime(3050); });
+      expect(track.getAttribute("data-index")).toBe("1");
+      await act(async () => { vi.advanceTimersByTime(3050); });
+      expect(track.getAttribute("data-index")).toBe("2");  // onto the copy of the first name...
+      await act(async () => { vi.advanceTimersByTime(1100); });
+      expect(track.getAttribute("data-index")).toBe("0");  // ...then back to the real first one, unseen
+      fireEvent.mouseEnter(track.parentElement as HTMLElement);
+      await act(async () => { vi.advanceTimersByTime(9000); });
+      expect(track.getAttribute("data-index")).toBe("0");  // paused while hovered
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("shows the list alone when nobody is chosen this month", async () => {
