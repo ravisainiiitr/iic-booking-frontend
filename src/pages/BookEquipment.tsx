@@ -310,7 +310,8 @@ import { toast } from "sonner";
 import { MODE_INACTIVE_LABEL, type ModeInactive } from "@/lib/modeAvailability";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, eachMonthOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
-import { externalBookingApi } from "@/lib/externalBookingApi";
+import { ExternalBookingApiError, externalBookingApi } from "@/lib/externalBookingApi";
+import { ISTEM_PROFILE_INCOMPLETE_CODE, IstemProfileReadinessNotice } from "@/components/istem/IstemProfileReadinessNotice";
 
 interface Equipment extends EquipmentData {}
 
@@ -6889,6 +6890,14 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
    * Failed or queued submit. Waitlisted: the request is recorded, so the form is reset like a success.
    * Failed: the form stays as it was, minus slots that are no longer free.
    */
+  /** I-STEM needs the user's I-STEM link and billing details first: say what is missing and open the profile. */
+  const showIstemProfileRefusal = (message: string) => {
+    toast.error(message, {
+      duration: 15000,
+      action: { label: "Open my profile", onClick: () => navigate("/profile") },
+    });
+  };
+
   const reportUnsuccessfulBooking = async (
     errRes: {
       error?: string | null;
@@ -7353,8 +7362,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
             const checkout = await externalBookingApi.startCheckout(Number(selectedEquipment.id), bookBody);
             navigate(`/external-checkout/${encodeURIComponent(checkout.id)}`);
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "This booking cannot be made.");
+            if (e instanceof ExternalBookingApiError && e.code === ISTEM_PROFILE_INCOMPLETE_CODE) {
+              showIstemProfileRefusal(e.message);
+            } else {
+              toast.error(e instanceof Error ? e.message : "This booking cannot be made.");
+            }
           }
+          return;
+        }
+        if (res.error && res.errorCode === ISTEM_PROFILE_INCOMPLETE_CODE) {
+          showIstemProfileRefusal(res.error);
           return;
         }
         const altPayload = res.data as unknown as GroupAlternativesPayload | undefined;
@@ -7917,6 +7934,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
               supervisorId={bookingSupervisorId}
               onSupervisorChange={setBookingSupervisorId}
             />
+          </div>
+        ) : null}
+        {authGateSelf && !authGateForUserId ? (
+          <div className={isEmbedFlow ? "mb-2 px-2 sm:px-3" : "max-w-6xl mx-auto mb-3"}>
+            <IstemProfileReadinessNotice equipmentId={Number(equipmentDetail.equipment_id)} />
           </div>
         ) : null}
         {!isEmbedFlow && (
