@@ -1,3 +1,4 @@
+import { checkoutBranding } from "@/lib/institutionIdentity";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, CreditCard, Loader2, Plus, Search, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -633,7 +634,7 @@ export default function RechargeWalletDialog({
         key: order.key || order.key_id,
         amount: order.amount,
         currency: order.currency || "INR",
-        name: "IIC Equipment Booking",
+        ...checkoutBranding((order as { checkout_name?: string }).checkout_name),
         description: `Wallet recharge — ${selectedDepartment?.name ?? "department"}`,
         order_id: order.order_id,
         handler: async (response: {
@@ -647,12 +648,14 @@ export default function RechargeWalletDialog({
             setFormError(verify.error);
             return;
           }
-          toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`);
+          const paidId = verify.data?.payment_id || response.razorpay_payment_id;
+          toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`, {
+            action: { label: "Receipt", onClick: () => window.open(`/payments/receipts/${encodeURIComponent(paidId)}`, "_blank", "noopener") },
+          });
           await onSubmitted();
           onClose();
         },
         modal: { ondismiss: finish },
-        theme: { color: "#1e4d8c" },
       });
       setCheckoutOpen(true);
       rzp.open();

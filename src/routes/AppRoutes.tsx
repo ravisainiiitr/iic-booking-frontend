@@ -28,6 +28,7 @@ const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
 const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
 const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
+const PaymentReceipt = lazyPage(() => import("@/pages/PaymentReceipt"));
 const ExternalCheckout = lazyPage(() => import("@/pages/ExternalCheckout"));
 const ExternalCheckoutConfirmation = lazyPage(() => import("@/pages/ExternalCheckoutConfirmation"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
@@ -271,6 +272,7 @@ export default function AppRoutes() {
           <Route path="/find-instrument" element={<InstrumentFinder />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
+          <Route path="/payments/receipts/:paymentId" element={<PaymentReceipt />} />
           <Route path="/external-checkout/:checkoutId" element={<ExternalCheckout />} />
           <Route path="/external-checkout/:checkoutId/confirmation" element={<ExternalCheckoutConfirmation />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />

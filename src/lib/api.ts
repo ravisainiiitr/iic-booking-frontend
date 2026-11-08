@@ -4506,6 +4506,54 @@ export interface IstemDepartmentProgress {
 }
 
 /** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface PaymentGatewayStatus {
+  checkout_name: string;
+  available: boolean;
+  mode: string;
+  test_mode: boolean;
+  reason: string;
+}
+
+export interface BookingPaymentPreview {
+  booking_reference: string;
+  equipment: string;
+  department: string;
+  status: string;
+  total_charge: string;
+  wallet_applied: string;
+  amount_due: string;
+  breakup: { base_amount: string; convenience_fee: string; fee_gst: string; total_amount: string; fee_percent: string; fee_gst_percent: string };
+  gateway: PaymentGatewayStatus;
+}
+
+export interface PaymentReceipt {
+  receipt_number: string;
+  title: string;
+  not_a_tax_invoice: string;
+  test_mode: boolean;
+  collected_by: string;
+  institution: string;
+  service_name: string;
+  payer_name: string;
+  purpose: string;
+  description: string;
+  booking_reference: string;
+  equipment: string;
+  booking_total: string;
+  booking_gst: string;
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  method: string;
+  paid_at: string;
+  status: string;
+  currency: string;
+  base_amount: string;
+  convenience_fee: string;
+  gst_on_fee: string;
+  gst_on_fee_percent: string;
+  total_paid: string;
+}
+
 export interface OicRequestAuditRow {
   id: number;
   created_at: string;
@@ -7459,6 +7507,8 @@ class ApiClient {
       booking_id?: number | null;
       wallet_id?: number | null;
       department_id?: number | null;
+      mode?: string;
+      checkout_name?: string;
     }>('/payments/razorpay/create-order/', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -7511,7 +7561,18 @@ class ApiClient {
     return this.request<{
       fee_percent: string;
       fee_gst_percent: string;
+      gateway?: PaymentGatewayStatus;
     }>('/payments/fee-settings/');
+  }
+
+  /** What the booking owner pays online, calculated on the server exactly as the order will be. */
+  async getBookingPaymentPreview(bookingId: number) {
+    return this.request<BookingPaymentPreview>(`/payments/booking-preview/${bookingId}/`);
+  }
+
+  /** Receipt for a confirmed online payment (payer, Finance or Main Admin). */
+  async getPaymentReceipt(razorpayPaymentId: string) {
+    return this.request<PaymentReceipt>(`/payments/receipts/${encodeURIComponent(razorpayPaymentId)}/`);
   }
 
   async adminGetPaymentFeeSettings() {
