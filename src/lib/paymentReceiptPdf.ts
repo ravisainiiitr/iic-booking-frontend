@@ -279,9 +279,12 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   right("AMOUNT", xAmount, y - 13, 7.5, sansBold, muted);
   y -= rowH;
   for (const line of lines) {
-    const h = line.gstNote ? 26 : rowH;
-    text(wrap(line.label, 9.5, labelW)[0], M + 10, y - 13, 9.5, sans, ink);
-    if (line.gstNote) text(line.gstNote, M + 10, y - 23, 7.5, sans, muted);
+    // A long instrument name takes a second line rather than being cut off.
+    const labelLines = wrap(line.label, 9.5, labelW).slice(0, 2);
+    const extra = (labelLines.length - 1) * 11.5;
+    const h = (line.gstNote ? 26 : rowH) + extra;
+    labelLines.forEach((l, i) => text(l, M + 10, y - 13 - i * 11.5, 9.5, sans, ink));
+    if (line.gstNote) text(line.gstNote, M + 10, y - 23 - extra, 7.5, sans, muted);
     right(line.base === undefined ? "" : money(line.base), xBase, y - 13, 9.5, sans, ink);
     right(line.base === undefined ? "" : line.gst ? money(line.gst) : "Nil", xGst, y - 13, 9.5, sans, line.gst ? ink : muted);
     right(signed(line.amount), xAmount, y - 13, 9.5, line.base === undefined ? sans : sansBold, ink);
