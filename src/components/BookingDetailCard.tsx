@@ -2104,7 +2104,7 @@ export function BookingDetailCard({
 
           {showIstemWorkflow && !isJobSheetView && istemAutomatic ? (
             <div className="mb-4">
-              <IstemAutomaticStatus status={istemAutomatic} compact />
+              <IstemAutomaticStatus status={istemAutomatic} compact showDetail={isOperatorOrManager} />
             </div>
           ) : null}
 
