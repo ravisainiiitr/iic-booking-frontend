@@ -116,6 +116,20 @@ const Footer = () => {
                   </li>
                 ))}
               {/* Plain links: these are static files served by nginx, outside the React app's routes. */}
+              {[
+                ["/about-us/", "About Us"],
+                ["/contact-us/", "Contact Us"],
+                ["/pricing/", "Pricing"],
+                ["/terms-and-conditions/", "Terms and Conditions"],
+                ["/cancellation-refund-policy/", "Cancellation and Refund Policy"],
+                ["/service-delivery-policy/", "Service Delivery Policy"],
+              ].map(([href, label]) => (
+                <li key={href}>
+                  <a href={href} className={LINK_CLASS}>
+                    {label}
+                  </a>
+                </li>
+              ))}
               <li>
                 <a href="/privacy-policy/" className={LINK_CLASS}>
                   Privacy Policy

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Pricing | IIT Roorkee Equipment Booking Portal</title>
+<meta name="description" content="How charges are set and calculated on the IIT Roorkee Equipment Booking Portal, including user categories, GST and the amount shown before payment.">
+<meta name="author" content="Indian Institute of Technology Roorkee">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://equip.iitr.ac.in/pricing/">
+<link rel="icon" type="image/png" sizes="64x64" href="/iitr-logo-64.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="IIT Roorkee Equipment Booking Portal">
+<meta property="og:title" content="Pricing | IIT Roorkee Equipment Booking Portal">
+<meta property="og:description" content="How charges are set and calculated on the IIT Roorkee Equipment Booking Portal, including user categories, GST and the amount shown before payment.">
+<meta property="og:url" content="https://equip.iitr.ac.in/pricing/">
+<style>
+:root{color-scheme:light dark;--bg:hsl(210 40% 99%);--fg:hsl(215 45% 12%);--card:#fff;--primary:hsl(215 70% 28%);--on-primary:#fff;--muted:hsl(210 28% 96%);--muted-fg:hsl(215 16% 38%);--border:hsl(214 24% 86%)}
+@media (prefers-color-scheme:dark){:root{--bg:hsl(220 36% 7.5%);--fg:hsl(210 40% 96%);--card:hsl(217 33% 12.5%);--primary:hsl(211 88% 66%);--on-primary:hsl(222 50% 9%);--muted:hsl(217 28% 17%);--muted-fg:hsl(215 22% 72%);--border:hsl(216 24% 23%)}.brand img{background:#fff;border-radius:50%;padding:2px}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;overflow-wrap:break-word}
+a{color:var(--primary);text-underline-offset:2px}
+a:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:2px}
+.skip{position:absolute;left:-999px;top:8px;background:var(--card);padding:8px 12px;border-radius:6px}
+.skip:focus{left:16px;z-index:2}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+.site-header{background:var(--card);border-bottom:1px solid var(--border)}
+.site-header .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0;color:inherit;text-decoration:none}
+.brand img{width:48px;height:48px;flex:none}
+.brand span{display:block;font-weight:600;line-height:1.3}
+.brand .hi{font-size:1rem}
+.brand .en{font-size:.85rem}
+.portal-link{flex:none;background:var(--primary);color:var(--on-primary);padding:8px 14px;border-radius:6px;font-size:.875rem;font-weight:600;text-decoration:none}
+.title{padding-top:32px;padding-bottom:8px}
+h1{margin:0 0 4px;font-size:clamp(1.75rem,4vw,2.25rem);line-height:1.2;color:var(--primary)}
+.subtitle,.updated{margin:0;color:var(--muted-fg)}
+.updated{font-size:.9rem;font-weight:600}
+.layout{display:grid;gap:24px;padding:16px 16px 40px}
+@media (min-width:900px){.layout{grid-template-columns:260px minmax(0,1fr);align-items:start}.toc{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}}
+.toc,.content{background:var(--card);border:1px solid var(--border);border-radius:8px}
+.toc{padding:16px;font-size:.9rem}
+.toc h2{margin:0 0 8px;font-size:.95rem}
+.toc ol{margin:0;padding-left:22px}
+.toc li{margin:4px 0}
+.content{padding:8px 20px 24px;min-width:0}
+@media (min-width:640px){.content{padding:8px 32px 32px}}
+section{scroll-margin-top:16px}
+h2{margin:28px 0 8px;font-size:1.25rem;line-height:1.3}
+h3{margin:18px 0 4px;font-size:1.02rem}
+p{margin:8px 0}
+ul,ol{margin:8px 0;padding-left:24px}
+li{margin:4px 0}
+.note{background:var(--muted);border-left:4px solid var(--primary);border-radius:4px;padding:10px 14px;margin:14px 0}
+.table{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;min-width:480px;font-size:.93rem}
+th,td{border:1px solid var(--border);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:var(--muted)}
+.site-footer{background:var(--card);border-top:1px solid var(--border);color:var(--muted-fg);font-size:.875rem}
+.site-footer .wrap{padding-top:18px;padding-bottom:18px}
+.site-footer p{margin:4px 0}
+@media print{.toc,.portal-link,.skip{display:none}.layout{display:block}.content{border:0;padding:0}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <img src="/iitr-logo-64.png" width="64" height="64" alt="Indian Institute of Technology Roorkee logo">
+      <div>
+        <span class="hi" lang="hi">भारतीय प्रौद्योगिकी संस्थान रुड़की</span>
+        <span class="en">Indian Institute of Technology Roorkee</span>
+      </div>
+    </a>
+    <a class="portal-link" href="/">Booking portal</a>
+  </div>
+</header>
+
+<div class="wrap title">
+  <h1>Pricing</h1>
+  <p class="subtitle">IIT Roorkee Equipment Booking Portal</p>
+  <p class="updated">Last updated: 8 November 2026</p>
+</div>
+
+<div class="wrap layout">
+  <nav class="toc" aria-labelledby="toc-title">
+    <h2 id="toc-title">Contents</h2>
+    <ol>
+      <li><a href="#rates">Published rates</a></li>
+      <li><a href="#basis">How a charge is worked out</a></li>
+      <li><a href="#categories">User categories</a></li>
+      <li><a href="#gst">GST</a></li>
+      <li><a href="#online">Online payment fee</a></li>
+      <li><a href="#final">The amount you pay</a></li>
+    </ol>
+  </nav>
+
+  <main class="content" id="main">
+
+    <section id="rates">
+      <h2>1. Published rates</h2>
+      <p>Charges are set for each instrument by the department or centre that runs it, and differ by user category. The current rates are published, without signing in, on the <a href="/analysis-charges">Analysis Charges</a> page, where they can be filtered and downloaded. Each instrument's page also shows its charges.</p>
+      <p>Rates are read live from the portal, so this page does not repeat them.</p>
+    </section>
+
+    <section id="basis">
+      <h2>2. How a charge is worked out</h2>
+      <p>Depending on the instrument, a charge may be:</p>
+      <ul>
+        <li>per sample, sometimes with a set number of elements or parameters included and a rate for each additional one</li>
+        <li>per slot or per hour of instrument time</li>
+        <li>per analysis type or parameter (for example, room temperature or low temperature)</li>
+        <li>a combination of these</li>
+      </ul>
+      <p>Some bookings may carry additional charges set by the facility, for example for extra analysis or measurement time, or for returning samples by courier. These are shown before you pay or before you confirm the change.</p>
+    </section>
+
+    <section id="categories">
+      <h2>3. User categories</h2>
+      <p>Rates differ for IIT Roorkee users, startups incubated at IIT Roorkee, other educational institutes, government and R&amp;D organisations, and industry and other organisations. Your category comes from your account.</p>
+    </section>
+
+    <section id="gst">
+      <h2>4. GST</h2>
+      <p>Published rates are exclusive of GST. GST at 18% applies to external users. No GST applies to IIT Roorkee internal users.</p>
+    </section>
+
+    <section id="online">
+      <h2>5. Online payment fee</h2>
+      <p>When you pay online through the payment gateway, a convenience fee and GST on that fee may be added. Both are shown separately before you pay.</p>
+    </section>
+
+    <section id="final">
+      <h2>6. The amount you pay</h2>
+      <p>The portal calculates the amount payable on its server and shows it, with its breakdown, before you pay. The payment page cannot change it. Your receipt shows the same breakdown.</p>
+    </section>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>IIT Roorkee Equipment Booking Portal, Indian Institute of Technology Roorkee, Roorkee 247667, Uttarakhand, India</p>
+    <p><a href="/">Booking portal</a> &middot; <a href="/about-us/">About Us</a> &middot; <a href="/contact-us/">Contact Us</a> &middot; <a href="/pricing/">Pricing</a> &middot; <a href="/terms-and-conditions/">Terms and Conditions</a> &middot; <a href="/cancellation-refund-policy/">Cancellation and Refund Policy</a> &middot; <a href="/service-delivery-policy/">Service Delivery Policy</a> &middot; <a href="/privacy-policy/">Privacy Policy</a> &middot; <a href="/data-deletion/">Data Deletion Instructions</a></p>
+  </div>
+</footer>
+</body>
+</html>
