@@ -1,3 +1,4 @@
+import { bookingReceiptPdfs, downloadBookingReceipts } from "@/lib/receiptDownload";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { format } from "date-fns";
 import {
@@ -254,6 +255,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  /** True when part or all of the booking was paid through the payment gateway (a receipt exists). */
+  has_online_payment?: boolean;
   /** Set while the booking user's own edit awaits payment of the extra amount. */
   charge_recalculation_pay_deadline?: string | null;
   charge_recalculation_pay_seconds_remaining?: number | null;
@@ -799,7 +802,7 @@ export function BookingDetailCard({
   const [extendHoldReasonDetail, setExtendHoldReasonDetail] = useState("");
   const [extendHoldLoading, setExtendHoldLoading] = useState(false);
   const [atmosphereSaving, setAtmosphereSaving] = useState(false);
-  const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
+  const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label" | "receipt">(null);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [labFailureOpen, setLabFailureOpen] = useState(false);
   const [shipmentRefreshKey, setShipmentRefreshKey] = useState(0);
@@ -2667,29 +2670,29 @@ export function BookingDetailCard({
                     </Dialog>
                   </>
                 )}
+              {isOwnBooking && booking.has_online_payment && bookingPk != null && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingDoc !== null}
+                    data-testid="download-receipt"
+                    onClick={async () => {
+                      setDownloadingDoc("receipt");
+                      try {
+                        await downloadBookingReceipts(Number(bookingPk), String(booking.virtual_booking_id || booking.booking_id));
+                      } catch (e: any) {
+                        toast.error(e?.message || "The receipt could not be downloaded.");
+                      } finally {
+                        setDownloadingDoc(null);
+                      }
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {downloadingDoc === "receipt" ? "Preparing…" : "Download receipt"}
+                  </Button>
+                )}
               {isExternalSelfView && (
                   <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isRefunded}
-                      onClick={async () => {
-                        try {
-                          const blob = await generateExternalEquipmentRequisitionFormPdf(booking);
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `equipment_requisition_${booking.virtual_booking_id || booking.booking_id}.pdf`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        } catch (e: any) {
-                          toast.error(e?.message || "Failed to generate form.");
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Equipment requisition form
-                    </Button>
                     <InvoiceAction
                       bookingId={Number(bookingPk ?? 0)}
                       disabled={isRefunded || bookingPk == null}
@@ -2739,6 +2742,7 @@ export function BookingDetailCard({
                         open={labelDialogOpen}
                         onOpenChange={setLabelDialogOpen}
                         requisitionPdf={() => generateExternalEquipmentRequisitionFormPdf(booking)}
+                        receiptPdfs={booking.has_online_payment ? () => bookingReceiptPdfs(Number(bookingPk)) : undefined}
                         legacyLabelPdf={async () => {
                           // Sample labels switched off: the previous plain label.
                           const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);

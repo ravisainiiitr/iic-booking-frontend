@@ -86,24 +86,17 @@ describe("Equipment Requisition Form", () => {
     expect(await pages(blob)).toBeGreaterThanOrEqual(1);
   });
 
-  it("wraps very long text and moves to new pages instead of clipping", async () => {
-    const short = await pages(await generateExternalEquipmentRequisitionFormPdf(booking()));
-    const long = "Organisation with a remarkably long registered name and address ".repeat(60);
-    const withLong = await pages(
-      await generateExternalEquipmentRequisitionFormPdf(
-        booking({ user_department: long, user_email: `a${"x".repeat(200)}@example.org` }),
-      ),
-    );
-    expect(withLong).toBeGreaterThan(short);
+  it("fits on one A4 page, whatever the booking holds", async () => {
+    const sets = Array.from({ length: 30 }, (_, i) => ({ sample_type: i % 2 ? "Powder" : "Thin film", count: i + 1 }));
+    const busy = booking({ input_values: { ...booking().input_values, _sample_sets: sets } } as unknown as Partial<BookingDetailCardBooking>);
+    expect(await pages(await generateExternalEquipmentRequisitionFormPdf(booking()))).toBe(1);
+    expect(await pages(await generateExternalEquipmentRequisitionFormPdf(busy))).toBe(1);
   });
 
-  it("puts many samples on following pages", async () => {
-    const sets = Array.from({ length: 30 }, (_, i) => ({ sample_type: i % 2 ? "Powder" : "Thin film", count: i + 1 }));
-    const few = await pages(await generateExternalEquipmentRequisitionFormPdf(booking()));
-    const many = await pages(
-      await generateExternalEquipmentRequisitionFormPdf(booking({ input_values: { ...booking().input_values, _sample_sets: sets } } as unknown as Partial<BookingDetailCardBooking>)),
-    );
-    expect(many).toBeGreaterThan(few);
+  it("still wraps very long applicant details instead of clipping them", async () => {
+    const long = "Organisation with a remarkably long registered name ".repeat(4);
+    const blob = await generateExternalEquipmentRequisitionFormPdf(booking({ user_department: long, user_email: `a${"x".repeat(80)}@example.org` }));
+    expect(await pages(blob)).toBe(1);
   });
 
   it("does not fail on characters the PDF fonts cannot draw", async () => {

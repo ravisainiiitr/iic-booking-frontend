@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { CheckCircle2, Clock, XCircle, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, XCircle, AlertTriangle, Download, FolderDown, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { SampleLabelDialog } from "@/components/external/SampleLabelDialog";
+import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
+import { generateExternalEquipmentRequisitionFormPdf } from "@/lib/externalRequisitionFormPdf";
+import { bookingReceiptPdfs, downloadReceipt } from "@/lib/receiptDownload";
 import DashboardHeader from "@/components/DashboardHeader";
 import { CheckoutSummary } from "@/components/external/CheckoutSummary";
 import { InstitutionBanner } from "@/components/external/InstitutionBanner";
@@ -28,6 +33,9 @@ export default function ExternalCheckoutConfirmation() {
   const [error, setError] = useState("");
   const [polls, setPolls] = useState(0);
   const timer = useRef<number | null>(null);
+  const [receiptBusy, setReceiptBusy] = useState(false);
+  const [labelOpen, setLabelOpen] = useState(false);
+  const [bookingDetail, setBookingDetail] = useState<BookingDetailCardBooking | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -98,6 +106,66 @@ export default function ExternalCheckoutConfirmation() {
               </div>
             </section>
 
+            {c.state === "confirmed" && paidOnline && c.payment?.razorpay_payment_id ? (
+              <section className="space-y-3 rounded-xl border border-[#1e4d8c]/30 bg-white p-4 text-sm" data-testid="documents-prompt">
+                <p className="font-semibold text-slate-900">Download your documents</p>
+                <p className="text-slate-700">
+                  Your payment receipt, and the shipping label with the requisition form to send with your samples. Get them
+                  together as one PDF, or the receipt on its own. You can download them again later from the booking.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    className="bg-[#1e4d8c] hover:bg-[#173d70]"
+                    disabled={!c.booking}
+                    onClick={async () => {
+                      if (!c.booking) return;
+                      const res = await apiClient.getBooking(c.booking.id);
+                      if (res.error || !res.data) {
+                        toast.error(res.error || "The booking could not be loaded.");
+                        return;
+                      }
+                      setBookingDetail(res.data as unknown as BookingDetailCardBooking);
+                      setLabelOpen(true);
+                    }}
+                  >
+                    <FolderDown className="mr-2 h-4 w-4" aria-hidden /> Receipt, shipping label and requisition form (one PDF)
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={receiptBusy}
+                    onClick={async () => {
+                      setReceiptBusy(true);
+                      try {
+                        await downloadReceipt(c.payment!.razorpay_payment_id!);
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "The receipt could not be downloaded.");
+                      } finally {
+                        setReceiptBusy(false);
+                      }
+                    }}
+                  >
+                    {receiptBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : <Download className="mr-2 h-4 w-4" aria-hidden />}
+                    Receipt only
+                  </Button>
+                </div>
+                {bookingDetail && c.booking ? (
+                  <SampleLabelDialog
+                    bookingId={c.booking.id}
+                    bookingReference={c.booking.reference}
+                    open={labelOpen}
+                    onOpenChange={setLabelOpen}
+                    requisitionPdf={() => generateExternalEquipmentRequisitionFormPdf(bookingDetail)}
+                    receiptPdfs={() => bookingReceiptPdfs(c.booking!.id)}
+                    legacyLabelPdf={async () => {
+                      const res = await apiClient.getBookingShippingLabelPdfBlob(c.booking!.id);
+                      if (res.error) throw new Error(res.error);
+                      return res.blob ?? null;
+                    }}
+                  />
+                ) : null}
+              </section>
+            ) : null}
+
             <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900">
               <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
                 <dt className="text-slate-500">Booking reference</dt>
@@ -149,7 +217,7 @@ export default function ExternalCheckoutConfirmation() {
               ) : null}
               {paidOnline && c.payment?.razorpay_payment_id ? (
                 <Button variant="outline" onClick={() => navigate(`/payments/receipts/${encodeURIComponent(c.payment!.razorpay_payment_id!)}`)}>
-                  Payment receipt
+                  View receipt
                 </Button>
               ) : null}
               {c.state === "awaiting_payment" ? (

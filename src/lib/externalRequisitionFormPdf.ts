@@ -5,15 +5,15 @@ import {
   PDF_BRAND_RGB,
   PDF_INK_RGB,
 } from "@/lib/pdfLetterhead";
-import { readSampleSets, SAMPLE_SETS_KEY } from "@/lib/sampleSets";
 import type { PDFPage } from "pdf-lib";
 import type { BookingDetailCardBooking } from "@/components/BookingDetailCard";
 
 /**
- * Equipment Requisition Form: an A4, print-ready PDF filled from the booking, so the user mainly signs it and gets
- * it stamped. Numbered sections with ruled tables; text wraps instead of being cut, long tables continue on the
- * next page (headers repeated) and every page carries the reference and "Page X of Y". Built in the browser with
- * pdf-lib (Helvetica, WinAnsi: other characters are replaced, never dropped silently).
+ * Equipment Requisition Form: one A4 page that goes inside the sample parcel. The header names the booking and the
+ * equipment; the body holds the applicant's details, the declaration and the signature boxes with the stamp, so the
+ * user only signs it and gets it stamped. Booking details, samples, charges and payment are already in the portal and
+ * on the receipt, so they are not repeated here (8 Nov 2026). Built in the browser with pdf-lib (Helvetica, WinAnsi:
+ * other characters are replaced, never dropped silently).
  */
 
 const PAGE: [number, number] = [595.28, 841.89]; // A4 portrait, points
@@ -26,7 +26,6 @@ const FILL = "\u0000fill";
 const FILL_HEIGHT = 22;
 
 type Rgb = { r: number; g: number; b: number };
-type Person = { name?: string | null; email?: string | null; phone?: string | null } | null | undefined;
 
 /** The reference printed on the form: built from the booking id (no separate register). */
 export function requisitionReference(booking: Pick<BookingDetailCardBooking, "booking_id" | "created_at">): string {
@@ -53,54 +52,12 @@ function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function fmtTime(d: Date): string {
-  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
-}
-
-function personLine(p: Person): string {
-  if (!p?.name) return "";
-  return [p.name, p.email, p.phone].filter(Boolean).join(", ");
-}
-
-function inputText(value: unknown, options?: Array<string | { value?: string; label?: string }>): string {
-  const label = (v: unknown) => {
-    const hit = options?.find((o) => typeof o !== "string" && o?.value === v);
-    return hit && typeof hit !== "string" ? hit.label || String(v) : String(v);
-  };
-  if (value == null || value === "") return "";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value)) return value.map((v) => (Array.isArray(v) ? v.join(" x ") : label(v))).filter(Boolean).join(", ");
-  if (typeof value === "object") return "";
-  return label(value);
-}
-
-/** The booking's time: one line per day with its first start and last end. */
-function slotLines(booking: BookingDetailCardBooking): string[] {
-  const byDay = new Map<string, { start: Date; end: Date; n: number }>();
-  for (const s of booking.daily_slots ?? []) {
-    const start = new Date(s.start_datetime);
-    const end = new Date(s.end_datetime);
-    if (Number.isNaN(start.getTime())) continue;
-    const key = s.date || start.toISOString().slice(0, 10);
-    const cur = byDay.get(key);
-    if (!cur) byDay.set(key, { start, end, n: 1 });
-    else byDay.set(key, { start: start < cur.start ? start : cur.start, end: end > cur.end ? end : cur.end, n: cur.n + 1 });
-  }
-  if (byDay.size === 0 && booking.start_time) {
-    const start = new Date(booking.start_time);
-    const end = booking.end_time ? new Date(booking.end_time) : null;
-    return [`${fmtDate(start)}, ${fmtTime(start)}${end ? ` - ${fmtTime(end)}` : ""}`];
-  }
-  return [...byDay.values()]
-    .sort((a, b) => a.start.getTime() - b.start.getTime())
-    .map((d) => `${fmtDate(d.start)}, ${fmtTime(d.start)} - ${fmtTime(d.end)} (${d.n} slot${d.n === 1 ? "" : "s"})`);
-}
-
 export async function generateExternalEquipmentRequisitionFormPdf(booking: BookingDetailCardBooking): Promise<Blob> {
   // pdf-lib (~350 KB) loads only when a form is generated, not with every booking card.
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const doc = await PDFDocument.create();
-  doc.setTitle(`Equipment Requisition Form ${requisitionReference(booking)}`);
+  const bookingRef = String(booking.virtual_booking_id || booking.booking_id);
+  doc.setTitle(`Equipment Requisition Form ${bookingRef}`);
   doc.setAuthor(DEFAULT_DEPARTMENT_NAME);
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -112,7 +69,6 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
   const MUTED: Rgb = { r: 0.38, g: 0.42, b: 0.48 };
   const RULE: Rgb = { r: 0.78, g: 0.8, b: 0.84 };
   const TINT: Rgb = { r: 0.94, g: 0.96, b: 0.99 };
-  const reference = requisitionReference(booking);
   const generatedOn = fmtDate(new Date());
 
   let page: PDFPage = doc.addPage(PAGE);
@@ -151,7 +107,7 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
     page = doc.addPage(PAGE);
     y = H - MARGIN;
     // Running head on continuation pages.
-    page.drawText(pdfSafe(`Equipment Requisition Form - ${reference}`), { x: MARGIN, y: y - 8, size: 8.5, font: bold, color: color(BRAND) });
+    page.drawText(pdfSafe(`Equipment Requisition Form - ${bookingRef}`), { x: MARGIN, y: y - 8, size: 8.5, font: bold, color: color(BRAND) });
     page.drawLine({ start: { x: MARGIN, y: y - 14 }, end: { x: W - MARGIN, y: y - 14 }, thickness: 0.6, color: color(RULE) });
     y -= 26;
   };
@@ -183,22 +139,27 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
   centred(DEFAULT_DEPARTMENT_NAME, 13, bold, BRAND);
   y -= 2;
   centred("EQUIPMENT REQUISITION FORM", 15, bold, INK);
-  centred("External users", 9.5, font, MUTED);
-  y -= 6;
+  y -= 4;
 
-  const boxH = 46;
+  // Header box: the booking and the equipment it is for.
+  const name = (booking.equipment_name || "").trim();
+  const code = (booking.equipment_code || "").trim();
+  const equipmentName = (code && !name.includes(code) ? `${name} (${code})` : name) || code || BLANK;
+  const equipLines = wrap(equipmentName, 10.5, contentW * 0.56 - 16, bold).slice(0, 2);
+  const boxH = 30 + equipLines.length * 13;
   page.drawRectangle({ x: MARGIN, y: y - boxH, width: contentW, height: boxH, color: color(TINT), borderColor: color(RULE), borderWidth: 0.8 });
-  const cols: Array<[string, string]> = [
-    ["Requisition / reference no.", reference],
-    ["Booking ID", String(booking.virtual_booking_id || booking.booking_id)],
-    ["Date of generation", generatedOn],
+  const cols: Array<[string, string[], number]> = [
+    ["Booking ID", [bookingRef], 0.26],
+    ["Equipment", equipLines, 0.56],
+    ["Date", [generatedOn], 0.18],
   ];
-  cols.forEach(([k, v], i) => {
-    const x = MARGIN + 12 + (contentW / 3) * i;
-    text(pdfSafe(k), x, y - 17, 8, font, MUTED);
-    text(pdfSafe(v), x, y - 33, 11, bold, INK);
-  });
-  y -= boxH + 14;
+  let colX = MARGIN;
+  for (const [k, vs, share] of cols) {
+    text(pdfSafe(k), colX + 10, y - 15, 8, font, MUTED);
+    vs.forEach((v, i) => text(pdfSafe(v), colX + 10, y - 30 - i * 13, 10.5, bold, INK));
+    colX += contentW * share;
+  }
+  y -= boxH + 16;
 
   // ---- building blocks --------------------------------------------------------------------------------------
   let section = 0;
@@ -231,40 +192,6 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
     y -= 9;
   };
 
-  /** Ruled grid with a header row repeated on every page it spans. */
-  const grid = (headers: string[], widths: number[], rows: string[][]) => {
-    const size = 9;
-    const pad = 4.5;
-    const total = widths.reduce((a, b) => a + b, 0);
-    const ws = widths.map((w) => (w / total) * contentW);
-    const drawRow = (cells: string[], header: boolean) => {
-      const lines = cells.map((c, i) => wrap(c || (header ? "" : " "), size, ws[i] - pad * 2, header ? bold : font));
-      const h = Math.max(...lines.map((l) => l.length)) * size * LINE + pad * 2;
-      return { lines, h };
-    };
-    const head = drawRow(headers, true);
-    const paint = (r: { lines: string[][]; h: number }, header: boolean) => {
-      let x = MARGIN;
-      r.lines.forEach((ls, i) => {
-        page.drawRectangle({ x, y: y - r.h, width: ws[i], height: r.h, color: header ? color(TINT) : undefined, borderColor: color(RULE), borderWidth: 0.6 });
-        ls.forEach((l, j) => text(l, x + pad, y - pad - size - j * size * LINE + 2, size, header ? bold : font, INK));
-        x += ws[i];
-      });
-      y -= r.h;
-    };
-    ensure(head.h + 24);
-    paint(head, true);
-    for (const cells of rows) {
-      const r = drawRow(cells, false);
-      if (y - r.h < MARGIN + FOOTER) {
-        newPage();
-        paint(head, true);
-      }
-      paint(r, false);
-    }
-    y -= 12;
-  };
-
   const paragraph = (s: string, size = 9.5, c: Rgb = INK) => {
     y -= 5;
     for (const l of wrap(s, size, contentW)) {
@@ -279,88 +206,10 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
   sectionTitle("Applicant details");
   kvTable([
     ["Name", booking.user_name],
-    ["Designation / status", booking.user_type_snapshot_display || booking.user_type_snapshot],
-    ["Department / institute / organisation", booking.user_department],
+    ["Institute / organisation", booking.user_department],
+    ["User category", booking.user_type_snapshot_display || booking.user_type_snapshot],
     ["Official e-mail", booking.user_email],
     ["Contact number", booking.user_phone],
-    ["User category", booking.user_type_snapshot_display || booking.user_type_snapshot],
-    ["Invoice in the name of (with GSTIN, if any)", FILL],
-  ]);
-
-  // ---- 2. equipment and booking ------------------------------------------------------------------------------
-  sectionTitle("Equipment and booking");
-  const slots = slotLines(booking);
-  kvTable([
-    ["Equipment", `${booking.equipment_name || ""}${booking.equipment_code ? ` (${booking.equipment_code})` : ""}`],
-    ["Equipment ID", String(booking.equipment ?? "")],
-    ["Laboratory", DEFAULT_DEPARTMENT_NAME],
-    ["Lab Operator", personLine(booking.lab_in_charge)],
-    ["Officer In Charge (OIC)", (booking.oic_contacts ?? []).map(personLine).filter(Boolean).join("\n")],
-    ["Booking ID", String(booking.virtual_booking_id || booking.booking_id)],
-    ["Booking date and time", slots.join("\n")],
-    ["Total booked time", booking.total_hours ? `${booking.total_hours} hours` : ""],
-  ]);
-
-  // ---- 3. requested analysis / service ----------------------------------------------------------------------
-  const fields = booking.input_fields ?? [];
-  const values = booking.input_values ?? {};
-  const shownKeys = new Set<string>();
-  const requested: Array<[string, unknown]> = [];
-  for (const f of fields) {
-    if (f.field_key === SAMPLE_SETS_KEY) continue;
-    const v = inputText(values[f.field_key], f.options);
-    shownKeys.add(f.field_key);
-    if (v) requested.push([f.field_label || f.field_key, v]);
-  }
-  for (const [k, v] of Object.entries(values)) {
-    if (shownKeys.has(k) || k.startsWith("_")) continue;
-    const t = inputText(v);
-    if (t) requested.push([k.replace(/_/g, " "), t]);
-  }
-  sectionTitle("Requested analysis / service");
-  kvTable(requested.length ? requested : [["Details", "As entered at booking (none recorded)"]]);
-
-  // ---- 4. samples ------------------------------------------------------------------------------------------
-  sectionTitle("Sample details");
-  const sets = readSampleSets(values as Record<string, unknown>);
-  const labelOf = new Map(fields.map((f) => [f.field_key, f.field_label || f.field_key]));
-  const sampleRows = sets.map((set, i) => {
-    const parts = Object.entries(set)
-      .map(([k, v]) => {
-        const t = inputText(v, fields.find((f) => f.field_key === k)?.options);
-        return t ? `${labelOf.get(k) ?? k.replace(/_/g, " ")}: ${t}` : "";
-      })
-      .filter(Boolean);
-    return [String(i + 1), parts.join("; "), ""];
-  });
-  const blankRows = Math.max(0, 4 - sampleRows.length);
-  grid(
-    ["#", "Sample description / parameters", "Sample ID / remarks (user)"],
-    [6, 60, 34],
-    [...sampleRows, ...Array.from({ length: blankRows }, (_, i) => [String(sampleRows.length + i + 1), "", ""])],
-  );
-
-  // ---- 5. charges ------------------------------------------------------------------------------------------
-  const breakdown = (booking.charge_breakdown ?? []).filter((r) => r && r.description);
-  if (breakdown.length || Number(booking.total_charge) > 0) {
-    sectionTitle("Applicable charges");
-    const money = (n: number | string) => `Rs. ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    grid(
-      ["Description", "Amount"],
-      [75, 25],
-      [...breakdown.map((r) => [String(r.description), money(r.amount)]), ["Total", money(booking.total_charge)]],
-    );
-  }
-
-  // ---- 6. payment (filled in by the user) ---------------------------------------------------------------------
-  sectionTitle("Payment details (attach the payment receipt)");
-  kvTable([
-    ["I-STEM FBR no.", FILL],
-    ["Account holder", FILL],
-    ["Bank", FILL],
-    ["Date of transaction", FILL],
-    ["UTR / transaction no.", FILL],
-    ["Amount paid (Rs.)", FILL],
   ]);
 
   // ---- 7. declaration ----------------------------------------------------------------------------------------
@@ -398,21 +247,11 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
   text(pdfSafe("For office use: received on ____________  by ____________"), MARGIN, y - 36, 9, font, MUTED);
   y -= 76;
 
-  // ---- 9. bank details (reference) --------------------------------------------------------------------------------
-  sectionTitle("Bank account for payment (reference)");
-  kvTable([
-    ["Bank", "State Bank of India, IIT Roorkee branch - 247667 (branch no. 1069)"],
-    ["Account holder", "DEAN SRIC IITR"],
-    ["Account no.", "33136732957"],
-    ["IFS code", "SBIN0001069"],
-    ["GSTIN of IIT Roorkee", "05AAALI0033R1Z5"],
-  ]);
-
   // ---- footer on every page ----------------------------------------------------------------------------------------
   const pages = doc.getPages();
   pages.forEach((p, i) => {
     p.drawLine({ start: { x: MARGIN, y: MARGIN + 12 }, end: { x: W - MARGIN, y: MARGIN + 12 }, thickness: 0.5, color: color(RULE) });
-    p.drawText(pdfSafe(`Ref. ${reference}`), { x: MARGIN, y: MARGIN, size: 8, font, color: color(MUTED) });
+    p.drawText(pdfSafe(`Booking ${bookingRef}`), { x: MARGIN, y: MARGIN, size: 8, font, color: color(MUTED) });
     const mid = pdfSafe(`Generated ${generatedOn} from the IIC Booking Portal`);
     p.drawText(mid, { x: (W - font.widthOfTextAtSize(mid, 8)) / 2, y: MARGIN, size: 8, font, color: color(MUTED) });
     const right = `Page ${i + 1} of ${pages.length}`;

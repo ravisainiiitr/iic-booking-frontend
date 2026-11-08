@@ -650,11 +650,11 @@ export default function RechargeWalletDialog({
             return;
           }
           const paidId = verify.data?.payment_id || response.razorpay_payment_id;
-          toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`, {
-            action: { label: "Receipt", onClick: () => window.open(`/payments/receipts/${encodeURIComponent(paidId)}`, "_blank", "noopener") },
-          });
+          toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`);
           await onSubmitted();
           onClose();
+          // Straight to the receipt; Continue brings the user back to the wallet.
+          window.location.assign(`/payments/receipts/${encodeURIComponent(paidId)}?next=${encodeURIComponent("/wallet")}`);
         },
         modal: { ondismiss: finish },
       });
