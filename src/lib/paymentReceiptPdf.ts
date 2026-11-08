@@ -32,6 +32,14 @@ export function receiptFileName(r: Pick<PaymentReceipt, "receipt_number" | "book
   return `payment_receipt_${base}.pdf`;
 }
 
+/** "#RRGGBB" as 0-1 channels, or null when it is not a colour. */
+export function hexToRgb01(hex: string | undefined | null): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
 async function bytesOf(path: string): Promise<ArrayBuffer | null> {
   try {
     const res = await fetch(path);
@@ -54,12 +62,18 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   type Font = typeof sans;
   const [W, H] = PAGE;
   const CW = W - M * 2;
-  const navy = rgb(PDF_BRAND_RGB[0] / 255, PDF_BRAND_RGB[1] / 255, PDF_BRAND_RGB[2] / 255);
+  // The Main Admin's receipt template (dashboard); every value falls back to the built-in design.
+  const t = r.template || {};
+  const brand = hexToRgb01(t.brand_color) || [PDF_BRAND_RGB[0] / 255, PDF_BRAND_RGB[1] / 255, PDF_BRAND_RGB[2] / 255];
+  const accent = hexToRgb01(t.accent_color) || [0.76, 0.6, 0.22];
+  const website = t.website || "equip.iitr.ac.in";
+  const contactEmail = t.contact_email || INSTITUTION.email;
+  const navy = rgb(...brand);
   const ink = rgb(PDF_INK_RGB[0] / 255, PDF_INK_RGB[1] / 255, PDF_INK_RGB[2] / 255);
   const muted = rgb(0.4, 0.45, 0.52);
   const rule = rgb(0.84, 0.86, 0.9);
   const tint = rgb(0.955, 0.966, 0.984);
-  const gold = rgb(0.76, 0.6, 0.22);
+  const gold = rgb(...accent);
   const white = rgb(1, 1, 1);
   const green = rgb(0.06, 0.5, 0.3);
   const page = doc.addPage(PAGE);
@@ -87,11 +101,11 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   };
   const label = (s: string, x: number, y: number) => text(s.toUpperCase(), x, y, 7, sansBold, muted);
 
-  const logoBytes = await bytesOf(INSTITUTION.logoPath);
+  const logoBytes = t.show_logo === false ? null : await bytesOf(INSTITUTION.logoPath);
   const logo = logoBytes ? await doc.embedPng(logoBytes).catch(() => null) : null;
 
   // Faint crest watermark behind the body.
-  if (logo) page.drawImage(logo, { x: (W - 300) / 2, y: (H - 300) / 2 - 40, width: 300, height: 300, opacity: 0.045 });
+  if (logo && t.show_watermark !== false) page.drawImage(logo, { x: (W - 300) / 2, y: (H - 300) / 2 - 40, width: 300, height: 300, opacity: 0.045 });
   if (r.test_mode) {
     page.drawText("TEST MODE - NO MONEY COLLECTED", {
       x: 95, y: 250, size: 34, font: sansBold, color: rgb(0.85, 0.47, 0.02), opacity: 0.12, rotate: degrees(35),
@@ -113,18 +127,23 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   const logoSize = 64;
   if (logo) page.drawImage(logo, { x: M, y: y - logoSize, width: logoSize, height: logoSize });
   const hx = M + (logo ? logoSize + 14 : 0);
-  text("INDIAN INSTITUTE OF TECHNOLOGY ROORKEE", hx, y - 17, 15, serifBold, navy);
-  text(r.office || INSTITUTION.unit, hx, y - 32, 9.5, sansBold, ink);
-  text(`${INSTITUTION.addressLines.join(", ")}`, hx, y - 45, 8.5, sans, muted);
-  const gstin = r.institute_gstin || INSTITUTION.gstin;
-  text(`GSTIN: ${gstin}   |   ${INSTITUTION.email}`, hx, y - 57, 8.5, sans, muted);
+  const headW = W - M - hx;
+  const institution = (r.institution || "Indian Institute of Technology Roorkee").toUpperCase();
+  let headSize = 15;
+  while (width(institution, headSize, serifBold) > headW && headSize > 10) headSize -= 0.5;
+  text(institution, hx, y - 17, headSize, serifBold, navy);
+  text(wrap(r.office || INSTITUTION.unit, 9.5, headW, sansBold)[0], hx, y - 32, 9.5, sansBold, ink);
+  text(wrap(t.address || INSTITUTION.addressLines.join(", "), 8.5, headW)[0], hx, y - 45, 8.5, sans, muted);
+  // Older servers send no template: they always showed the GSTIN. With a template, a blank GSTIN means "hidden".
+  const gstin = t.show_gstin === false ? "" : r.template ? r.institute_gstin || "" : r.institute_gstin || INSTITUTION.gstin;
+  text(wrap([gstin && `GSTIN: ${gstin}`, contactEmail].filter(Boolean).join("   |   "), 8.5, headW)[0], hx, y - 57, 8.5, sans, muted);
   y -= logoSize + 12;
   page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.4, color: navy });
   page.drawLine({ start: { x: M, y: y - 3 }, end: { x: W - M, y: y - 3 }, thickness: 0.6, color: gold });
   y -= 30;
 
   // Title row.
-  text("PAYMENT RECEIPT", M, y, 18, serifBold, navy);
+  text(wrap((r.title || "Payment Receipt").toUpperCase(), 18, CW - 120, serifBold)[0], M, y, 18, serifBold, navy);
   const service = r.service_name || "IIT Roorkee Equipment Booking Portal";
   text(service, M, y - 14, 8.5, sans, muted);
   const stamp = r.test_mode ? "TEST" : "PAID";
@@ -251,9 +270,11 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   // Notes.
   const notes = [
     r.not_a_tax_invoice,
-    "Refunds, where due, go to the portal wallet or to a bank account through the institute, not automatically back to the card or UPI account used.",
-    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}   |   Payment questions: ${INSTITUTION.email}`,
-  ];
+    t.refund_note ??
+      "Refunds, where due, go to the portal wallet or to a bank account through the institute, not automatically back to the card or UPI account used.",
+    t.extra_note || "",
+    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}   |   Payment questions: ${contactEmail}`,
+  ].filter(Boolean);
   const cgH = 36;
   const cgY = 26 + 10;
   // Notes, as many as fit above the computer-generated note (the first, "not a tax invoice", always does).
@@ -269,14 +290,14 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
 
   // Computer-generated note in place of a signature, anchored just above the footer.
   page.drawRectangle({ x: M, y: cgY, width: CW, height: cgH, borderColor: gold, borderWidth: 0.9, color: rgb(0.995, 0.985, 0.955) });
-  const cg = r.computer_generated || "This is a computer-generated receipt and does not require a signature.";
+  const cg = wrap(r.computer_generated || "This is a computer-generated receipt and does not require a signature.", 9.5, CW - 28, sansBold)[0];
   text(cg, M + 14, cgY + 20.5, 9.5, sansBold, ink);
   text(`Verify with the Razorpay payment ID ${r.razorpay_payment_id} or receipt no. ${r.receipt_number}.`, M + 14, cgY + 8.5, 7.8, sans, muted);
 
   // Footer band.
   page.drawRectangle({ x: 0, y: 0, width: W, height: 26, color: navy });
   page.drawRectangle({ x: 0, y: 26, width: W, height: 1.8, color: gold });
-  text(`${service}  |  equip.iitr.ac.in`, M, 9.5, 7.8, sans, white);
+  text(wrap(`${service}  |  ${website}`, 7.8, CW - 190)[0], M, 9.5, 7.8, sans, white);
   right(`Generated ${when(new Date().toISOString())}`, W - M, 9.5, 7.8, sans, white);
 
   const bytes = await doc.save();

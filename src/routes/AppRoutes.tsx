@@ -97,6 +97,7 @@ const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBuff
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
 const AdminWalletSricSettings = lazyPage(() => import("@/pages/AdminWalletSricSettings"));
 const AdminWalletPaymentModes = lazyPage(() => import("@/pages/AdminWalletPaymentModes"));
+const AdminReceiptTemplate = lazyPage(() => import("@/pages/AdminReceiptTemplate"));
 const AdminWalletLedger = lazyPage(() => import("@/pages/AdminWalletLedger"));
 const AdminWalletLedgerOwner = lazyPage(() => import("@/pages/AdminWalletLedgerOwner"));
 const AdminIstemEquipmentMapping = lazyPage(() => import("@/pages/AdminIstemEquipmentMapping"));
@@ -445,6 +446,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
           <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />
           <Route path="/admin-settings/wallet-payment-modes" element={<AdminWalletPaymentModes />} />
+          <Route path="/admin-settings/receipt-template" element={<AdminReceiptTemplate />} />
           <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
           <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/sric-wallet-recharges" element={<AdminWalletRechargeRequests />} />

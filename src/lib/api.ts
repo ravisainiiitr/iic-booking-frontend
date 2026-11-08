@@ -4537,6 +4537,42 @@ export interface PaymentReceiptSummary {
   test_mode: boolean;
 }
 
+/** Template values carried on each receipt beyond its own fields. */
+export interface ReceiptTemplateLook {
+  address: string;
+  contact_email: string;
+  website: string;
+  refund_note: string;
+  extra_note: string;
+  brand_color: string;
+  accent_color: string;
+  show_gstin: boolean;
+  show_logo: boolean;
+  show_watermark: boolean;
+}
+
+/** Every editable receipt template field (Main Admin). A blank text value means the built-in default. */
+export interface ReceiptTemplateValues extends ReceiptTemplateLook {
+  institution_name: string;
+  office_name: string;
+  institute_gstin: string;
+  receipt_heading: string;
+  service_name: string;
+  not_a_tax_invoice: string;
+  computer_generated: string;
+}
+
+export interface ReceiptTemplateState {
+  stored: ReceiptTemplateValues;
+  defaults: ReceiptTemplateValues;
+  effective: ReceiptTemplateValues;
+  updated_at: string | null;
+  updated_by: string;
+  collected_by: string;
+  history: { changed_at: string; changed_by: string; fields: string[] }[];
+  message?: string;
+}
+
 export interface PaymentReceipt {
   receipt_number: string;
   title: string;
@@ -4567,6 +4603,8 @@ export interface PaymentReceipt {
   institute_gstin?: string;
   payer_organisation?: string;
   payer_email?: string;
+  /** The rest of the receipt template the Main Admin edits on the dashboard. */
+  template?: Partial<ReceiptTemplateLook>;
   paid_at: string;
   status: string;
   currency: string;
@@ -7662,6 +7700,18 @@ class ApiClient {
       fee_gst_percent: string;
       message: string;
     }>('/admin/payments/fee-settings/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Online-payment receipt wording and look (Main Admin). */
+  async adminGetReceiptTemplate() {
+    return this.request<ReceiptTemplateState>('/admin/payments/receipt-template/');
+  }
+
+  async adminSaveReceiptTemplate(payload: Partial<ReceiptTemplateValues>) {
+    return this.request<ReceiptTemplateState>('/admin/payments/receipt-template/', {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
