@@ -101,11 +101,12 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   };
   const label = (s: string, x: number, y: number) => text(s.toUpperCase(), x, y, 7, sansBold, muted);
 
-  const logoBytes = t.show_logo === false ? null : await bytesOf(INSTITUTION.logoPath);
-  const logo = logoBytes ? await doc.embedPng(logoBytes).catch(() => null) : null;
+  const wantCrest = t.show_logo !== false;
+  const wantWatermark = t.show_watermark !== false;
+  const logoBytes = wantCrest || wantWatermark ? await bytesOf(INSTITUTION.logoPath) : null;
+  const crestImage = logoBytes ? await doc.embedPng(logoBytes).catch(() => null) : null;
+  const logo = wantCrest ? crestImage : null;
 
-  // Faint crest watermark behind the body.
-  if (logo && t.show_watermark !== false) page.drawImage(logo, { x: (W - 300) / 2, y: (H - 300) / 2 - 40, width: 300, height: 300, opacity: 0.045 });
   if (r.test_mode) {
     page.drawText("TEST MODE - NO MONEY COLLECTED", {
       x: 95, y: 250, size: 34, font: sansBold, color: rgb(0.85, 0.47, 0.02), opacity: 0.12, rotate: degrees(35),
@@ -239,32 +240,64 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   const endRight = column("PAYMENT DETAILS", details, M + colW + colGap, y);
   y = Math.min(endLeft, endRight) - 6;
 
-  // Amount breakdown.
-  const lines: [string, string][] = [];
+  // Amount breakdown: each line's base amount and GST in their own columns.
+  type Line = { label: string; base?: number; gst?: number; amount: number; gstNote?: string };
+  const num = (v: string | number | null | undefined) => Number(v || 0);
+  const pct = (gst: number, base: number) => (base > 0 ? `${Math.round((gst / base) * 10000) / 100}%` : "");
+  const lines: Line[] = [];
+  let deduction = false;
   if (r.booking_total) {
-    lines.push([`Booking charge${r.booking_gst ? `, including GST of ${money(r.booking_gst)}` : ""}`, money(r.booking_total)]);
-    lines.push(["Paid online for this booking", money(r.base_amount)]);
+    const total = num(r.booking_total);
+    const gst = num(r.booking_gst);
+    const base = Math.round((total - gst) * 100) / 100;
+    const label = r.equipment ? `Booking charge - ${r.equipment}` : "Booking charge";
+    lines.push({ label, base, gst, amount: total, gstNote: gst > 0 ? `GST @ ${pct(gst, base)}` : "No GST" });
+    const paidOnline = num(r.base_amount);
+    if (total - paidOnline > 0.005) {
+      deduction = true;
+      lines.push({ label: "Less: already paid from the wallet or earlier", amount: -(Math.round((total - paidOnline) * 100) / 100) });
+    }
   } else {
-    lines.push([r.description || "Amount", money(r.base_amount)]);
+    lines.push({ label: r.description || "Amount", base: num(r.base_amount), amount: num(r.base_amount), gstNote: "GST not applicable" });
   }
-  if (Number(r.convenience_fee) > 0) {
-    lines.push(["Payment gateway convenience fee", money(r.convenience_fee)]);
-    lines.push([`GST on the convenience fee (${Number(r.gst_on_fee_percent)}%)`, money(r.gst_on_fee)]);
+  if (num(r.convenience_fee) > 0) {
+    const fee = num(r.convenience_fee);
+    const feeGst = num(r.gst_on_fee);
+    lines.push({ label: "Payment gateway convenience fee", base: fee, gst: feeGst, amount: Math.round((fee + feeGst) * 100) / 100,
+      gstNote: `GST @ ${Number(r.gst_on_fee_percent) || pct(feeGst, fee).replace("%", "")}%` });
   }
+  const signed = (n: number) => (n < 0 ? `- ${money(-n)}` : money(n));
+  const xAmount = W - M - 10;
+  const xGst = W - M - 112;
+  const xBase = W - M - 208;
+  const labelW = xBase - 90 - (M + 10);
   const rowH = 19;
   page.drawRectangle({ x: M, y: y - rowH, width: CW, height: rowH, color: tint, borderColor: rule, borderWidth: 0.5 });
   text("PARTICULARS", M + 10, y - 13, 7.5, sansBold, muted);
-  right("AMOUNT", W - M - 10, y - 13, 7.5, sansBold, muted);
+  right("BASE AMOUNT", xBase, y - 13, 7.5, sansBold, muted);
+  right("GST", xGst, y - 13, 7.5, sansBold, muted);
+  right("AMOUNT", xAmount, y - 13, 7.5, sansBold, muted);
   y -= rowH;
-  for (const [k, v] of lines) {
-    text(wrap(k, 9.5, CW - 130)[0], M + 10, y - 13, 9.5, sans, ink);
-    right(v, W - M - 10, y - 13, 9.5, sans, ink);
-    page.drawLine({ start: { x: M, y: y - rowH }, end: { x: W - M, y: y - rowH }, thickness: 0.5, color: rule });
-    y -= rowH;
+  for (const line of lines) {
+    const h = line.gstNote ? 26 : rowH;
+    text(wrap(line.label, 9.5, labelW)[0], M + 10, y - 13, 9.5, sans, ink);
+    if (line.gstNote) text(line.gstNote, M + 10, y - 23, 7.5, sans, muted);
+    right(line.base === undefined ? "" : money(line.base), xBase, y - 13, 9.5, sans, ink);
+    right(line.base === undefined ? "" : line.gst ? money(line.gst) : "Nil", xGst, y - 13, 9.5, sans, line.gst ? ink : muted);
+    right(signed(line.amount), xAmount, y - 13, 9.5, line.base === undefined ? sans : sansBold, ink);
+    page.drawLine({ start: { x: M, y: y - h }, end: { x: W - M, y: y - h }, thickness: 0.5, color: rule });
+    y -= h;
   }
   page.drawRectangle({ x: M, y: y - 24, width: CW, height: 24, color: navy });
   text(`Total received (${r.currency || "INR"})`, M + 10, y - 16, 10.5, sansBold, white);
-  right(money(r.total_paid), W - M - 10, y - 16, 10.5, sansBold, white);
+  if (!deduction) {
+    // Column totals only when every line adds up (no amount already paid earlier).
+    const baseTotal = lines.reduce((a, l) => a + (l.base || 0), 0);
+    const gstTotal = lines.reduce((a, l) => a + (l.gst || 0), 0);
+    right(money(baseTotal), xBase, y - 16, 9.5, sans, white);
+    right(gstTotal ? money(gstTotal) : "Nil", xGst, y - 16, 9.5, sans, white);
+  }
+  right(money(r.total_paid), xAmount, y - 16, 10.5, sansBold, white);
   y -= 24 + 13;
 
   // Notes.
@@ -299,6 +332,12 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   page.drawRectangle({ x: 0, y: 26, width: W, height: 1.8, color: gold });
   text(wrap(`${service}  |  ${website}`, 7.8, CW - 190)[0], M, 9.5, 7.8, sans, white);
   right(`Generated ${when(new Date().toISOString())}`, W - M, 9.5, 7.8, sans, white);
+
+  // IIT Roorkee crest as a watermark across the middle of the page, over everything so filled boxes never hide it.
+  if (crestImage && wantWatermark) {
+    const size = 330;
+    page.drawImage(crestImage, { x: (W - size) / 2, y: (H - size) / 2 - 30, width: size, height: size, opacity: 0.07 });
+  }
 
   const bytes = await doc.save();
   return new Blob([bytes], { type: "application/pdf" });
