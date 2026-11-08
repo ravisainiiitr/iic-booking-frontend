@@ -4539,6 +4539,8 @@ export interface PaymentReceipt {
   description: string;
   booking_reference: string;
   equipment: string;
+  booking_total: string;
+  booking_gst: string;
   razorpay_payment_id: string;
   razorpay_order_id: string;
   method: string;

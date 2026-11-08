@@ -21,6 +21,8 @@ const sample = {
   description: "Equipment booking charges, Sample XRD",
   booking_reference: "XRD-TEST-0001",
   equipment: "Sample XRD",
+  booking_total: "1180.00",
+  booking_gst: "180.00",
   razorpay_payment_id: "pay_TESTSAMPLE",
   razorpay_order_id: "order_TESTSAMPLE",
   method: "upi",
@@ -62,6 +64,7 @@ describe("PaymentReceipt", () => {
     expect(receipt.textContent).toContain("not a GST tax invoice");
     expect(receipt.textContent).toMatch(/test mode/i);
     expect(screen.getByTestId("receipt-total").textContent).toContain("1,023.60");
+    expect(receipt.textContent).toContain("of which GST");
     expect(screen.getByAltText(/Indian Institute of Technology Roorkee logo/).getAttribute("src")).toBe("/IITR_Logo.png");
     expect(screen.getByRole("link", { name: "Cancellation and Refund Policy" }).getAttribute("href")).toBe("/cancellation-refund-policy/");
   });

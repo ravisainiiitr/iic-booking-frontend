@@ -93,8 +93,17 @@ export default function PaymentReceipt() {
               </dl>
               <table className="w-full text-sm">
                 <tbody className="divide-y divide-slate-200">
+                  {r.booking_total ? (
+                    <tr className="text-slate-600">
+                      <td className="py-1.5">
+                        Booking charge{r.booking_gst ? ", including GST" : ""}
+                        {r.booking_gst ? <span className="block text-xs">of which GST {formatINRWithPaise(r.booking_gst)}</span> : null}
+                      </td>
+                      <td className="py-1.5 text-right tabular-nums">{formatINRWithPaise(r.booking_total)}</td>
+                    </tr>
+                  ) : null}
                   <tr>
-                    <td className="py-1.5">Amount</td>
+                    <td className="py-1.5">{r.booking_total ? "Paid online for this booking" : "Amount"}</td>
                     <td className="py-1.5 text-right tabular-nums">{formatINRWithPaise(r.base_amount)}</td>
                   </tr>
                   {Number(r.convenience_fee) > 0 ? (
