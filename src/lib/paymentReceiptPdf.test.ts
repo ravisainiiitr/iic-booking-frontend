@@ -7,7 +7,7 @@ import { rupeesInWords } from "./amountInWords";
 import type { PaymentReceipt } from "./api";
 
 const receipt: PaymentReceipt = {
-  receipt_number: "iic_book_1_sample", title: "Payment Receipt",
+  receipt_number: "IITR/IIC/2026/00001", title: "Payment Receipt",
   not_a_tax_invoice: "This is a payment receipt, not a GST tax invoice. Where a tax invoice applies, it is issued by SRIC, IIT Roorkee.", test_mode: true,
   collected_by: "DEAN SRIC IIT ROORKEE", institution: "Indian Institute of Technology Roorkee",
   service_name: "IIT Roorkee Equipment Booking Portal", payer_name: "Sample User", purpose: "Booking balance payment",
@@ -32,7 +32,7 @@ describe("payment receipt PDF", () => {
     expect(doc.getPageCount()).toBe(1);
     const { width, height } = doc.getPage(0).getSize();
     expect([Math.round(width), Math.round(height)]).toEqual([595, 842]);
-    expect(doc.getTitle()).toBe("Payment Receipt iic_book_1_sample");
+    expect(doc.getTitle()).toBe("Payment Receipt IITR/IIC/2026/00001");
     expect(receiptFileName(receipt)).toBe("payment_receipt_XRD-TEST-0001.pdf");
   });
 
