@@ -443,17 +443,7 @@
   .charges-print-area * {
     visibility: visible;
   }
-  .payment-receipt-print-area,
-  .payment-receipt-print-area * {
-    visibility: visible;
-  }
-  .payment-receipt-print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    box-shadow: none;
-  }
+
   .charges-print-area {
     position: absolute;
     left: 0;

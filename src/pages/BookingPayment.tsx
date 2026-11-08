@@ -126,10 +126,9 @@ export default function BookingPayment() {
             return;
           }
           const paidId = verify.data?.payment_id || response.razorpay_payment_id;
-          toast.success("Payment successful.", {
-            action: { label: "Receipt", onClick: () => navigate(`/payments/receipts/${encodeURIComponent(paidId)}`) },
-          });
-          navigate(`/bookings/${bookingId}/next-steps`, { replace: true });
+          toast.success("Payment successful.");
+          // Straight to the receipt, with Continue taking the user on to the booking's next steps.
+          navigate(`/payments/receipts/${encodeURIComponent(paidId)}?next=${encodeURIComponent(`/bookings/${bookingId}/next-steps`)}`, { replace: true });
         },
         modal: {
           ondismiss: () => setPaying(false),

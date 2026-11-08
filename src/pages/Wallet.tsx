@@ -20,6 +20,7 @@ import {
 } from "@/lib/walletModes";
 import { exportWalletTransactionsExcel, exportWalletTransactionsPdf } from "@/lib/walletTransactionExport";
 import ReturnToBookingBanner from "@/components/wallet/ReturnToBookingBanner";
+import { PaymentReceiptsList } from "@/components/payments/PaymentReceiptsList";
 import DirectRechargeEntry from "@/components/walletModes/DirectRechargeEntry";
 import { clearReturnToBooking, readReturnToBooking } from "@/lib/rechargeReturn";
 import { Button } from "@/components/ui/button";
@@ -1767,6 +1768,9 @@ const Wallet = () => {
 
         <ReturnToBookingBanner />
         <DirectRechargeEntry />
+        <div className="mb-5">
+          <PaymentReceiptsList />
+        </div>
         {!isShared && isFacultyEffective && walletModeFlags.projectGrantRetired ? (
           <div
             className="mb-5 flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"

@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import PaymentReceipt from "./PaymentReceipt";
 
 const api = vi.hoisted(() => ({ getPaymentReceipt: vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), apiClient: api }));
 vi.mock("@/components/DashboardHeader", () => ({ default: () => <div /> }));
+const pdf = vi.hoisted(() => ({ generatePaymentReceiptPdf: vi.fn(async () => new Blob(["%PDF"], { type: "application/pdf" })), receiptFileName: () => "payment_receipt_x.pdf" }));
+vi.mock("@/lib/paymentReceiptPdf", () => pdf);
+const save = vi.hoisted(() => ({ saveBlob: vi.fn() }));
+vi.mock("@/lib/dispatchPack", async (orig) => ({ ...(await orig<typeof import("@/lib/dispatchPack")>()), saveBlob: save.saveBlob }));
 
 const sample = {
   receipt_number: "iic_book_1_sample",
@@ -36,9 +40,9 @@ const sample = {
   total_paid: "1023.60",
 };
 
-function show() {
+function show(entry = "/payments/receipts/pay_TESTSAMPLE") {
   render(
-    <MemoryRouter initialEntries={["/payments/receipts/pay_TESTSAMPLE"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/payments/receipts/:paymentId" element={<PaymentReceipt />} />
       </Routes>
@@ -67,6 +71,23 @@ describe("PaymentReceipt", () => {
     expect(receipt.textContent).toContain("of which GST");
     expect(screen.getByAltText(/Indian Institute of Technology Roorkee logo/).getAttribute("src")).toBe("/IITR_Logo.png");
     expect(screen.getByRole("link", { name: "Cancellation and Refund Policy" }).getAttribute("href")).toBe("/cancellation-refund-policy/");
+  });
+
+  it("prompts to download the receipt as a PDF and offers Continue only for a portal path", async () => {
+    api.getPaymentReceipt.mockResolvedValue({ data: { ...sample, bank_reference: "RRN123", settlement_utr: "" } });
+    show("/payments/receipts/pay_TESTSAMPLE?next=%2Fwallet");
+    expect((await screen.findByTestId("receipt-prompt")).textContent).toContain("Payment confirmed");
+    expect(screen.getByTestId("payment-receipt").textContent).toContain("RRN123");
+    fireEvent.click(screen.getByRole("button", { name: /Download receipt \(PDF\)/ }));
+    await waitFor(() => expect(save.saveBlob).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /Continue/ })).toBeTruthy();
+  });
+
+  it("ignores a continue address outside the portal", async () => {
+    api.getPaymentReceipt.mockResolvedValue({ data: sample });
+    show("/payments/receipts/pay_TESTSAMPLE?next=https%3A%2F%2Fevil.example");
+    await screen.findByTestId("receipt-prompt");
+    expect(screen.queryByRole("button", { name: /Continue/ })).toBeNull();
   });
 
   it("shows the server's refusal for an unconfirmed or someone else's payment", async () => {

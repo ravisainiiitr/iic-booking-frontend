@@ -4528,6 +4528,15 @@ export interface BookingPaymentPreview {
   gateway: PaymentGatewayStatus;
 }
 
+export interface PaymentReceiptSummary {
+  razorpay_payment_id: string;
+  receipt_number: string;
+  purpose: string;
+  total_paid: string;
+  paid_at: string;
+  test_mode: boolean;
+}
+
 export interface PaymentReceipt {
   receipt_number: string;
   title: string;
@@ -4546,6 +4555,10 @@ export interface PaymentReceipt {
   razorpay_payment_id: string;
   razorpay_order_id: string;
   method: string;
+  /** The bank's reference for the payment (UPI RRN / netbanking transaction no.), "" when unknown. */
+  bank_reference?: string;
+  /** UTR of the bank transfer in which Razorpay settled the payment to the institute, "" until settled. */
+  settlement_utr?: string;
   paid_at: string;
   status: string;
   currency: string;
@@ -7574,6 +7587,14 @@ class ApiClient {
   }
 
   /** Receipt for a confirmed online payment (payer, Finance or Main Admin). */
+  async getMyPaymentReceipts() {
+    return this.request<{ results: PaymentReceiptSummary[] }>('/payments/receipts/');
+  }
+
+  async getBookingPaymentReceipts(bookingId: number) {
+    return this.request<{ results: PaymentReceiptSummary[] }>(`/payments/receipts/booking/${bookingId}/`);
+  }
+
   async getPaymentReceipt(razorpayPaymentId: string) {
     return this.request<PaymentReceipt>(`/payments/receipts/${encodeURIComponent(razorpayPaymentId)}/`);
   }
