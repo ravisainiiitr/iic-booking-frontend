@@ -117,6 +117,11 @@ const Footer = () => {
                 ))}
               {/* Plain links: these are static files served by nginx, outside the React app's routes. */}
               <li>
+                <a href="/cancellation-refund-policy/" className={LINK_CLASS}>
+                  Cancellation and Refund Policy
+                </a>
+              </li>
+              <li>
                 <a href="/privacy-policy/" className={LINK_CLASS}>
                   Privacy Policy
                 </a>
