@@ -4559,6 +4559,14 @@ export interface PaymentReceipt {
   bank_reference?: string;
   /** UTR of the bank transfer in which Razorpay settled the payment to the institute, "" until settled. */
   settlement_utr?: string;
+  /** How the payment was made ("UPI", "Debit card (Visa)", "Net banking", ...) and that mode's references. */
+  payment_mode?: string;
+  payment_details?: [string, string][];
+  computer_generated?: string;
+  office?: string;
+  institute_gstin?: string;
+  payer_organisation?: string;
+  payer_email?: string;
   paid_at: string;
   status: string;
   currency: string;

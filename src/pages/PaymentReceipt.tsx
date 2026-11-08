@@ -10,6 +10,8 @@ import { formatInstant } from "@/lib/externalBookingApi";
 import { INSTITUTION, POLICY_LINKS } from "@/lib/institutionIdentity";
 import { formatINRWithPaise } from "@/lib/money";
 import { generatePaymentReceiptPdf, receiptFileName } from "@/lib/paymentReceiptPdf";
+import { paymentRows } from "@/lib/receiptRows";
+import { rupeesInWords } from "@/lib/amountInWords";
 
 /** Only paths inside the portal may be used as the "continue" target (no open redirect). */
 function safeNext(raw: string | null): string {
@@ -57,16 +59,12 @@ export default function PaymentReceipt() {
   const rows: Array<[string, string]> = r
     ? [
         ["Receipt no.", r.receipt_number],
-        ["Paid by", r.payer_name || "—"],
+        ["Received from", [r.payer_name || "—", r.payer_organisation].filter(Boolean).join(", ")],
         ["Payment for", r.description],
         ...(r.booking_reference ? ([["Booking ID", r.booking_reference]] as Array<[string, string]>) : []),
         ["Collected by", `${r.collected_by}, ${r.institution}`],
         ["Paid on", formatInstant(r.paid_at)],
-        ["Payment method", (r.method || "—").toUpperCase()],
-        ["Razorpay payment ID", r.razorpay_payment_id],
-        ["Bank reference (RRN / UTR)", r.bank_reference || "Not provided by the bank for this payment method"],
-        ...(r.settlement_utr ? ([["Settlement UTR", r.settlement_utr]] as Array<[string, string]>) : []),
-        ["Status", r.status],
+        ...paymentRows(r),
       ]
     : [];
 
@@ -113,7 +111,8 @@ export default function PaymentReceipt() {
                 <img src={INSTITUTION.logoPath} alt={INSTITUTION.logoAlt} width={64} height={64} className="h-16 w-16 shrink-0 object-contain" />
                 <div className="min-w-0">
                   <p className="text-lg font-bold uppercase tracking-wide text-[#1e4d8c]">{r.institution}</p>
-                  <p className="text-sm text-slate-700">{r.service_name} · {r.title}</p>
+                  <p className="text-sm font-medium text-slate-700">{r.office || INSTITUTION.unit}</p>
+                  <p className="text-xs text-slate-500">GSTIN {r.institute_gstin || INSTITUTION.gstin} · {r.service_name}</p>
                 </div>
               </header>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-[max-content_1fr]">
@@ -157,7 +156,13 @@ export default function PaymentReceipt() {
                   </tr>
                 </tbody>
               </table>
+              <p className="rounded-md bg-slate-50 px-3 py-2 text-sm italic text-slate-700" data-testid="receipt-words">
+                ({rupeesInWords(r.total_paid)})
+              </p>
               <footer className="space-y-1 border-t border-slate-200 pt-3 text-xs text-slate-600">
+                <p className="font-semibold text-slate-800">
+                  {r.computer_generated || "This is a computer-generated receipt and does not require a signature."}
+                </p>
                 <p>{r.not_a_tax_invoice}</p>
                 <p>
                   Payment questions: <a href={`mailto:${INSTITUTION.email}`} className="text-[#1e4d8c] underline">{INSTITUTION.email}</a>.
