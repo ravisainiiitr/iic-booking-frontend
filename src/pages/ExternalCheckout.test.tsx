@@ -175,8 +175,16 @@ describe("payment selection", () => {
     expect(String(razorpayOptions?.image)).toMatch(/\/IITR_Logo\.png$/);
     expect(razorpayOptions?.description).toBe("Equipment booking: Synthetic XRD");
     expect(Object.keys(razorpayOptions ?? {}).sort()).toEqual(
-      ["amount", "currency", "description", "handler", "image", "key", "modal", "name", "order_id", "theme"],
+      ["amount", "config", "currency", "description", "handler", "image", "key", "modal", "name", "order_id", "theme"],
     ); // only documented Standard Checkout options
+    // UPI QR first for desktop, every other method still shown, nothing hidden, no UPI Collect.
+    expect(razorpayOptions?.config).toEqual({
+      display: {
+        blocks: { upi: { name: "Pay by UPI (scan QR with any UPI app)", instruments: [{ method: "upi", flows: ["qr", "intent"] }] } },
+        sequence: ["block.upi"],
+        preferences: { show_default_blocks: true },
+      },
+    });
   });
 
   it("closing the gateway re-enables the page and says nothing was charged", async () => {
