@@ -182,17 +182,19 @@ describe("Hall of Frames details", () => {
 describe("Acknowledgement list in the hero", () => {
   const month = (id: number) => ({ ...person(id, { user_id: id }), month: "2026-11-01", department_id: null, department_name: "Institute-wide", titles: ["Institute-wide"], publication_count: 4 });
 
-  it("lists everyone approved under the Researcher of the Month, without repeating them, and steps manually", async () => {
+  it("starts the strip with the Researcher of the Month, then everyone else once, and steps manually", async () => {
     api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
     api.getAcknowledgers.mockResolvedValue({ data: { results: [
       person(3, { user_id: 3, publication_count: 4 }), person(7, { user_id: 7, publication_count: 2 }), person(8, { user_id: 8, publication_count: 1 })] } });
     render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
     const list = await screen.findByRole("region", { name: "Researchers acknowledging IIC" });
     const rows = within(list).getAllByRole("listitem").map((li) => li.textContent);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toContain("Researcher 7");
-    expect(rows[0]).toContain("2 publications");
-    expect(rows[1]).toContain("1 publication");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain("Researcher of the Month");
+    expect(rows[0]).toContain("Researcher 3");
+    expect(rows[1]).toContain("Researcher 7");
+    expect(rows[1]).toContain("2 publications");
+    expect(rows[2]).toContain("1 publication");
     expect(screen.getByRole("heading", { name: "Researcher 3" })).toBeTruthy();  // the month's card stays on top
     const track = screen.getByTestId("acknowledgers-track");
     expect(track.className).toContain("flex");  // one horizontal row, never a growing column
@@ -201,28 +203,32 @@ describe("Acknowledgement list in the hero", () => {
     fireEvent.click(screen.getByRole("button", { name: "Previous name in the list" }));
     expect(track.getAttribute("data-index")).toBe("0");
     fireEvent.click(screen.getByRole("button", { name: "Previous name in the list" }));
-    expect(track.getAttribute("data-index")).toBe("1");  // from the first, back to the last
+    expect(track.getAttribute("data-index")).toBe("2");  // from the first, back to the last
   });
 
-  it("slides one name along each second-long move, holds two seconds, and loops", async () => {
+  it("moves on about once a second, pauses 2 s on the Researcher of the Month, and loops even with one other name", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
-      api.getAcknowledgers.mockResolvedValue({ data: { results: [
-        person(7, { user_id: 7 }), person(8, { user_id: 8 })] } });
+      api.getAcknowledgers.mockResolvedValue({ data: { results: [person(3, { user_id: 3 }), person(7, { user_id: 7 })] } });
       render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
       const track = await screen.findByTestId("acknowledgers-track");
-      expect(track.getAttribute("data-index")).toBe("0");
-      expect(track.style.transition).toContain("1000ms");
-      await act(async () => { vi.advanceTimersByTime(3050); });
+      expect(track.getAttribute("data-index")).toBe("0");  // Researcher of the Month at the front
+      await act(async () => { vi.advanceTimersByTime(2500); });
+      expect(track.getAttribute("data-index")).toBe("0");  // still holding on them
+      await act(async () => { vi.advanceTimersByTime(300); });
+      expect(track.getAttribute("data-index")).toBe("1");  // after ~2.7 s: next name
+      await act(async () => { vi.advanceTimersByTime(1050); });
+      expect(track.getAttribute("data-index")).toBe("2");  // ~1 s later: onto the copy of the first...
+      await act(async () => { vi.advanceTimersByTime(750); });
+      expect(track.getAttribute("data-index")).toBe("0");  // ...back to the real first one, unseen
+      await act(async () => { vi.advanceTimersByTime(1500); });
+      expect(track.getAttribute("data-index")).toBe("0");  // pausing 2 s on the Researcher of the Month again
+      await act(async () => { vi.advanceTimersByTime(600); });
       expect(track.getAttribute("data-index")).toBe("1");
-      await act(async () => { vi.advanceTimersByTime(3050); });
-      expect(track.getAttribute("data-index")).toBe("2");  // onto the copy of the first name...
-      await act(async () => { vi.advanceTimersByTime(1100); });
-      expect(track.getAttribute("data-index")).toBe("0");  // ...then back to the real first one, unseen
       fireEvent.mouseEnter(track.parentElement as HTMLElement);
       await act(async () => { vi.advanceTimersByTime(9000); });
-      expect(track.getAttribute("data-index")).toBe("0");  // paused while hovered
+      expect(track.getAttribute("data-index")).toBe("1");  // paused while hovered
     } finally {
       vi.useRealTimers();
     }
