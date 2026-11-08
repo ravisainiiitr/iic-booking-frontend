@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { formatINRWithPaise as formatINR } from "@/lib/money";
 import { InstitutionBanner } from "@/components/external/InstitutionBanner";
+import { PaymentPurposeImage } from "@/components/payments/PaymentPurposeImage";
 import { checkoutBranding, POLICY_LINKS } from "@/lib/institutionIdentity";
 import type { PaymentGatewayStatus } from "@/lib/api";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -34,6 +35,7 @@ export default function BookingPayment() {
   const [booking, setBooking] = useState<any>(null);
   const [breakup, setBreakup] = useState<FeeBreakup | null>(null);
   const [gateway, setGateway] = useState<PaymentGatewayStatus | null>(null);
+  const [equipmentImage, setEquipmentImage] = useState("");
   const [utr, setUtr] = useState("");
   const [utrSubmitting, setUtrSubmitting] = useState(false);
 
@@ -59,6 +61,7 @@ export default function BookingPayment() {
         if (preview.data) {
           setBreakup(preview.data.breakup);
           setGateway(preview.data.gateway);
+          setEquipmentImage(preview.data.equipment_image_url || "");
         }
       }
     } finally {
@@ -202,6 +205,11 @@ export default function BookingPayment() {
             ) : null}
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
+            <PaymentPurposeImage
+              src={equipmentImage}
+              alt={booking?.equipment_name || "Equipment"}
+              caption={`You are paying for: ${booking?.equipment_name || "equipment"} — booking ${booking?.virtual_booking_id || booking?.booking_id || ""}`}
+            />
             <div className="rounded-lg border p-4 space-y-2">
               <div className="flex justify-between">
                 <span>Total charge</span>

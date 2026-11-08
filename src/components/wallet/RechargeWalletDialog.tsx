@@ -1,3 +1,4 @@
+import { PaymentPurposeImage } from "@/components/payments/PaymentPurposeImage";
 import { checkoutBranding } from "@/lib/institutionIdentity";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, CreditCard, Loader2, Plus, Search, Send } from "lucide-react";
@@ -1103,6 +1104,7 @@ export default function RechargeWalletDialog({
 
       {isOnline ? (
         <Section index={stepIndex("Payment")} title="Payment">
+          <PaymentPurposeImage alt="Research laboratory at IIT Roorkee" caption="Wallet recharge: credit for booking IIT Roorkee research and testing facilities" />
           <p className="text-sm text-muted-foreground">
             You will be taken to the secure Razorpay payment page. A convenience fee and GST are added to the amount and
             shown there before you pay. The amount is added to the selected department as soon as the payment is
