@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Award, BookOpen, ChevronLeft, ChevronRight, ExternalLink, FlaskConical, Sparkles, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, UserRound } from "lucide-react";
 
 import { apiClient, type ResearchRecognition, type ResearcherOfTheMonthItem, type ResearcherPublication } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,8 @@ function prefersReducedMotion(): boolean {
  * about once a second and pausing 2 s on the Researcher of the Month, continuously. The list is followed by a copy of itself so the loop never shows a gap; on reaching the copy it
  * jumps back to the start without animation. The row never grows the card: it is one line high whatever the count.
  */
-function AcknowledgerMarquee({ people, featured, dark, label }: {
-  people: ResearchRecognition[]; featured: Set<unknown>; dark: boolean; label: string;
+function AcknowledgerMarquee({ people, featured, dark, label, badge }: {
+  people: ResearchRecognition[]; featured: Set<unknown>; dark: boolean; label: string; badge?: ReactNode;
 }) {
   const n = people.length;
   const isFeatured = (p: ResearchRecognition | undefined) => Boolean(p) && featured.has(p!.user_id ?? p!.id);
@@ -102,9 +102,12 @@ function AcknowledgerMarquee({ people, featured, dark, label }: {
   const buttonClass = cn("shrink-0 rounded-full p-1.5", dark ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-muted-foreground hover:bg-muted");
   return (
     <section aria-label={label} className={dark ? "relative mt-4" : "mt-3"} data-testid="acknowledgers-strip">
-      <p className={cn("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-white/55" : "text-muted-foreground")}>
-        Acknowledged IIC in their research
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className={cn("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-white/55" : "text-muted-foreground")}>
+          Acknowledged IIC in their research
+        </p>
+        {badge}
+      </div>
       <div className="mt-1.5 flex items-center gap-1">
         {loops ? (
           <button type="button" onClick={() => step(-1)} aria-label="Previous name in the list" className={buttonClass}>
@@ -302,16 +305,11 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   // Several researchers: each shows their latest publication. One researcher: the arrows page through their papers.
   const pubAt = steps.by === "publication" ? pubIndex % Math.max(1, pubs.length) : 0;
   const pub = pubs[pubAt];
-  const venue = pub ? [pub.journal, pub.year ? String(pub.year) : ""].filter(Boolean).join(", ") : "";
-  const position = steps.by === "researcher" ? index % people.length : pubAt;
   const go = (step: number) => {
     if (steps.by === "researcher") setIndex((i) => (i + step + people.length) % people.length);
     else setPubIndex((i) => (i + step + steps.count) % steps.count);
   };
-  const goTo = (i: number) => (steps.by === "researcher" ? setIndex(i) : setPubIndex(i));
   const stepNoun = steps.by === "researcher" ? "researcher" : "publication";
-  const stepLabel = (i: number) =>
-    steps.by === "researcher" ? `Show ${people[i]?.researcher_name ?? ""}` : `Show publication ${i + 1} of ${steps.count}`;
   const pause = { onMouseEnter: () => (paused.current = true), onMouseLeave: () => (paused.current = false), onFocus: () => (paused.current = true), onBlur: () => (paused.current = false) };
 
   if (variant === "compact") {
@@ -354,120 +352,29 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
     );
   }
 
+  // Hero (large screens): one compact card holding only the strip, which starts with this month's researcher(s).
+  const monthChip = (
+    <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-white/80" data-testid="spotlight-month">
+      {monthLabel(month) || "This month"}
+    </span>
+  );
   return (
     <aside
-      aria-label="Researcher of the Month"
+      aria-label="Researchers acknowledging IIC"
       data-testid="researcher-spotlight"
       className={cn(
         "relative w-full overflow-hidden rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-5 text-white shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)] backdrop-blur-xl",
-        steps.count > 1 && "px-9",
         className,
       )}
-      {...pause}
     >
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
-      <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-amber-300/10 blur-3xl" />
-      {steps.count > 1 ? (
-        <>
-          <button type="button" onClick={() => go(-1)} aria-label={`Previous ${stepNoun}`} data-testid="spotlight-prev"
-                  className="absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-1 text-white/80 shadow-lg backdrop-blur hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white left-1">
-            <ChevronLeft className="h-4 w-4" aria-hidden />
-          </button>
-          <button type="button" onClick={() => go(1)} aria-label={`Next ${stepNoun}`} data-testid="spotlight-next"
-                  className="absolute top-1/2 z-10 -translate-y-1/2 rounded-full border border-white/20 bg-white/10 p-1 text-white/80 shadow-lg backdrop-blur hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white right-1">
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          </button>
-        </>
-      ) : null}
-
-      <div className="relative">
-      <header className="relative flex items-center justify-between gap-3">
-        <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">
-          <Sparkles className="h-3.5 w-3.5" aria-hidden /> Researcher of the Month
-        </p>
-        <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-white/80">
-          {monthLabel(month) || "This month"}
-        </span>
-      </header>
-
-      <div key={p.id} className="relative mt-4 animate-in fade-in duration-500">
-        <div className="flex items-center gap-5">
-          <div className="relative">
-            <div aria-hidden className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-amber-300 via-amber-100/60 to-sky-300 opacity-80" />
-            <Portrait person={p} className="relative h-20 w-20 ring-4 ring-[hsl(218_55%_10%)]" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">{p.researcher_name}</h2>
-            {p.affiliation && !titlesOf(p).includes(p.affiliation) ? <p className="mt-0.5 truncate text-sm text-white/70">{p.affiliation}</p> : null}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {titlesOf(p).map((t) => (
-                <span key={t} className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[11px] font-semibold text-amber-100 ring-1 ring-inset ring-amber-200/30">
-                  {t}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {count ? (
-          <p className="mt-3 flex items-center gap-2 text-sm text-white/85">
-            <Award className="h-4 w-4 text-amber-200" aria-hidden />
-            <span>
-              <span className="font-semibold text-white">{count}</span> publication{count === 1 ? "" : "s"} acknowledging IIC
-            </span>
-          </p>
-        ) : null}
-
-        {pub ? (
-          <div key={`${p.id}-${pubAt}`} className="mt-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 animate-in fade-in duration-500" data-testid="spotlight-publication">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-white/55">
-              <BookOpen className="h-3.5 w-3.5" aria-hidden />
-              {steps.by === "publication" && pubs.length > 1 ? `Publication ${pubAt + 1} of ${pubs.length}` : "Latest publication"}
-            </p>
-            {pub.url ? (
-              <a
-                href={pub.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-white hover:underline"
-              >
-                {pub.title}
-                <ExternalLink className="ml-1 inline h-3.5 w-3.5 opacity-70" aria-hidden />
-              </a>
-            ) : (
-              <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-white">{pub.title}</p>
-            )}
-            {venue ? <p className="mt-1 text-xs italic text-white/65">{venue}</p> : null}
-            {pub.facility ? (
-              <p className="mt-2 flex items-center gap-1.5 truncate text-xs text-white/65">
-                <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden /> {pub.facility}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+      <div className="[&>section]:mt-0">
+        <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark label="Researchers acknowledging IIC" badge={monthChip} />
       </div>
-
-      {ackList}
-      </div>
-
-      <footer className="relative mt-3 flex items-center justify-between gap-3">
+      <footer className="relative mt-3">
         <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-200 hover:text-white hover:underline">
           All publications <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
-        {steps.count > 1 ? (
-          <div className="flex items-center gap-1.5" data-testid="spotlight-dots">
-            {Array.from({ length: steps.count }, (_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => goTo(i)}
-                aria-label={stepLabel(i)}
-                aria-current={i === position}
-                className={cn("h-1.5 rounded-full transition-all", i === position ? "w-5 bg-amber-200" : "w-1.5 bg-white/35 hover:bg-white/60")}
-              />
-            ))}
-          </div>
-        ) : null}
       </footer>
     </aside>
   );

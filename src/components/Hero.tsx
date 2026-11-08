@@ -160,10 +160,9 @@ const Hero = () => {
         {/* pt clears the fixed site header (height + safe area); keep the title fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            {/* Title and search on the left; Researcher of the Month on the right. On large screens the title starts
-                level with the top of the card and the search bar sits level with its bottom (no gap above the title
-                when the card is taller), so the quick actions sit right below both. */}
-            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] lg:items-stretch xl:gap-12">
+            {/* Title and search on the left; on large screens the compact acknowledgement strip (Researcher of the
+                Month first) sits on the right, level with the search bar, so the hero is only as tall as the title. */}
+            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] xl:gap-12">
             <div className="min-w-0 space-y-3.5 sm:space-y-4 lg:flex lg:flex-col lg:justify-between lg:space-y-0 lg:gap-5">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5 lg:space-y-4">
               <h1
