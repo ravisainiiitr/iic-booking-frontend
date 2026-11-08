@@ -1,15 +1,20 @@
-import { loadPdfMastheadBytes, ORG_ENGLISH, PDF_BRAND_RGB, PDF_INK_RGB } from "@/lib/pdfLetterhead";
+import { ORG_ENGLISH, PDF_BRAND_RGB, PDF_INK_RGB } from "@/lib/pdfLetterhead";
 import { pdfSafe } from "@/lib/externalRequisitionFormPdf";
 import { INSTITUTION, POLICY_LINKS } from "@/lib/institutionIdentity";
+import { rupeesInWords } from "@/lib/amountInWords";
 import type { PaymentReceipt } from "@/lib/api";
+import { paymentRows } from "@/lib/receiptRows";
+
+export { paymentRows };
 
 /**
- * Payment receipt as a one-page A4 PDF (pdf-lib, built in the browser): institute masthead, who collected the payment,
- * the receipt and payment references, the bank reference (RRN / UTR) when known, the amount breakdown and the notes.
- * Never titled a tax invoice. A test-mode receipt carries a banner on top.
+ * Payment receipt as a one-page A4 PDF (pdf-lib, built in the browser), modelled on the SRIC office receipt: institute
+ * header with GSTIN, receipt number and date, "received with thanks from", the amount in figures and in words, what it
+ * was paid for, how it was paid (with that payment mode's own bank references), the amount breakdown, and a
+ * computer-generated note in place of a signature. Never titled a tax invoice. A test-mode receipt says so twice.
  */
 const PAGE: [number, number] = [595.28, 841.89];
-const MARGIN = 48;
+const M = 42;
 
 function money(value: string | number | null | undefined): string {
   const n = Number(value || 0);
@@ -27,141 +32,252 @@ export function receiptFileName(r: Pick<PaymentReceipt, "receipt_number" | "book
   return `payment_receipt_${base}.pdf`;
 }
 
+async function bytesOf(path: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(path);
+    return res.ok ? await res.arrayBuffer() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob> {
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const { PDFDocument, StandardFonts, rgb, degrees } = await import("pdf-lib");
   const doc = await PDFDocument.create();
   doc.setTitle(`Payment Receipt ${r.receipt_number}`);
   doc.setAuthor(ORG_ENGLISH);
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  doc.setSubject(r.description || "Online payment receipt");
+  const sans = await doc.embedFont(StandardFonts.Helvetica);
+  const sansBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const sansItalic = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const serifBold = await doc.embedFont(StandardFonts.TimesRomanBold);
+  type Font = typeof sans;
   const [W, H] = PAGE;
-  const contentW = W - MARGIN * 2;
-  const brand = rgb(PDF_BRAND_RGB[0] / 255, PDF_BRAND_RGB[1] / 255, PDF_BRAND_RGB[2] / 255);
+  const CW = W - M * 2;
+  const navy = rgb(PDF_BRAND_RGB[0] / 255, PDF_BRAND_RGB[1] / 255, PDF_BRAND_RGB[2] / 255);
   const ink = rgb(PDF_INK_RGB[0] / 255, PDF_INK_RGB[1] / 255, PDF_INK_RGB[2] / 255);
-  const muted = rgb(0.38, 0.42, 0.48);
-  const rule = rgb(0.8, 0.82, 0.86);
-  const tint = rgb(0.95, 0.97, 0.99);
+  const muted = rgb(0.4, 0.45, 0.52);
+  const rule = rgb(0.84, 0.86, 0.9);
+  const tint = rgb(0.955, 0.966, 0.984);
+  const gold = rgb(0.76, 0.6, 0.22);
+  const white = rgb(1, 1, 1);
+  const green = rgb(0.06, 0.5, 0.3);
   const page = doc.addPage(PAGE);
-  let y = H - MARGIN;
-  const text = (s: string, x: number, at: number, size: number, f = font, c = ink) => page.drawText(pdfSafe(s), { x, y: at, size, font: f, color: c });
-  const right = (s: string, xRight: number, at: number, size: number, f = font, c = ink) =>
-    text(s, xRight - f.widthOfTextAtSize(pdfSafe(s), size), at, size, f, c);
-  const centred = (s: string, at: number, size: number, f = bold, c = ink) => text(s, (W - f.widthOfTextAtSize(pdfSafe(s), size)) / 2, at, size, f, c);
 
+  const width = (s: string, size: number, f: Font = sans) => f.widthOfTextAtSize(pdfSafe(s), size);
+  const text = (s: string, x: number, y: number, size: number, f: Font = sans, color = ink) =>
+    page.drawText(pdfSafe(s), { x, y, size, font: f, color });
+  const right = (s: string, xr: number, y: number, size: number, f: Font = sans, color = ink) => text(s, xr - width(s, size, f), y, size, f, color);
+  const wrap = (s: string, size: number, maxW: number, f: Font = sans): string[] => {
+    const lines: string[] = [];
+    let line = "";
+    for (const word of pdfSafe(s).split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (width(next, size, f) <= maxW) line = next;
+      else {
+        if (line) lines.push(line);
+        // A single over-long token (an ID) is cut to fit rather than overflowing.
+        let w = word;
+        while (width(w, size, f) > maxW && w.length > 4) w = w.slice(0, -1);
+        line = w;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : ["-"];
+  };
+  const label = (s: string, x: number, y: number) => text(s.toUpperCase(), x, y, 7, sansBold, muted);
+
+  const logoBytes = await bytesOf(INSTITUTION.logoPath);
+  const logo = logoBytes ? await doc.embedPng(logoBytes).catch(() => null) : null;
+
+  // Faint crest watermark behind the body.
+  if (logo) page.drawImage(logo, { x: (W - 300) / 2, y: (H - 300) / 2 - 40, width: 300, height: 300, opacity: 0.045 });
   if (r.test_mode) {
-    page.drawRectangle({ x: MARGIN, y: y - 20, width: contentW, height: 20, color: rgb(1, 0.95, 0.85), borderColor: rgb(0.85, 0.47, 0.02), borderWidth: 1 });
-    centred("TEST MODE - SAMPLE ONLY, NO REAL MONEY WAS COLLECTED", y - 14, 9.5, bold, rgb(0.57, 0.25, 0.05));
-    y -= 30;
+    page.drawText("TEST MODE - NO MONEY COLLECTED", {
+      x: 95, y: 250, size: 34, font: sansBold, color: rgb(0.85, 0.47, 0.02), opacity: 0.12, rotate: degrees(35),
+    });
   }
 
-  try {
-    const mast = await doc.embedPng(await loadPdfMastheadBytes());
-    const w = Math.min(280, contentW);
-    const h = (mast.height / mast.width) * w;
-    y -= h;
-    page.drawImage(mast, { x: (W - w) / 2, y, width: w, height: h });
-    y -= 14;
-  } catch {
-    y -= 16;
-    centred(ORG_ENGLISH, y, 15, bold, brand);
-    y -= 18;
+  // Top band.
+  page.drawRectangle({ x: 0, y: H - 9, width: W, height: 9, color: navy });
+  page.drawRectangle({ x: 0, y: H - 11.5, width: W, height: 2.5, color: gold });
+  let y = H - 30;
+  if (r.test_mode) {
+    page.drawRectangle({ x: M, y: y - 18, width: CW, height: 18, color: rgb(1, 0.95, 0.85), borderColor: rgb(0.85, 0.47, 0.02), borderWidth: 0.8 });
+    const t = "TEST MODE  -  SAMPLE RECEIPT, NO REAL MONEY WAS COLLECTED";
+    text(t, (W - width(t, 8.5, sansBold)) / 2, y - 12.5, 8.5, sansBold, rgb(0.57, 0.25, 0.05));
+    y -= 28;
   }
-  centred(r.service_name, y, 10, font, muted);
-  y -= 26;
-  centred("PAYMENT RECEIPT", y, 17, bold, brand);
-  y -= 22;
 
-  // Receipt number, date and amount at a glance.
-  const boxH = 50;
-  page.drawRectangle({ x: MARGIN, y: y - boxH, width: contentW, height: boxH, color: tint, borderColor: rule, borderWidth: 0.8 });
-  const third = contentW / 3;
-  ([
+  // Header: crest, institute, office, address and GSTIN; title and PAID mark on the right.
+  const logoSize = 64;
+  if (logo) page.drawImage(logo, { x: M, y: y - logoSize, width: logoSize, height: logoSize });
+  const hx = M + (logo ? logoSize + 14 : 0);
+  text("INDIAN INSTITUTE OF TECHNOLOGY ROORKEE", hx, y - 17, 15, serifBold, navy);
+  text(r.office || INSTITUTION.unit, hx, y - 32, 9.5, sansBold, ink);
+  text(`${INSTITUTION.addressLines.join(", ")}`, hx, y - 45, 8.5, sans, muted);
+  const gstin = r.institute_gstin || INSTITUTION.gstin;
+  text(`GSTIN: ${gstin}   |   ${INSTITUTION.email}`, hx, y - 57, 8.5, sans, muted);
+  y -= logoSize + 12;
+  page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.4, color: navy });
+  page.drawLine({ start: { x: M, y: y - 3 }, end: { x: W - M, y: y - 3 }, thickness: 0.6, color: gold });
+  y -= 30;
+
+  // Title row.
+  text("PAYMENT RECEIPT", M, y, 18, serifBold, navy);
+  const service = r.service_name || "IIT Roorkee Equipment Booking Portal";
+  text(service, M, y - 14, 8.5, sans, muted);
+  const stamp = r.test_mode ? "TEST" : "PAID";
+  const stampColor = r.test_mode ? rgb(0.85, 0.47, 0.02) : green;
+  const sw = width(stamp, 13, sansBold) + 26;
+  page.drawRectangle({ x: W - M - sw, y: y - 8, width: sw, height: 26, borderColor: stampColor, borderWidth: 1.6, opacity: 0, borderOpacity: 0.9 });
+  page.drawRectangle({ x: W - M - sw + 2.5, y: y - 5.5, width: sw - 5, height: 21, borderColor: stampColor, borderWidth: 0.6, opacity: 0, borderOpacity: 0.9 });
+  text(stamp, W - M - sw + 13, y + 0.5, 13, sansBold, stampColor);
+  y -= 30;
+
+  // Receipt no. / date / mode strip.
+  const stripH = 42;
+  page.drawRectangle({ x: M, y: y - stripH, width: CW, height: stripH, color: tint, borderColor: rule, borderWidth: 0.6 });
+  const cells: [string, string][] = [
     ["Receipt no.", r.receipt_number],
-    ["Paid on", when(r.paid_at)],
-    ["Amount paid", money(r.total_paid)],
-  ] as Array<[string, string]>).forEach(([k, v], i) => {
-    text(k, MARGIN + 12 + third * i, y - 17, 8, font, muted);
-    text(v, MARGIN + 12 + third * i, y - 35, i === 2 ? 13 : 10.5, bold, i === 2 ? brand : ink);
-  });
-  y -= boxH + 18;
-
-  // Who paid, for what, and every reference.
-  const rows: Array<[string, string]> = [
-    ["Received from", r.payer_name || "-"],
-    ["Payment for", r.description],
-    ...(r.booking_reference ? ([["Booking ID", r.booking_reference]] as Array<[string, string]>) : []),
-    ["Collected by", `${r.collected_by}, ${r.institution}`],
-    ["Payment method", (r.method || "-").toUpperCase()],
-    ["Payment status", r.status],
-    ["Razorpay payment ID", r.razorpay_payment_id],
-    ["Razorpay order ID", r.razorpay_order_id],
-    ["Bank reference (RRN / UTR)", r.bank_reference || "Not provided by the bank for this payment method"],
-    ...(r.settlement_utr ? ([["Settlement UTR (to the institute)", r.settlement_utr]] as Array<[string, string]>) : []),
+    ["Date of payment", when(r.paid_at)],
+    ["Payment mode", r.payment_mode || (r.method || "Online").toUpperCase()],
   ];
-  const labelW = contentW * 0.34;
-  for (const [k, v] of rows) {
-    const h = 19;
-    page.drawRectangle({ x: MARGIN, y: y - h, width: labelW, height: h, color: tint, borderColor: rule, borderWidth: 0.5 });
-    page.drawRectangle({ x: MARGIN + labelW, y: y - h, width: contentW - labelW, height: h, borderColor: rule, borderWidth: 0.5 });
-    text(k, MARGIN + 6, y - 13, 8.8, bold);
-    let value = pdfSafe(v);
-    while (font.widthOfTextAtSize(value, 8.8) > contentW - labelW - 12 && value.length > 4) value = value.slice(0, -2);
-    text(value, MARGIN + labelW + 6, y - 13, 8.8);
-    y -= h;
+  const cellW = CW / cells.length;
+  cells.forEach(([k, v], i) => {
+    const cx = M + cellW * i + 12;
+    if (i) page.drawLine({ start: { x: M + cellW * i, y: y - stripH + 8 }, end: { x: M + cellW * i, y: y - 8 }, thickness: 0.5, color: rule });
+    label(k, cx, y - 15);
+    text(wrap(v, 10, cellW - 20, sansBold)[0], cx, y - 31, 10, sansBold, ink);
+  });
+  y -= stripH + 22;
+
+  // Received from (left) and amount (right).
+  const boxW = 190;
+  const boxH = 66;
+  const leftW = CW - boxW - 18;
+  label("Received with thanks from", M, y);
+  let ly = y - 16;
+  for (const line of wrap(r.payer_name || "-", 13, leftW, sansBold).slice(0, 2)) {
+    text(line, M, ly, 13, sansBold, ink);
+    ly -= 15;
   }
-  y -= 18;
+  if (r.payer_organisation) {
+    for (const line of wrap(r.payer_organisation, 9.5, leftW).slice(0, 2)) {
+      text(line, M, ly, 9.5, sans, ink);
+      ly -= 12;
+    }
+  }
+  if (r.payer_email) {
+    text(wrap(r.payer_email, 9, leftW)[0], M, ly, 9, sans, muted);
+    ly -= 12;
+  }
+  const bx = W - M - boxW;
+  page.drawRectangle({ x: bx, y: y - boxH + 8, width: boxW, height: boxH, color: navy });
+  page.drawRectangle({ x: bx, y: y - boxH + 8, width: 4, height: boxH, color: gold });
+  text("AMOUNT RECEIVED", bx + 16, y - 9, 7.5, sansBold, rgb(0.8, 0.86, 0.95));
+  const amount = money(r.total_paid);
+  let amountSize = 21;
+  while (width(amount, amountSize, sansBold) > boxW - 30 && amountSize > 12) amountSize -= 1;
+  text(amount, bx + 16, y - 36, amountSize, sansBold, white);
+  text(r.currency || "INR", bx + 16, y - 50, 7.5, sans, rgb(0.8, 0.86, 0.95));
+  y = Math.min(ly, y - boxH + 8) - 12;
+
+  const words = rupeesInWords(r.total_paid);
+  const wordLines = wrap(`(${words})`, 9.5, CW - 24, sansItalic).slice(0, 2);
+  const wordsH = 10 + wordLines.length * 12;
+  page.drawRectangle({ x: M, y: y - wordsH, width: CW, height: wordsH, color: tint });
+  page.drawRectangle({ x: M, y: y - wordsH, width: 2.5, height: wordsH, color: gold });
+  wordLines.forEach((line, i) => text(line, M + 12, y - 15 - i * 12, 9.5, sansItalic, ink));
+  y -= wordsH + 22;
+
+  // On account of (left) | Payment details (right).
+  const colGap = 22;
+  const colW = (CW - colGap) / 2;
+  const account: [string, string][] = [["Purpose", r.description]];
+  if (r.booking_reference) account.push(["Booking ID", r.booking_reference]);
+  if (r.equipment && !(r.description || "").includes(r.equipment)) account.push(["Instrument", r.equipment]);
+  account.push(["Collected by", `${r.collected_by}, ${r.institution}`]);
+  account.push(["Received through", "Razorpay online payment gateway"]);
+  const column = (title: string, rows: [string, string][], x: number, top: number): number => {
+    text(title, x, top, 10, sansBold, navy);
+    page.drawLine({ start: { x, y: top - 5 }, end: { x: x + colW, y: top - 5 }, thickness: 0.8, color: navy });
+    let cy = top - 19;
+    for (const [k, v] of rows) {
+      label(k, x, cy);
+      cy -= 11;
+      for (const line of wrap(v || "-", 9.5, colW).slice(0, 3)) {
+        text(line, x, cy, 9.5, sans, ink);
+        cy -= 11.5;
+      }
+      cy -= 5;
+    }
+    return cy;
+  };
+  const endLeft = column("ON ACCOUNT OF", account, M, y);
+  // The mode is in the strip above and "Captured" is the PAID mark: only other statuses (refunds) are repeated here.
+  const details = paymentRows(r).filter(([k, v]) => k !== "Payment mode" && !(k === "Payment status" && /^captured$/i.test(v)));
+  const endRight = column("PAYMENT DETAILS", details, M + colW + colGap, y);
+  y = Math.min(endLeft, endRight) - 6;
 
   // Amount breakdown.
-  text("Amount", MARGIN, y, 10.5, bold, brand);
-  y -= 8;
-  const lines: Array<[string, string, boolean?]> = [];
+  const lines: [string, string][] = [];
   if (r.booking_total) {
     lines.push([`Booking charge${r.booking_gst ? `, including GST of ${money(r.booking_gst)}` : ""}`, money(r.booking_total)]);
     lines.push(["Paid online for this booking", money(r.base_amount)]);
   } else {
-    lines.push(["Amount", money(r.base_amount)]);
+    lines.push([r.description || "Amount", money(r.base_amount)]);
   }
   if (Number(r.convenience_fee) > 0) {
     lines.push(["Payment gateway convenience fee", money(r.convenience_fee)]);
     lines.push([`GST on the convenience fee (${Number(r.gst_on_fee_percent)}%)`, money(r.gst_on_fee)]);
   }
-  lines.push([`Total paid (${r.currency})`, money(r.total_paid), true]);
-  for (const [k, v, total] of lines) {
-    const h = total ? 24 : 19;
-    if (total) page.drawRectangle({ x: MARGIN, y: y - h, width: contentW, height: h, color: tint });
-    page.drawLine({ start: { x: MARGIN, y: y - h }, end: { x: W - MARGIN, y: y - h }, thickness: total ? 1 : 0.5, color: total ? brand : rule });
-    text(k, MARGIN + 6, y - h + 7, total ? 10.5 : 9, total ? bold : font);
-    right(v, W - MARGIN - 6, y - h + 7, total ? 10.5 : 9, total ? bold : font, total ? brand : ink);
-    y -= h;
+  const rowH = 19;
+  page.drawRectangle({ x: M, y: y - rowH, width: CW, height: rowH, color: tint, borderColor: rule, borderWidth: 0.5 });
+  text("PARTICULARS", M + 10, y - 13, 7.5, sansBold, muted);
+  right("AMOUNT", W - M - 10, y - 13, 7.5, sansBold, muted);
+  y -= rowH;
+  for (const [k, v] of lines) {
+    text(wrap(k, 9.5, CW - 130)[0], M + 10, y - 13, 9.5, sans, ink);
+    right(v, W - M - 10, y - 13, 9.5, sans, ink);
+    page.drawLine({ start: { x: M, y: y - rowH }, end: { x: W - M, y: y - rowH }, thickness: 0.5, color: rule });
+    y -= rowH;
   }
-  y -= 26;
+  page.drawRectangle({ x: M, y: y - 24, width: CW, height: 24, color: navy });
+  text(`Total received (${r.currency || "INR"})`, M + 10, y - 16, 10.5, sansBold, white);
+  right(money(r.total_paid), W - M - 10, y - 16, 10.5, sansBold, white);
+  y -= 24 + 13;
 
   // Notes.
   const notes = [
     r.not_a_tax_invoice,
-    "Refunds, where due, are credited to the portal wallet or paid to a bank account through the institute's process; they are not returned automatically to the card or UPI account used.",
-    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}`,
-    `Payment questions: ${INSTITUTION.email}`,
+    "Refunds, where due, go to the portal wallet or to a bank account through the institute, not automatically back to the card or UPI account used.",
+    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}   |   Payment questions: ${INSTITUTION.email}`,
   ];
+  const cgH = 36;
+  const cgY = 26 + 10;
+  // Notes, as many as fit above the computer-generated note (the first, "not a tax invoice", always does).
   for (const note of notes) {
-    let line = "";
-    for (const word of pdfSafe(note).split(/\s+/)) {
-      const next = line ? `${line} ${word}` : word;
-      if (font.widthOfTextAtSize(next, 8.5) > contentW) {
-        text(line, MARGIN, y, 8.5, font, muted);
-        y -= 11.5;
-        line = word;
-      } else line = next;
+    const noteLines = wrap(note, 8, CW);
+    if (y - noteLines.length * 10 < cgY + cgH + 2) break;
+    for (const line of noteLines) {
+      text(line, M, y, 8, sans, muted);
+      y -= 10.5;
     }
-    if (line) {
-      text(line, MARGIN, y, 8.5, font, muted);
-      y -= 15;
-    }
+    y -= 3;
   }
 
-  page.drawLine({ start: { x: MARGIN, y: MARGIN + 14 }, end: { x: W - MARGIN, y: MARGIN + 14 }, thickness: 0.5, color: rule });
-  text("Computer-generated receipt; no signature is required.", MARGIN, MARGIN, 8, font, muted);
-  right("equip.iitr.ac.in", W - MARGIN, MARGIN, 8, font, muted);
+  // Computer-generated note in place of a signature, anchored just above the footer.
+  page.drawRectangle({ x: M, y: cgY, width: CW, height: cgH, borderColor: gold, borderWidth: 0.9, color: rgb(0.995, 0.985, 0.955) });
+  const cg = r.computer_generated || "This is a computer-generated receipt and does not require a signature.";
+  text(cg, M + 14, cgY + 20.5, 9.5, sansBold, ink);
+  text(`Verify with the Razorpay payment ID ${r.razorpay_payment_id} or receipt no. ${r.receipt_number}.`, M + 14, cgY + 8.5, 7.8, sans, muted);
+
+  // Footer band.
+  page.drawRectangle({ x: 0, y: 0, width: W, height: 26, color: navy });
+  page.drawRectangle({ x: 0, y: 26, width: W, height: 1.8, color: gold });
+  text(`${service}  |  equip.iitr.ac.in`, M, 9.5, 7.8, sans, white);
+  right(`Generated ${when(new Date().toISOString())}`, W - M, 9.5, 7.8, sans, white);
 
   const bytes = await doc.save();
   return new Blob([bytes], { type: "application/pdf" });
