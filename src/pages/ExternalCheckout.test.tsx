@@ -173,7 +173,7 @@ describe("payment selection", () => {
       theme: { color: INSTITUTION.themeColor },
     });
     expect(String(razorpayOptions?.image)).toMatch(/\/IITR_Logo\.png$/);
-    expect(razorpayOptions?.description).toBe("Equipment booking: Synthetic XRD");
+    expect(razorpayOptions?.description).toBe("Analysis charges for 'Synthetic XRD'");
     expect(Object.keys(razorpayOptions ?? {}).sort()).toEqual(
       ["amount", "config", "currency", "description", "handler", "image", "key", "modal", "name", "order_id", "theme"],
     ); // only documented Standard Checkout options

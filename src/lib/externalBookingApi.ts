@@ -353,6 +353,8 @@ export interface BookingCheckout {
   state_label: string;
   /** The equipment's photo for the payment page ("" when it has none). */
   equipment_image_url?: string;
+  /** e.g. "Analysis charges for 'Powder XRD'", worded by the server. */
+  payment_purpose?: string;
   summary: {
     equipment_id: number;
     equipment_name: string;
@@ -397,6 +399,7 @@ export interface CheckoutGatewayOrder {
   key: string;
   mode?: string;
   checkout_name?: string;
+  payment_purpose?: string;
   breakup: { base_amount: string; convenience_fee: string; fee_gst: string; total_amount: string };
 }
 
