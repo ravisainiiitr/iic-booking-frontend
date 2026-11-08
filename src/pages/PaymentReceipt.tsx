@@ -165,7 +165,6 @@ export default function PaymentReceipt() {
                 </p>
                 <p>{r.not_a_tax_invoice}</p>
                 <p>
-                  Payment questions: <a href={`mailto:${INSTITUTION.email}`} className="text-[#1e4d8c] underline">{INSTITUTION.email}</a>.
                   Cancellations and refunds follow the{" "}
                   <a href={POLICY_LINKS.refund} className="text-[#1e4d8c] underline">Cancellation and Refund Policy</a>.
                 </p>

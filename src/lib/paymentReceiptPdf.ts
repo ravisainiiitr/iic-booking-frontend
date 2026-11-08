@@ -306,9 +306,9 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
     t.refund_note ??
       "Refunds, where due, go to the portal wallet or to a bank account through the institute, not automatically back to the card or UPI account used.",
     t.extra_note || "",
-    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}   |   Payment questions: ${contactEmail}`,
+    `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}`,
   ].filter(Boolean);
-  const cgH = 36;
+  const cgH = 26;
   const cgY = 26 + 10;
   // Notes, as many as fit above the computer-generated note (the first, "not a tax invoice", always does).
   for (const note of notes) {
@@ -324,8 +324,7 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   // Computer-generated note in place of a signature, anchored just above the footer.
   page.drawRectangle({ x: M, y: cgY, width: CW, height: cgH, borderColor: gold, borderWidth: 0.9, color: rgb(0.995, 0.985, 0.955) });
   const cg = wrap(r.computer_generated || "This is a computer-generated receipt and does not require a signature.", 9.5, CW - 28, sansBold)[0];
-  text(cg, M + 14, cgY + 20.5, 9.5, sansBold, ink);
-  text(`Verify with the Razorpay payment ID ${r.razorpay_payment_id} or receipt no. ${r.receipt_number}.`, M + 14, cgY + 8.5, 7.8, sans, muted);
+  text(cg, M + 14, cgY + 9.5, 9.5, sansBold, ink);
 
   // Footer band.
   page.drawRectangle({ x: 0, y: 0, width: W, height: 26, color: navy });

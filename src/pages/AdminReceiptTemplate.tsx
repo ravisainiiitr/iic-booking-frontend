@@ -87,7 +87,7 @@ function whiteContrast(hex: string): number | null {
 /** A sample UPI payment shown in the preview: the template is the only thing that changes. */
 export function sampleReceipt(v: ReceiptTemplateValues, collectedBy: string): PaymentReceipt {
   return {
-    receipt_number: "iic_book_SAMPLE", title: v.receipt_heading, not_a_tax_invoice: v.not_a_tax_invoice, test_mode: false,
+    receipt_number: "IITR/IIC/2026/00001", title: v.receipt_heading, not_a_tax_invoice: v.not_a_tax_invoice, test_mode: false,
     collected_by: collectedBy || "DEAN SRIC IIT ROORKEE", institution: v.institution_name, service_name: v.service_name,
     payer_name: "Sample Payer", purpose: "Booking balance payment", description: "Analysis charges for 'Sample XRD'",
     booking_reference: "IICXRD202600001", equipment: "Sample XRD", booking_total: "1180.00", booking_gst: "180.00",

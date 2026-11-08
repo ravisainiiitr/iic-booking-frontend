@@ -13,7 +13,7 @@ const save = vi.hoisted(() => ({ saveBlob: vi.fn() }));
 vi.mock("@/lib/dispatchPack", async (orig) => ({ ...(await orig<typeof import("@/lib/dispatchPack")>()), saveBlob: save.saveBlob }));
 
 const sample = {
-  receipt_number: "iic_book_1_sample",
+  receipt_number: "IITR/IIC/2026/00001",
   title: "Payment Receipt",
   not_a_tax_invoice: "This is a payment receipt, not a GST tax invoice. Where a tax invoice applies, it is issued by SRIC, IIT Roorkee.",
   test_mode: true,
@@ -62,7 +62,7 @@ describe("PaymentReceipt", () => {
     const receipt = await screen.findByTestId("payment-receipt");
     expect(receipt.textContent).toContain("Indian Institute of Technology Roorkee");
     expect(receipt.textContent).toContain("DEAN SRIC IIT ROORKEE");
-    expect(receipt.textContent).toContain("iic_book_1_sample");
+    expect(receipt.textContent).toContain("IITR/IIC/2026/00001");
     expect(receipt.textContent).toContain("XRD-TEST-0001");
     expect(receipt.textContent).toContain("pay_TESTSAMPLE");
     expect(receipt.textContent).toContain("not a GST tax invoice");
