@@ -4216,12 +4216,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
   );
 
   // Collapse Charge Calculation once charges are ready (and when slots appear); Sample Information stays expanded.
+  // External users always see their charges open: they pay against this breakdown, so it is never folded away.
   useEffect(() => {
     if (!chargeCalculated) return;
+    if (isExternalUser) {
+      setChargeCalcExpanded(true);
+      return;
+    }
     if (showSlots || isCalculateChargesFlow || isProformaFlow || isTemplateFlow) {
       setChargeCalcExpanded(false);
     }
-  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow, isTemplateFlow]);
+  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow, isTemplateFlow, isExternalUser]);
 
   // Calculate charge based on input fields
   const calculateCharge = useCallback(async () => {
