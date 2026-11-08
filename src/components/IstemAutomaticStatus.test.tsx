@@ -33,6 +33,23 @@ describe("Automatic I-STEM status", () => {
     expect(screen.getByText(/Nothing is needed from you/)).toBeTruthy();
   });
 
+  it("says why a queued booking is not on I-STEM yet, with the exact fields for staff only", () => {
+    const queued = status({
+      step: "queued",
+      fbr_no: "",
+      waiting_reasons: ["Your portal account is not linked to an I-STEM account yet."],
+      waiting_detail: ["public_user_id: missing"],
+    });
+    const { rerender } = render(<IstemAutomaticStatus status={queued} compact />);
+    expect(screen.getByText("Why it is not on I-STEM yet")).toBeTruthy();
+    expect(screen.getByText(/not linked to an I-STEM account/)).toBeTruthy();
+    expect(screen.queryByTestId("istem-waiting-detail")).toBeNull();
+    rerender(<IstemAutomaticStatus status={queued} compact showDetail />);
+    expect(screen.getByText("public_user_id: missing")).toBeTruthy();
+    rerender(<IstemAutomaticStatus status={{ ...queued, step: "registered" }} compact showDetail />);
+    expect(screen.queryByTestId("istem-waiting")).toBeNull();
+  });
+
   it("reads the record from a booking only when automatic", () => {
     expect(istemAutomaticOf({ istem_automatic: status() })?.fbr_no).toBe("1976095568");
     expect(istemAutomaticOf({ istem_automatic: null })).toBeNull();

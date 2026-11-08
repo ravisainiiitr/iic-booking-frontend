@@ -9,6 +9,10 @@ export interface IstemAutomatic {
   request_id: string;
   confirmation_id: string;
   payment_id: string;
+  /** While queued (booking detail only): plain-words reasons the booking is not on I-STEM yet. */
+  waiting_reasons?: string[];
+  /** While queued: the exact missing fields, for staff. */
+  waiting_detail?: string[];
 }
 
 const ORDER = ["registered", "confirmed", "executed"] as const;
@@ -20,8 +24,19 @@ export function istemAutomaticOf(booking: unknown): IstemAutomatic | null {
 
 /** Progress of the I-STEM record the portal creates for the booking: registered (FBR number), slot confirmed, FBR
  * executed. Nothing for the user to do; the IIC team handles anything held back. */
-export function IstemAutomaticStatus({ status, compact = false }: { status: IstemAutomatic; compact?: boolean }) {
+export function IstemAutomaticStatus({
+  status,
+  compact = false,
+  showDetail = false,
+}: {
+  status: IstemAutomatic;
+  compact?: boolean;
+  /** Staff only: also list the exact missing fields. */
+  showDetail?: boolean;
+}) {
   const reached = ORDER.indexOf(status.step as (typeof ORDER)[number]);
+  const reasons = status.step === "queued" ? status.waiting_reasons ?? [] : [];
+  const detail = showDetail && status.step === "queued" ? status.waiting_detail ?? [] : [];
   const rows: { key: (typeof ORDER)[number]; title: string; detail: string }[] = [
     { key: "registered", title: "Registered on I-STEM", detail: status.fbr_no ? `FBR ${status.fbr_no}` : "FBR number assigned by I-STEM" },
     { key: "confirmed", title: "Slot confirmed on I-STEM", detail: status.confirmation_id ? `Confirmation ${status.confirmation_id}` : "Your booked hours" },
@@ -67,6 +82,23 @@ export function IstemAutomaticStatus({ status, compact = false }: { status: Iste
           })}
         </ol>
       )}
+      {reasons.length ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200" data-testid="istem-waiting">
+          <p className="font-medium">Why it is not on I-STEM yet</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            {reasons.map((r) => (
+              <li key={r}>{r}</li>
+            ))}
+          </ul>
+          {detail.length ? (
+            <ul className="mt-2 space-y-0.5 font-mono text-xs text-amber-800/90 dark:text-amber-300/90" data-testid="istem-waiting-detail">
+              {detail.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
