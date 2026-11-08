@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 
 /** Pause on each researcher (several this month) or each publication (one researcher) before moving on. */
 const ROTATE_MS = 7000;
-/** Acknowledgement strip: each step slides one person along in MOVE_MS, then holds HOLD_MS; it loops for ever.
- *  Hover, focus, touch or the arrows pause it; it resumes RESUME_AFTER_MS after the last touch. */
-const ACK_MOVE_MS = 1000;
-const ACK_HOLD_MS = 2000;
+/** Acknowledgement strip: it moves on one person about once a second (a MOVE_MS slide, then HOLD_MS), and holds
+ *  FEATURED_HOLD_MS when the Researcher of the Month is at the front. It loops for ever. Hover, focus, touch or the
+ *  arrows pause it; it resumes RESUME_AFTER_MS after the last touch. */
+const ACK_MOVE_MS = 700;
+const ACK_HOLD_MS = 300;
+const ACK_FEATURED_HOLD_MS = 2000;
 const RESUME_AFTER_MS = 4000;
 /** Card width + gap of one person in the strip (w-64 + gap-2), so a step is a fixed distance. */
 const ACK_STEP = "16.5rem";
@@ -20,12 +22,15 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * One horizontal row of everyone who acknowledged IIC, stepping left one person at a time: a 1 s slide, a 2 s hold,
- * continuously. The list is followed by a copy of itself so the loop never shows a gap; on reaching the copy it
+ * One horizontal row of everyone who acknowledged IIC, the Researcher of the Month first, stepping left one person
+ * about once a second and pausing 2 s on the Researcher of the Month, continuously. The list is followed by a copy of itself so the loop never shows a gap; on reaching the copy it
  * jumps back to the start without animation. The row never grows the card: it is one line high whatever the count.
  */
-function AcknowledgerMarquee({ people, dark, label }: { people: ResearchRecognition[]; dark: boolean; label: string }) {
+function AcknowledgerMarquee({ people, featured, dark, label }: {
+  people: ResearchRecognition[]; featured: Set<unknown>; dark: boolean; label: string;
+}) {
   const n = people.length;
+  const isFeatured = (p: ResearchRecognition | undefined) => Boolean(p) && featured.has(p!.user_id ?? p!.id);
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(true);
   const hovered = useRef(false);
@@ -41,11 +46,12 @@ function AcknowledgerMarquee({ people, dark, label }: { people: ResearchRecognit
   const retry = useRef(false);
   const wrapped = useRef(false);
 
-  // Auto-advance: a slide (ACK_MOVE_MS) then a hold (ACK_HOLD_MS) before the next step. While paused, look again
-  // every half second.
+  // Auto-advance: the slide (ACK_MOVE_MS) then the hold for the person now at the front, before the next step.
+  // While paused, look again every half second.
   useEffect(() => {
     if (!loops || reduced.current || index >= n) return;
-    const delay = retry.current ? 500 : wrapped.current ? ACK_HOLD_MS : ACK_MOVE_MS + ACK_HOLD_MS;
+    const hold = isFeatured(people[index % n]) ? ACK_FEATURED_HOLD_MS : ACK_HOLD_MS;
+    const delay = retry.current ? 500 : (wrapped.current ? 0 : ACK_MOVE_MS) + hold;
     retry.current = false;
     wrapped.current = false;
     const t = window.setTimeout(() => {
@@ -59,6 +65,7 @@ function AcknowledgerMarquee({ people, dark, label }: { people: ResearchRecognit
       setIndex((i) => i + 1);
     }, delay);
     return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, loops, n, tick]);
 
   // After sliding onto the copy of the first person, jump back to the real first one without animation.
@@ -122,7 +129,7 @@ function AcknowledgerMarquee({ people, dark, label }: { people: ResearchRecognit
             }}
           >
             {items.map((a, i) => (
-              <AcknowledgerRow key={`${a.user_id ?? a.id}-${i}`} person={a} dark={dark} copy={i >= n} />
+              <AcknowledgerRow key={`${a.user_id ?? a.id}-${i}`} person={a} dark={dark} copy={i >= n} featured={isFeatured(a)} />
             ))}
           </ul>
         </div>
@@ -136,14 +143,22 @@ function AcknowledgerMarquee({ people, dark, label }: { people: ResearchRecognit
   );
 }
 
-function AcknowledgerRow({ person, dark, copy = false }: { person: ResearchRecognition; dark: boolean; copy?: boolean }) {
+function AcknowledgerRow({ person, dark, copy = false, featured = false }: {
+  person: ResearchRecognition; dark: boolean; copy?: boolean; featured?: boolean;
+}) {
   const n = person.publication_count ?? 0;
   return (
-    <li aria-hidden={copy || undefined}
+    <li aria-hidden={copy || undefined} data-featured={featured || undefined}
         className={cn("flex w-64 shrink-0 items-center gap-3 rounded-xl border px-2.5 py-2",
-                      dark ? "border-white/10 bg-white/[0.06]" : "bg-card")}>
+                      dark ? "border-white/10 bg-white/[0.06]" : "bg-card",
+                      featured && (dark ? "border-amber-200/50 bg-amber-300/10" : "border-amber-300 bg-amber-50 dark:bg-amber-500/10"))}>
       <Portrait person={person as unknown as ResearcherOfTheMonthItem} className={cn("h-9 w-9", dark ? "" : "bg-muted text-muted-foreground")} />
       <div className="min-w-0">
+        {featured ? (
+          <p className={cn("flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider", dark ? "text-amber-200" : "text-amber-700 dark:text-amber-300")}>
+            <Sparkles className="h-3 w-3" aria-hidden /> Researcher of the Month
+          </p>
+        ) : null}
         <p className={cn("truncate text-sm font-medium", dark ? "text-white" : "text-foreground")}>{person.researcher_name}</p>
         <p className={cn("truncate text-[11px]", dark ? "text-white/60" : "text-muted-foreground")}>
           {[person.affiliation, n ? `${n} publication${n === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
@@ -259,7 +274,14 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   const featured = new Set(people.map((x) => x.user_id).filter(Boolean));
   const others = acknowledgers.filter((a) => !featured.has(a.user_id ?? a.id));
   const dark = variant !== "compact";
-  const ackList = others.length ? <AcknowledgerMarquee people={others} dark={dark} label="Researchers acknowledging IIC" /> : null;
+  // The strip starts with this month's researcher(s), where it pauses, then everyone else who acknowledged IIC.
+  const featuredRows: ResearchRecognition[] = people.map((m) => {
+    const known = acknowledgers.find((a) => (a.user_id ?? a.id) === m.user_id);
+    return known ?? m;
+  });
+  const ackList = others.length ? (
+    <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark={dark} label="Researchers acknowledging IIC" />
+  ) : null;
 
   if (people.length === 0 && others.length === 0) return null;
   if (people.length === 0) {
