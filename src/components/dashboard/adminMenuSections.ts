@@ -116,6 +116,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "wallet_recharge_requests",
       "sric_wallet_recharges",
       "wallet_payment_modes",
+      "receipt_template",
       "wallet_management",
     ],
   },

@@ -202,6 +202,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "SRIC Wallet Recharges",
     description: "Recharges read from the SRIC Wallet_Recharge.csv: credit, reject or verify each row.",
   },
+  "/admin-settings/receipt-template": {
+    title: "Receipt Template",
+    description: "The wording and look of the receipt users download after an online payment.",
+  },
   "/admin-settings/wallet-payment-modes": {
     title: "Wallet Payment Modes",
     description: "Wallet options overall and per department, email recipients, direct wallet recharge and credit caps.",
@@ -2095,6 +2099,44 @@ const Dashboard = () => {
                   }}
                 >
                   Manage modes
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "receipt_template",
+      label: "Receipt template",
+      path: "/admin-settings/receipt-template",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/receipt-template")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-800 text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Receipt template</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Wording, GSTIN, notes and colours of the online-payment receipt, with a live preview
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-600 to-blue-700 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-indigo-700 hover:bg-indigo-800 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/receipt-template");
+                  }}
+                >
+                  Edit template
                 </Button>
               </CardContent>
             </Card>

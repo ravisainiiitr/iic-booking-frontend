@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { generatePaymentReceiptPdf, paymentRows, receiptFileName } from "./paymentReceiptPdf";
+import { generatePaymentReceiptPdf, hexToRgb01, paymentRows, receiptFileName } from "./paymentReceiptPdf";
 import { rupeesInWords } from "./amountInWords";
 import type { PaymentReceipt } from "./api";
 
@@ -14,7 +14,7 @@ const receipt: PaymentReceipt = {
   description: "Analysis charges for 'Sample XRD'", booking_reference: "XRD-TEST-0001", equipment: "Sample XRD",
   booking_total: "1180.00", booking_gst: "180.00", razorpay_payment_id: "pay_TEST", razorpay_order_id: "order_TEST",
   method: "upi", bank_reference: "RRN123", settlement_utr: "UTR456", paid_at: "2026-11-08T10:00:00+05:30", status: "Captured",
-  currency: "INR", base_amount: "1180.00", convenience_fee: "23.60", gst_on_fee: "4.25", gst_on_fee_percent: "18", total_paid: "1207.85",
+  currency: "INR", base_amount: "1180.00", convenience_fee: "0", gst_on_fee: "0", gst_on_fee_percent: "18", total_paid: "1180.00",
   payment_mode: "UPI",
   payment_details: [["UPI reference no. (RRN)", "531234567890"], ["UPI transaction ID", "AXL0123456789"],
     ["Payer UPI ID", "sa*******@okhdfcbank"], ["Payer bank / app", "HDFC Bank (Google Pay)"]],
@@ -42,6 +42,15 @@ describe("payment receipt PDF", () => {
     expect((await PDFDocument.load(await blob.arrayBuffer())).getPageCount()).toBe(1);
   });
 
+  it("applies the admin's template and still fits one page with long values", async () => {
+    expect(hexToRgb01("#FF0000")).toEqual([1, 0, 0]);
+    expect(hexToRgb01("gold")).toBeNull();
+    const blob = await generatePaymentReceiptPdf({ ...receipt, institution: "A Very Long Institution Name ".repeat(4), institute_gstin: "",
+      template: { address: "Somewhere ".repeat(30), contact_email: "office@example.org", website: "example.org", refund_note: "R ".repeat(150),
+        extra_note: "E ".repeat(150), brand_color: "#0B3D2E", accent_color: "#AA3300", show_gstin: false, show_logo: false, show_watermark: false } });
+    expect((await PDFDocument.load(await blob.arrayBuffer())).getPageCount()).toBe(1);
+  });
+
   it("lists the payment mode's own references, else the stored bank reference", () => {
     expect(paymentRows(receipt).slice(0, 3)).toEqual([["Payment mode", "UPI"], ["UPI reference no. (RRN)", "531234567890"],
       ["UPI transaction ID", "AXL0123456789"]]);
@@ -64,7 +73,11 @@ describe("payment receipt PDF", () => {
     const card: PaymentReceipt = { ...live, payment_mode: "Debit card (Visa)", method: "card", booking_reference: "", booking_total: "", booking_gst: "",
       description: "Wallet recharge for Department of Physics", equipment: "", convenience_fee: "0", gst_on_fee: "0", base_amount: "5000.00", total_paid: "5000.00",
       payment_details: [["Card number", "XXXX XXXX XXXX 1007"], ["Issuing bank", "HDFC Bank"], ["Authorisation code", "A1B2C3"], ["Bank reference no. (RRN)", "998877665544"]] };
-    for (const [name, r] of [["upi", live], ["card", card], ["test", receipt]] as const) {
+    const custom: PaymentReceipt = { ...live, office: "Office of the Dean, SRIC", institute_gstin: "",
+      template: { address: "IIT Roorkee, Roorkee 247667, Uttarakhand", contact_email: "arsric@iitr.ac.in", website: "equip.iitr.ac.in",
+        refund_note: "Refunds are credited to the portal wallet.", extra_note: "Please keep this receipt for your records.",
+        brand_color: "#0B3D2E", accent_color: "#B8860B", show_gstin: false, show_logo: true, show_watermark: false } };
+    for (const [name, r] of [["upi", live], ["card", card], ["test", receipt], ["custom", custom]] as const) {
       writeFileSync(resolve(dir, `receipt_${name}.pdf`), Buffer.from(await (await generatePaymentReceiptPdf(r)).arrayBuffer()));
     }
   });
