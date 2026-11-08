@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
     saveIstemEquipmentMapping: vi.fn(),
     getIstemInstitute: vi.fn(),
     saveIstemInstitute: vi.fn(),
+    getIstemEquipmentDetails: vi.fn(),
   },
 }));
 
@@ -142,6 +143,24 @@ describe("I-STEM mapping page", () => {
     await waitFor(() => expect(state.api.saveIstemEquipmentMappingsBulk).toHaveBeenCalledWith([
       { equipment_id: 47, istem_equipment_id: "38760", sample_count_input_key: "A" },
     ]));
+  });
+
+  it("offers Create on I-STEM for unmapped instruments to the Main Admin only", async () => {
+    state.api.getIstemEquipmentMappings.mockResolvedValue(mappings(true));
+    state.api.getIstemEquipmentDetails.mockResolvedValue({ error: "stop here" });
+    renderPage();
+    const rows = await screen.findAllByTestId("istem-mapping-row");
+    const withButton = screen.getAllByTestId("istem-create-open").map((b) => b.getAttribute("aria-label"));
+    expect(withButton).toEqual(["Create Field Emission SEM on I-STEM", "Create Electron Backscatter Diffraction on I-STEM"]);
+    fireEvent.click(within(rows.find((r) => within(r).queryByText("Field Emission SEM"))!).getByTestId("istem-create-open"));
+    await waitFor(() => expect(state.api.getIstemEquipmentDetails).toHaveBeenCalledWith(45));
+    cleanup();
+    const deptAdmin = mappings(true);
+    deptAdmin.data.all_departments = false;
+    state.api.getIstemEquipmentMappings.mockResolvedValue(deptAdmin);
+    renderPage();
+    await screen.findAllByTestId("istem-mapping-row");
+    expect(screen.queryByTestId("istem-create-open")).toBeNull();
   });
 
   it("accepts all certain matches of the department", async () => {

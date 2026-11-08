@@ -4711,6 +4711,45 @@ export interface PublicationPage {
   facets: { equipment: { id: number; name: string; code: string; count: number }[]; years: number[] };
 }
 
+export interface IstemProfileProblem {
+  field: string;
+  message: string;
+}
+
+export interface IstemProfileReadiness {
+  complete: boolean;
+  missing: IstemProfileProblem[];
+  internal: boolean;
+  blocks_booking: boolean;
+  gate: "off" | "test_accounts" | "all";
+  applies_to_you: boolean;
+  profile_url: string;
+}
+
+export interface IstemChoice {
+  id: string;
+  name: string;
+  mapped_to_instrument_department?: boolean;
+}
+
+export interface IstemEquipmentDetailsResponse {
+  equipment: { id: number; code: string; name: string; department: string };
+  details: Record<string, string>;
+  fields: { name: string; label: string; required: boolean }[];
+  saved: boolean;
+  problems: Record<string, string>;
+  created: { istem_equipment_id: string; at: string } | null;
+  last_error: string;
+  mapping: { istem_equipment_id: string; is_active: boolean } | null;
+  choices: {
+    istem_departments: IstemChoice[];
+    funding_agencies: IstemChoice[];
+    funding_agency_types: IstemChoice[];
+    equipment_categories: IstemChoice[];
+    facilities: IstemChoice[];
+  };
+}
+
 export interface IstemSource {
   live: boolean;
   read_at: string | null;
@@ -8526,6 +8565,36 @@ class ApiClient {
     return this.request<{ saved: number; removed: number }>('/istem/department-mappings/', {
       method: 'PUT', body: JSON.stringify({ mappings }),
     });
+  }
+
+  /** What the signed-in user must complete for I-STEM bookings; with an instrument, whether booking it is refused now. */
+  async getIstemProfileReadiness(equipmentId?: number) {
+    return this.request<IstemProfileReadiness>(
+      `/istem/profile-readiness/${equipmentId ? `?equipment_id=${equipmentId}` : ''}`, { method: 'GET' });
+  }
+
+  /** Main Admin: read I-STEM's funding agencies, agency types, categories and facilities into the portal. */
+  async syncIstemReferenceLists() {
+    return this.request<{ counts: Record<string, number>; failed: Record<string, string> }>(
+      '/istem/reference/sync/', { method: 'POST' });
+  }
+
+  /** Main Admin: an instrument's I-STEM Equipment Create details (pre-filled when never saved). */
+  async getIstemEquipmentDetails(equipmentId: number) {
+    return this.request<IstemEquipmentDetailsResponse>(`/istem/equipment-details/${equipmentId}/`, { method: 'GET' });
+  }
+
+  async saveIstemEquipmentDetails(equipmentId: number, details: Record<string, string>) {
+    return this.request<IstemEquipmentDetailsResponse>(`/istem/equipment-details/${equipmentId}/`, {
+      method: 'PUT', body: JSON.stringify(details),
+    });
+  }
+
+  /** Main Admin: send Equipment Create to I-STEM (``dryRun`` returns the form without sending). */
+  async createIstemEquipment(equipmentId: number, dryRun = false) {
+    return this.request<IstemEquipmentDetailsResponse & { created?: boolean; istem_equipment_id?: string; warnings?: string[];
+      dry_run?: boolean; payload?: Record<string, string> }>(
+      `/istem/equipment-details/${equipmentId}/create/`, { method: 'POST', body: JSON.stringify({ dry_run: dryRun }) });
   }
 
   async saveIstemEquipmentMappingsBulk(

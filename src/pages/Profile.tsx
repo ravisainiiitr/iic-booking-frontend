@@ -22,6 +22,7 @@ import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
 import WhatsAppCard from "@/components/profile/WhatsAppCard";
 import IstemLinkCard from "@/components/profile/IstemLinkCard";
+import { IstemProfileReadinessNotice } from "@/components/istem/IstemProfileReadinessNotice";
 import { formatDMY } from "@/lib/dateFormat";
 
 const Profile = () => {
@@ -537,6 +538,11 @@ const Profile = () => {
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">My Profile</h1>
           <p className="mt-1 text-white/85 text-sm">Update your personal information and preferences</p>
         </div>
+        {user ? (
+          <div className="mx-auto mb-6 max-w-2xl">
+            <IstemProfileReadinessNotice onProfile />
+          </div>
+        ) : null}
         <Card className="max-w-2xl mx-auto border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
           <CardHeader className="bg-muted/30 border-b border-border/50">
             <CardTitle>Profile details</CardTitle>

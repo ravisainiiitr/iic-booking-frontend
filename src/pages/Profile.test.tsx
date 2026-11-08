@@ -33,6 +33,7 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/profile/LoginPasswordCard", () => ({ default: () => null }));
 vi.mock("@/components/profile/MobileDevicesCard", () => ({ default: () => null }));
+vi.mock("@/components/istem/IstemProfileReadinessNotice", () => ({ IstemProfileReadinessNotice: () => null }));
 
 import Profile from "./Profile";
 

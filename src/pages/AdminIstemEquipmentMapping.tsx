@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, Building2, Check, CheckCircle2, CircleHelp, Link2, List, Loader2, RefreshCw, Search, Settings2, Sparkles,
-  Wifi, WifiOff, XCircle,
+  UploadCloud, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import IstemInstituteCard from "@/components/istem/IstemInstituteCard";
 import IstemEquipmentPicker from "@/components/istem/IstemEquipmentPicker";
 import IstemListingPanel from "@/components/istem/IstemListingPanel";
 import IstemMappingDialog from "@/components/istem/IstemMappingDialog";
+import IstemEquipmentCreateDialog from "@/components/istem/IstemEquipmentCreateDialog";
 import {
   INSTRUMENT_FILTERS, filterInstruments, isMapped, readAt, reasonText, sourceNote, type InstrumentFilter,
 } from "@/components/istem/mappingModel";
@@ -106,6 +107,7 @@ export default function AdminIstemEquipmentMapping() {
   const [filter, setFilter] = useState<InstrumentFilter>("all");
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<IstemMappingEquipmentRow | null>(null);
+  const [creating, setCreating] = useState<number | null>(null);
   const [busy, setBusy] = useState<string>("");
   const [listOpen, setListOpen] = useState(false);
   const [institute, setInstitute] = useState<IstemInstituteStatus | null>(null);
@@ -474,6 +476,12 @@ export default function AdminIstemEquipmentMapping() {
                                 {busy === `accept:${row.equipment_id}` ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 h-3.5 w-3.5" />}Accept
                               </Button>
                             ) : null}
+                            {!mapped && allDepartments && data.istem_connected ? (
+                              <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Create ${row.name} on I-STEM`}
+                                title="Not on I-STEM? Create it there" data-testid="istem-create-open" onClick={() => setCreating(row.equipment_id)}>
+                                <UploadCloud className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Mapping settings for ${row.name}`} onClick={() => setEditing(row)}>
                               <Settings2 className="h-4 w-4" />
                             </Button>
@@ -500,6 +508,11 @@ export default function AdminIstemEquipmentMapping() {
         {editing && data ? (
           <IstemMappingDialog row={editing} connected={data.istem_connected} onClose={() => setEditing(null)}
             onSaved={() => { setEditing(null); void load(); if (selected) void loadSuggestions(selected); }} />
+        ) : null}
+
+        {creating != null ? (
+          <IstemEquipmentCreateDialog equipmentId={creating} onClose={() => setCreating(null)}
+            onCreated={() => { setCreating(null); void load(); if (selected) void loadSuggestions(selected); }} />
         ) : null}
 
         <Sheet open={listOpen} onOpenChange={setListOpen}>
