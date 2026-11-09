@@ -37,7 +37,7 @@ describe("ADMIN_MENU_SECTIONS", () => {
   it("puts menu entries added later into the catch-all section", () => {
     const tree = buildMenuTree(["reports_statistics", "brand_new_tool"], null, ADMIN_MENU_SECTIONS);
     expect(tree.map((n) => (n.kind === "group" ? `${n.group.name}:${n.items.join(",")}` : n.id))).toEqual([
-      "Overview:reports_statistics",
+      "Overview & insights:reports_statistics",
       "More:brand_new_tool",
     ]);
   });

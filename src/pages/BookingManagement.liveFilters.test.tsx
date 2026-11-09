@@ -411,6 +411,20 @@ describe("View Booking (staff) default status", { timeout: 20_000 }, () => {
     }
   });
 
+  it("lists the bookings made on a day from the dashboard link, any status, until the chip is removed", async () => {
+    auth.userType = "admin";
+    renderPage("/booking-management?made_from=2026-11-03&made_to=2026-11-03&real_only=1");
+    await screen.findByText("XPS202600001");
+    expect(calls()[0]).toMatchObject({ created_from: "2026-11-03", created_to: "2026-11-03", exclude_test: true });
+    expect(calls()[0].status).toBeUndefined();
+    expect(screen.getByTestId("made-filter-chip").textContent).toContain("Made on 3 Nov 2026 · test bookings left out");
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove the booking date filter" }));
+    await waitFor(() => expect(lastCall().created_from).toBeUndefined());
+    expect(lastCall().exclude_test).toBeUndefined();
+    expect(screen.queryByTestId("made-filter-chip")).toBeNull();
+  });
+
   it("still opens ?expand on All status for the Main Administrator", async () => {
     auth.userType = "admin";
     renderPage("/booking-management?expand=7");
