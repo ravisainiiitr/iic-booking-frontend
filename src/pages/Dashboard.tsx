@@ -5848,7 +5848,7 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {showsMyActivity ? <MyActivity onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+        {showsMyActivity ? <MyActivity userName={user?.name} onOpen={(path, label) => openWorkspace(path, label)} /> : null}
         {isExternalBookingUserType(userTypeStr) ? (
           <div className="mt-6 space-y-4" data-testid="external-dashboard-extras">
             <OrcidPromptBanner userType={userTypeStr} />
