@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
+import IntegrationHealthCard from "./IntegrationHealthCard";
 import {
   experienceRatingCard,
   formatCountdown,
@@ -453,6 +454,8 @@ export default function AdminOverview({ onOpen, canOpen, notices }: AdminOvervie
           ))}
         </nav>
       ) : null}
+
+      <IntegrationHealthCard />
 
       <section className="space-y-2.5">
         <GroupLabel>Facility health</GroupLabel>

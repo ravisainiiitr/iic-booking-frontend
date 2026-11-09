@@ -9,6 +9,8 @@ import type { AdminDashboardSummary } from "@/lib/api";
 const api = vi.hoisted(() => ({
   getAdminDashboardSummary: vi.fn(),
   getPendingActions: vi.fn(),
+  getIntegrationHealth: vi.fn(async () => ({ error: "Only the Main Administrator can view integration health." })),
+  runIntegrationHealth: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ apiClient: api }));

@@ -4337,6 +4337,27 @@ export interface CopilotUsage {
 }
 
 /** Filters, search and sort shared by the booking list (GET /bookings/) and its export. */
+export type HealthStatus = "ok" | "warn" | "fail" | "off";
+
+export interface IntegrationHealthCheck {
+  key: string;
+  component: "istem" | "whatsapp" | "payments" | "email" | string;
+  title: string;
+  status: HealthStatus;
+  summary: string;
+  items: string[];
+  action: string;
+  count: number;
+}
+
+export interface IntegrationHealth {
+  generated_at: string;
+  duration_ms: number;
+  overall: HealthStatus;
+  checks: IntegrationHealthCheck[];
+  fixes: Record<string, Record<string, unknown>>;
+}
+
 export type BookingListFilters = {
   user_id?: string | number;
   equipment_id?: string | number;
@@ -8613,6 +8634,16 @@ class ApiClient {
       return this.request<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`, { method: 'GET' });
     }
     return this.sharedGet<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`);
+  }
+
+  /** Main Administrator: the latest integration health result (I-STEM, WhatsApp, payments, email). */
+  async getIntegrationHealth() {
+    return this.request<IntegrationHealth>('/admin/integration-health/', { method: 'GET' });
+  }
+
+  /** Main Administrator: run every check now and apply the safe fixes. */
+  async runIntegrationHealth() {
+    return this.request<IntegrationHealth>('/admin/integration-health/run/', { method: 'POST' });
   }
 
   /** Main Admin / Dept Admin: Lab Operators and OICs ranked by how short they keep their pending queue. */
