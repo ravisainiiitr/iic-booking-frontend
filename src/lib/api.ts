@@ -2715,6 +2715,13 @@ export interface ReceiptCheck {
   collected_by?: string;
   razorpay_payment_id?: string;
   settlement_utr?: string;
+  /** The bank's reference for the payment (UPI RRN / net-banking UTR), "" until known. */
+  bank_reference?: string;
+  /** The booking's status now: BOOKED, COMPLETED, CANCELLED, REFUNDED ... ("" for a wallet recharge). */
+  booking_status?: string;
+  booking_status_label?: string;
+  /** The booking was cancelled or refunded after the payment. */
+  booking_undone?: boolean;
 }
 
 export interface MyActivityBooking {
