@@ -91,6 +91,7 @@ export function sampleReceipt(v: ReceiptTemplateValues, collectedBy: string): Pa
     collected_by: collectedBy || "DEAN SRIC IIT ROORKEE", institution: v.institution_name, service_name: v.service_name,
     payer_name: "Sample Payer", purpose: "Booking balance payment", description: "Analysis charges for 'Sample XRD'",
     booking_reference: "IICXRD202600001", equipment: "Sample XRD", booking_total: "1180.00", booking_gst: "180.00",
+    department_name: "Institute Instrumentation Centre", grant_code: "SAMPLE-GRANT",
     razorpay_payment_id: "pay_SAMPLE", razorpay_order_id: "order_SAMPLE", method: "upi", bank_reference: "531234567890",
     settlement_utr: "", payment_mode: "UPI",
     payment_details: [["UPI reference no. (RRN)", "531234567890"], ["UPI transaction ID", "AXL0123456789"],

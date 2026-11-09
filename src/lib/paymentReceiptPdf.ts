@@ -217,6 +217,8 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   const account: [string, string][] = [["Purpose", r.description]];
   if (r.booking_reference) account.push(["Booking ID", r.booking_reference]);
   if (r.equipment && !(r.description || "").includes(r.equipment)) account.push(["Instrument", r.equipment]);
+  if (r.department_name) account.push(["Department", r.department_name]);
+  if (r.grant_code) account.push(["Grant code", r.grant_code]);
   account.push(["Collected by", `${r.collected_by}, ${r.institution}`]);
   account.push(["Received through", "Razorpay online payment gateway"]);
   const column = (title: string, rows: [string, string][], x: number, top: number): number => {

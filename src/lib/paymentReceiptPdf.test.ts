@@ -21,6 +21,7 @@ const receipt: PaymentReceipt = {
   computer_generated: "This is a computer-generated receipt and does not require a signature.",
   office: "Sponsored Research & Industrial Consultancy (SRIC)", institute_gstin: "05AAALI0033R1Z5",
   payer_organisation: "Sample Institute of Science, Department of Physics", payer_email: "sample.user@example.org",
+  department_name: "Institute Instrumentation Centre", grant_code: "SRIC-IIC-0001",
 };
 
 afterEach(() => vi.unstubAllGlobals());
