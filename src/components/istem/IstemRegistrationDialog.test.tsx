@@ -85,7 +85,7 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
     await screen.findByText(/Enter the 6-digit OTP/);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify and create my account" }));
-    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith("auth-token", { id: 7, email: "asha@lab.example.com" }));
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledWith("auth-token", { id: 7, email: "asha@lab.example.com" }, undefined));
     expect(calls[2]).toEqual({ url: "/api/istem/register/complete/", body: { link_token: "signed", user_type: "external" } });
     expect(onVerified).not.toHaveBeenCalled();
   });
@@ -93,7 +93,7 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
   it("says so when an account already exists", async () => {
     globalThis.fetch = vi.fn(async (url: string) => {
       if (url.endsWith("/complete/")) {
-        return new Response(JSON.stringify({ error: "An account with this email already exists. Sign in instead.", code: "exists" }), { status: 409 });
+        return new Response(JSON.stringify({ error: "A portal account already uses the mobile number registered on I-STEM.", code: "mobile_exists" }), { status: 409 });
       }
       const body = url.endsWith("/lookup/")
         ? { token: "t1", email_masked: "a***@lab.example.com", expires_in: 600, message: "sent" }
@@ -101,15 +101,18 @@ describe("IstemRegistrationDialog, direct sign-up", () => {
       return new Response(JSON.stringify(body), { status: 200 });
     }) as unknown as typeof fetch;
     const onSignedIn = vi.fn();
-    render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={vi.fn()} userType="external" onSignedIn={onSignedIn} />);
+    const onSignInInstead = vi.fn();
+    render(<IstemRegistrationDialog open onOpenChange={() => undefined} onVerified={vi.fn()} userType="external" onSignedIn={onSignedIn} onSignInInstead={onSignInInstead} />);
     fireEvent.click(screen.getByRole("button", { name: "Yes, use my I-STEM account" }));
     fireEvent.change(screen.getByLabelText("Email or mobile number registered on I-STEM"), { target: { value: "asha@lab.example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Find my account" }));
     await screen.findByText(/Enter the 6-digit OTP/);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify and create my account" }));
-    expect(await screen.findByText("An account with this email already exists. Sign in instead.")).toBeTruthy();
+    expect(await screen.findByText("A portal account already uses the mobile number registered on I-STEM.")).toBeTruthy();
     expect(onSignedIn).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in instead" }));
+    expect(onSignInInstead).toHaveBeenCalled();
   });
 
   it("says the OTP also goes on WhatsApp, and where it went", async () => {

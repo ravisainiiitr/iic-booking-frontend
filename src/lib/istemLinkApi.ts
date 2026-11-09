@@ -130,7 +130,13 @@ export const istemRegisterApi = {
     ),
   /** Creates the approved account from the verified I-STEM profile and signs the user in (no password, no form). */
   complete: (linkToken: string, userType: string) =>
-    publicRequest<{ token: string; user: Record<string, unknown>; onboarding: { required: boolean; steps: string[] } }>("/complete/", {
+    publicRequest<{
+      token: string;
+      user: Record<string, unknown>;
+      onboarding: { required: boolean; steps: string[] };
+      /** "linked_existing": the I-STEM email already had a portal account; it was linked and signed in. */
+      outcome?: "created" | "linked_existing";
+    }>("/complete/", {
       link_token: linkToken,
       user_type: userType,
       ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
-import { type IstemProfile, istemRegisterApi } from "@/lib/istemLinkApi";
+import { IstemLinkError, type IstemProfile, istemRegisterApi } from "@/lib/istemLinkApi";
 import { useOtpCountdown } from "@/lib/useOtpCountdown";
 
 export type IstemRegistrationResult = {
@@ -44,13 +44,16 @@ export default function IstemRegistrationDialog({
   userType,
   onSignedIn,
   whatsappOtp = false,
+  onSignInInstead,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onVerified: (result: IstemRegistrationResult) => void;
   userType?: string;
-  onSignedIn?: (token: string, user: Record<string, unknown>) => void;
+  onSignedIn?: (token: string, user: Record<string, unknown>, outcome?: "created" | "linked_existing") => void;
   whatsappOtp?: boolean;
+  /** Shown as "Sign in instead" when the person turns out to have a portal account already. */
+  onSignInInstead?: () => void;
 }) {
   const direct = Boolean(userType && onSignedIn);
   const [step, setStep] = useState<Step>("ask");
@@ -63,12 +66,15 @@ export default function IstemRegistrationDialog({
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The person already has a portal account (same email not yet active, Channel i, or same mobile): offer Sign in.
+  const [hasAccount, setHasAccount] = useState(false);
 
   const close = () => {
     onOpenChange(false);
     setStep("ask");
     setOtp("");
     setError("");
+    setHasAccount(false);
     setWhatsappMasked("");
   };
 
@@ -86,6 +92,8 @@ export default function IstemRegistrationDialog({
       setStep("otp");
     } catch (e) {
       setError(e instanceof Error ? e.message : "The look-up failed. Please try again.");
+      // This I-STEM account is already linked to a portal account: that person signs in.
+      setHasAccount(e instanceof IstemLinkError && e.code === "already_registered");
     } finally {
       setBusy(false);
     }
@@ -99,12 +107,15 @@ export default function IstemRegistrationDialog({
       if (userType && onSignedIn) {
         try {
           const done = await istemRegisterApi.complete(res.link_token, userType);
-          onSignedIn(done.token, done.user);
+          onSignedIn(done.token, done.user, done.outcome);
           close();
           return;
         } catch (e) {
-          // An existing portal account (or an unexpected refusal): say so; the form below still works.
+          // An existing portal account (or an unexpected refusal): say so, and offer to sign in with it.
           setError(e instanceof Error ? e.message : "Your account could not be created. Please try again.");
+          setHasAccount(
+            e instanceof IstemLinkError && ["existing_pending", "existing_internal", "mobile_exists", "linked_other", "exists"].includes(e.code),
+          );
           return;
         }
       }
@@ -181,6 +192,18 @@ export default function IstemRegistrationDialog({
         ) : null}
 
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        {hasAccount && onSignInInstead ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              close();
+              onSignInInstead();
+            }}
+          >
+            Sign in instead
+          </Button>
+        ) : null}
 
         <DialogFooter className="gap-2 sm:gap-2">
           {step === "ask" ? (
