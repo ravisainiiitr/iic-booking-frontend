@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Fingerprint, Loader2, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 
@@ -20,7 +21,7 @@ function formatWhen(value: string | null): string {
  * Phones that stay signed in through the IIC Booking app. Shown in a browser only when the
  * user has such phones, so they can sign out a lost one; inside the app it also offers app lock.
  */
-export default function MobileDevicesCard() {
+export default function MobileDevicesCard({ className }: { className?: string } = {}) {
   const inApp = isNativeApp();
   const [devices, setDevices] = useState<MobileDeviceSession[] | null>(null);
   const [appInfo, setAppInfo] = useState<NativeAppInfo | null>(null);
@@ -97,7 +98,7 @@ export default function MobileDevicesCard() {
   const needsScreenLock = !!appInfo && !appInfo.deviceSecure && !appInfo.appLockEnabled && !appInfo.appLockRequired;
 
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)}>
       <CardHeader className="bg-muted/30 border-b border-border/50">
         <CardTitle className="flex items-center gap-2">
           <Smartphone className="h-5 w-5 text-primary" aria-hidden />
