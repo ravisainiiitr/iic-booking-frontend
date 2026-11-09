@@ -4911,6 +4911,8 @@ export interface IstemEquipmentVerifyResult {
 
 export interface WhatsAppOptIn {
   available: boolean;
+  /** Show the one-tap opt-in question: sending is on, no answer yet, and this number can receive messages. */
+  ask?: boolean;
   opted_in: boolean;
   phone: string;
   opted_in_at: string | null;
@@ -6020,7 +6022,7 @@ class ApiClient {
     return this.request<WhatsAppOptIn>('/whatsapp/me/');
   }
 
-  async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string }) {
+  async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string; source?: "prompt" | "profile" }) {
     return this.request<WhatsAppOptIn>('/whatsapp/me/', { method: 'PUT', body: JSON.stringify(body) });
   }
 
