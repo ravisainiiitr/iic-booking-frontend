@@ -328,7 +328,10 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
     t.extra_note || "",
     `Cancellation and Refund Policy: https://equip.iitr.ac.in${POLICY_LINKS.refund}`,
   ].filter(Boolean);
-  const cgH = 26;
+  // With a verification code the box at the bottom also holds the QR code and how to check the receipt.
+  const verifyUrl = r.verify_url || "";
+  const verifyCode = r.verification_code || "";
+  const cgH = verifyUrl && verifyCode ? 74 : 26;
   const cgY = 26 + 10;
   // Notes, as many as fit above the computer-generated note (the first, "not a tax invoice", always does).
   for (const note of notes) {
@@ -343,8 +346,43 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
 
   // Computer-generated note in place of a signature, anchored just above the footer.
   page.drawRectangle({ x: M, y: cgY, width: CW, height: cgH, borderColor: gold, borderWidth: 0.9, color: rgb(0.995, 0.985, 0.955) });
-  const cg = wrap(r.computer_generated || "This is a computer-generated receipt and does not require a signature.", 9.5, CW - 28, sansBold)[0];
-  text(cg, M + 14, cgY + 9.5, 9.5, sansBold, ink);
+  const cgText = r.computer_generated || "This is a computer-generated receipt and does not require a signature.";
+  if (verifyUrl && verifyCode) {
+    const qrSize = 62;
+    const qx = W - M - qrSize - 6;
+    const qy = cgY + (cgH - qrSize) / 2;
+    const { default: qrcode } = await import("qrcode-generator");
+    const qr = qrcode(0, "M");
+    qr.addData(verifyUrl);
+    qr.make();
+    const n = qr.getModuleCount();
+    const cell = qrSize / (n + 2);
+    page.drawRectangle({ x: qx, y: qy, width: qrSize, height: qrSize, color: white });
+    for (let row = 0; row < n; row += 1) {
+      for (let col = 0; col < n; col += 1) {
+        if (qr.isDark(row, col)) {
+          page.drawRectangle({ x: qx + (col + 1) * cell, y: qy + qrSize - (row + 2) * cell, width: cell, height: cell, color: navy });
+        }
+      }
+    }
+    const tw = CW - qrSize - 40;
+    const site = (() => {
+      try {
+        const u = new URL(verifyUrl);
+        return `${u.host}${u.pathname}`;
+      } catch {
+        return "equip.iitr.ac.in/verify-receipt";
+      }
+    })();
+    text("VERIFY THIS RECEIPT", M + 14, cgY + cgH - 16, 8, sansBold, navy);
+    text(`Verification code: ${verifyCode}`, M + 14, cgY + cgH - 30, 10.5, sansBold, ink);
+    wrap(`Scan the QR code, or open ${site} and enter the receipt no. and this code. The page shows the institute's own record of this payment.`, 7.5, tw)
+      .slice(0, 2)
+      .forEach((l, i) => text(l, M + 14, cgY + cgH - 42 - i * 9, 7.5, sans, muted));
+    text(wrap(cgText, 8.5, tw, sansBold)[0], M + 14, cgY + 9, 8.5, sansBold, ink);
+  } else {
+    text(wrap(cgText, 9.5, CW - 28, sansBold)[0], M + 14, cgY + 9.5, 9.5, sansBold, ink);
+  }
 
   // Footer band.
   page.drawRectangle({ x: 0, y: 0, width: W, height: 26, color: navy });

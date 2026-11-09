@@ -2693,6 +2693,30 @@ export interface EquipmentReferenceInstrument {
 }
 
 /** One of the user's own bookings on the My activity panel. */
+/** GET /receipts/verify/: what the portal holds for a receipt, or { valid: false }. */
+export interface ReceiptCheck {
+  valid: boolean;
+  receipt_number?: string;
+  test_mode?: boolean;
+  paid_at?: string;
+  currency?: string;
+  total?: string;
+  booking_total?: string;
+  booking_gst?: string;
+  status?: "paid" | "refunded" | "partly_refunded" | "other";
+  status_label?: string;
+  booking_note?: string;
+  payer_name?: string;
+  payer_organisation?: string;
+  purpose?: string;
+  booking_reference?: string;
+  department_name?: string;
+  grant_code?: string;
+  collected_by?: string;
+  razorpay_payment_id?: string;
+  settlement_utr?: string;
+}
+
 export interface MyActivityBooking {
   id: number;
   display_id: string;
@@ -4594,6 +4618,10 @@ export interface PaymentReceipt {
   department_name?: string;
   /** Quantity lines from the booking's charge breakdown (samples, slots, weight, machine time ...); [] if none. */
   charge_lines?: string[];
+  /** Code printed on the receipt for the public check page, e.g. "K7Q2M-9XWPD". */
+  verification_code?: string;
+  /** <site>/verify-receipt?n=...&c=..., encoded in the receipt's QR code. */
+  verify_url?: string;
   /** That department's SRIC / accounts grant code; "" when none is set. */
   grant_code?: string;
   razorpay_payment_id: string;
@@ -15889,6 +15917,12 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ department_id: departmentId }),
     });
+  }
+
+  /** Public: check a payment receipt against the portal's records (receipt number + verification code). */
+  async verifyReceipt(number: string, code: string) {
+    const q = new URLSearchParams({ number, code });
+    return this.request<ReceiptCheck>(`/receipts/verify/?${q.toString()}`);
   }
 
   /** Admin: reject organization request. */
