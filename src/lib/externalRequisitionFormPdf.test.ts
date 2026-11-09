@@ -107,3 +107,17 @@ describe("Equipment Requisition Form", () => {
     expect(pdfSafe("₹ 5,000 — “ok” … ✓")).toBe("Rs.  5,000 - \"ok\" ... ?");
   });
 });
+
+describe("authorisation boxes by category", () => {
+  it("asks Govt R&D for departmental approval and everyone else for the supervisor or HOD, one page", async () => {
+    for (const [type, display] of [["external", "Educational Institute"], ["RND", "Govt R&D"]] as const) {
+      const blob = await generateExternalEquipmentRequisitionFormPdf(booking({ user_type_snapshot: type, user_type_snapshot_display: display } as Partial<BookingDetailCardBooking>));
+      expect(await pages(blob)).toBe(1);
+      const dir = process.env.REQ_SAMPLE_DIR;
+      if (dir) {
+        const { writeFileSync } = await import("node:fs");
+        writeFileSync(`${dir}/req_${type}.pdf`, Buffer.from(await blob.arrayBuffer()));
+      }
+    }
+  });
+});

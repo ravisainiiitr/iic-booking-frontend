@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   scanSample: vi.fn(),
+  labelStatus: vi.fn(),
   auth: { isAuthenticated: true, loading: false },
   redirect: vi.fn(),
 }));
@@ -16,7 +17,7 @@ vi.mock("@/lib/authRedirect", () => ({ setPostLoginRedirect: m.redirect }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/externalBookingApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/externalBookingApi")>();
-  return { ...actual, externalBookingApi: { scanSample: m.scanSample } };
+  return { ...actual, externalBookingApi: { scanSample: m.scanSample, labelStatus: m.labelStatus } };
 });
 
 import type { ScanResult } from "@/lib/externalBookingApi";
@@ -96,8 +97,9 @@ describe("Sample label scan (one scan at the receiving office)", () => {
     expect(m.redirect).toHaveBeenCalledWith("/staff/sample-receipt?code=tok123");
   });
 
-  it("shows the server's refusal", async () => {
+  it("shows the server's refusal when the label is not found at all", async () => {
     m.scanSample.mockRejectedValue(new Error("This label was not found, or it is not for you to receive."));
+    m.labelStatus.mockRejectedValue(new Error("This label was not found. It may have been replaced by a newer label."));
     open();
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
@@ -105,5 +107,32 @@ describe("Sample label scan (one scan at the receiving office)", () => {
   it("reads the code from a label link or a typed code", () => {
     expect(extractCode("https://equip.iitr.ac.in/staff/sample-receipt?code=abc")).toBe("abc");
     expect(extractCode(" scan2345 ")).toBe("scan2345");
+  });
+});
+
+
+describe("anyone scanning the parcel", () => {
+  it("shows the booking, payment and latest status without signing in", async () => {
+    m.auth.isAuthenticated = false;
+    m.labelStatus.mockResolvedValue({
+      label_reference: "SCAN2345", booking_reference: "IICXRF202600014", equipment: "X-Ray Fluorescence (XRF)",
+      department: "Institute Instrumentation Centre", user_name: "Iic Demo Test", sample_count: 1, booking_status: "Completed",
+      payment: "Paid", current_status: "Result ready", updated_at: "2026-11-12T10:00:00+05:30",
+      timeline: [{ status: "FORWARDED_TO_LAB", label: "Received at Office", at: "2026-11-10T11:00:00+05:30" },
+                 { status: "RESULT_READY", label: "Result ready", at: "2026-11-12T10:00:00+05:30" }],
+      slot_ranges: [],
+    });
+    render(
+      <MemoryRouter initialEntries={["/staff/sample-receipt?code=tok123"]}>
+        <Routes><Route path="/staff/sample-receipt" element={<StaffSampleReceipt />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByTestId("label-public")).toBeTruthy();
+    expect(m.labelStatus).toHaveBeenCalledWith("tok123");
+    expect(m.scanSample).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Result ready").length).toBeGreaterThan(0);
+    expect(screen.getByText("IICXRF202600014")).toBeTruthy();
+    expect(screen.getByText("Paid")).toBeTruthy();
+    m.auth.isAuthenticated = true;
   });
 });
