@@ -33,6 +33,15 @@ export function receiptFileName(r: Pick<PaymentReceipt, "receipt_number" | "book
 }
 
 /** "#RRGGBB" as 0-1 channels, or null when it is not a colour. */
+/** Text the standard PDF fonts can draw: rupee sign as Rs., other characters outside their set dropped. */
+function pdfSafe(s: string): string {
+  return String(s || "")
+    .replace(/\u20b9\s*/g, "Rs. ")
+    .replace(/[^\x20-\x7e\xa0-\xff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026\u20ac]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function hexToRgb01(hex: string | undefined | null): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
   if (!m) return null;
@@ -243,7 +252,7 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   y = Math.min(endLeft, endRight) - 6;
 
   // Amount breakdown: each line's base amount and GST in their own columns.
-  type Line = { label: string; base?: number; gst?: number; amount: number; gstNote?: string };
+  type Line = { label: string; base?: number; gst?: number; amount: number; gstNote?: string; details?: string[] };
   const num = (v: string | number | null | undefined) => Number(v || 0);
   const pct = (gst: number, base: number) => (base > 0 ? `${Math.round((gst / base) * 10000) / 100}%` : "");
   const lines: Line[] = [];
@@ -252,8 +261,10 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
     const total = num(r.booking_total);
     const gst = num(r.booking_gst);
     const base = Math.round((total - gst) * 100) / 100;
-    const label = r.equipment ? `Booking charge - ${r.equipment}` : "Booking charge";
-    lines.push({ label, base, gst, amount: total, gstNote: gst > 0 ? `GST @ ${pct(gst, base)}` : "No GST" });
+    // Same wording as Purpose ("Analysis charges for ..." / "Fabrication charges for ..."), then the quantities.
+    const label = r.description || (r.equipment ? `Booking charge - ${r.equipment}` : "Booking charge");
+    const details = (r.charge_lines ?? []).map(pdfSafe).filter(Boolean).slice(0, 5);
+    lines.push({ label, base, gst, amount: total, gstNote: gst > 0 ? `GST @ ${pct(gst, base)}` : "No GST", details });
     const paidOnline = num(r.base_amount);
     if (total - paidOnline > 0.005) {
       deduction = true;
@@ -282,10 +293,14 @@ export async function generatePaymentReceiptPdf(r: PaymentReceipt): Promise<Blob
   y -= rowH;
   for (const line of lines) {
     // A long instrument name takes a second line rather than being cut off.
-    const labelLines = wrap(line.label, 9.5, labelW).slice(0, 2);
-    const extra = (labelLines.length - 1) * 11.5;
+    const labelLines = wrap(pdfSafe(line.label), 9.5, labelW).slice(0, 2);
+    // Quantity lines (samples, slots, weight, machine time), each at most two lines, in small type under the label.
+    const detailLines = (line.details ?? []).flatMap((d) => wrap(d, 7.5, labelW).slice(0, 2)).slice(0, 6);
+    const extra = (labelLines.length - 1) * 11.5 + detailLines.length * 9;
     const h = (line.gstNote ? 26 : rowH) + extra;
     labelLines.forEach((l, i) => text(l, M + 10, y - 13 - i * 11.5, 9.5, sans, ink));
+    const detailTop = y - 13 - (labelLines.length - 1) * 11.5 - 10;
+    detailLines.forEach((d, i) => text(d, M + 10, detailTop - i * 9, 7.5, sans, ink));
     if (line.gstNote) text(line.gstNote, M + 10, y - 23 - extra, 7.5, sans, muted);
     right(line.base === undefined ? "" : money(line.base), xBase, y - 13, 9.5, sans, ink);
     right(line.base === undefined ? "" : line.gst ? money(line.gst) : "Nil", xGst, y - 13, 9.5, sans, line.gst ? ink : muted);

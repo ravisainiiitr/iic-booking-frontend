@@ -22,6 +22,7 @@ const receipt: PaymentReceipt = {
   office: "Sponsored Research & Industrial Consultancy (SRIC)", institute_gstin: "05AAALI0033R1Z5",
   payer_organisation: "Sample Institute of Science, Department of Physics", payer_email: "sample.user@example.org",
   department_name: "Institute Instrumentation Centre", grant_code: "SRIC-IIC-0001",
+  charge_lines: ["1 sample @ Rs. 1000.00 per sample"],
 };
 
 afterEach(() => vi.unstubAllGlobals());
@@ -78,7 +79,10 @@ describe("payment receipt PDF", () => {
       template: { address: "IIT Roorkee, Roorkee 247667, Uttarakhand", contact_email: "arsric@iitr.ac.in", website: "equip.iitr.ac.in",
         refund_note: "Refunds are credited to the portal wallet.", extra_note: "Please keep this receipt for your records.",
         brand_color: "#0B3D2E", accent_color: "#B8860B", show_gstin: false, show_logo: true, show_watermark: false } };
-    for (const [name, r] of [["upi", live], ["card", card], ["test", receipt], ["custom", custom]] as const) {
+    const fab: PaymentReceipt = { ...live, description: "Fabrication charges for 'Polymer FDM 3D Printer-II'", equipment: "Polymer FDM 3D Printer-II",
+      charge_lines: ["Bracket: 42 g PLA @ Rs. 5/g (14 g each)", "Bracket supports: 6 g PLA @ Rs. 5/g", "95 min machine time @ Rs. 300/hour",
+        "Panel: 0.02 m² × 2 of Acrylic (0.5 m² sheet @ Rs. 900) = ₹72.00"] };
+    for (const [name, r] of [["upi", live], ["card", card], ["test", receipt], ["custom", custom], ["fab", fab]] as const) {
       writeFileSync(resolve(dir, `receipt_${name}.pdf`), Buffer.from(await (await generatePaymentReceiptPdf(r)).arrayBuffer()));
     }
   });
