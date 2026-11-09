@@ -4592,6 +4592,8 @@ export interface PaymentReceipt {
   booking_gst: string;
   /** The department whose facility the payment is for (the recharged department for a wallet recharge). */
   department_name?: string;
+  /** Quantity lines from the booking's charge breakdown (samples, slots, weight, machine time ...); [] if none. */
+  charge_lines?: string[];
   /** That department's SRIC / accounts grant code; "" when none is set. */
   grant_code?: string;
   razorpay_payment_id: string;
