@@ -83,6 +83,63 @@ function CountUp({ value }: { value: string }) {
   return <>{`${shown.toLocaleString("en-IN")}${match[2]}`}</>;
 }
 
+/** "Powder X-Ray Diffractometer (PXRD) [B]" -> "Powder X-Ray Diffractometer (PXRD)": names short enough for one line. */
+function showcaseName(name: string): string {
+  return name.replace(/\s*\[[^\]]*\]\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Instruments from the public catalogue, cycling one at a time: what the portal offers, at a glance. */
+function InstrumentTicker() {
+  const [names, setNames] = useState<string[]>([]);
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    // Same request as the catalogue below, so the two share one call.
+    void apiClient.getEquipments(undefined, undefined, undefined, true, "all", null).then((res) => {
+      if (cancelled) return;
+      const seen = new Set<string>();
+      const list: string[] = [];
+      for (const e of res.data?.equipments ?? []) {
+        const n = showcaseName(e.name || "");
+        if (n && n.length <= 48 && !seen.has(n.toLowerCase())) {
+          seen.add(n.toLowerCase());
+          list.push(n);
+        }
+      }
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      setNames(list.slice(0, 16));
+    }).catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (names.length < 2 || !motionAllowed()) return;
+    const t = window.setInterval(() => setIndex((i) => (i + 1) % names.length), 2400);
+    return () => window.clearInterval(t);
+  }, [names.length]);
+  if (names.length === 0) return null;
+  return (
+    <p className="flex min-w-0 items-center gap-2 text-sm text-slate-600 sm:text-base dark:text-white/75" data-testid="instrument-ticker">
+      <span className="shrink-0">Now bookable:</span>
+      <Link
+        to="/equipments"
+        key={names[index]}
+        className="truncate font-semibold text-[hsl(212_75%_32%)] underline decoration-amber-400/70 decoration-2 underline-offset-4 hover:decoration-amber-500 motion-safe:animate-hero-word dark:text-amber-200 dark:decoration-amber-300/60"
+        aria-live="polite"
+      >
+        {names[index]}
+      </Link>
+      {names.length > 1 ? (
+        <span className="hidden shrink-0 text-xs text-slate-500 sm:inline dark:text-white/50">and more</span>
+      ) : null}
+    </p>
+  );
+}
+
 const STAT_ICONS: Record<string, LucideIcon> = {
   instruments: FlaskConical,
   bookings: CalendarCheck,
@@ -239,7 +296,7 @@ const Hero = () => {
                 IIT Roorkee · Booking open 24/7
               </p>
               <h1
-                className="bg-gradient-to-r from-[hsl(218_65%_18%)] via-[hsl(214_70%_30%)] to-[hsl(200_85%_36%)] bg-clip-text pb-1 text-3xl font-extrabold leading-[1.1] tracking-tight text-transparent sm:text-4xl dark:from-white dark:via-sky-50 dark:to-sky-300 md:text-5xl lg:text-[3.75rem] lg:leading-[1.08]"
+                className="bg-[linear-gradient(110deg,hsl(218_65%_18%)_0%,hsl(212_72%_32%)_35%,hsl(196_95%_58%)_47%,hsl(212_72%_32%)_59%,hsl(200_85%_36%)_100%)] bg-[length:250%_100%] bg-[position:0%_0] bg-clip-text pb-1 text-3xl font-extrabold leading-[1.1] tracking-tight text-transparent motion-safe:animate-hero-shine sm:text-4xl dark:bg-[linear-gradient(110deg,#fff_0%,hsl(204_100%_94%)_35%,hsl(48_100%_80%)_47%,hsl(204_100%_94%)_59%,hsl(199_90%_70%)_100%)] md:text-5xl lg:text-[3.75rem] lg:leading-[1.08]"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
               >
                 {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
@@ -268,6 +325,7 @@ const Hero = () => {
               </p>
             </div>
 
+            <InstrumentTicker />
             <HeroSearchBar className="max-w-2xl rounded-xl shadow-lg shadow-slate-900/10 ring-1 ring-slate-200 dark:shadow-xl dark:shadow-black/30 dark:ring-white/20" />
             </div>
             <ResearcherSpotlight className="hidden lg:block" />
@@ -334,6 +392,7 @@ const Hero = () => {
         </div>
 
         <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
+          <div className="rounded-2xl bg-[linear-gradient(90deg,hsl(199_90%_60%/0.55),hsl(42_95%_60%/0.55),hsl(235_80%_70%/0.5),hsl(199_90%_60%/0.55))] bg-[length:300%_100%] p-px shadow-[0_0_40px_-12px_hsl(199_90%_55%/0.45)] motion-safe:animate-hero-border">
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/90 bg-white/80 p-3 animate-in fade-in slide-in-from-bottom-3 fill-mode-both duration-700 delay-300 shadow-[0_8px_30px_-12px_hsl(215_40%_30%/0.25)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:divide-x lg:divide-slate-200 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:shadow-[0_8px_32px_-8px_hsl(215_50%_6%/0.5)] dark:lg:divide-white/15">
             {(
               [
@@ -422,6 +481,7 @@ const Hero = () => {
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>
