@@ -33,6 +33,22 @@ describe("Automatic I-STEM status", () => {
     expect(screen.getByText(/Nothing is needed from you/)).toBeTruthy();
   });
 
+  it("keeps the accepted steps and their numbers while the record is held (IICXRF202600014)", () => {
+    render(<IstemAutomaticStatus status={status({ step: "attention", reached: "confirmed", fbr_no: "1976095587", confirmation_id: "72001" })} />);
+    expect(screen.getByText("FBR 1976095587")).toBeTruthy();
+    expect(screen.getByText("Confirmation 72001")).toBeTruthy();
+    const states = [...document.querySelectorAll("li")].map((li) => li.getAttribute("data-state"));
+    expect(states).toEqual(["done", "done", "held"]);
+    expect(screen.getByTestId("istem-held").textContent).toMatch(/Nothing is needed from you/);
+  });
+
+  it("says FBR Execute is under way once the booking is completed", () => {
+    const { rerender } = render(<IstemAutomaticStatus status={status()} />);
+    expect(screen.getByText("After your booking is completed")).toBeTruthy();
+    rerender(<IstemAutomaticStatus status={status({ booking_completed: true })} />);
+    expect(screen.getByText("Being recorded on I-STEM now that the booking is completed")).toBeTruthy();
+  });
+
   it("says why a queued booking is not on I-STEM yet, with the exact fields for staff only", () => {
     const queued = status({
       step: "queued",
