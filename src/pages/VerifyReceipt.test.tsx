@@ -42,3 +42,20 @@ describe("Verify a payment receipt", () => {
     expect(screen.getByText(/do not accept the receipt/)).toBeTruthy();
   });
 });
+
+describe("booking status on the check page", () => {
+  it("shows the booking status and the bank reference", async () => {
+    api.verifyReceipt.mockResolvedValue({ data: { ...genuine, booking_status: "COMPLETED", booking_status_label: "Completed", booking_undone: false, bank_reference: "UTR998877" } });
+    render(<MemoryRouter initialEntries={["/verify-receipt?n=IITR%2FIIC%2F2026%2F00001&c=K7Q2M-9XWPD"]}><VerifyReceipt /></MemoryRouter>);
+    expect((await screen.findByTestId("booking-status")).textContent).toBe("Completed");
+    expect(screen.getByText("UTR998877")).toBeTruthy();
+    expect(screen.queryByTestId("booking-undone")).toBeNull();
+  });
+
+  it("warns when the booking was cancelled after the payment", async () => {
+    api.verifyReceipt.mockResolvedValue({ data: { ...genuine, booking_status: "CANCELLED", booking_status_label: "Cancelled", booking_undone: true } });
+    render(<MemoryRouter initialEntries={["/verify-receipt?n=IITR%2FIIC%2F2026%2F00001&c=K7Q2M-9XWPD"]}><VerifyReceipt /></MemoryRouter>);
+    expect(await screen.findByTestId("booking-undone")).toBeTruthy();
+    expect(screen.getByText(/Genuine receipt · Paid · Booking cancelled/)).toBeTruthy();
+  });
+});

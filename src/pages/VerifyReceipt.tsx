@@ -76,7 +76,8 @@ export default function VerifyReceipt() {
   };
 
   const ok = result?.valid === true;
-  const refunded = ok && (result.status === "refunded" || result.status === "partly_refunded");
+  // Amber when the money may have gone back: the payment was refunded, or the booking was later cancelled or refunded.
+  const refunded = ok && (result.status === "refunded" || result.status === "partly_refunded" || Boolean(result.booking_undone));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-white px-4 py-10 text-slate-900 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 dark:text-slate-100">
@@ -136,7 +137,14 @@ export default function VerifyReceipt() {
               <div>
                 <p className={cn("font-semibold", refunded ? "text-amber-900 dark:text-amber-100" : "text-emerald-900 dark:text-emerald-100")}>
                   Genuine receipt · {result.status_label}
+                  {result.booking_status_label ? ` · Booking ${result.booking_status_label.toLowerCase()}` : ""}
                 </p>
+                {result.booking_undone ? (
+                  <p className="mt-1 text-sm font-medium text-amber-900 dark:text-amber-100" data-testid="booking-undone">
+                    This booking was {result.booking_status_label?.toLowerCase()} after the payment. Do not accept this receipt for
+                    reimbursement without confirmation from the department&apos;s Accounts In Charge.
+                  </p>
+                ) : null}
                 <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
                   Compare the details below with the receipt you were given. They must be the same.
                 </p>
@@ -149,6 +157,25 @@ export default function VerifyReceipt() {
             </div>
             <dl className="divide-y divide-slate-100 px-5 dark:divide-white/5">
               <Row label="Receipt no.">{result.receipt_number}</Row>
+              <Row label="Booking status">
+                {result.booking_status_label ? (
+                  <span
+                    data-testid="booking-status"
+                    className={cn(
+                      "inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset",
+                      result.booking_undone
+                        ? "bg-amber-50 text-amber-900 ring-amber-300 dark:bg-amber-500/10 dark:text-amber-100"
+                        : result.booking_status === "COMPLETED"
+                          ? "bg-emerald-50 text-emerald-800 ring-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-100"
+                          : "bg-sky-50 text-sky-800 ring-sky-300 dark:bg-sky-500/10 dark:text-sky-100",
+                    )}
+                  >
+                    {result.booking_status_label}
+                  </span>
+                ) : (
+                  ""
+                )}
+              </Row>
               <Row label="Date of payment">{when(result.paid_at)}</Row>
               <Row label="Amount received">
                 <span className="font-semibold">{money(result.total, result.currency)}</span>
@@ -168,8 +195,8 @@ export default function VerifyReceipt() {
               <Row label="Grant code">{result.grant_code}</Row>
               <Row label="Collected by">{result.collected_by}</Row>
               <Row label="Razorpay payment ID"><span className="font-mono">{result.razorpay_payment_id}</span></Row>
+              <Row label="Bank reference (UTR / RRN)">{result.bank_reference ? <span className="font-mono">{result.bank_reference}</span> : ""}</Row>
               <Row label="Settlement UTR">{result.settlement_utr ? <span className="font-mono">{result.settlement_utr}</span> : "Not yet settled to the institute"}</Row>
-              <Row label="Booking">{result.booking_note}</Row>
             </dl>
           </section>
         ) : null}
