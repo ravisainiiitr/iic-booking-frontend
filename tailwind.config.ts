@@ -136,6 +136,10 @@ export default {
           from: { backgroundPosition: "0% 0" },
           to: { backgroundPosition: "300% 0" },
         },
+        "bar-grow": {
+          from: { transform: "scaleY(0)" },
+          to: { transform: "scaleY(1)" },
+        },
         "hero-word": {
           from: { opacity: "0", transform: "translateY(0.6em)", filter: "blur(4px)" },
           to: { opacity: "1", transform: "translateY(0)", filter: "blur(0)" },
@@ -151,6 +155,7 @@ export default {
         "hero-shine": "hero-shine 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.5s both",
         "hero-border": "hero-border 9s linear infinite",
         "hero-word": "hero-word 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "bar-grow": "bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both",
       },
     },
   },
