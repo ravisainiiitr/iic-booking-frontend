@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { BadgeCheck, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
  * the user opts in with their number and can stop at any time here or by replying STOP. Once WhatsApp codes are
  * available, an opted-in user can prove the number with a code, so that sign-in codes also go to it.
  */
-export default function WhatsAppCard() {
+export default function WhatsAppCard({ className }: { className?: string } = {}) {
   const [state, setState] = useState<WhatsAppOptIn | null>(null);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -81,7 +82,7 @@ export default function WhatsAppCard() {
   };
 
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden" data-testid="whatsapp-card">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)} data-testid="whatsapp-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <MessageCircle className="h-5 w-5 text-emerald-600" aria-hidden /> WhatsApp notifications

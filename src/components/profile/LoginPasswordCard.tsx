@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -58,7 +59,7 @@ function PasswordField({
  * Sign-in options. Channel i users (IITR students, faculty, OIC, Lab Operator) choose whether email sign-in is
  * allowed; everyone else signs in with email and password and only sees the password form.
  */
-export function LoginPasswordCard() {
+export function LoginPasswordCard({ className }: { className?: string } = {}) {
   const [loading, setLoading] = useState(true);
   const [hasPassword, setHasPassword] = useState(false);
   const [email, setEmail] = useState("");
@@ -192,7 +193,7 @@ export function LoginPasswordCard() {
   };
 
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)}>
       <CardHeader className="bg-muted/30 border-b border-border/50">
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-primary" aria-hidden />
@@ -279,6 +280,8 @@ export function LoginPasswordCard() {
 
             {mode === "form" && (
               <div className="space-y-4">
+                {/* Current, new and confirm on one row when there is room. */}
+                <div className={hasPassword ? "grid grid-cols-1 gap-4 sm:grid-cols-3" : "grid grid-cols-1 gap-4 sm:grid-cols-2"}>
                 {hasPassword && (
                   <PasswordField
                     id="current-password"
@@ -288,7 +291,6 @@ export function LoginPasswordCard() {
                     autoComplete="current-password"
                   />
                 )}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <PasswordField id="new-password" label="New password" value={next} onChange={setNext} autoComplete="new-password" />
                   <PasswordField
                     id="confirm-password"
