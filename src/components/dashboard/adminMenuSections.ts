@@ -112,6 +112,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
     icon: Wallet,
     items: [
       "wallet_ledger",
+      "payment_issues",
       "wallet_recharge_requests",
       "sric_wallet_recharges",
       "wallet_payment_modes",

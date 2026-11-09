@@ -4337,6 +4337,26 @@ export interface CopilotUsage {
 }
 
 /** Filters, search and sort shared by the booking list (GET /bookings/) and its export. */
+export interface PaymentIssueRow {
+  id: number;
+  kind: string;
+  kind_label: string;
+  status: "OPEN" | "RESOLVED";
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  amount: string | null;
+  mode: string;
+  detail: string;
+  raised_at: string;
+  resolved_at: string | null;
+  resolution_note: string;
+  booking_id?: number | null;
+  booking_reference?: string;
+  purpose?: string;
+  test_account?: boolean;
+  resolved_by?: string;
+}
+
 export type HealthStatus = "ok" | "warn" | "fail" | "off";
 
 export interface IntegrationHealthCheck {
@@ -8634,6 +8654,16 @@ class ApiClient {
       return this.request<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`, { method: 'GET' });
     }
     return this.sharedGet<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`);
+  }
+
+  /** Accounts In Charge / Main Administrator: payments that reached Razorpay but were not applied normally. */
+  async getPaymentIssues(status: "OPEN" | "RESOLVED" | "ALL" = "OPEN") {
+    return this.request<{ results: PaymentIssueRow[] }>(`/payments/issues/?status=${status}`, { method: 'GET' });
+  }
+
+  /** Close an issue once the money has been refunded or applied by hand (a note of at least 5 characters). */
+  async resolvePaymentIssue(id: number, note: string) {
+    return this.request<PaymentIssueRow>(`/payments/issues/${id}/resolve/`, { method: 'POST', body: JSON.stringify({ note }) });
   }
 
   /** Main Administrator: the latest integration health result (I-STEM, WhatsApp, payments, email). */

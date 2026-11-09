@@ -99,6 +99,7 @@ const AdminWalletSricSettings = lazyPage(() => import("@/pages/AdminWalletSricSe
 const AdminWalletPaymentModes = lazyPage(() => import("@/pages/AdminWalletPaymentModes"));
 const AdminReceiptTemplate = lazyPage(() => import("@/pages/AdminReceiptTemplate"));
 const AdminWalletLedger = lazyPage(() => import("@/pages/AdminWalletLedger"));
+const PaymentIssues = lazyPage(() => import("@/pages/PaymentIssues"));
 const AdminWalletLedgerOwner = lazyPage(() => import("@/pages/AdminWalletLedgerOwner"));
 const AdminIstemEquipmentMapping = lazyPage(() => import("@/pages/AdminIstemEquipmentMapping"));
 const AdminEquipmentConfigAudit = lazyPage(() => import("@/pages/AdminEquipmentConfigAudit"));
@@ -341,6 +342,7 @@ export default function AppRoutes() {
           <Route path="/admin/wallet-credit" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin/wallet-credit/:facilityId" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin/wallet-ledger" element={<AdminWalletLedger />} />
+          <Route path="/payment-issues" element={<ErrorBoundary fallbackTitle="Payment issues" backPath="/dashboard"><PaymentIssues /></ErrorBoundary>} />
           <Route path="/admin/wallet-ledger/:ownerId" element={<AdminWalletLedgerOwner />} />
           <Route path="/admin/istem-equipment" element={<ErrorBoundary fallbackTitle="I-STEM equipment mapping" backPath="/dashboard"><AdminIstemEquipmentMapping /></ErrorBoundary>} />
           <Route path="/oic-request-audit" element={<ErrorBoundary fallbackTitle="OIC request audit" backPath="/dashboard"><OicRequestAudit /></ErrorBoundary>} />
