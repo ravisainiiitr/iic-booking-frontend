@@ -222,19 +222,23 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
 
   // ---- 8. signatures, approval and stamp -------------------------------------------------------------------------
   sectionTitle("Authorisation");
-  const boxH2 = 70;
+  // Two boxes (9 Nov 2026): the applicant, and the one approval the category needs, wide and tall enough for a
+  // signature and a seal. Government R&D: the department's authorised signatory; every other category: the
+  // supervisor or head of department.
+  const govtRnd = String(booking.user_type_snapshot || "").trim().toUpperCase() === "RND";
+  const boxH2 = 112;
   ensure(boxH2 + 30);
-  const third = contentW / 3;
-  const boxes: Array<[string, string]> = [
-    ["Signature of applicant", "Name and date"],
-    ["Supervisor / HOD", "Signature with seal"],
-    ["Departmental approval", "Authorised signatory"],
+  const applicantW = contentW * 0.38;
+  const boxes: Array<[string, string, number, number]> = [
+    ["Signature of applicant", "Name and date", MARGIN, applicantW],
+    govtRnd
+      ? ["Departmental approval", "Authorised signatory, with seal", MARGIN + applicantW, contentW - applicantW]
+      : ["Supervisor / HOD", "Signature with seal", MARGIN + applicantW, contentW - applicantW],
   ];
-  boxes.forEach(([title, hint], i) => {
-    const x = MARGIN + third * i;
-    page.drawRectangle({ x, y: y - boxH2, width: third, height: boxH2, borderColor: color(RULE), borderWidth: 0.8 });
+  boxes.forEach(([title, hint, x, w]) => {
+    page.drawRectangle({ x, y: y - boxH2, width: w, height: boxH2, borderColor: color(RULE), borderWidth: 0.8 });
     text(pdfSafe(title), x + 6, y - 13, 9, bold, INK);
-    page.drawLine({ start: { x: x + 8, y: y - boxH2 + 20 }, end: { x: x + third - 8, y: y - boxH2 + 20 }, thickness: 0.5, color: color(MUTED) });
+    page.drawLine({ start: { x: x + 8, y: y - boxH2 + 20 }, end: { x: x + w - 8, y: y - boxH2 + 20 }, thickness: 0.5, color: color(MUTED) });
     text(pdfSafe(hint), x + 8, y - boxH2 + 8, 7.5, font, MUTED);
   });
   y -= boxH2 + 10;
@@ -243,8 +247,9 @@ export async function generateExternalEquipmentRequisitionFormPdf(booking: Booki
     x: W - MARGIN - 150, y: y - 64, width: 150, height: 64,
     borderColor: color(MUTED), borderWidth: 0.8, borderDashArray: [3, 2],
   });
-  text("Official stamp", W - MARGIN - 150 + 44, y - 36, 9, font, MUTED);
-  text(pdfSafe("For office use: received on ____________  by ____________"), MARGIN, y - 36, 9, font, MUTED);
+  text("IIT Roorkee office stamp", W - MARGIN - 150 + 22, y - 36, 9, font, MUTED);
+  text(pdfSafe("FOR IIT ROORKEE OFFICE USE ONLY"), MARGIN, y - 22, 9, bold, MUTED);
+  text(pdfSafe("Received on ____________  by ____________"), MARGIN, y - 38, 9, font, MUTED);
   y -= 76;
 
   // ---- footer on every page ----------------------------------------------------------------------------------------

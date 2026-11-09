@@ -34,6 +34,22 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Token ${token}` } : {};
 }
 
+/** A parcel's label, as anyone who scans it sees it: booking, payment and the latest sample status. */
+export interface LabelStatus {
+  label_reference: string;
+  booking_reference: string | number;
+  equipment: string;
+  department: string;
+  user_name: string;
+  sample_count: number;
+  booking_status: string;
+  payment: string;
+  current_status: string;
+  updated_at: string;
+  timeline: Array<{ status: string; label: string; at: string }>;
+  slot_ranges: Array<{ start: string; end: string }>;
+}
+
 async function request<T>(url: string, opts: { method?: string; json?: unknown; form?: FormData } = {}): Promise<T> {
   const headers = authHeaders();
   let body: BodyInit | undefined;
@@ -543,6 +559,8 @@ export const externalBookingApi = {
   },
   // the receiving office scans the label once; later scans only show the booking
   scanSample: (code: string) => request<ScanResult>(`${extBase()}/staff/sample-receipt/scan/`, { method: "POST", json: { code } }),
+  /** Public: what anyone who scans a parcel's label sees (no sign-in). */
+  labelStatus: (code: string) => request<LabelStatus>(`${extBase()}/sample-label/status/?code=${encodeURIComponent(code)}`),
   // accounts in charge
   staffInvoiceRequests: (params: { status?: string; q?: string } = {}) => {
     const qs = new URLSearchParams();
