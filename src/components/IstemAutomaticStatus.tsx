@@ -55,7 +55,7 @@ export function IstemAutomaticStatus({
       {status.step === "attention" ? (
         <p className="flex items-start gap-2 text-amber-800 dark:text-amber-300">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          The IIC team is completing the I-STEM record for this booking. Nothing is needed from you.
+          IIT Roorkee Equipment Booking team is completing the I-STEM record for this booking. Nothing is needed from you.
         </p>
       ) : status.step === "cancelled" ? (
         <p className="text-muted-foreground">The I-STEM record was cancelled with this booking.</p>

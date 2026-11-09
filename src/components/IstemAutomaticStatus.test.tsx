@@ -28,7 +28,7 @@ describe("Automatic I-STEM status", () => {
     expect([...document.querySelectorAll("li")].every((li) => li.getAttribute("data-state") === "done")).toBe(true);
   });
 
-  it("tells the user nothing is needed when the IIC team is completing the record", () => {
+  it("tells the user nothing is needed when the IIT Roorkee Equipment Booking team is completing the record", () => {
     render(<IstemAutomaticStatus status={status({ step: "attention" })} />);
     expect(screen.getByText(/Nothing is needed from you/)).toBeTruthy();
   });
