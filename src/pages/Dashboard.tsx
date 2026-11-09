@@ -38,6 +38,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import { MenuActionsPublisher } from "@/components/search/menuActions";
 import MyActivity from "@/components/dashboard/MyActivity";
+import WhatsAppPrompt from "@/components/dashboard/WhatsAppPrompt";
 import ProfileOnboarding from "@/components/dashboard/ProfileOnboarding";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
@@ -4890,6 +4891,7 @@ const Dashboard = () => {
           }
         />
         <AccountLifecycleNotice inline className="mb-4" />
+        <WhatsAppPrompt className="mb-4" />
         {isAdmin || isAccountsInChargeUser ? (
           <WalletFundReceiptFollowUpAlert
             onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
