@@ -39,7 +39,7 @@ const SECTIONS: { title: string; description: string; fields: FieldSpec[] }[] = 
       { key: "office_name", label: "Office", max: 160 },
       { key: "address", label: "Address", max: 240 },
       { key: "institute_gstin", label: "GSTIN", max: 15, hint: "For reference only: this receipt is not a tax invoice." },
-      { key: "contact_email", label: "Contact email", max: 120, hint: "Also used in the payment-questions note." },
+      { key: "contact_email", label: "Fallback contact email", max: 120, hint: "Receipts show the email of the department's Accounts In Charge. This one is used only when the department has none." },
       { key: "website", label: "Website", max: 120, hint: "Shown in the footer, e.g. equip.iitr.ac.in" },
     ],
   },
