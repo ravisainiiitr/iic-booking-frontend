@@ -119,10 +119,22 @@ export default {
             height: "0",
           },
         },
+        "hero-drift": {
+          from: { transform: "scale(1.02) translate3d(0, 0, 0)" },
+          to: { transform: "scale(1.1) translate3d(-1.5%, -1%, 0)" },
+        },
+        "hero-float": {
+          from: { transform: "translate3d(0, 0, 0) scale(1)" },
+          to: { transform: "translate3d(2.5rem, -1.5rem, 0) scale(1.12)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        // Home hero: the photo drifts slowly, the glows float. Used with motion-safe: only.
+        "hero-drift": "hero-drift 32s ease-in-out infinite alternate",
+        "hero-float": "hero-float 14s ease-in-out infinite alternate",
+        "hero-float-slow": "hero-float 20s ease-in-out infinite alternate-reverse",
       },
     },
   },
