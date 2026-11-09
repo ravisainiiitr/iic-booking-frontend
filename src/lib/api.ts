@@ -2656,6 +2656,8 @@ export interface ProfileOnboarding {
   values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
   /** An unlisted organisation the user asked the IIC office to add (pending), or "". */
   organisation_requested?: string;
+  /** The organisation the user added themself, until the IIC office has verified it. */
+  organisation_added?: string;
 }
 
 /** My Research storage quotas set by the Main Administrator (GB; 0 = no limit). */
@@ -15872,6 +15874,15 @@ class ApiClient {
   async approveOrganizationRequest(id: number) {
     const endpoint = this.getAdminEndpoint('organizationRequests');
     return this.request<{ detail: string; created_department_id?: number }>(`${endpoint}${id}/approve/`, { method: 'POST' });
+  }
+
+  /** Admin: an organisation a user added duplicates a listed one; move its users and records there. */
+  async mergeOrganizationRequest(id: number, departmentId: number) {
+    const endpoint = this.getAdminEndpoint('organizationRequests');
+    return this.request<{ detail: string; created_department_id?: number }>(`${endpoint}${id}/merge/`, {
+      method: 'POST',
+      body: JSON.stringify({ department_id: departmentId }),
+    });
   }
 
   /** Admin: reject organization request. */

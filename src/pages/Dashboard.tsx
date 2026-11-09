@@ -4890,7 +4890,6 @@ const Dashboard = () => {
           }
         />
         <AccountLifecycleNotice inline className="mb-4" />
-        {isExternalBookingUserType(userTypeStr) ? <ExternalGettingStarted /> : null}
         {isAdmin || isAccountsInChargeUser ? (
           <WalletFundReceiptFollowUpAlert
             onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
@@ -4922,8 +4921,14 @@ const Dashboard = () => {
         {maintenanceShown.banner ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
-        <AndroidAppCard className="mb-4" />
-        <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
+        {/* External users see their bookings first: the app card is not for them, and the ORCID prompt and
+            "How it works" sit below My activity. */}
+        {isExternalBookingUserType(userTypeStr) ? null : (
+          <>
+            <AndroidAppCard className="mb-4" />
+            <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
+          </>
+        )}
         <AuthorConfirmPrompt userType={userTypeStr} className="mb-4" />
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
@@ -5844,6 +5849,12 @@ const Dashboard = () => {
         )}
 
         {showsMyActivity ? <MyActivity onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+        {isExternalBookingUserType(userTypeStr) ? (
+          <div className="mt-6 space-y-4" data-testid="external-dashboard-extras">
+            <OrcidPromptBanner userType={userTypeStr} />
+            <ExternalGettingStarted collapsible />
+          </div>
+        ) : null}
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && !showsMyActivity && (

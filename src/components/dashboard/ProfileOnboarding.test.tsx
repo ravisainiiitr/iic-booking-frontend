@@ -62,15 +62,15 @@ describe("ProfileOnboarding", () => {
     await waitFor(() => expect(api.saveOnboardingStep).toHaveBeenCalledWith("organisation", { department: "9" }));
   });
 
-  it("asks the IIC office to add an organisation that is not listed", async () => {
+  it("adds an organisation that is not listed, to be verified later", async () => {
     api.getOnboarding.mockResolvedValue(status(["organisation", "password"], { state: "uttarakhand", organisation: "IIC Portal Test", subcategory: "educational_institute" }));
     api.getIndianStates.mockResolvedValue({ data: { states: [{ value: "uttarakhand", label: "Uttarakhand" }] } });
     api.getDepartments.mockResolvedValue({ data: { departments: [{ id: 3, name: "Other College" }] } });
-    api.saveOnboardingStep.mockResolvedValue({ data: { ...status(["password"]).data, organisation_requested: "IIC Portal Test" } });
+    api.saveOnboardingStep.mockResolvedValue({ data: { ...status(["password"]).data, organisation_added: "IIC Portal Test" } });
     render(<ProfileOnboarding />);
     expect(await screen.findByText(/No organisation matches/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "My organisation is not listed" }));
-    expect((screen.getByLabelText("Organisation to add") as HTMLInputElement).value).toBe("IIC Portal Test");
+    fireEvent.click(screen.getByRole("button", { name: "My organisation is not listed: add it" }));
+    expect((screen.getByLabelText("Add your organisation") as HTMLInputElement).value).toBe("IIC Portal Test");
     fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
     await waitFor(() => expect(api.saveOnboardingStep).toHaveBeenCalledWith("organisation", {
       request_organisation: "1", organisation_name: "IIC Portal Test", state: "uttarakhand",

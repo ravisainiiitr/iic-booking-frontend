@@ -15,10 +15,9 @@ const STEPS = [
   { icon: FlaskConical, title: "Results", text: "Follow each step on the booking; results appear there and by email.", to: "/my-bookings", cta: "Track" },
 ] as const;
 
-export function ExternalGettingStarted() {
-  return (
-    <section aria-labelledby="getting-started" className="mb-5 rounded-xl border bg-card p-4" data-testid="external-getting-started">
-      <h2 id="getting-started" className="text-base font-semibold">How it works</h2>
+/** `collapsible`: shown closed under My activity, so the dashboard opens on the user's bookings. */
+export function ExternalGettingStarted({ collapsible = false }: { collapsible?: boolean } = {}) {
+  const steps = (
       <ol className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {STEPS.map((s, i) => {
           const Icon = s.icon;
@@ -37,6 +36,23 @@ export function ExternalGettingStarted() {
           );
         })}
       </ol>
+  );
+  if (collapsible) {
+    return (
+      <details className="group rounded-xl border bg-card p-4" data-testid="external-getting-started">
+        <summary className="flex cursor-pointer list-none items-center justify-between text-base font-semibold">
+          How it works
+          <span className="text-xs font-medium text-primary group-open:hidden">Show the steps</span>
+          <span className="hidden text-xs font-medium text-primary group-open:inline">Hide</span>
+        </summary>
+        {steps}
+      </details>
+    );
+  }
+  return (
+    <section aria-labelledby="getting-started" className="mb-5 rounded-xl border bg-card p-4" data-testid="external-getting-started">
+      <h2 id="getting-started" className="text-base font-semibold">How it works</h2>
+      {steps}
     </section>
   );
 }
