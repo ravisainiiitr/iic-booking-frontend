@@ -151,7 +151,7 @@ const authSchema = z.object({
   gender: z.enum(["male", "female", "other"], {
     error: (issue) => (issue.input === undefined ? "Gender is required" : "Please select gender"),
   }),
-  program_end_date: z.string().min(1, "Current Program/Employment Validity is required"),
+  program_end_date: z.string().optional(),
 }).refine((data) => data.password === data.password_confirm, {
   message: "Passwords do not match",
   path: ["password_confirm"],
@@ -2139,6 +2139,8 @@ const Auth = () => {
                   )}
                 </SignupSection>
 
+                {/* External users give no end date: the whole section is for IIT Roorkee users only. */}
+                {signupIsIitr && (
                 <SignupSection
                   icon={UserCheck}
                   title={signupIsIitr ? "Supervisor and validity" : "Validity"}
@@ -2244,6 +2246,7 @@ const Auth = () => {
                     </SignupField>
                   )}
                 </SignupSection>
+                )}
 
                 <SignupSection
                   icon={Paperclip}
