@@ -32,7 +32,7 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
 }) {
   const [states, setStates] = useState<Array<{ value: string; label: string }>>([]);
   const [state, setState] = useState(hints.state || "");
-  const [orgs, setOrgs] = useState<Array<{ id: number; name: string }>>([]);
+  const [orgs, setOrgs] = useState<Array<{ id: number; name: string; verified?: boolean }>>([]);
   const [search, setSearch] = useState(hints.organisation || "");
   const [loading, setLoading] = useState(false);
   const [asking, setAsking] = useState(false);
@@ -50,7 +50,11 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
     void apiClient
       .getDepartments("external", false, hints.subcategory || undefined, state)
       .then((r) => {
-        const list = (r.data?.departments ?? []).map((d) => ({ id: d.id, name: d.name }));
+        const list = (r.data?.departments ?? []).map((d) => ({
+          id: d.id,
+          name: d.name,
+          verified: (d as { verified?: boolean }).verified,
+        }));
         setOrgs(list);
         const exact = hints.organisation ? list.find((d) => norm(d.name) === norm(hints.organisation!)) : undefined;
         if (exact) onChange(String(exact.id));
@@ -98,7 +102,7 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
               <p className="flex items-center gap-2 p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p>
             ) : shown.length === 0 ? (
               <p className="p-3 text-sm text-muted-foreground">
-                No organisation matches. Clear the search, or choose “My organisation is not listed” below.
+                No organisation matches. Clear the search, or add yours with “My organisation is not listed” below.
               </p>
             ) : (
               shown.map((d) => (
@@ -115,7 +119,10 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
                   className={cn("flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted",
                     value === String(d.id) && "bg-primary/10 font-medium")}
                 >
-                  {d.name}
+                  <span>
+                    {d.name}
+                    {d.verified === false ? <span className="ml-1.5 text-xs text-muted-foreground">(being verified)</span> : null}
+                  </span>
                   {value === String(d.id) ? <CheckCircle2 className="h-4 w-4 text-primary" aria-hidden /> : null}
                 </button>
               ))
@@ -123,7 +130,7 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
           </div>
           {asking ? (
             <div className="space-y-1.5 rounded-md border border-dashed p-3">
-              <Label htmlFor="onb-org-request">Organisation to add</Label>
+              <Label htmlFor="onb-org-request">Add your organisation</Label>
               <Input
                 id="onb-org-request"
                 value={request}
@@ -131,7 +138,8 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
                 placeholder="Full name of your organisation"
               />
               <p className="text-xs text-muted-foreground">
-                The IIC office adds it to the list and your account is moved to it. You can finish your profile meanwhile.
+                It is added now and you can book straight away. The IIC office checks it later and may correct the
+                name, or join it to the same organisation if that is already listed.
               </p>
               <button
                 type="button"
@@ -154,7 +162,7 @@ function OrganisationStep({ hints, value, onChange, request, onRequest }: {
                 onRequest(search.trim() || hints.organisation || "", state);
               }}
             >
-              My organisation is not listed
+              My organisation is not listed: add it
             </button>
           )}
         </div>
@@ -218,7 +226,9 @@ export default function ProfileOnboarding() {
       setError(res.error || "Not saved. Please try again.");
       return;
     }
-    if (step === "organisation" && res.data.organisation_requested) {
+    if (step === "organisation" && res.data.organisation_added) {
+      toast.success(`Added ${res.data.organisation_added}. The IIC office will verify it.`);
+    } else if (step === "organisation" && res.data.organisation_requested) {
       toast.success(`Sent to the IIC office to add: ${res.data.organisation_requested}`);
     }
     setData(res.data);
