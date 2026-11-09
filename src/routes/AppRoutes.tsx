@@ -150,6 +150,7 @@ const Print3DAnalyzerTest = lazyPage(() => import("@/pages/Print3DAnalyzerTest")
 const EquipmentPageRoute = lazyPage(() => import("@/pages/EquipmentPageRoute"));
 const EquipmentQrCodes = lazyPage(() => import("@/pages/EquipmentQrCodes"));
 const EquipmentQrPrint = lazyPage(() => import("@/pages/EquipmentQrPrint"));
+const VerifyReceipt = lazyPage(() => import("@/pages/VerifyReceipt"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
 const Notifications = lazyPage(() => import("@/pages/Notifications"));
 const CallHistory = lazyPage(() => import("@/pages/CallHistory"));
@@ -280,6 +281,7 @@ export default function AppRoutes() {
           <Route path="/equipment/:id" element={<EquipmentPageRoute />} />
           <Route path="/equipment-qr-codes" element={<ErrorBoundary fallbackTitle="Equipment QR Codes" backPath="/dashboard"><EquipmentQrCodes /></ErrorBoundary>} />
           <Route path="/equipment-qr-codes/print" element={<EquipmentQrPrint />} />
+          <Route path="/verify-receipt" element={<VerifyReceipt />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/slot-exchanges" element={<SlotExchanges />} />
           <Route path="/courier-tracking" element={<ErrorBoundary fallbackTitle="Sample dispatch" backPath="/dashboard"><CourierTracking /></ErrorBoundary>} />
