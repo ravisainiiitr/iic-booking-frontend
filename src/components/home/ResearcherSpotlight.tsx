@@ -99,11 +99,11 @@ function AcknowledgerMarquee({ people, featured, dark, label, badge }: {
   };
 
   const items = loops ? [...people, ...people] : people;
-  const buttonClass = cn("shrink-0 rounded-full p-1.5", dark ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-muted-foreground hover:bg-muted");
+  const buttonClass = cn("shrink-0 rounded-full p-1.5", dark ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white" : "text-muted-foreground hover:bg-muted");
   return (
     <section aria-label={label} className={dark ? "relative mt-4" : "mt-3"} data-testid="acknowledgers-strip">
       <div className="flex items-center justify-between gap-3">
-        <p className={cn("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-white/55" : "text-muted-foreground")}>
+        <p className={cn("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-slate-500 dark:text-white/55" : "text-muted-foreground")}>
           Acknowledged IIC in their research
         </p>
         {badge}
@@ -153,17 +153,17 @@ function AcknowledgerRow({ person, dark, copy = false, featured = false }: {
   return (
     <li aria-hidden={copy || undefined} data-featured={featured || undefined}
         className={cn("flex w-64 shrink-0 items-center gap-3 rounded-xl border px-2.5 py-2",
-                      dark ? "border-white/10 bg-white/[0.06]" : "bg-card",
-                      featured && (dark ? "border-amber-200/50 bg-amber-300/10" : "border-amber-300 bg-amber-50 dark:bg-amber-500/10"))}>
-      <Portrait person={person as unknown as ResearcherOfTheMonthItem} className={cn("h-9 w-9", dark ? "" : "bg-muted text-muted-foreground")} />
+                      dark ? "border-slate-200 bg-white/70 dark:border-white/10 dark:bg-white/[0.06]" : "bg-card",
+                      featured && (dark ? "border-amber-300 bg-amber-50/90 dark:border-amber-200/50 dark:bg-amber-300/10" : "border-amber-300 bg-amber-50 dark:bg-amber-500/10"))}>
+      <Portrait person={person as unknown as ResearcherOfTheMonthItem} className={cn("h-9 w-9", dark ? "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/70" : "bg-muted text-muted-foreground")} />
       <div className="min-w-0">
         {featured ? (
-          <p className={cn("flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider", dark ? "text-amber-200" : "text-amber-700 dark:text-amber-300")}>
+          <p className={cn("flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider", dark ? "text-amber-700 dark:text-amber-200" : "text-amber-700 dark:text-amber-300")}>
             <Sparkles className="h-3 w-3" aria-hidden /> Researcher of the Month
           </p>
         ) : null}
-        <p className={cn("truncate text-sm font-medium", dark ? "text-white" : "text-foreground")}>{person.researcher_name}</p>
-        <p className={cn("truncate text-[11px]", dark ? "text-white/60" : "text-muted-foreground")}>
+        <p className={cn("truncate text-sm font-medium", dark ? "text-slate-900 dark:text-white" : "text-foreground")}>{person.researcher_name}</p>
+        <p className={cn("truncate text-[11px]", dark ? "text-slate-500 dark:text-white/60" : "text-muted-foreground")}>
           {[person.affiliation, n ? `${n} publication${n === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
         </p>
       </div>
@@ -293,7 +293,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
       <aside
         aria-label="Researchers acknowledging IIC"
         data-testid="acknowledgers-only"
-        className={cn(dark ? "relative w-full rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-5 text-white backdrop-blur-xl" : "mx-auto w-full max-w-7xl px-4 pt-5 sm:px-6", className)}
+        className={cn(dark ? "relative w-full rounded-3xl border border-slate-200/90 bg-white/80 p-5 text-slate-900 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:text-white backdrop-blur-xl" : "mx-auto w-full max-w-7xl px-4 pt-5 sm:px-6", className)}
       >
         {ackList}
       </aside>
@@ -354,7 +354,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
 
   // Hero (large screens): one compact card holding only the strip, which starts with this month's researcher(s).
   const monthChip = (
-    <span className="shrink-0 rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] font-medium text-white/80" data-testid="spotlight-month">
+    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-white/80" data-testid="spotlight-month">
       {monthLabel(month) || "This month"}
     </span>
   );
@@ -363,7 +363,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
       aria-label="Researchers acknowledging IIC"
       data-testid="researcher-spotlight"
       className={cn(
-        "relative w-full overflow-hidden rounded-3xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-5 text-white shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)] backdrop-blur-xl",
+        "relative w-full overflow-hidden rounded-3xl border border-slate-200/90 bg-white/80 p-5 text-slate-900 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:text-white shadow-[0_24px_60px_-24px_hsl(215_40%_30%/0.35)] backdrop-blur-xl dark:shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)]",
         className,
       )}
     >
@@ -372,7 +372,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark label="Researchers acknowledging IIC" badge={monthChip} />
       </div>
       <footer className="relative mt-3">
-        <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-200 hover:text-white hover:underline">
+        <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline dark:text-sky-200 dark:hover:text-white">
           All publications <ChevronRight className="h-3.5 w-3.5" aria-hidden />
         </Link>
       </footer>

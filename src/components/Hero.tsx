@@ -35,10 +35,10 @@ const DEFAULT_HOME = {
 
 /** Shared geometry of every hero action: same height, radius, padding, type size, icon gap, border and focus ring. */
 const ctaBaseClass =
-  "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-0 sm:gap-2 sm:px-4 sm:text-base";
+  "h-11 shrink-0 gap-1.5 whitespace-nowrap border px-3.5 text-sm font-medium shadow-sm backdrop-blur-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-0 dark:focus-visible:ring-white sm:gap-2 sm:px-4 sm:text-base";
 /** Every hero action, Login with Channel i included (Book Equipment, Analysis Charges, Booking Calendar, Contact Us):
- * one shared white-glass style. */
-const secondaryCtaClass = `${ctaBaseClass} border-white/35 bg-white/10 text-white hover:bg-white/20 hover:text-white`;
+ * one shared glass style - white glass with navy text in light mode, translucent white on the dark hero. */
+const secondaryCtaClass = `${ctaBaseClass} border-slate-300/80 bg-white/75 text-slate-800 hover:bg-white hover:text-slate-900 dark:border-white/35 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 dark:hover:text-white`;
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -152,8 +152,13 @@ const Hero = () => {
           decoding="async"
           {...{ fetchpriority: "high" }}
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-[hsl(218_60%_7%/0.92)] via-[hsl(215_55%_12%/0.68)] to-[hsl(210_45%_12%/0.35)]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(218_55%_8%/0.75)] via-transparent to-[hsl(210_45%_12%/0.2)]" />
+        {/* Light mode: a pale wash, strongest behind the text, so the page matches the rest of the light site.
+            Dark mode: a navy wash, lighter than before so the hero does not turn black on dim screens. */}
+        <div
+          data-testid="hero-wash"
+          className="absolute inset-0 bg-gradient-to-r from-[hsl(210_45%_98%/0.95)] via-[hsl(210_45%_97%/0.7)] to-[hsl(210_45%_97%/0.08)] dark:from-[hsl(218_50%_10%/0.86)] dark:via-[hsl(215_45%_15%/0.6)] dark:to-[hsl(210_40%_16%/0.25)]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-[hsl(210_40%_98%/0.6)] via-transparent to-transparent dark:from-[hsl(218_48%_10%/0.65)] dark:to-[hsl(210_40%_16%/0.15)]" />
       </div>
 
       <div className="relative z-10 flex h-full min-h-0 flex-col justify-between">
@@ -166,20 +171,20 @@ const Hero = () => {
             <div className="min-w-0 space-y-3.5 sm:space-y-4 lg:flex lg:flex-col lg:justify-between lg:space-y-0 lg:gap-5">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5 lg:space-y-4">
               <h1
-                className="text-3xl font-bold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl lg:text-[3.75rem] lg:leading-[1.08]"
+                className="text-3xl font-bold leading-[1.1] tracking-tight text-[hsl(218_62%_20%)] sm:text-4xl dark:text-white dark:drop-shadow-sm md:text-5xl lg:text-[3.75rem] lg:leading-[1.08]"
                 style={fontSizes.hero_title_line1 ? { fontSize: fontSizes.hero_title_line1 } : undefined}
               >
                 {home.hero_title_line1 || DEFAULT_HOME.hero_title_line1}
               </h1>
-              <div className="h-1 w-20 rounded-full bg-gradient-to-r from-amber-300 to-sky-300" aria-hidden />
+              <div className="h-1 w-20 rounded-full bg-gradient-to-r from-amber-400 to-sky-500 dark:from-amber-300 dark:to-sky-300" aria-hidden />
               <p
-                className="text-lg font-medium text-sky-100 sm:text-xl md:text-2xl lg:text-[1.75rem]"
+                className="text-lg font-medium text-[hsl(210_75%_32%)] sm:text-xl dark:text-sky-100 md:text-2xl lg:text-[1.75rem]"
                 style={fontSizes.hero_title_line2 ? { fontSize: fontSizes.hero_title_line2 } : undefined}
               >
                 {home.hero_title_line2 || DEFAULT_HOME.hero_title_line2}
               </p>
               <p
-                className="max-w-2xl whitespace-pre-line text-base leading-relaxed text-white/85 sm:text-lg lg:text-xl lg:leading-[1.7]"
+                className="max-w-2xl whitespace-pre-line text-base leading-relaxed text-slate-700 sm:text-lg dark:text-white/85 lg:text-xl lg:leading-[1.7]"
                 style={fontSizes.hero_subtitle ? { fontSize: fontSizes.hero_subtitle } : undefined}
               >
                 {(() => {
@@ -195,7 +200,7 @@ const Hero = () => {
               </p>
             </div>
 
-            <HeroSearchBar className="max-w-2xl rounded-xl shadow-xl shadow-black/30 ring-1 ring-white/20" />
+            <HeroSearchBar className="max-w-2xl rounded-xl shadow-lg shadow-slate-900/10 ring-1 ring-slate-200 dark:shadow-xl dark:shadow-black/30 dark:ring-white/20" />
             </div>
             <ResearcherSpotlight className="hidden lg:block" />
             </div>
@@ -210,7 +215,7 @@ const Hero = () => {
                 >
                   {channeliLoading ? (
                     <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
                       Redirecting…
                     </>
                   ) : (
@@ -261,7 +266,7 @@ const Hero = () => {
         </div>
 
         <div className="container mx-auto w-full shrink-0 px-4 pb-4 sm:pb-5">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/20 bg-[hsl(218_55%_10%/0.55)] p-3 shadow-[0_8px_32px_-8px_hsl(215_50%_6%/0.5)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:divide-x lg:divide-white/15">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200/90 bg-white/80 p-3 shadow-[0_8px_30px_-12px_hsl(215_40%_30%/0.25)] backdrop-blur-md sm:grid-cols-3 sm:gap-3 sm:p-4 lg:grid-cols-5 lg:divide-x lg:divide-slate-200 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:shadow-[0_8px_32px_-8px_hsl(215_50%_6%/0.5)] dark:lg:divide-white/15">
             {(
               [
                 {
@@ -312,15 +317,15 @@ const Hero = () => {
               const inner = (
                 <>
                   <div
-                    className="text-xl font-semibold tabular-nums text-white sm:text-2xl md:text-3xl"
+                    className="text-xl font-semibold tabular-nums text-[hsl(218_62%_20%)] sm:text-2xl md:text-3xl dark:text-white"
                     style={s.fsV ? { fontSize: s.fsV } : undefined}
                   >
                     {s.value}
                   </div>
                   <div
                     className={cn(
-                      "mt-0.5 text-xs font-medium uppercase tracking-wide text-white/75 sm:text-sm",
-                      s.href && "underline decoration-white/50 underline-offset-4 group-hover:decoration-white"
+                      "mt-0.5 text-xs font-medium uppercase tracking-wide text-slate-600 sm:text-sm dark:text-white/75",
+                      s.href && "underline decoration-slate-400 underline-offset-4 group-hover:decoration-slate-700 dark:decoration-white/50 dark:group-hover:decoration-white"
                     )}
                     style={s.fsL ? { fontSize: s.fsL } : undefined}
                   >
@@ -332,7 +337,7 @@ const Hero = () => {
                 <Link
                   key={s.key}
                   to={s.href}
-                  className="group px-2 py-1 text-center rounded-lg transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="group px-2 py-1 text-center rounded-lg transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:hover:bg-white/10 dark:focus-visible:ring-white/60"
                   title="View publications"
                 >
                   {inner}
