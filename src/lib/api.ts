@@ -2780,6 +2780,8 @@ export interface AdminDashboardSummary {
   cache_seconds: number;
   bookings: {
     created_today: number;
+    /** Bookings made today by test accounts or on test equipment, left out of every figure (older servers omit it). */
+    test_created_today?: number;
     created_this_week: number;
     created_last_7_days: number;
     sessions_today: number;
@@ -4344,6 +4346,11 @@ export type BookingListFilters = {
   status?: string;
   start_date?: string;
   end_date?: string;
+  /** Local date the booking was made, inclusive (YYYY-MM-DD): the dashboard's "Bookings made today". */
+  created_from?: string;
+  created_to?: string;
+  /** Leave out test accounts' bookings and test equipment, as the dashboard figures do. */
+  exclude_test?: boolean;
   search?: string;
   user_name?: string;
   supervisor_name?: string;
@@ -4379,6 +4386,15 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.results_overdue) {
     queryParams.append('results_overdue', '1');
+  }
+  if (params?.created_from) {
+    queryParams.append('created_from', params.created_from);
+  }
+  if (params?.created_to) {
+    queryParams.append('created_to', params.created_to);
+  }
+  if (params?.exclude_test) {
+    queryParams.append('exclude_test', '1');
   }
   if (params?.user_id) {
     queryParams.append('user_id', String(params.user_id));

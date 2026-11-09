@@ -46,7 +46,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ExternalLink, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { madeFilterLabel } from "@/lib/madeFilter";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { EquipmentLink } from "@/components/EquipmentLink";
 import { UserIdCardLink } from "@/components/users/UserIdCardLink";
@@ -178,6 +179,7 @@ const DEFAULT_PAGE_SIZE = 10;
 /** Sent as ordering=default: Result Overdue, Pending, Booked, ... Completed (backend booking_list_status). */
 const DEFAULT_ORDERING = "default";
 
+
 /** Status the list opens with: Booked for the Main Administrator, All status for everyone else. */
 function defaultStaffStatusFilter(userType: string | number | null | undefined): string {
   return String(userType ?? "").toLowerCase() === "admin" ? "BOOKED" : "all";
@@ -193,8 +195,15 @@ const BookingManagement = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const expandId = searchParams.get("expand");
   /** null until a link or the user picks a status: the list then uses the role's default. */
+  /** ?made_from=&made_to= (dashboard "Bookings made today"): bookings by the day they were made, any status;
+   *  ?real_only=1 leaves out test bookings as the dashboard count does. Cleared with the chip above the list. */
+  const [madeFilter, setMadeFilter] = useState<{ from: string; to: string; realOnly: boolean } | null>(() => {
+    const from = searchParams.get("made_from") || "";
+    const to = searchParams.get("made_to") || "";
+    return from || to ? { from, to, realOnly: searchParams.get("real_only") === "1" } : null;
+  });
   const [chosenStatusFilter, setStatusFilter] = useState<string | null>(() =>
-    expandId || searchParams.get("status") === "all"
+    expandId || searchParams.get("status") === "all" || searchParams.get("made_from") || searchParams.get("made_to")
       ? "all"
       : searchParams.get("results") === "overdue"
         ? RESULT_OVERDUE_STATUS
@@ -340,6 +349,9 @@ const BookingManagement = () => {
     if (searchTerm) params.search = searchTerm;
     if (startDate) params.start_date = startDate;
     if (endDate) params.end_date = endDate;
+    if (madeFilter?.from) params.created_from = madeFilter.from;
+    if (madeFilter?.to) params.created_to = madeFilter.to;
+    if (madeFilter?.realOnly) params.exclude_test = true;
     if (equipmentFilter && equipmentFilter !== "all") params.equipment_id = equipmentFilter;
     if (isMainAdmin && departmentFilter !== "all") params.equipment_department_id = departmentFilter;
     if (!isLabInchargeUser && userNameTerm) params.user_name = userNameTerm;
@@ -410,6 +422,7 @@ const BookingManagement = () => {
     searchTerm,
     startDate,
     endDate,
+    madeFilter,
     equipmentFilter,
     departmentFilter,
     userNameTerm,
@@ -455,9 +468,21 @@ const BookingManagement = () => {
     setUserTypeFilter("all");
     setIstemFbrFilter("all");
     setOrdering("");
+    clearMadeFilter();
     closeDetail();
     setClearNonce((n) => n + 1);
   };
+
+  function clearMadeFilter() {
+    setMadeFilter(null);
+    if (searchParams.has("made_from") || searchParams.has("made_to") || searchParams.has("real_only")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("made_from");
+      next.delete("made_to");
+      next.delete("real_only");
+      setSearchParams(next, { replace: true });
+    }
+  }
 
   const handleSort = (next: string) => {
     setOrdering(next);
@@ -658,6 +683,22 @@ const BookingManagement = () => {
                 </>
               }
             />
+            {madeFilter ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="made-filter-chip">
+                <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20 dark:text-sky-200">
+                  {madeFilterLabel(madeFilter.from, madeFilter.to)}
+                  {madeFilter.realOnly ? " · test bookings left out" : ""}
+                  <button
+                    type="button"
+                    className="rounded-full p-0.5 hover:bg-primary/15"
+                    aria-label="Remove the booking date filter"
+                    onClick={clearMadeFilter}
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </span>
+              </div>
+            ) : null}
           </CardHeader>
           {loadingBookings && bookings.length === 0 ? (
             <CardContent className="py-12">

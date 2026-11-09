@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { experienceRatingCard, formatCountdown, mergeAttentionItems, nextWeeklyOpening, reportsLink } from "./adminOverviewData";
+import { experienceRatingCard, formatCountdown, mergeAttentionItems, madeTodayLink, nextWeeklyOpening, reportsLink } from "./adminOverviewData";
 
 const item = (key: string, count = 1, link = `/${key}`) => ({ key, label: key, count, link, description: "" });
 
@@ -84,5 +84,13 @@ describe("reportsLink", () => {
     const lateEvening = Date.parse("2026-11-30T20:00:00Z"); // 1 Dec 01:30 IST
     expect(reportsLink("today", lateEvening)).toBe("/reports?from=2026-12-01&to=2026-12-01");
     expect(reportsLink("month", Date.parse("2026-11-02T10:00:00Z"))).toBe("/reports?from=2026-11-01&to=2026-11-02");
+  });
+});
+
+describe("madeTodayLink", () => {
+  it("opens View Booking on bookings made today (IST), optionally without test bookings", () => {
+    const lateEvening = Date.parse("2026-11-09T20:00:00Z"); // 1:30 am on 10 Nov in India
+    expect(madeTodayLink(false, lateEvening)).toBe("/booking-management?made_from=2026-11-10&made_to=2026-11-10");
+    expect(madeTodayLink(true, lateEvening)).toBe("/booking-management?made_from=2026-11-10&made_to=2026-11-10&real_only=1");
   });
 });

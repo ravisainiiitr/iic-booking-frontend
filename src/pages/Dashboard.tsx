@@ -51,7 +51,7 @@ import {
   showsBookingsAwaitingCompletion,
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
-import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
+import OperationsAlerts from "@/components/dashboard/OperationsAlerts";
 import OrcidPromptBanner from "@/components/impact/OrcidPromptBanner";
 import AuthorConfirmPrompt from "@/components/impact/AuthorConfirmPrompt";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
@@ -82,12 +82,9 @@ import {
 import {
   canViewDisruptions,
   DISRUPTIONS_CHANGED_EVENT,
-  dismissDisruptionBanner,
-  isDisruptionBannerDismissed,
   type DisruptionAttention,
   type DisruptionEventIds,
 } from "@/lib/disruptions";
-import { DisruptionAttentionBanner } from "@/components/disruptions/DisruptionAttentionBanner";
 import { slotOperationLabel } from "@/lib/slotOperations";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
@@ -1250,7 +1247,6 @@ const Dashboard = () => {
   const disruptionPrompt = useDisruptionPrompt();
   const askForSlotStatusChange = disruptionPrompt.askForSlotStatusChange;
   const [disruptionAttention, setDisruptionAttention] = useState<DisruptionAttention | null>(null);
-  const [disruptionBannerDismissed, setDisruptionBannerDismissed] = useState(() => isDisruptionBannerDismissed());
 
   useEffect(() => {
     if (!canViewDisruptions(userTypeStr)) {
@@ -4919,8 +4915,15 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {/* OIC and Lab Operator dashboards show maintenance inside "Needs your attention" instead. */}
-        {maintenanceShown.banner ? <MaintenanceBanner className="mb-4" /> : null}
+        {/* Equipment under maintenance and disruptions without a reason, together in one collapsed panel. OIC and
+            Lab Operator dashboards show maintenance inside "Needs your attention" instead; disruptions are a home
+            page reminder only. */}
+        <OperationsAlerts
+          className="mb-4"
+          showMaintenance={maintenanceShown.banner}
+          disruptionsMissingReason={!workspacePath && disruptionAttention?.enabled ? disruptionAttention.reason_missing : 0}
+          onReviewDisruptions={() => openWorkspace("/disruptions?reason_missing=1")}
+        />
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* External users see their bookings first: the app card is not for them, and the ORCID prompt and
@@ -5092,16 +5095,6 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
-            {!disruptionBannerDismissed && disruptionAttention?.enabled ? (
-              <DisruptionAttentionBanner
-                count={disruptionAttention.reason_missing}
-                onOpen={() => openWorkspace("/disruptions?reason_missing=1")}
-                onDismiss={() => {
-                  dismissDisruptionBanner();
-                  setDisruptionBannerDismissed(true);
-                }}
-              />
-            ) : null}
             {showAdminOverview ? (
               <Suspense
                 fallback={
