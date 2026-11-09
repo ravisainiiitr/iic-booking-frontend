@@ -9,7 +9,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ProfileCompletionProvider } from "@/components/ProfileCompletion/ProfileCompletionProvider";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
-import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
@@ -60,7 +59,6 @@ const App = () => (
             <EmbedChrome />
             <GlobalBackButton />
             <AssistantLauncher />
-            <PendingActionsPrompt />
             <AppRoutes />
             <StaffAppChrome />
             <QuotaBreakdownHost />

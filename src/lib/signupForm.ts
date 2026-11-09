@@ -280,8 +280,10 @@ export function validateSignup(v: SignupValues, today: string): Partial<Record<S
   } else if (kind && !v.department) {
     errors.department = isIitrKind(kind) ? "Select your IIT Roorkee department or centre." : "Select your department or organisation.";
   }
-  if (!v.programEndDate) errors.programEndDate = "Enter the date your current programme or employment ends.";
-  else if (v.programEndDate < today) errors.programEndDate = "This date has already passed.";
+  // External users give no end date (9 Nov 2026); IIT Roorkee users still do.
+  if (!v.programEndDate) {
+    if (!kind || isIitrKind(kind)) errors.programEndDate = "Enter the date your current programme or employment ends.";
+  } else if (v.programEndDate < today) errors.programEndDate = "This date has already passed.";
   if (isIitrKind(kind) && !v.supervisorId)
     errors.supervisor =
       kind === "iitr_startup"

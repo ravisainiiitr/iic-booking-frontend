@@ -146,3 +146,11 @@ describe("iitrDepartmentOptions", () => {
     expect(iitrDepartmentOptions(many)).toHaveLength(80);
   });
 });
+
+describe("end date", () => {
+  const today = "2026-11-09";
+  it("is not asked of external users, but still of IIT Roorkee users", () => {
+    expect(validateSignup({ ...base, userType: "external", state: "UK", supervisorId: "" as const, programEndDate: "" }, today).programEndDate).toBeUndefined();
+    expect(validateSignup({ ...base, programEndDate: "" }, today).programEndDate).toBeTruthy();
+  });
+});
