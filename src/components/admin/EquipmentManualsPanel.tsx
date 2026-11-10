@@ -218,7 +218,7 @@ export default function EquipmentManualsPanel() {
           Equipment manuals
         </CardTitle>
         <CardDescription>
-          Upload the operating manual (PDF, up to {MAX_MB} MB) for an equipment. The IITR Assistant answers operation,
+          Upload the operating manual (PDF, up to {MAX_MB} MB) for an equipment. The IITR Equipment Booking Assistant answers operation,
           specification, sample-preparation and safety questions from it and cites page numbers.
         </CardDescription>
       </CardHeader>

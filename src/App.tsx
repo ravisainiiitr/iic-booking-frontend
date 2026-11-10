@@ -21,7 +21,7 @@ import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useStaffAppShell } from "./lib/staffApp";
 import { isNativeApp } from "./lib/nativeApp";
 
-/** The floating IITR Assistant stays on the website; the staff app keeps the screen uncluttered. */
+/** The floating IITR Equipment Booking Assistant stays on the website; the staff app keeps the screen uncluttered. */
 function AssistantLauncher() {
   const staffShell = useStaffAppShell();
   const { pathname } = useLocation();

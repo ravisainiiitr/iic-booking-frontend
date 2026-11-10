@@ -248,23 +248,23 @@ function copilotErrorMessage(res: { error?: string | null; status?: number | nul
     return "Your session expired or you are not signed in. Sign in again to continue with personal bookings and wallet, or ask a general question while signed out.";
   }
   if (status === 429 || raw.includes("throttl") || raw.includes("rate")) {
-    return "IITR Assistant AI replies are temporarily rate-limited. Wait a moment and Retry — live lookups (slots, wallet, bookings) usually still work. You do not need to abandon the IITR Assistant for those questions.";
+    return "IITR Equipment Booking Assistant AI replies are temporarily rate-limited. Wait a moment and Retry — live lookups (slots, wallet, bookings) usually still work. You do not need to abandon the IITR Equipment Booking Assistant for those questions.";
   }
   if (status === 503 || raw.includes("disabled") || raw.includes("not enabled")) {
-    return "IITR Assistant is not enabled on this environment right now.";
+    return "IITR Equipment Booking Assistant is not enabled on this environment right now.";
   }
   if (status === 0 || raw.includes("network") || raw.includes("failed to fetch")) {
-    return "Unable to reach IITR Assistant. Check your network connection, then try again.";
+    return "Unable to reach IITR Equipment Booking Assistant. Check your network connection, then try again.";
   }
   if (raw.includes("busy") || status === 409) {
-    return "IITR Assistant is busy. Please try again in a moment.";
+    return "IITR Equipment Booking Assistant is busy. Please try again in a moment.";
   }
   if (status === 404 && raw.includes("conversation")) {
     return "That conversation is no longer available. Start a new conversation and ask again.";
   }
-  return res.error || "IITR Assistant could not complete that request. You can continue using the booking portal.";
+  return res.error || "IITR Equipment Booking Assistant could not complete that request. You can continue using the booking portal.";
 }
-/** Sources worth showing: none for IITR Assistant live-data answers, and only entries with a title. */
+/** Sources worth showing: none for IITR Equipment Booking Assistant live-data answers, and only entries with a title. */
 function visibleCitations(msg: CopilotMessage): NonNullable<CopilotMessage["citations"]> {
   if (msg.metadata?.booking_assistant) return [];
   return (msg.citations || []).filter((c) => Boolean(c.title));
@@ -279,7 +279,7 @@ function TypingIndicator({ slow }: { slow: boolean }) {
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70 [animation-delay:-0.15s]" />
           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/70" />
         </span>
-        <span>{slow ? "Searching the portal guides…" : "IITR Assistant is typing…"}</span>
+        <span>{slow ? "Searching the portal guides…" : "IITR Equipment Booking Assistant is typing…"}</span>
       </div>
     </div>
   );
@@ -535,7 +535,7 @@ function CopilotCards({
             <div key={idx} className="rounded-xl border bg-background/70 p-3 text-sm">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Credit status</div>
               <div className="mt-1 text-xs">Outstanding: {card.outstanding != null ? `₹${String(card.outstanding)}` : "—"}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Main Admin approves all credit. IITR Assistant cannot approve.</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Main Admin approves all credit. IITR Equipment Booking Assistant cannot approve.</div>
             </div>
           );
         }
@@ -679,7 +679,7 @@ function CopilotCards({
               </ul>
               {!card.executable ? (
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  IITR Assistant can&apos;t complete this action for your account yet. Use the portal link instead.
+                  IITR Equipment Booking Assistant can&apos;t complete this action for your account yet. Use the portal link instead.
                 </p>
               ) : null}
             </div>
@@ -775,7 +775,7 @@ export default function ResearchCopilot({
   const [commands, setCommands] = useState<CommandAction[]>(
     isAuthenticated ? DEFAULT_COMMANDS : PUBLIC_DEFAULT_COMMANDS,
   );
-  const [assistantName, setAssistantName] = useState("IITR Assistant");
+  const [assistantName, setAssistantName] = useState("IITR Equipment Booking Assistant");
   const [commandGroups, setCommandGroups] = useState<CopilotCommandGroup[]>([]);
   const [intelligenceOn, setIntelligenceOn] = useState(false);
   const [canEscalate, setCanEscalate] = useState(false);
@@ -966,7 +966,7 @@ export default function ResearchCopilot({
           setOpen(false);
           return;
         }
-        setAssistantName(res.data.assistant_name || "IITR Assistant");
+        setAssistantName(res.data.assistant_name || "IITR Equipment Booking Assistant");
         setSuggested(res.data.suggested_prompts || []);
         const ca = (res.data as { command_actions?: CommandAction[] }).command_actions;
         if (ca?.length) setCommands(ca);
@@ -1159,7 +1159,7 @@ export default function ResearchCopilot({
           role: "assistant",
           content:
             msg ||
-            "IITR Assistant is temporarily unavailable. You can continue using the normal booking portal.",
+            "IITR Equipment Booking Assistant is temporarily unavailable. You can continue using the normal booking portal.",
         },
       ]);
     } finally {
@@ -1281,7 +1281,7 @@ export default function ResearchCopilot({
   return (
     <>
       <AssistantFab
-        label={open ? "Close IITR Assistant" : "Open IITR Assistant"}
+        label={open ? "Close IITR Equipment Booking Assistant" : "Open IITR Equipment Booking Assistant"}
         icon={open ? <X className="h-5 w-5" aria-hidden /> : <Sparkles className="h-5 w-5" aria-hidden />}
         onActivate={() => setOpen((o) => !o)}
         expanded={open}
@@ -1729,7 +1729,7 @@ export default function ResearchCopilot({
                 <div className="flex gap-2 border-t p-3">
                   <Input
                     placeholder={isAuthenticated ? "e.g. I need FESEM tomorrow — what are my options?" : "Ask about booking, equipment, wallet, Remote Analysis…"}
-                    aria-label="Message IITR Assistant"
+                    aria-label="Message IITR Equipment Booking Assistant"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void send()}
@@ -1799,7 +1799,7 @@ export default function ResearchCopilot({
                   ) : null}
                 </ul>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  {CONFIRM_WARNINGS[pendingConfirm.mutation_action || ""] || "IITR Assistant will carry out this action for you."}
+                  {CONFIRM_WARNINGS[pendingConfirm.mutation_action || ""] || "IITR Equipment Booking Assistant will carry out this action for you."}
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setPendingConfirm(null)}>

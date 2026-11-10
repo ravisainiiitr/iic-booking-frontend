@@ -44,7 +44,7 @@ function Instrument({ id }: { id: number }) {
       toast.error(res.error);
       return;
     }
-    toast.success("Reference added. The IITR Assistant can use it in a few minutes.");
+    toast.success("Reference added. The IITR Equipment Booking Assistant can use it in a few minutes.");
     setUrl("");
     void load();
   };
@@ -147,7 +147,7 @@ function Instrument({ id }: { id: number }) {
   );
 }
 
-/** /equipment-references: manufacturer documentation the IITR Assistant may cite, per instrument the user looks after. */
+/** /equipment-references: manufacturer documentation the IITR Equipment Booking Assistant may cite, per instrument the user looks after. */
 export default function EquipmentReferences() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState("");
@@ -173,7 +173,7 @@ export default function EquipmentReferences() {
           <BookOpenCheck className="h-6 w-6" aria-hidden /> Manufacturer references
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Public product pages, datasheets and manuals for the make and model of your instruments. The IITR Assistant uses
+          Public product pages, datasheets and manuals for the make and model of your instruments. The IITR Equipment Booking Assistant uses
           them for technical questions and always cites the source. They are fetched again every month.
         </p>
         {error ? <p className="mt-6 text-sm text-rose-700 dark:text-rose-300">{error}</p> : null}
