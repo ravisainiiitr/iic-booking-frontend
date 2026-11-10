@@ -56,7 +56,7 @@ function Inlines({ items, onNavigate }: { items: Inline[]; onNavigate: (href: st
   );
 }
 
-/** IITR Assistant reply text: safe markdown rendered as React elements (no HTML injection). */
+/** IITR Equipment Booking Assistant reply text: safe markdown rendered as React elements (no HTML injection). */
 export function CopilotMarkdown({ text, onNavigate }: Props) {
   const blocks = useMemo(() => parseMarkdown(text), [text]);
   return (

@@ -443,7 +443,7 @@ export interface GlobalSearchResult {
   actions?: PortalAction[];
 }
 
-/** A page, setting or per-instrument action from the portal action catalogue (shared with the IITR Assistant). */
+/** A page, setting or per-instrument action from the portal action catalogue (shared with the IITR Equipment Booking Assistant). */
 export interface PortalAction {
   key: string;
   title: string;
@@ -2668,7 +2668,7 @@ export interface MyResearchQuotas {
   users: { id: number; email: string; name: string; quota_gb: number; note: string; used_bytes: number }[];
 }
 
-/** Manufacturer reference of an instrument (IITR Assistant knowledge): a fetched public page or PDF. */
+/** Manufacturer reference of an instrument (IITR Equipment Booking Assistant knowledge): a fetched public page or PDF. */
 export interface EquipmentReference {
   id: string;
   title: string;
@@ -4307,7 +4307,7 @@ export interface CopilotFeedbackRow {
   created_at: string | null;
 }
 
-/** IITR Assistant trial metrics (GET /v1/research-copilot/assistant/metrics/, Main Administrator). */
+/** IITR Equipment Booking Assistant trial metrics (GET /v1/research-copilot/assistant/metrics/, Main Administrator). */
 export interface AssistantTrialMetrics {
   days: number;
   turns: number;

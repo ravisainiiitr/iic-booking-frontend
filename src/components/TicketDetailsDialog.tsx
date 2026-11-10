@@ -250,10 +250,10 @@ export default function TicketDetailsDialog({
     setAnswerSavedId(res.data.id);
     setAnswerFormOpen(false);
     toast({
-      title: "IITR Assistant answer saved",
+      title: "IITR Equipment Booking Assistant answer saved",
       description:
         res.data.status === "approved"
-          ? "The answer is approved and can now be used by the IITR Assistant."
+          ? "The answer is approved and can now be used by the IITR Equipment Booking Assistant."
           : "The answer is pending approval and will not be shown to users until approved.",
     });
   };
@@ -670,22 +670,22 @@ export default function TicketDetailsDialog({
               {answerDraft && (
                 <section className="space-y-3 rounded-xl border border-amber-200/70 bg-amber-50/30 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">IITR Assistant knowledge</h3>
+                    <h3 className="text-sm font-semibold">IITR Equipment Booking Assistant knowledge</h3>
                     {!answerFormOpen && !answerSavedId && (
                       <Button type="button" size="sm" variant="outline" onClick={() => setAnswerFormOpen(true)}>
-                        Save as IITR Assistant answer
+                        Save as IITR Equipment Booking Assistant answer
                       </Button>
                     )}
                   </div>
                   {answerSavedId ? (
                     <p className="text-sm text-muted-foreground">
-                      Saved to the IITR Assistant knowledge base and waiting for approval.
-                      {answerDraft.can_approve ? " You can approve it in the IITR Assistant knowledge console." : ""}
+                      Saved to the IITR Equipment Booking Assistant knowledge base and waiting for approval.
+                      {answerDraft.can_approve ? " You can approve it in the IITR Equipment Booking Assistant knowledge console." : ""}
                     </p>
                   ) : answerFormOpen ? (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">
-                        Rewrite the resolution as a general answer and remove any personal details. The IITR Assistant shows
+                        Rewrite the resolution as a general answer and remove any personal details. The IITR Equipment Booking Assistant shows
                         it to users only after it is approved.
                       </p>
                       <div className="space-y-1">
@@ -732,7 +732,7 @@ export default function TicketDetailsDialog({
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Turn this resolution into a reviewed answer that the IITR Assistant can reuse for similar questions.
+                      Turn this resolution into a reviewed answer that the IITR Equipment Booking Assistant can reuse for similar questions.
                     </p>
                   )}
                 </section>

@@ -35,7 +35,7 @@ function percent(rate: number | null): string {
   return rate == null ? "–" : `${Math.round(rate * 100)}%`;
 }
 
-/** IITR Assistant trial numbers for the Main Administrator: counts only, no message text is kept. */
+/** IITR Equipment Booking Assistant trial numbers for the Main Administrator: counts only, no message text is kept. */
 export default function AssistantTrialMetrics({ days }: { days: number }) {
   const [data, setData] = useState<Metrics | null>(null);
   const [error, setError] = useState("");
@@ -75,7 +75,7 @@ export default function AssistantTrialMetrics({ days }: { days: number }) {
   return (
     <section className="space-y-3" data-testid="assistant-trial-metrics">
       <div>
-        <h3 className="text-base font-semibold">IITR Assistant trial</h3>
+        <h3 className="text-base font-semibold">IITR Equipment Booking Assistant trial</h3>
         <p className="text-xs text-muted-foreground">
           One count per assistant reply: what it understood and how the turn ended. Message text is not stored.
         </p>
