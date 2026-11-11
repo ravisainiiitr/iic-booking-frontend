@@ -1649,8 +1649,8 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
-    const { channelISession } = await logout();
-    navigate(channelISession ? "/" : "/auth");
+    const { channelISignedOut } = await logout();
+    navigate(channelISignedOut ? "/" : "/auth");
   };
 
   const openWorkspace = useCallback((to: string, title?: string) => {

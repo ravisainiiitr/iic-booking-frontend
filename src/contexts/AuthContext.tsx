@@ -8,7 +8,12 @@ import { currentOpenWorkspace } from "@/lib/workspaceResume";
 import { isPeakActiveNow, PEAK_BACKGROUND_POLL_MS } from "@/lib/peakWindow";
 import { clearUserGuideAutoShownThisLogin } from "@/components/UserGuide/userGuideSession";
 import { clearPendingActionsShownThisLogin } from "@/components/PendingActions/pendingActionsSession";
-import { takeChannelISignIn } from "@/lib/channelISignOut";
+import {
+  CHANNEL_I_LOGOUT_WINDOW_MS,
+  channelILogoutTarget,
+  openChannelILogoutWindow,
+  signedInWithChannelI,
+} from "@/lib/channelISignOut";
 import { clearLoginTipsThisLogin } from "@/lib/loginTips";
 import { clearMobilePromptSnooze } from "@/lib/mobileNumber";
 
@@ -77,11 +82,8 @@ interface AuthContextType {
   loading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  /**
-   * Logs out of the portal only, silently: no Channel i window or tab is opened.
-   * `channelISession`: the session began with Channel i, so the caller shows the portal's main page.
-   */
-  logout: () => Promise<{ channelISession: boolean }>;
+  /** `channelISignedOut`: Channel i's own logout is running too, so the caller should show the portal's main page. */
+  logout: () => Promise<{ channelISignedOut: boolean }>;
   refreshUser: () => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   /** Set user after OAuth/OTP login when token is already set by apiClient. Avoids refreshUser() 401 race. */
@@ -283,7 +285,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    const channelISession = takeChannelISignIn();
+    // Opened before anything is awaited, while the click still allows a new window.
+    let channelIWindow = !isNativeApp() && signedInWithChannelI() ? openChannelILogoutWindow() : null;
+    let channelISignedOut = false;
     let uid: number | null = null;
     try {
       const stored = localStorage.getItem("user");
@@ -294,12 +298,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch {
       /* ignore */
     }
+    let channelIServerUrl: string | undefined;
     try {
       if (localStorage.getItem("web_push_enabled") === "1") {
         const { disableWebPush } = await import("@/lib/webPush");
         await Promise.race([disableWebPush(), new Promise((resolve) => window.setTimeout(resolve, 2000))]);
       }
-      await apiClient.signOut();
+      const response = await apiClient.signOut();
+      channelIServerUrl = "data" in response ? response.data?.omniport_logout_url : undefined;
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
@@ -313,10 +319,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       apiClient.setToken(null);
       localStorage.removeItem("user");
       setUser(null);
-      // Silent by design: Channel i's own Log out page would have to open in a window or tab of its own (it cannot be
-      // framed), which users found confusing. The Channel i session is left to Channel i, as with any single sign-on.
+      // The portal cannot clear another site's sign-in, so the browser has to visit Channel i's own Log out page.
+      const channelITarget = channelILogoutTarget(channelIServerUrl);
+      if (!channelITarget) {
+        channelIWindow?.close();
+      } else {
+        channelIWindow = channelIWindow ?? openChannelILogoutWindow(channelITarget);
+        channelISignedOut = true;
+        if (channelIWindow) {
+          const opened = channelIWindow;
+          window.setTimeout(() => opened.close(), CHANNEL_I_LOGOUT_WINDOW_MS);
+        } else {
+          // Window blocked: ending the Channel i session matters more than returning to the portal.
+          window.location.assign(channelITarget);
+        }
+      }
     }
-    return { channelISession };
+    return { channelISignedOut };
   }, []);
 
   const updateUser = useCallback((userData: Partial<User>) => {
