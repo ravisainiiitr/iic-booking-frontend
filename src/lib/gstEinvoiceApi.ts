@@ -241,6 +241,24 @@ export interface BuyerGstInvoice {
   next_step: string;
 }
 
+export interface Gstr1Month {
+  fp: string;
+  from: string;
+  to: string;
+  summary: {
+    b2c_invoices: number;
+    b2cl_invoices: number;
+    b2cs_rows: number;
+    credit_notes: number;
+    credit_notes_available: boolean;
+    taxable_value: string;
+    tax: string;
+    documents_issued: number;
+    unsigned_excluded: number;
+  };
+  warnings: string[];
+}
+
 export interface DemoInvoiceInput {
   legal_name: string;
   gstin?: string;
@@ -281,6 +299,10 @@ export const gstEinvoiceApi = {
     download(`${gstBase()}/invoices/${inv.id}/pdf/`, `tax-invoice-${inv.number.replace(/\//g, "-")}.pdf`),
   register: (month: string) => request<GstRegister>(`${gstBase()}/register/?month=${encodeURIComponent(month)}`),
   downloadRegister: (month: string) => download(`${gstBase()}/register/?month=${encodeURIComponent(month)}&export=csv`, `gst-invoice-register-${month}-sandbox.csv`),
+  gstr1Preview: (from: string, to: string) =>
+    request<{ months: Gstr1Month[]; b2cl_limit: string }>(`${gstBase()}/gstr1/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
+  downloadGstr1: (from: string, to: string, kind: "json" | "xlsx") =>
+    download(`${gstBase()}/gstr1/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&kind=${kind}`, `GSTR1-B2C-${from}-${to}.${kind}`),
   certificates: () => request<{ results: SignerCertificate[] }>(`${gstBase()}/certificates/`),
   registerCertificate: (data: { user_email: string; file: File; label?: string; is_test?: boolean }) => {
     const form = new FormData();
