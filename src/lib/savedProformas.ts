@@ -6,7 +6,9 @@ import {
   type ProformaLineItemStored,
 } from "@/lib/proformaInvoiceStorage";
 
-export const MY_PROFORMAS_PATH = "/my-proforma-invoices";
+export const PROFORMA_PAGE_PATH = "/proforma-invoice";
+/** The "My proforma invoices" tab of the Proforma invoice page (the old /my-proforma-invoices redirects here). */
+export const MY_PROFORMAS_PATH = "/proforma-invoice?tab=saved";
 export const STAFF_PROFORMAS_PATH = "/admin-settings/proforma-invoices";
 
 /** Tone of each proforma state badge (backend proforma_store.STATE_LABELS keys). */

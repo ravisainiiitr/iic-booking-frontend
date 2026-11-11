@@ -24,7 +24,6 @@ const EmailVerificationCallback = lazyPage(() => import("@/pages/EmailVerificati
 const SelfVerify = lazyPage(() => import("@/pages/SelfVerify"));
 const Dashboard = lazyPage(() => import("@/pages/Dashboard"));
 const ProformaInvoice = lazyPage(() => import("@/pages/ProformaInvoice"));
-const MyProformaInvoices = lazyPage(() => import("@/pages/MyProformaInvoices"));
 const AdminProformaInvoices = lazyPage(() => import("@/pages/AdminProformaInvoices"));
 const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
 const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
@@ -368,7 +367,7 @@ export default function AppRoutes() {
           <Route path="/reports/bookings" element={<ReportBookingsList />} />
           <Route path="/reports/drilldown" element={<ReportDrilldown />} />
           <Route path="/proforma-invoice" element={<ProformaInvoice />} />
-          <Route path="/my-proforma-invoices" element={<MyProformaInvoices />} />
+          <Route path="/my-proforma-invoices" element={<Navigate to="/proforma-invoice?tab=saved" replace />} />
           {/* /admin is deprecated: everything is on /dashboard */}
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
           <Route path="/admin/external-user-management" element={<ExternalUserManagement />} />

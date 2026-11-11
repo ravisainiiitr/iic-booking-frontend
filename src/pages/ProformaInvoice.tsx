@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { localDateStamp } from "@/lib/localDate";
 import { formatINR, formatRupees } from "@/lib/money";
@@ -37,11 +37,14 @@ import {
 import { Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { formatDMY } from "@/lib/dateFormat";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SavedProformasPanel } from "@/components/proforma/SavedProformasPanel";
+import type { SavedProformaInvoice } from "@/lib/api";
 import {
   clearRevisingProforma,
-  MY_PROFORMAS_PATH,
   readRevisingProforma,
   saveBlob,
+  startRevising,
   type RevisingProforma,
 } from "@/lib/savedProformas";
 
@@ -83,6 +86,18 @@ type LineItemResult = {
 
 export default function ProformaInvoice() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "saved" ? "saved" : "create";
+  const showTab = (next: "create" | "saved") =>
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        if (next === "saved") out.set("tab", "saved");
+        else out.delete("tab");
+        return out;
+      },
+      { replace: true },
+    );
   const [equipmentList, setEquipmentList] = useState<
     Array<{ equipment_id: number; code: string; name: string; internal_department: number | null }>
   >([]);
@@ -105,6 +120,15 @@ export default function ProformaInvoice() {
   // Set when the user chose Edit on a saved proforma: downloading then issues its revision.
   const [revising, setRevising] = useState<RevisingProforma | null>(() => readRevisingProforma());
 
+  const editSaved = (pi: SavedProformaInvoice) => {
+    startRevising(pi);
+    setLineItems(readProformaLineItemsFromStorage());
+    setRevising(readRevisingProforma());
+    setResult(null);
+    showTab("create");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const stopRevising = () => {
     clearRevisingProforma();
     setRevising(null);
@@ -118,7 +142,7 @@ export default function ProformaInvoice() {
         : list.length === 1
           ? `${verb}: proforma ${list[0]}. It is kept under My proforma invoices, where you can pay, edit or cancel it.`
           : `${verb}.`,
-      { action: list.length ? { label: "Open", onClick: () => navigate(MY_PROFORMAS_PATH) } : undefined, duration: 8000 },
+      { action: list.length ? { label: "Open", onClick: () => showTab("saved") } : undefined, duration: 8000 },
     );
   };
 
@@ -265,6 +289,16 @@ export default function ProformaInvoice() {
         <StandaloneOnly>
           <h1 className="mb-4 text-2xl font-bold tracking-tight">Proforma invoice</h1>
         </StandaloneOnly>
+
+        <Tabs value={tab} onValueChange={(v) => showTab(v === "saved" ? "saved" : "create")} className="space-y-4">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="create">Create proforma</TabsTrigger>
+            <TabsTrigger value="saved">My proforma invoices</TabsTrigger>
+          </TabsList>
+          <TabsContent value="saved" className="mt-0">
+            <SavedProformasPanel onEdit={editSaved} />
+          </TabsContent>
+          <TabsContent value="create" className="mt-0">
 
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
@@ -578,7 +612,7 @@ export default function ProformaInvoice() {
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
                     Each proforma is saved under{" "}
-                    <button type="button" className="underline" onClick={() => navigate(MY_PROFORMAS_PATH)}>
+                    <button type="button" className="underline" onClick={() => showTab("saved")}>
                       My proforma invoices
                     </button>
                     , where you can pay it online, record an offline payment, edit or cancel it. Equipment of different
@@ -589,6 +623,8 @@ export default function ProformaInvoice() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
