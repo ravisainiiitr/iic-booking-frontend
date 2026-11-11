@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import MyProformaInvoices from "./MyProformaInvoices";
-import AdminProformaInvoices from "./AdminProformaInvoices";
+import { SavedProformasPanel } from "./SavedProformasPanel";
+import AdminProformaInvoices from "@/pages/AdminProformaInvoices";
+import ProformaInvoice from "@/pages/ProformaInvoice";
 import { readRevisingProforma } from "@/lib/savedProformas";
 import { readProformaLineItemsFromStorage } from "@/lib/proformaInvoiceStorage";
 
@@ -17,6 +18,8 @@ const api = vi.hoisted(() => ({
   payProformaInvoiceOnline: vi.fn(),
   recordProformaOfflinePayment: vi.fn(),
   getDepartmentsForRecharge: vi.fn(),
+  getEquipments: vi.fn(),
+  proformaInvoiceCalculate: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ user: { user_type: "external" } as { user_type: string } }));
 const navigate = vi.hoisted(() => vi.fn());
@@ -28,6 +31,7 @@ vi.mock("react-router-dom", async (orig) => ({
   ...(await orig<typeof import("react-router-dom")>()),
   useNavigate: () => navigate,
 }));
+vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/PageShell", () => ({
   PageShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   PageHero: ({ title }: { title: string }) => <h1>{title}</h1>,
@@ -80,6 +84,7 @@ beforeEach(() => {
   sessionStorage.clear();
   api.getProformaInvoice.mockResolvedValue({ data: { ...pi(), history: [{ at: "2026-11-11T09:00:00Z", action: "issued", detail: {}, actor: "Acme" }] } });
   api.getDepartmentsForRecharge.mockResolvedValue({ data: { departments: [] } });
+  api.getEquipments.mockResolvedValue({ data: [] });
 });
 
 afterEach(() => {
@@ -87,10 +92,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const onEdit = vi.fn();
+
 function renderMine() {
   return render(
     <MemoryRouter>
-      <MyProformaInvoices />
+      <SavedProformasPanel onEdit={onEdit} />
     </MemoryRouter>,
   );
 }
@@ -139,11 +146,39 @@ describe("My proforma invoices", () => {
     await waitFor(() => expect(api.cancelProformaInvoice).toHaveBeenCalledWith(7, "Not needed"));
   });
 
-  it("edit loads the equipment and inputs into the proforma page and marks the revision", async () => {
+  it("edit hands the proforma to the page", async () => {
     api.getMyProformaInvoices.mockResolvedValue({ data: { results: [pi()], states: {} } });
     renderMine();
     fireEvent.click(await screen.findByRole("button", { name: /Edit/ }));
-    expect(navigate).toHaveBeenCalledWith("/proforma-invoice");
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+  });
+});
+
+describe("Proforma invoice page", () => {
+  function renderPage(path: string) {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <ProformaInvoice />
+      </MemoryRouter>,
+    );
+  }
+
+  it("has the create and saved tabs, and ?tab=saved opens My proforma invoices", async () => {
+    api.getMyProformaInvoices.mockResolvedValue({ data: { results: [pi()], states: {} } });
+    renderPage("/proforma-invoice?tab=saved");
+    expect(screen.getByRole("tab", { name: "Create proforma" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "My proforma invoices" }).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText("IIC-PI-20261111-1430-7F3A")).toBeTruthy();
+  });
+
+  it("edit from the saved tab opens the create tab with the proforma loaded for revision", async () => {
+    api.getMyProformaInvoices.mockResolvedValue({ data: { results: [pi()], states: {} } });
+    api.proformaInvoiceCalculate.mockResolvedValue({ data: { line_items: [], subtotal: "0", total_gst: "0", total_amount: "0" } });
+    window.scrollTo = vi.fn();
+    renderPage("/proforma-invoice?tab=saved");
+    fireEvent.click(await screen.findByRole("button", { name: /Edit/ }));
+    expect(await screen.findByTestId("pi-revising-banner")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Create proforma" }).getAttribute("aria-selected")).toBe("true");
     expect(readRevisingProforma()).toEqual({ id: 7, number: "IIC-PI-20261111-1430-7F3A", department: "Institute Instrumentation Centre" });
     expect(readProformaLineItemsFromStorage()).toEqual([
       { equipment_id: 41, equipment_code: "APREO", equipment_name: "FE-SEM", profile_type: "", input_fields: [], input_values: { A: 15, B: 5 } },

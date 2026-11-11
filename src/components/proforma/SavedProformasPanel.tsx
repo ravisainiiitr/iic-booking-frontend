@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Ban,
   ChevronDown,
   ChevronUp,
@@ -11,12 +9,10 @@ import {
   Landmark,
   Loader2,
   Pencil,
-  Plus,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { heroButtonClass, PageHero, PageShell, StandaloneOnly } from "@/components/PageShell";
 import OfflineRechargeDialog from "@/components/wallet/OfflineRechargeDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,15 +32,16 @@ import { apiClient, type SavedProformaInvoice } from "@/lib/api";
 import { checkoutBranding } from "@/lib/institutionIdentity";
 import { loadRazorpayScript } from "@/lib/razorpay";
 import { isExternalBookingUserType } from "@/lib/userTypes";
-import { downloadSavedProforma, MY_PROFORMAS_PATH, PROFORMA_STATE_FILTERS, rupees, startRevising } from "@/lib/savedProformas";
+import { downloadSavedProforma, MY_PROFORMAS_PATH, PROFORMA_STATE_FILTERS, rupees } from "@/lib/savedProformas";
 import { ProformaDetails, ProformaStateBadge } from "@/components/proforma/SavedProformaParts";
 
 function when(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export default function MyProformaInvoices() {
-  const navigate = useNavigate();
+/** The user's saved proformas, shown as the "My proforma invoices" tab of the Proforma invoice page. ``onEdit``
+ * loads one into the Create tab, where downloading issues its revision. */
+export function SavedProformasPanel({ onEdit }: { onEdit: (pi: SavedProformaInvoice) => void }) {
   const { user } = useAuth();
   // Offline payment against a receipt is open to external users (as on the Wallet page).
   const canPayOffline = isExternalBookingUserType((user as { user_type?: string } | null)?.user_type);
@@ -88,11 +85,6 @@ export default function MyProformaInvoices() {
     setCancelling(null);
     setReason("");
     void load();
-  };
-
-  const edit = (pi: SavedProformaInvoice) => {
-    startRevising(pi);
-    navigate("/proforma-invoice");
   };
 
   const payOnline = async () => {
@@ -143,29 +135,7 @@ export default function MyProformaInvoices() {
   };
 
   return (
-    <PageShell>
-      <main className="container mx-auto max-w-5xl space-y-4 px-3 py-4 sm:px-4 sm:py-5">
-        <StandaloneOnly>
-          <PageHero
-            compact
-            title="My Proforma Invoices"
-            description="Every proforma you have downloaded: pay it online, record an offline payment, edit or cancel it."
-            icon={<FileText className="h-5 w-5" />}
-            actions={
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className={heroButtonClass.secondary} onClick={() => navigate("/dashboard")}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
-                <Button size="sm" className={heroButtonClass.primary} onClick={() => navigate("/proforma-invoice")}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New proforma
-                </Button>
-              </div>
-            }
-          />
-        </StandaloneOnly>
-
+    <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Proforma state">
             {PROFORMA_STATE_FILTERS.map((f) => (
@@ -199,7 +169,7 @@ export default function MyProformaInvoices() {
         ) : rows.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              No proforma invoices yet. Proformas you download from the Proforma invoice page are kept here.
+              No proforma invoices yet. Every proforma you download from the Create proforma tab is kept here.
             </CardContent>
           </Card>
         ) : (
@@ -247,7 +217,7 @@ export default function MyProformaInvoices() {
                         </>
                       ) : null}
                       {pi.state.can_edit ? (
-                        <Button size="sm" variant="outline" onClick={() => edit(pi)}>
+                        <Button size="sm" variant="outline" onClick={() => onEdit(pi)}>
                           <Pencil className="mr-1.5 h-4 w-4" /> Edit
                         </Button>
                       ) : null}
@@ -269,7 +239,6 @@ export default function MyProformaInvoices() {
             })}
           </div>
         )}
-      </main>
 
       <Dialog open={Boolean(cancelling)} onOpenChange={(next) => !busy && !next && setCancelling(null)}>
         <DialogContent>
@@ -336,6 +305,6 @@ export default function MyProformaInvoices() {
             : null
         }
       />
-    </PageShell>
+    </div>
   );
 }

@@ -56,7 +56,6 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "booking_templates",
       "booking_attempt_log",
       "proforma_invoice",
-      "my_proforma_invoices",
       "browse_equipment",
     ],
   },
