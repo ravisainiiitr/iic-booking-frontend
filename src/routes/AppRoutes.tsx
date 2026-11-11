@@ -24,6 +24,8 @@ const EmailVerificationCallback = lazyPage(() => import("@/pages/EmailVerificati
 const SelfVerify = lazyPage(() => import("@/pages/SelfVerify"));
 const Dashboard = lazyPage(() => import("@/pages/Dashboard"));
 const ProformaInvoice = lazyPage(() => import("@/pages/ProformaInvoice"));
+const MyProformaInvoices = lazyPage(() => import("@/pages/MyProformaInvoices"));
+const AdminProformaInvoices = lazyPage(() => import("@/pages/AdminProformaInvoices"));
 const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
 const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
 const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
@@ -365,6 +367,7 @@ export default function AppRoutes() {
           <Route path="/reports/bookings" element={<ReportBookingsList />} />
           <Route path="/reports/drilldown" element={<ReportDrilldown />} />
           <Route path="/proforma-invoice" element={<ProformaInvoice />} />
+          <Route path="/my-proforma-invoices" element={<MyProformaInvoices />} />
           {/* /admin is deprecated: everything is on /dashboard */}
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
           <Route path="/admin/external-user-management" element={<ExternalUserManagement />} />
@@ -453,6 +456,7 @@ export default function AppRoutes() {
           <Route path="/admin-settings/wallet-payment-modes" element={<AdminWalletPaymentModes />} />
           <Route path="/admin-settings/receipt-template" element={<AdminReceiptTemplate />} />
           <Route path="/admin-settings/offline-recharges" element={<AdminOfflineRecharges />} />
+          <Route path="/admin-settings/proforma-invoices" element={<AdminProformaInvoices />} />
           <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
           <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/sric-wallet-recharges" element={<AdminWalletRechargeRequests />} />
