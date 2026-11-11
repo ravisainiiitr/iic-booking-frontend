@@ -12,6 +12,7 @@ import {
   summarizeRechargeRequests,
 } from "@/lib/walletRecharge";
 import RechargeWalletDialog from "@/components/wallet/RechargeWalletDialog";
+import OfflineRechargePanel from "@/components/wallet/OfflineRechargePanel";
 import SupervisorInviteSection from "@/components/wallet/SupervisorInvite";
 import {
   DEFAULT_WALLET_MODE_FLAGS,
@@ -1768,6 +1769,7 @@ const Wallet = () => {
 
         <ReturnToBookingBanner />
         <DirectRechargeEntry />
+        {isExternalUser && !isShared ? <OfflineRechargePanel onCredited={() => void fetchWalletData()} /> : null}
         <div className="mb-5">
           <PaymentReceiptsList />
         </div>

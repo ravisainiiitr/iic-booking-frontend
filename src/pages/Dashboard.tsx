@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, QrCode as QrCodeIcon } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
+import { OFFLINE_RECHARGES_ADMIN_PATH } from "@/lib/offlineRecharge";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
@@ -203,6 +204,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   [SRIC_WALLET_RECHARGES_PATH]: {
     title: "SRIC Wallet Recharges",
     description: "Recharges read from the SRIC Wallet_Recharge.csv: credit, reject or verify each row.",
+  },
+  [OFFLINE_RECHARGES_ADMIN_PATH]: {
+    title: "Offline Payment Recharges",
+    description: "External users' wallet recharges paid offline: approve or reject, then reconcile with the funds received.",
   },
   "/admin-settings/receipt-template": {
     title: "Receipt Template",
@@ -2104,6 +2109,43 @@ const Dashboard = () => {
                 </Button>
               </CardContent>
             </Card>
+      ),
+    },
+    {
+      id: "offline_payment_recharges",
+      label: "Offline payment recharges",
+      path: OFFLINE_RECHARGES_ADMIN_PATH,
+      visible: Boolean(isAdmin || isDeptAdmin || isAccountsInChargeUser),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH)}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                <Landmark className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">Offline payment recharges</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  External users' NEFT, UPI, DD and cheque payments: check the receipt, approve, reconcile
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH);
+              }}
+            >
+              Review requests
+            </Button>
+          </CardContent>
+        </Card>
       ),
     },
     {
@@ -4721,6 +4763,33 @@ const Dashboard = () => {
               <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">
                 Review &amp; verify
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith(OFFLINE_RECHARGES_ADMIN_PATH) ? "page" : undefined}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+            onClick={() => openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH)}
+            onKeyDown={activateOnEnterOrSpace}
+            data-testid="accounts-offline-recharges-card"
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                  <Landmark className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Offline payment recharges</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    External users' offline payments: approve, reject and reconcile
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full">Review requests</Button>
             </CardContent>
           </Card>
 
