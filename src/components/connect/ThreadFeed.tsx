@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
+import DOMPurify from "dompurify";
+import { BadgeCheck, CheckCircle2, ChevronLeft, ChevronRight, Filter, Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { THREAD_TYPES, connectApi, type FeedParams, type Paginated, type ThreadCard as ThreadCardData } from "@/lib/connectApi";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { THREAD_TYPES, connectApi, type CommunitySummary, type FeedParams, type Paginated, type SearchHit } from "@/lib/connectApi";
 import { cn } from "@/lib/utils";
 import { EmptyState, InlineError, ThreadCard, ThreadListSkeleton } from "./connectUi";
 
@@ -26,22 +28,65 @@ const STATUS: Array<{ value: string; label: string }> = [
   { value: "unanswered", label: "Unanswered" },
 ];
 
-const PARAM_KEYS = ["q", "type", "status", "sort", "tag", "equipment", "category", "scope", "mine", "bookmarked", "following", "author", "from", "to", "page"] as const;
+const PARAM_KEYS = ["q", "type", "status", "sort", "tag", "equipment", "category", "scope", "mine", "bookmarked", "following", "author", "from", "to", "page", "known_problem"] as const;
 
 /** Thread feed whose filters live in the URL, so links like /connect/search?status=solved are shareable. */
+/** Search highlight: only <mark> survives (the server already escaped everything else). */
+function Snippet({ html }: { html: string }) {
+  const safe = useMemo(() => DOMPurify.sanitize(html, { ALLOWED_TAGS: ["mark"], ALLOWED_ATTR: [] }), [html]);
+  if (!safe) return null;
+  return (
+    <p
+      className="line-clamp-3 text-sm text-muted-foreground [&_mark]:rounded [&_mark]:bg-amber-200/70 [&_mark]:px-0.5 [&_mark]:text-foreground dark:[&_mark]:bg-amber-500/30"
+      dangerouslySetInnerHTML={{ __html: safe }}
+    />
+  );
+}
+
+function HitExtras({ hit }: { hit: SearchHit }) {
+  if (!hit.snippet_html && !hit.accepted_answer) return null;
+  return (
+    <div className="-mt-1 space-y-2 rounded-b-xl border border-t-0 bg-muted/20 px-4 pb-3 pt-2.5">
+      {hit.snippet_html ? (
+        <div>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {hit.matched_in === "reply" ? "Matched in a reply" : "Matched in the discussion"}
+          </p>
+          <Snippet html={hit.snippet_html} />
+        </div>
+      ) : null}
+      {hit.accepted_answer ? (
+        <div className="rounded-md border-l-2 border-emerald-400 bg-background/70 px-2.5 py-1.5 text-xs">
+          <p className="flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Accepted answer
+          </p>
+          <p className="mt-0.5 line-clamp-2">{hit.accepted_answer.excerpt}</p>
+          <p className="mt-0.5 inline-flex items-center gap-1 text-muted-foreground">
+            {hit.accepted_answer.badge ? <BadgeCheck className="h-3 w-3 text-primary" aria-hidden /> : null}
+            {hit.accepted_answer.author}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ThreadFeed({
   community,
   categories,
+  communities,
   showCommunity = true,
   showScope = true,
 }: {
   community?: string;
   categories?: Array<{ slug: string; name: string }>;
+  /** Readable communities, for the community filter on the search page. */
+  communities?: CommunitySummary[];
   showCommunity?: boolean;
   showScope?: boolean;
 }) {
   const [params, setParams] = useSearchParams();
-  const [data, setData] = useState<Paginated<ThreadCardData> | null>(null);
+  const [data, setData] = useState<Paginated<SearchHit> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qDraft, setQDraft] = useState(params.get("q") ?? "");
 
@@ -52,6 +97,7 @@ export function ThreadFeed({
       if (v) p[key] = v;
     }
     if (community) p.community = community;
+    else if (params.get("community")) p.community = params.get("community");
     if (p.q && !p.sort) p.sort = "relevance";
     return p as FeedParams;
   }, [params, community]);
@@ -60,7 +106,8 @@ export function ThreadFeed({
     let alive = true;
     setData(null);
     setError(null);
-    void connectApi.threads(feedParams).then((res) => {
+    const load = feedParams.q ? connectApi.search(feedParams) : connectApi.threads(feedParams);
+    void load.then((res) => {
       if (!alive) return;
       if (res.error) setError(res.error);
       setData(res.data ?? { count: 0, next: null, previous: null, results: [] });
@@ -169,6 +216,7 @@ export function ThreadFeed({
             </SelectContent>
           </Select>
         ) : null}
+        <MoreFilters params={params} update={update} communities={community ? undefined : communities} />
         <div className="ml-auto">
           <Select value={feedParams.sort || "latest"} onValueChange={(v) => update({ sort: v === "latest" ? null : v })}>
             <SelectTrigger className="h-9 w-[11.5rem]" aria-label="Sort">
@@ -197,7 +245,10 @@ export function ThreadFeed({
           </p>
           <div className="space-y-3">
             {data.results.map((t) => (
-              <ThreadCard key={t.id} thread={t} showCommunity={showCommunity} />
+              <div key={t.id}>
+                <ThreadCard thread={t} showCommunity={showCommunity} />
+                <HitExtras hit={t} />
+              </div>
             ))}
           </div>
           {pageCount > 1 ? (
@@ -225,6 +276,7 @@ export function ThreadFeed({
 
 const CHIP_LABELS: Record<string, (v: string) => string> = {
   tag: (v) => `#${v}`,
+  known_problem: () => "Known problems",
   equipment: () => "This equipment",
   mine: () => "Started by me",
   bookmarked: () => "Bookmarked",
@@ -251,5 +303,89 @@ function ActiveFilterChips({ params, onClear }: { params: URLSearchParams; onCle
         </button>
       ))}
     </div>
+  );
+}
+
+/** Group, date range and tag filters, kept in the URL like the others. */
+function MoreFilters({
+  params,
+  update,
+  communities,
+}: {
+  params: URLSearchParams;
+  update: (changes: Record<string, string | null>) => void;
+  communities?: CommunitySummary[];
+}) {
+  const [tag, setTag] = useState(params.get("tag") ?? "");
+  const active = ["community", "from", "to", "tag", "known_problem"].filter((k) => params.get(k)).length;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5">
+          <SlidersHorizontal className="h-4 w-4" aria-hidden /> More filters{active ? ` (${active})` : ""}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 space-y-3" align="start">
+        {communities?.length ? (
+          <div className="space-y-1">
+            <label className="text-xs font-medium" htmlFor="connect-filter-community">
+              Community
+            </label>
+            <Select value={params.get("community") || "all"} onValueChange={(v) => update({ community: v === "all" ? null : v })}>
+              <SelectTrigger id="connect-filter-community" className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All communities</SelectItem>
+                {communities.map((c) => (
+                  <SelectItem key={c.slug} value={c.slug}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium" htmlFor="connect-filter-from">
+              From
+            </label>
+            <Input id="connect-filter-from" type="date" className="h-9" value={params.get("from") ?? ""} onChange={(e) => update({ from: e.target.value || null })} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium" htmlFor="connect-filter-to">
+              To
+            </label>
+            <Input id="connect-filter-to" type="date" className="h-9" value={params.get("to") ?? ""} onChange={(e) => update({ to: e.target.value || null })} />
+          </div>
+        </div>
+        <form
+          className="space-y-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            update({ tag: tag.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-") || null });
+          }}
+        >
+          <label className="text-xs font-medium" htmlFor="connect-filter-tag">
+            Tag
+          </label>
+          <div className="flex gap-2">
+            <Input id="connect-filter-tag" className="h-9" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="e.g. calibration" />
+            <Button type="submit" size="sm" variant="secondary" className="h-9">
+              Apply
+            </Button>
+          </div>
+        </form>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={params.get("known_problem") === "1"}
+            onChange={(e) => update({ known_problem: e.target.checked ? "1" : null })}
+          />
+          Known problems only
+        </label>
+      </PopoverContent>
+    </Popover>
   );
 }

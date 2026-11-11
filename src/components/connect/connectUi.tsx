@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -157,7 +157,13 @@ export function ThreadCard({ thread, showCommunity = true }: { thread: ThreadCar
       {thread.excerpt ? <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{thread.excerpt}</p> : null}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
-          <span className="font-medium text-foreground">{thread.author.name}</span>
+          <Link
+            to={`/connect/search?author=${thread.author.id}`}
+            className="relative z-10 font-medium text-foreground hover:underline"
+            title={`Discussions started by ${thread.author.name}`}
+          >
+            {thread.author.name}
+          </Link>
           <RoleBadge badge={thread.author.badge} />
         </span>
         {showCommunity ? (
@@ -167,7 +173,11 @@ export function ThreadCard({ thread, showCommunity = true }: { thread: ThreadCar
         ) : null}
         {thread.category ? <span>{thread.category.name}</span> : null}
         {thread.equipment?.name ? (
-          <Link to={`/equipment/${thread.equipment.id}`} className="relative z-10 hover:text-foreground hover:underline">
+          <Link
+            to={`/connect/search?equipment=${thread.equipment.id}`}
+            className="relative z-10 hover:text-foreground hover:underline"
+            title={`Discussions about ${thread.equipment.name}`}
+          >
             {thread.equipment.name}
           </Link>
         ) : null}
@@ -237,7 +247,19 @@ const NAV = [
   { to: connectPaths.mine, label: "My Discussions", icon: MessageSquare },
 ];
 
+/** Several sections share /connect/search and differ only by query string, so match on path and query. */
+function useNavActive() {
+  const location = useLocation();
+  return (to: string, end?: boolean) => {
+    const [path, search = ""] = to.split("?");
+    if (search) return location.pathname === path && new URLSearchParams(location.search).toString() === new URLSearchParams(search).toString();
+    if (path === "/connect/search") return location.pathname === path && !location.search;
+    return end ? location.pathname === path : location.pathname.startsWith(path);
+  };
+}
+
 function LeftNav({ communities }: { communities?: CommunitySummary[] }) {
+  const isActive = useNavActive();
   const groups = (communities ?? []).filter((c) => c.kind === "group");
   const general = (communities ?? []).find((c) => c.kind === "general");
   return (
@@ -245,19 +267,17 @@ function LeftNav({ communities }: { communities?: CommunitySummary[] }) {
       <ul className="space-y-0.5">
         {NAV.map((item) => (
           <li key={item.to}>
-            <NavLink
+            <Link
               to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-muted hover:text-foreground",
-                  isActive && "bg-primary/10 font-medium text-primary dark:text-sky-200",
-                )
-              }
+              aria-current={isActive(item.to, item.end) ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-muted hover:text-foreground",
+                isActive(item.to, item.end) && "bg-primary/10 font-medium text-primary dark:text-sky-200",
+              )}
             >
               <item.icon className="h-4 w-4" aria-hidden />
               {item.label}
-            </NavLink>
+            </Link>
           </li>
         ))}
       </ul>
@@ -308,24 +328,23 @@ function LeftNav({ communities }: { communities?: CommunitySummary[] }) {
 
 /** Small screens: the left navigation becomes one scrollable row of links above the content. */
 function MobileNav() {
+  const isActive = useNavActive();
   return (
     <nav aria-label="IITR Connect sections" className="-mx-4 mb-4 overflow-x-auto px-4 lg:hidden">
       <ul className="flex w-max gap-1.5">
         {NAV.map((item) => (
           <li key={item.to}>
-            <NavLink
+            <Link
               to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-3 text-sm text-muted-foreground",
-                  isActive && "border-primary/40 bg-primary/10 font-medium text-primary dark:text-sky-200",
-                )
-              }
+              aria-current={isActive(item.to, item.end) ? "page" : undefined}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border bg-card px-3 text-sm text-muted-foreground",
+                isActive(item.to, item.end) && "border-primary/40 bg-primary/10 font-medium text-primary dark:text-sky-200",
+              )}
             >
               <item.icon className="h-4 w-4" aria-hidden />
               {item.label}
-            </NavLink>
+            </Link>
           </li>
         ))}
       </ul>

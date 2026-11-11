@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   follow: vi.fn(),
   bookmark: vi.fn(),
   react: vi.fn(),
+  search: vi.fn(),
+  suggest: vi.fn(),
 }));
 
 vi.mock("@/lib/connectApi", async (orig) => {
@@ -42,6 +44,8 @@ import { cleanPostHtml } from "@/components/connect/PostBody";
 import { ThreadCard } from "@/components/connect/connectUi";
 import { query, type ThreadCard as ThreadCardData } from "@/lib/connectApi";
 import ConnectHome from "./ConnectHome";
+import ConnectSearch from "./ConnectSearch";
+import { SimilarDiscussions } from "@/components/connect/SimilarDiscussions";
 import ConnectNewThread from "./ConnectNewThread";
 import ConnectThread from "./ConnectThread";
 
@@ -106,6 +110,8 @@ beforeEach(() => {
   api.saveDraft.mockResolvedValue({ data: { context_key: "new", updated_at: new Date().toISOString() } });
   api.threads.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [] } });
   api.community.mockResolvedValue({ data: { ...communities[1], categories: [], equipment: [], staff: [] } });
+  api.suggest.mockResolvedValue({ data: { results: [] } });
+  api.search.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [], facets: {} } });
 });
 afterEach(() => {
   cleanup();
@@ -285,5 +291,65 @@ describe("ConnectThread", () => {
     fireEvent.click(screen.getByRole("button", { name: "Post reply" }));
     await waitFor(() => expect(api.reply).toHaveBeenCalledWith(7, "<p>Try a longer warm-up</p>", null, []));
     expect(await screen.findByText("Try a longer warm-up")).toBeTruthy();
+  });
+});
+
+describe("Search (M6)", () => {
+  it("uses the search endpoint for a query and shows only <mark> from the snippet", async () => {
+    api.search.mockResolvedValue({
+      data: {
+        count: 1, next: null, previous: null, facets: {},
+        results: [{
+          ...card(),
+          matched_in: "reply",
+          snippet_html: 'run the <mark>tube</mark> conditioning <img src=x onerror=alert(1)><script>alert(2)</script>',
+          accepted_answer: { post_id: 4, excerpt: "Run the conditioning routine first.", author: "Mohan Lal", badge: "Lab Operator (Lab In-charge)", resolution_hours: 3 },
+        }],
+      },
+    });
+    const { container } = render(
+      <MemoryRouter initialEntries={["/connect/search?q=tube"]}>
+        <Routes>
+          <Route path="/connect/search" element={<ConnectSearch />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Matched in a reply")).toBeTruthy();
+    await waitFor(() => expect(api.search).toHaveBeenCalledWith(expect.objectContaining({ q: "tube", sort: "relevance" })));
+    expect(api.threads).not.toHaveBeenCalled();
+    expect(container.querySelector("mark")?.textContent).toBe("tube");
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("script")).toBeNull();
+    expect(screen.getByText("Run the conditioning routine first.")).toBeTruthy();
+  });
+
+  it("suggests similar discussions with the accepted answer while typing a title", async () => {
+    api.suggest.mockResolvedValue({
+      data: {
+        results: [{
+          ...card({ title: "Baseline drift on the SmartLab detector" }),
+          accepted_answer: { post_id: 4, excerpt: "Condition the tube for an hour.", author: "Mohan Lal", badge: "Lab Operator (Lab In-charge)", resolution_hours: 5 },
+        }],
+      },
+    });
+    render(
+      <MemoryRouter>
+        <SimilarDiscussions title="Detector baseline drift" community="xrd-3" equipmentId={38} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Baseline drift on the SmartLab detector", {}, { timeout: 2000 })).toBeTruthy();
+    expect(api.suggest).toHaveBeenCalledWith("Detector baseline drift", "xrd-3", 38);
+    expect(screen.getByText("Condition the tube for an hour.")).toBeTruthy();
+    expect(screen.getByText(/solved in 5 h/)).toBeTruthy();
+  });
+
+  it("does not ask for suggestions for very short titles", async () => {
+    render(
+      <MemoryRouter>
+        <SimilarDiscussions title="Drift" />
+      </MemoryRouter>,
+    );
+    await new Promise((r) => setTimeout(r, 600));
+    expect(api.suggest).not.toHaveBeenCalled();
   });
 });

@@ -36,7 +36,7 @@ export default function ConnectSearch() {
         </div>
       }
     >
-      <ThreadFeed />
+      <ThreadFeed communities={communities} />
     </ConnectShell>
   );
 }

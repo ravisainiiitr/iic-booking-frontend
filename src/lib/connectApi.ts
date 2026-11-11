@@ -135,6 +135,25 @@ export interface ThreadCard {
   unread: boolean;
 }
 
+export interface AcceptedPreview {
+  post_id: number;
+  excerpt: string;
+  author: string;
+  badge: string;
+  resolution_hours: number | null;
+}
+
+/** Search hit: a thread card plus where it matched, a safe highlighted snippet and the accepted answer preview. */
+export interface SearchHit extends ThreadCard {
+  matched_in?: "discussion" | "reply" | "details";
+  snippet_html?: string;
+  accepted_answer?: AcceptedPreview | null;
+}
+
+export interface SearchPage extends Paginated<SearchHit> {
+  facets: { types?: Partial<Record<ThreadType, number>>; solved?: number };
+}
+
 export interface AttachmentRef {
   id: string;
   name: string;
@@ -317,6 +336,9 @@ export const connectApi = {
   mentionCandidates: (slug: string, q: string) =>
     request<{ results: AuthorRef[] }>(`communities/${encodeURIComponent(slug)}/mention-candidates/${query({ q })}`),
   threads: (params: FeedParams = {}) => request<Paginated<ThreadCard>>(`threads/${query(params)}`),
+  search: (params: FeedParams = {}) => request<SearchPage>(`search/${query(params)}`),
+  suggest: (title: string, community?: string | null, equipment?: number | null) =>
+    request<{ results: SearchHit[] }>(`suggest/${query({ title, community: community ?? undefined, equipment: equipment ?? undefined })}`),
   thread: (id: number) => request<ThreadDetail>(`threads/${id}/`),
   createThread: (input: ThreadInput) => send<ThreadDetail>("POST", "threads/", input),
   editThread: (id: number, input: Partial<Pick<ThreadInput, "title" | "body" | "tags" | "category_id" | "attachments">> & { reason?: string }) =>
