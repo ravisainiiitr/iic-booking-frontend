@@ -32,6 +32,13 @@ const api = vi.hoisted(() => ({
   articleRevisions: vi.fn(),
   equipmentDiscussions: vi.fn(),
   staffTools: vi.fn(),
+  confirmResolved: vi.fn(),
+  acknowledge: vi.fn(),
+  acknowledgements: vi.fn(),
+  notifications: vi.fn(),
+  markNotificationsRead: vi.fn(),
+  notificationPrefs: vi.fn(),
+  saveNotificationPrefs: vi.fn(),
 }));
 
 vi.mock("@/lib/connectApi", async (orig) => {
@@ -57,6 +64,7 @@ import ConnectHome from "./ConnectHome";
 import ConnectSearch from "./ConnectSearch";
 import ConnectArticle from "./ConnectArticle";
 import { EquipmentDiscussionsPanel } from "@/components/connect/EquipmentDiscussionsPanel";
+import ConnectNotifications from "./ConnectNotifications";
 import { SimilarDiscussions } from "@/components/connect/SimilarDiscussions";
 import ConnectNewThread from "./ConnectNewThread";
 import ConnectThread from "./ConnectThread";
@@ -564,5 +572,97 @@ describe("Equipment Discussions panel and staff tools (M8)", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole("button", { name: /Staff tools/ })).toBeTruthy();
+  });
+});
+
+describe("Resolved, announcements and notifications (M9, M10)", () => {
+  const opening = {
+    id: 70, is_opening: true, parent_id: null, author: { id: 1, name: "Me", badge: "" }, is_verified_response: false,
+    body_html: "<p>q</p>", visibility: "visible", created_at: new Date().toISOString(), edited_at: null, edit_count: 0,
+    helpful_count: 0, reactions: {}, my_reactions: [], attachments: [], is_accepted: false, can_edit: true, can_delete: false,
+  };
+  const solution = (over = {}) => ({
+    post_id: 71, solver: { id: 3, name: "Mohan Lal", badge: "Lab Operator (Lab In-charge)" }, accepted_by: "Dr. Rao",
+    accepted_by_author: false, accepted_at: new Date().toISOString(), resolution_hours: 2,
+    resolved_by_author: false, resolved_at: null, can_confirm_resolved: true, ...over,
+  });
+  const detail = (over = {}) => ({
+    ...card({ author: { id: 1, name: "Me", badge: "" } }), opening_post: opening, poll: null, accepted_post_id: 71, articles: [], announcement: null,
+    permissions: { can_reply: true, can_moderate: false, can_edit: true, can_delete: false, can_accept: true, can_curate: false },
+    solution: solution(), ...over,
+  });
+  const renderThread = () =>
+    render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  beforeEach(() => api.posts.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [] } }));
+
+  it("lets the person who asked confirm a moderator-accepted answer as Resolved", async () => {
+    api.thread.mockResolvedValue({ data: detail() });
+    api.confirmResolved.mockResolvedValue({
+      data: detail({ is_resolved: true, solution: solution({ resolved_by_author: true, resolved_at: new Date().toISOString(), can_confirm_resolved: false }) }),
+    });
+    renderThread();
+    expect(await screen.findByText(/Waiting for the person who asked to confirm/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Mark as Resolved/ }));
+    await waitFor(() => expect(api.confirmResolved).toHaveBeenCalledWith(7));
+    expect(await screen.findByText(/Confirmed by the person who asked/)).toBeTruthy();
+    expect(screen.getAllByText("Resolved").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Mark as Resolved/ })).toBeNull();
+  });
+
+  it("shows the Resolved badge on cards instead of Solved", () => {
+    render(
+      <MemoryRouter>
+        <ThreadCard thread={card({ is_solved: true, is_resolved: true })} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Resolved")).toBeTruthy();
+    expect(screen.queryByText("Solved")).toBeNull();
+  });
+
+  it("asks for acknowledgement of an announcement", async () => {
+    api.thread.mockResolvedValue({
+      data: detail({
+        type: "announcement", solution: null, accepted_post_id: null,
+        announcement: { priority: "important", expires_at: null, is_expired: false, requires_acknowledgement: true, target_equipment: null, acknowledged: false },
+      }),
+    });
+    api.acknowledge.mockResolvedValue({
+      data: detail({
+        type: "announcement", solution: null, accepted_post_id: null,
+        announcement: { priority: "important", expires_at: null, is_expired: false, requires_acknowledgement: true, target_equipment: null, acknowledged: true },
+      }),
+    });
+    renderThread();
+    expect(await screen.findByText("Important announcement")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "I have read this" }));
+    expect(await screen.findByText("You acknowledged this")).toBeTruthy();
+  });
+
+  it("lists notifications and saves preferences", async () => {
+    api.notifications.mockResolvedValue({
+      data: { count: 1, next: null, previous: null, unread_count: 1, results: [{ id: 5, event: "reply", title: "Hari replied to your discussion", message: "LC-MS sensitivity (Mass Spec)", link: "/connect/t/7#post-9", actor: "Hari", created_at: new Date().toISOString(), read: false }] },
+    });
+    const prefs = {
+      email_mode: "daily", in_app_enabled: true, muted_events: [], auto_follow_own_threads: true, auto_follow_replied_threads: true,
+      events: [{ key: "reply", label: "New reply in a thread you started" }], email_modes: [{ key: "immediate", label: "Immediately" }, { key: "daily", label: "Daily digest" }],
+    };
+    api.notificationPrefs.mockResolvedValue({ data: prefs });
+    api.saveNotificationPrefs.mockResolvedValue({ data: { ...prefs, email_mode: "immediate" } });
+    render(
+      <MemoryRouter>
+        <ConnectNotifications />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Hari replied to your discussion")).toBeTruthy();
+    expect(screen.getByText("1 unread")).toBeTruthy();
+    fireEvent.click(await screen.findByLabelText("Immediately"));
+    await waitFor(() => expect(api.saveNotificationPrefs).toHaveBeenCalledWith({ email_mode: "immediate" }));
   });
 });

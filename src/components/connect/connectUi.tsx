@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   BadgeCheck,
+  Bell,
   Bookmark,
   BookOpen,
   CheckCircle2,
@@ -89,6 +90,18 @@ export function RoleBadge({ badge }: { badge: string }) {
   );
 }
 
+/** The person who asked confirmed the answer resolved their question: the strongest signal, shown prominently. */
+export function ResolvedBadge() {
+  return (
+    <Chip
+      title="The person who asked confirmed this answer resolved it"
+      className="border-emerald-600 bg-emerald-600 text-white dark:border-emerald-500 dark:bg-emerald-600"
+    >
+      <BadgeCheck className="h-3 w-3" aria-hidden /> Resolved
+    </Chip>
+  );
+}
+
 export function SolvedBadge() {
   return (
     <Chip className="border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200">
@@ -105,7 +118,7 @@ export function StatusChips({ thread }: { thread: ThreadCardData }) {
           <Pin className="h-3 w-3" aria-hidden /> Pinned
         </Chip>
       ) : null}
-      {thread.is_solved ? <SolvedBadge /> : null}
+      {thread.is_resolved ? <ResolvedBadge /> : thread.is_solved ? <SolvedBadge /> : null}
       {thread.status === "locked" ? (
         <Chip className="border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-300">
           <Lock className="h-3 w-3" aria-hidden /> Locked
@@ -243,6 +256,7 @@ const NAV = [
   { to: connectPaths.communities, label: "My Communities", icon: Users },
   { to: "/connect/search?type=question,technical_issue", label: "Technical Support", icon: Wrench },
   { to: "/connect/search?status=solved&sort=solved", label: "Solved", icon: CheckCircle2 },
+  { to: "/connect/notifications", label: "Notifications", icon: Bell },
   { to: "/connect/knowledge", label: "Knowledge Hub", icon: BookOpen },
   { to: "/connect/search?type=announcement", label: "Announcements", icon: Sparkles },
   { to: connectPaths.bookmarks, label: "Bookmarks", icon: Bookmark },

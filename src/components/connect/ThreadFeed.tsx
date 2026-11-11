@@ -24,6 +24,7 @@ const SORTS: Array<{ value: NonNullable<FeedParams["sort"]>; label: string }> = 
 const STATUS: Array<{ value: string; label: string }> = [
   { value: "", label: "Any status" },
   { value: "solved", label: "Solved" },
+  { value: "resolved", label: "Resolved by asker" },
   { value: "unsolved", label: "Unsolved" },
   { value: "unanswered", label: "Unanswered" },
 ];

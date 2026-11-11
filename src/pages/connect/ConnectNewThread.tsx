@@ -52,6 +52,11 @@ export default function ConnectNewThread() {
   const [attachments, setAttachments] = useState<AttachmentRef[]>([]);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [follow, setFollow] = useState(true);
+  const [priority, setPriority] = useState<"normal" | "important" | "critical">("normal");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [requiresAck, setRequiresAck] = useState(false);
+  const [targetEquipment, setTargetEquipment] = useState<number | null>(null);
+  const [pin, setPin] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -158,6 +163,15 @@ export default function ConnectNewThread() {
       attachments: attachments.map((a) => a.id),
       poll_options: type === "poll" ? pollOptions.map((o) => o.trim()).filter(Boolean) : undefined,
       follow,
+      ...(type === "announcement"
+        ? {
+            priority,
+            expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+            requires_acknowledgement: requiresAck,
+            target_equipment_id: targetEquipment,
+            pin,
+          }
+        : {}),
     });
     setSubmitting(false);
     if (!res.data) {
@@ -325,6 +339,58 @@ export default function ConnectNewThread() {
             <p className="text-xs text-destructive">{fieldError("body") || fieldError("attachments")}</p>
           ) : null}
         </div>
+
+        {type === "announcement" ? (
+          <fieldset className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <legend className="px-1 text-sm font-medium">Announcement settings</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="connect-priority">Priority</Label>
+                <Select value={priority} onValueChange={(v) => setPriority(v as typeof priority)}>
+                  <SelectTrigger id="connect-priority">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="important">Important</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="connect-expires">Show until (optional)</Label>
+                <Input id="connect-expires" type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} aria-invalid={Boolean(fieldError("expires_at"))} />
+                {fieldError("expires_at") ? <p className="text-xs text-destructive">{fieldError("expires_at")}</p> : null}
+              </div>
+            </div>
+            {equipment.length ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="connect-target">Notify only users of</Label>
+                <Select value={targetEquipment ? String(targetEquipment) : "all"} onValueChange={(v) => setTargetEquipment(v === "all" ? null : Number(v))}>
+                  <SelectTrigger id="connect-target">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Everyone in this community</SelectItem>
+                    {equipment.map((e) => (
+                      <SelectItem key={e.equipment_id} value={String(e.equipment_id)}>
+                        {e.name} ({e.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Targeting changes who is notified, not who can read it.</p>
+              </div>
+            ) : null}
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={requiresAck} onCheckedChange={(v) => setRequiresAck(v === true)} /> Ask people to acknowledge they have read it
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={pin} onCheckedChange={(v) => setPin(v === true)} /> Pin to the top of the community
+            </label>
+            <p className="text-xs text-muted-foreground">Announcements never change bookings or instrument availability.</p>
+          </fieldset>
+        ) : null}
 
         {type === "poll" ? (
           <fieldset className="space-y-2">

@@ -125,6 +125,8 @@ export interface ThreadCard {
   is_pinned: boolean;
   is_solvable: boolean;
   is_solved: boolean;
+  /** The person who asked confirmed the accepted answer resolved it. */
+  is_resolved?: boolean;
   solved_at: string | null;
   is_known_problem: boolean;
   has_workaround: boolean;
@@ -224,6 +226,41 @@ export interface SolutionSummary {
   accepted_by_author: boolean;
   accepted_at: string;
   resolution_hours: number;
+  resolved_by_author: boolean;
+  resolved_at: string | null;
+  can_confirm_resolved: boolean;
+}
+
+export interface AnnouncementInfo {
+  priority: "normal" | "important" | "critical";
+  expires_at: string | null;
+  is_expired: boolean;
+  requires_acknowledgement: boolean;
+  target_equipment: { id: number; name: string } | null;
+  acknowledged: boolean;
+  acknowledged_count?: number;
+  audience_count?: number;
+}
+
+export interface ConnectNotification {
+  id: number;
+  event: string;
+  title: string;
+  message: string;
+  link: string;
+  actor: string;
+  created_at: string;
+  read: boolean;
+}
+
+export interface NotificationPrefs {
+  email_mode: "immediate" | "daily" | "weekly" | "off";
+  in_app_enabled: boolean;
+  muted_events: string[];
+  auto_follow_own_threads: boolean;
+  auto_follow_replied_threads: boolean;
+  events: Array<{ key: string; label: string }>;
+  email_modes: Array<{ key: string; label: string }>;
 }
 
 export interface ThreadDetail extends ThreadCard {
@@ -231,6 +268,7 @@ export interface ThreadDetail extends ThreadCard {
   poll: PollView | null;
   accepted_post_id: number | null;
   solution: SolutionSummary | null;
+  announcement?: AnnouncementInfo | null;
   articles: Array<{ id: number; title: string; status: ArticleStatus }>;
   permissions: {
     can_reply: boolean;
@@ -308,6 +346,11 @@ export interface ThreadInput {
   poll_options?: string[];
   poll_closes_at?: string | null;
   follow?: boolean;
+  priority?: AnnouncementInfo["priority"];
+  expires_at?: string | null;
+  requires_acknowledgement?: boolean;
+  target_equipment_id?: number | null;
+  pin?: boolean;
 }
 
 export interface DraftPayload {
@@ -333,7 +376,7 @@ export type FeedParams = Partial<{
   mine: boolean;
   bookmarked: boolean;
   following: boolean;
-  status: "solved" | "unsolved" | "unanswered";
+  status: "solved" | "resolved" | "unsolved" | "unanswered";
   known_problem: boolean;
   from: string;
   to: string;
@@ -454,6 +497,17 @@ export const connectApi = {
   ) => send<ThreadDetail>("PATCH", `threads/${threadId}/staff/`, changes),
   acceptSolution: (threadId: number, postId: number) => send<ThreadDetail>("POST", `threads/${threadId}/solution/`, { post_id: postId }),
   revokeSolution: (threadId: number) => send<ThreadDetail>("DELETE", `threads/${threadId}/solution/`, {}),
+  confirmResolved: (threadId: number) => send<ThreadDetail>("PUT", `threads/${threadId}/solution/`, {}),
+  acknowledge: (threadId: number) => send<ThreadDetail>("POST", `threads/${threadId}/acknowledge/`),
+  acknowledgements: (threadId: number) =>
+    request<{ results: Array<{ user_id: number; name: string; acknowledged_at: string }> }>(`threads/${threadId}/acknowledge/`),
+  notifications: (params: { page?: number; unread?: boolean } = {}) =>
+    request<Paginated<ConnectNotification> & { unread_count: number }>(`notifications/${query(params)}`),
+  markNotificationsRead: (ids: number[] | "all") =>
+    send<{ marked: number }>("POST", "notifications/read/", ids === "all" ? { all: true } : { ids }),
+  notificationPrefs: () => request<NotificationPrefs>("notifications/preferences/"),
+  saveNotificationPrefs: (input: Partial<Omit<NotificationPrefs, "events" | "email_modes">>) =>
+    send<NotificationPrefs>("PUT", "notifications/preferences/", input),
   articles: (params: Partial<{ status: "published" | "workflow" | ArticleStatus; community: string; equipment: number; tag: string; q: string; guidance: boolean; page: number }> = {}) =>
     request<Paginated<ArticleCard>>(`articles/${query(params)}`),
   article: (id: number) => request<ArticleDetail>(`articles/${id}/`),

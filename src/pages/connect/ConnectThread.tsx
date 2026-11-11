@@ -54,6 +54,7 @@ import {
   ConnectShell,
   ConnectUnavailable,
   EmptyState,
+  ResolvedBadge,
   RoleBadge,
   SideCard,
   StatusChips,
@@ -65,6 +66,47 @@ import { ConnectEditor } from "@/components/connect/ConnectEditor";
 import { AttachmentList, PostBody } from "@/components/connect/PostBody";
 import { timeAgo, useConnectAvailability } from "@/components/connect/useConnect";
 import { useAuth } from "@/contexts/AuthContext";
+
+const PRIORITY_STYLE: Record<string, string> = {
+  normal: "border-sky-200 bg-sky-50/70 text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100",
+  important: "border-amber-300 bg-amber-50/80 text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100",
+  critical: "border-rose-300 bg-rose-50/80 text-rose-900 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-100",
+};
+
+function AnnouncementBanner({ info, onAcknowledge }: { info: NonNullable<ThreadDetail["announcement"]>; onAcknowledge: () => void }) {
+  return (
+    <section aria-label="Announcement" className={cn("rounded-xl border p-4", PRIORITY_STYLE[info.priority] ?? PRIORITY_STYLE.normal)}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">
+          {info.priority === "critical" ? "Critical announcement" : info.priority === "important" ? "Important announcement" : "Announcement"}
+          {info.target_equipment ? ` · for users of ${info.target_equipment.name}` : ""}
+        </p>
+        <p className="text-xs">
+          {info.is_expired ? "Expired" : info.expires_at ? `Until ${new Date(info.expires_at).toLocaleString()}` : "No expiry"}
+        </p>
+      </div>
+      {info.requires_acknowledgement ? (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {info.acknowledged ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4" aria-hidden /> You acknowledged this
+            </span>
+          ) : (
+            <Button size="sm" onClick={onAcknowledge}>
+              I have read this
+            </Button>
+          )}
+          {info.audience_count != null ? (
+            <span className="text-xs">
+              {info.acknowledged_count ?? 0} of {info.audience_count} acknowledged
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      <p className="mt-2 text-xs opacity-80">Announcements never change bookings or instrument availability.</p>
+    </section>
+  );
+}
 
 function formatHours(h: number): string {
   if (h < 1) return "under an hour";
@@ -125,6 +167,7 @@ function PostCard({
   onChanged,
   onDeleted,
   onAccept,
+  isAsker = false,
 }: {
   post: PostView;
   community: string;
@@ -135,6 +178,8 @@ function PostCard({
   onDeleted: (p: PostView) => void;
   /** Shown to the thread's author and moderators on Question / Technical Issue threads. */
   onAccept?: (p: PostView) => void;
+  /** The viewer started the thread (accepting marks it Resolved). */
+  isAsker?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(post.body_html);
@@ -253,7 +298,7 @@ function PostCard({
           <div className="flex items-center gap-1">
             {onAccept && !post.is_opening && !post.is_accepted && !hidden ? (
               <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300" onClick={() => onAccept(post)}>
-                <CircleCheck className="h-3.5 w-3.5" aria-hidden /> Accept as solution
+                <CircleCheck className="h-3.5 w-3.5" aria-hidden /> {isAsker ? "This solved it: mark Resolved" : "Accept as solution"}
               </Button>
             ) : null}
             {onReply ? (
@@ -601,6 +646,17 @@ export default function ConnectThread() {
         </div>
       </header>
 
+      {thread.announcement ? (
+        <AnnouncementBanner
+          info={thread.announcement}
+          onAcknowledge={async () => {
+            const res = await connectApi.acknowledge(thread.id);
+            if (!res.data) toast.error(res.error || "Could not record your acknowledgement.");
+            else setThread(res.data);
+          }}
+        />
+      ) : null}
+
       <PostCard
         post={opening}
         community={thread.community.slug}
@@ -615,8 +671,18 @@ export default function ConnectThread() {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h2 className="flex items-center gap-2 text-base font-semibold text-emerald-800 dark:text-emerald-200">
-                <CheckCircle2 className="h-5 w-5" aria-hidden /> Solved
+                <CheckCircle2 className="h-5 w-5" aria-hidden /> {thread.solution.resolved_by_author ? "Resolved" : "Solved"}
+                {thread.solution.resolved_by_author ? <ResolvedBadge /> : null}
               </h2>
+              {thread.solution.resolved_by_author ? (
+                <p className="mt-0.5 text-xs font-medium text-emerald-900 dark:text-emerald-200">
+                  Confirmed by the person who asked: this answer resolved their question.
+                </p>
+              ) : (
+                <p className="mt-0.5 text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                  Accepted by a moderator. Waiting for the person who asked to confirm it resolved their question.
+                </p>
+              )}
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-emerald-900/80 dark:text-emerald-200/80">
                 <span className="inline-flex items-center gap-1">
                   Answer by <span className="font-medium">{thread.solution.solver.name}</span>
@@ -628,6 +694,23 @@ export default function ConnectThread() {
                 </span>
               </p>
             </div>
+            <div className="flex flex-wrap gap-2">
+            {thread.solution.can_confirm_resolved ? (
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={async () => {
+                  const res = await connectApi.confirmResolved(thread.id);
+                  if (!res.data) toast.error(res.error || "Could not mark this as resolved.");
+                  else {
+                    setThread(res.data);
+                    toast.success("Marked as resolved. Thank you for closing the loop.");
+                  }
+                }}
+              >
+                <BadgeCheck className="h-4 w-4" aria-hidden /> Mark as Resolved
+              </Button>
+            ) : null}
             {thread.permissions.can_accept ? (
               <Button
                 variant="ghost"
@@ -645,6 +728,7 @@ export default function ConnectThread() {
                 Revoke
               </Button>
             ) : null}
+            </div>
           </div>
           {accepted ? (
             <div className="rounded-lg border bg-card p-3">
@@ -697,8 +781,9 @@ export default function ConnectThread() {
               }
               setThread(res.data);
               setPosts((list) => list.map((x) => ({ ...x, is_accepted: x.id === target.id })));
-              toast.success("Marked as the accepted solution.");
+              toast.success(res.data.is_resolved ? "Marked as resolved." : "Marked as the accepted solution.");
             } : undefined}
+            isAsker={user?.id === thread.author.id}
             onChanged={(updated) => setPosts((list) => list.map((x) => (x.id === updated.id ? updated : x)))}
             onDeleted={(gone) => {
               setPosts((list) => list.filter((x) => x.id !== gone.id));
