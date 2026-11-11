@@ -11,6 +11,8 @@ const m = vi.hoisted(() => ({
   register: vi.fn(),
   gstr1Preview: vi.fn(),
   downloadGstr1: vi.fn(),
+  invoice: vi.fn(),
+  allowCreditNote: vi.fn(),
 }));
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: { getToken: () => "tok" } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -29,6 +31,8 @@ vi.mock("@/lib/gstEinvoiceApi", async (importOriginal) => {
       register: m.register,
       gstr1Preview: m.gstr1Preview,
       downloadGstr1: m.downloadGstr1,
+      invoice: m.invoice,
+      allowCreditNote: m.allowCreditNote,
     },
   };
 });
@@ -94,4 +98,22 @@ describe("GST invoices page", () => {
     fireEvent.click(screen.getByRole("button", { name: /JSON \(offline tool/ }));
     expect(m.downloadGstr1).toHaveBeenCalledWith(expect.any(String), expect.any(String), "json");
   });
+
+  it("lets the Main Administrator allow a credit note for one issued invoice", async () => {
+    m.status.mockResolvedValue({ ...status, can_administer: true, settings: { supplier_legal_name: "IITR", supplier_gstin: "05AAALI0033R1Z5", supplier_pan: "AAALI0033R", supplier_state_code: "05", review_above_amount: "200000.00", auto_issue: true, approver_emails: "" }, tax_rules: [] });
+    m.certificates.mockResolvedValue({ results: [] });
+    const row = { id: 1, number: "EBP/26-27/0001", invoice_date: "2026-11-11", booking_reference: "IICXRF1", is_demo: false, status: "irn_generated", status_label: "E-invoice issued (IRN)", supply_type: "B2B", total: "10620.00", buyer: { name: "Asha Labs Pvt Ltd", gstin: "07AAACX0000X1Z2" } };
+    m.invoices.mockResolvedValue({ results: [row] });
+    const detail = { ...row, doc_type: "INV", booking_id: 7, review_reasons: [], buyer: { ...row.buyer, gstin_status_label: "Format valid", state: "Delhi", state_code: "07", location: "New Delhi" }, place_of_supply: "07", inter_state: true, taxable_value: "9000.00", cgst: "0.00", sgst: "0.00", igst: "1620.00", round_off: "0.00", portal_total: "10620.00", irn: "abc", ack_number: "1", ack_date: null, signed_at: null, signed_by: "", delivered_at: null, created_at: "", has_pdf: true, has_signed_pdf: false, pdf_url: "/x", receipt_number: "", equipment: "", facility: "", fbr_number: "", sric_request_id: 3, invoice_number: "EBP/26-27/0001", mode: "sandbox", provider: "mock", simulated: true, supply_type_label: "", lines: [], events: [], attempts: [], credit_note_permission: null, credit_notes: [] };
+    m.invoice.mockResolvedValue(detail);
+    m.allowCreditNote.mockResolvedValue({ ...detail, credit_note_permission: { enabled_by: "Main Admin", reason: "XRD under maintenance", enabled_at: "2026-11-12T10:00:00+05:30" } });
+    render(<MemoryRouter><GstInvoices /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "EBP/26-27/0001" }));
+    expect(await screen.findByText(/Not allowed: a refund of this booking returns the base amount only/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Reason to allow/), { target: { value: "XRD under maintenance" } });
+    fireEvent.click(screen.getByRole("button", { name: "Allow a credit note on refund" }));
+    expect(m.allowCreditNote).toHaveBeenCalledWith(1, "XRD under maintenance");
+    expect(await screen.findByText(/Allowed by Main Admin/)).toBeTruthy();
+  });
 });
+

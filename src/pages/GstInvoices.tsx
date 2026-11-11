@@ -123,7 +123,79 @@ function BuyerEditor({ inv, onSaved }: { inv: GstInvoice; onSaved: (i: GstInvoic
   );
 }
 
-function InvoiceDialog({ id, canReview, onClose, onChanged }: { id: number; canReview: boolean; onClose: () => void; onChanged: () => void }) {
+function CreditNotePanel({ inv, canAdminister, onChanged }: { inv: GstInvoice; canAdminister: boolean; onChanged: (i: GstInvoice) => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (inv.doc_type === "CRN" || !["irn_generated", "signed"].includes(inv.status) || !inv.booking_id) return null;
+  const perm = inv.credit_note_permission;
+  const act = async (fn: () => Promise<GstInvoice>, done: string) => {
+    setBusy(true);
+    try {
+      onChanged(await fn());
+      setReason("");
+      toast.success(done);
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="space-y-2 rounded-md border p-2" aria-labelledby={`cn-${inv.id}`}>
+      <h3 id={`cn-${inv.id}`} className="font-medium">
+        Credit note on refund
+      </h3>
+      {perm ? (
+        <p>
+          Allowed by {perm.enabled_by} on {when(perm.enabled_at)}: {perm.reason}. A refund of this booking returns the GST too and issues a credit note
+          {inv.credit_remaining ? ` (up to ${rupees(inv.credit_remaining.total)} left to credit)` : ""}.
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          Not allowed: a refund of this booking returns the base amount only, as today. Only the Main Administrator can allow a credit note, for this invoice alone.
+        </p>
+      )}
+      {inv.credit_notes?.length ? (
+        <ul className="list-disc pl-5">
+          {inv.credit_notes.map((n) => (
+            <li key={n.id}>
+              Credit note {n.number}: {rupees(n.total)}, {n.status_label}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {canAdminister ? (
+        <div className="space-y-1">
+          <Label htmlFor={`cn-reason-${inv.id}`}>{perm ? "Reason to withdraw" : "Reason to allow (kept in the audit record)"}</Label>
+          <Textarea id={`cn-reason-${inv.id}`} value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
+          {perm ? (
+            <Button size="sm" variant="outline" disabled={busy || reason.trim().length < 5} onClick={() => act(() => gstEinvoiceApi.revokeCreditNote(inv.id, reason), "Credit note withdrawn.")}>
+              Withdraw
+            </Button>
+          ) : (
+            <Button size="sm" disabled={busy || reason.trim().length < 10} onClick={() => act(() => gstEinvoiceApi.allowCreditNote(inv.id, reason), "Credit note allowed for this invoice.")}>
+              Allow a credit note on refund
+            </Button>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function InvoiceDialog({
+  id,
+  canReview,
+  canAdminister = false,
+  onClose,
+  onChanged,
+}: {
+  id: number;
+  canReview: boolean;
+  canAdminister?: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
   const [inv, setInv] = useState<GstInvoice | null>(null);
   const [remarks, setRemarks] = useState("");
   const [busy, setBusy] = useState(false);
@@ -156,7 +228,7 @@ function InvoiceDialog({ id, canReview, onClose, onChanged }: { id: number; canR
           <>
             <DialogHeader>
               <DialogTitle className="flex flex-wrap items-center gap-2">
-                Invoice {inv.number}
+                {inv.doc_type === "CRN" ? "Credit note" : "Invoice"} {inv.number}
                 <Badge variant={STATUS_TONE[inv.status]}>{inv.status_label}</Badge>
                 <Badge variant="outline">{inv.supply_type === "B2B" ? "e-Invoice (IRN)" : "Tax invoice + DSC"}</Badge>
                 {inv.is_demo ? <Badge variant="outline">Demo buyer</Badge> : null}
@@ -208,6 +280,20 @@ function InvoiceDialog({ id, canReview, onClose, onChanged }: { id: number; canR
                   </div>
                 </div>
               ) : null}
+              {inv.original_invoice ? (
+                <p>
+                  Against invoice {inv.original_invoice.number} dated {inv.original_invoice.date}
+                  {inv.credit_reason ? ` — ${inv.credit_reason}` : ""}
+                </p>
+              ) : null}
+              <CreditNotePanel
+                inv={inv}
+                canAdminister={canAdminister}
+                onChanged={(next) => {
+                  setInv(next);
+                  onChanged();
+                }}
+              />
               {inv.signer_certificate ? (
                 <p className="flex items-center gap-1">
                   <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
@@ -319,7 +405,7 @@ function InvoiceDialog({ id, canReview, onClose, onChanged }: { id: number; canR
 
 // --- tabs ---------------------------------------------------------------------------------------------------------------
 
-function InvoicesTab({ canReview }: { canReview: boolean }) {
+function InvoicesTab({ canReview, canAdminister = false }: { canReview: boolean; canAdminister?: boolean }) {
   const [rows, setRows] = useState<GstInvoice[] | null>(null);
   const [status, setStatus] = useState("");
   const [supply, setSupply] = useState("");
@@ -422,7 +508,7 @@ function InvoicesTab({ canReview }: { canReview: boolean }) {
           )}
         </TableBody>
       </Table>
-      {open !== null ? <InvoiceDialog id={open} canReview={canReview} onClose={() => setOpen(null)} onChanged={load} /> : null}
+      {open !== null ? <InvoiceDialog id={open} canReview={canReview} canAdminister={canAdminister} onClose={() => setOpen(null)} onChanged={load} /> : null}
     </div>
   );
 }
@@ -951,7 +1037,7 @@ export default function GstInvoices() {
               {status.can_review ? (
                 <>
                   <TabsContent value="invoices">
-                    <InvoicesTab key={version} canReview={status.can_review} />
+                    <InvoicesTab key={version} canReview={status.can_review} canAdminister={status.can_administer} />
                   </TabsContent>
                   <TabsContent value="demo">
                     <DemoTab
