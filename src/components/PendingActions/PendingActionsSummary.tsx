@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
 
 import { apiClient, type EquipmentMaintenanceStatus } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -8,19 +8,29 @@ import { PendingActionList, type PendingItem } from "@/components/PendingActions
 import { MaintenanceAttention } from "@/components/PendingActions/MaintenanceAttention";
 
 /**
- * Dashboard banner: how many items need the user's attention, expandable to the full list with links.
+ * Dashboard banner, the one place for everything that needs the user's attention: pending actions, equipment
+ * maintenance and disruptions without a reason (these used to have a separate "Equipment alerts" panel).
+ * Collapsed to one line on every visit; expandable to the full list with links.
  * `excludeKeys` drops items that already have their own card on the same page.
  * `includeMaintenance` (OIC and Lab Operator dashboards) folds the equipment maintenance events in: periods whose
  * expected recovery has passed count as actions; the others are listed under "Maintenance updates".
+ * `showPendingItems` false leaves the pending actions out (the administration overview lists them itself).
+ * `disruptionsMissingReason` adds the disruptions that still need a reason, with `onReviewDisruptions` to open them.
  */
 export default function PendingActionsSummary({
   className = "",
   excludeKeys = [],
   includeMaintenance = false,
+  showPendingItems = true,
+  disruptionsMissingReason = 0,
+  onReviewDisruptions,
 }: {
   className?: string;
   excludeKeys?: string[];
   includeMaintenance?: boolean;
+  showPendingItems?: boolean;
+  disruptionsMissingReason?: number;
+  onReviewDisruptions?: () => void;
 }) {
   const navigate = useNavigate();
   const [allItems, setAllItems] = useState<PendingItem[]>([]);
@@ -29,10 +39,16 @@ export default function PendingActionsSummary({
 
   useEffect(() => {
     let cancelled = false;
-    apiClient.getPendingActions().then((res) => {
-      if (!cancelled) setAllItems(res.data?.items ?? []);
-    });
-    if (includeMaintenance) {
+    if (showPendingItems) {
+      apiClient.getPendingActions().then((res) => {
+        if (!cancelled) setAllItems(res.data?.items ?? []);
+      });
+    } else {
+      setAllItems([]);
+    }
+    if (!includeMaintenance) {
+      setPeriods([]);
+    } else {
       apiClient.getMaintenanceStatus().then((res) => {
         if (!cancelled) setPeriods(res.data?.periods ?? []);
       });
@@ -40,7 +56,7 @@ export default function PendingActionsSummary({
     return () => {
       cancelled = true;
     };
-  }, [includeMaintenance]);
+  }, [includeMaintenance, showPendingItems]);
 
   const excludeKey = excludeKeys.join("|");
   const items = useMemo(
@@ -50,12 +66,14 @@ export default function PendingActionsSummary({
 
   const maintenanceActions = periods.filter((p) => p.action_required).length;
   const maintenanceUpdates = periods.length - maintenanceActions;
-  if (items.length === 0 && periods.length === 0) return null;
-  const total = items.reduce((sum, i) => sum + i.count, 0) + maintenanceActions;
+  const disruptions = Math.max(0, disruptionsMissingReason || 0);
+  if (items.length === 0 && periods.length === 0 && disruptions === 0) return null;
+  const total = items.reduce((sum, i) => sum + i.count, 0) + maintenanceActions + disruptions;
   const summary = [
     ...items.map((i) => `${i.label} (${i.count})`),
     ...(maintenanceActions ? [`Maintenance action (${maintenanceActions})`] : []),
     ...(maintenanceUpdates ? [`Maintenance updates (${maintenanceUpdates})`] : []),
+    ...(disruptions ? [`Disruptions without a reason (${disruptions})`] : []),
   ].join(" · ");
 
   return (
@@ -103,6 +121,24 @@ export default function PendingActionsSummary({
         <div className="mt-3 space-y-3">
           {items.length ? <PendingActionList items={items} onOpen={(link) => navigate(link)} /> : null}
           <MaintenanceAttention periods={periods} show="updates" />
+          {disruptions ? (
+            <div
+              className="rounded-lg border border-amber-400 bg-white/80 px-3 py-2 text-sm dark:border-amber-500/50 dark:bg-amber-500/10"
+              data-testid="attention-disruptions"
+            >
+              <p>
+                <strong>
+                  {disruptions} disruption{disruptions === 1 ? "" : "s"} need{disruptions === 1 ? "s" : ""} a reason.
+                </strong>{" "}
+                Recording why equipment was unavailable keeps the downtime history useful.
+              </p>
+              {onReviewDisruptions ? (
+                <Button size="sm" className="mt-2 h-8 gap-1 bg-amber-600 text-white hover:bg-amber-700" onClick={onReviewDisruptions}>
+                  Review disruptions <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
