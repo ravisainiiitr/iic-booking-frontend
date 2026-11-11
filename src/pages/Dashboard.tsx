@@ -51,7 +51,6 @@ import {
   showsBookingsAwaitingCompletion,
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
-import OperationsAlerts from "@/components/dashboard/OperationsAlerts";
 import OrcidPromptBanner from "@/components/impact/OrcidPromptBanner";
 import AuthorConfirmPrompt from "@/components/impact/AuthorConfirmPrompt";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
@@ -68,6 +67,7 @@ import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/B
 import { EXTERNAL_BOOKED_COLOR, LabOperatorWeekCalendarGrid, PENDING_COLOR } from "@/components/LabOperatorWeekCalendarGrid";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { LabCalendarColorConfig } from "@/components/LabCalendarColorConfig";
+import { CalendarKeyPanel } from "@/components/dashboard/CalendarKeyPanel";
 import {
   LabCalendarSlotActions,
   isDashboardSelectableSlot,
@@ -594,7 +594,8 @@ const Dashboard = () => {
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Operator. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
-  const [labColorsOpen, setLabColorsOpen] = useRememberedOpen("lab-dash-calendar-colours", user?.id, false);
+  // Not remembered: the calendar colours start collapsed on every visit.
+  const [labColorsOpen, setLabColorsOpen] = useState(false);
   /** Collapsed by default for Lab Operators; OICs keep it open until they collapse it. */
   const [labOverviewOpen, setLabOverviewOpen] = useRememberedOpen(
     "lab-dash-booking-overview",
@@ -1648,8 +1649,8 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
-    const { channelISignedOut } = await logout();
-    navigate(channelISignedOut ? "/" : "/auth");
+    const { channelISession } = await logout();
+    navigate(channelISession ? "/" : "/auth");
   };
 
   const openWorkspace = useCallback((to: string, title?: string) => {
@@ -4561,9 +4562,26 @@ const Dashboard = () => {
   // Dashboard home only, between the page header card and the first section; each renders nothing when empty.
   // The administration overview lists pending actions under its own "Needs attention".
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
+  // One "Needs your attention" panel for every user type: pending actions, equipment maintenance and disruptions
+  // without a reason. On the administration overview it carries only the equipment part, as the overview lists
+  // pending actions under its own "Needs attention".
+  // OIC of at least one equipment in view, with the full calendar: may select free slots to block or open them.
+  const labSlotSelectionAllowed =
+    isOicUser &&
+    !labCalendarBookedOnly &&
+    labEquipmentSummariesForScope.some((eq) => labManageableEquipmentIds.has(eq.equipment_id));
+  const attentionPanel = (
+    <PendingActionsSummary
+      excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]}
+      includeMaintenance={maintenanceShown.inAttention || maintenanceShown.banner}
+      showPendingItems={!showAdminOverview}
+      disruptionsMissingReason={!workspacePath && disruptionAttention?.enabled ? disruptionAttention.reason_missing : 0}
+      onReviewDisruptions={() => openWorkspace("/disruptions?reason_missing=1")}
+    />
+  );
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={maintenanceShown.inAttention} />
+      {attentionPanel}
       {loginTip}
     </>
   );
@@ -4957,15 +4975,6 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {/* Equipment under maintenance and disruptions without a reason, together in one collapsed panel. OIC and
-            Lab Operator dashboards show maintenance inside "Needs your attention" instead; disruptions are a home
-            page reminder only. */}
-        <OperationsAlerts
-          className="mb-4"
-          showMaintenance={maintenanceShown.banner}
-          disruptionsMissingReason={!workspacePath && disruptionAttention?.enabled ? disruptionAttention.reason_missing : 0}
-          onReviewDisruptions={() => openWorkspace("/disruptions?reason_missing=1")}
-        />
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
         {/* External users see their bookings first: the app card is not for them, and the ORCID prompt and
@@ -5151,7 +5160,12 @@ const Dashboard = () => {
                 <AdminOverview
                   onOpen={(path) => openWorkspace(path)}
                   canOpen={canOpenMenuPath}
-                  notices={loginTip}
+                  notices={
+                    <>
+                      {attentionPanel}
+                      {loginTip}
+                    </>
+                  }
                 />
               </Suspense>
             ) : !showsLabStyleDashboard && !userCards && (
@@ -5341,9 +5355,7 @@ const Dashboard = () => {
                               ))
                             )}
                           </div>
-                          {isOicUser &&
-                          !labCalendarBookedOnly &&
-                          labEquipmentSummariesForScope.some((eq) => labManageableEquipmentIds.has(eq.equipment_id)) ? (
+                          {labSlotSelectionAllowed && labSelectedSlotCount > 0 ? (
                             <LabCalendarSlotActions
                               selectedCount={labSelectedSlotCount}
                               busy={labSlotActionBusy}
@@ -5352,15 +5364,25 @@ const Dashboard = () => {
                             />
                           ) : null}
                           {disruptionPrompt.element}
-                          <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
-                          <LabCalendarColorConfig
-                            equipmentId={labColorConfigEquipmentId}
-                            equipmentLabel={labColorConfigEquipmentLabel}
-                            onColorsChange={setLabBookingLegendColors}
-                            onSaved={applyLabBookingColors}
-                            open={labColorsOpen}
-                            onOpenChange={setLabColorsOpen}
-                          />
+                          {/* Hint, legend and colours: collapsed on every visit for a clean dashboard. */}
+                          <CalendarKeyPanel>
+                            {labSlotSelectionAllowed ? (
+                              <LabCalendarSlotActions
+                                selectedCount={0}
+                                onApply={() => undefined}
+                                onClear={() => undefined}
+                              />
+                            ) : null}
+                            <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
+                            <LabCalendarColorConfig
+                              equipmentId={labColorConfigEquipmentId}
+                              equipmentLabel={labColorConfigEquipmentLabel}
+                              onColorsChange={setLabBookingLegendColors}
+                              onSaved={applyLabBookingColors}
+                              open={labColorsOpen}
+                              onOpenChange={setLabColorsOpen}
+                            />
+                          </CalendarKeyPanel>
                         </div>
                       </>
                     )}
