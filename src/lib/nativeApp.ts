@@ -1,5 +1,5 @@
 /**
- * Integration with the IIC Booking Android/iOS app (a Capacitor shell that loads this site).
+ * Integration with the IITR Equipment Booking Android/iOS app (a Capacitor shell that loads this site).
  *
  * Everything here is a no-op in a normal browser. Inside the app, the native layer keeps a
  * device-bound refresh token in the phone's keystore and hands this page only short-lived
@@ -99,7 +99,7 @@ function bridge(): CapacitorBridge | null {
 
 function callNative<T>(plugin: string, method: string, options: Record<string, unknown> = {}): Promise<T> {
   const cap = bridge();
-  if (!cap?.nativePromise) return Promise.reject(new Error("Not running in the IIC Booking app"));
+  if (!cap?.nativePromise) return Promise.reject(new Error("Not running in the IITR Equipment Booking app"));
   return cap.nativePromise<T>(plugin, method, options);
 }
 

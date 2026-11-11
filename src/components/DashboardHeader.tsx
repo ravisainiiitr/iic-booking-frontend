@@ -313,7 +313,7 @@ const DashboardHeader = () => {
         <div className="flex h-14 items-center gap-3 px-4">
           <BackButton />
           <img src={iitrLogo128} width={32} height={32} alt="IIT Roorkee" className="h-8 w-8 shrink-0 object-contain" />
-          <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IIC Booking</span>
+          <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IITR Equipment Booking</span>
           {isOnDashboard ? null : <GlobalSearchButton wideFrom="xl" />}
           <NotificationBell />
         </div>
