@@ -110,7 +110,7 @@ export default function AndroidAppCard({ className }: { className?: string }) {
           </div>
         </div>
         <div className="hidden shrink-0 flex-col items-center gap-1 sm:flex">
-          <QrCode value={APP_DOWNLOAD_PAGE_URL} size={112} label="QR code for the IIC Booking app download page" className="rounded-lg border border-border bg-white" />
+          <QrCode value={APP_DOWNLOAD_PAGE_URL} size={112} label="QR code for the IITR Equipment Booking app download page" className="rounded-lg border border-border bg-white" />
           <span className="text-[11px] text-muted-foreground">Scan with your phone</span>
         </div>
       </div>

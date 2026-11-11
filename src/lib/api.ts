@@ -5093,7 +5093,7 @@ class ApiClient {
           const message =
             typeof (data as { error?: unknown }).error === "string"
               ? (data as { error: string }).error
-              : "The IIC Booking app is not available for this account.";
+              : "The IITR Equipment Booking app is not available for this account.";
           if (isNativeApp()) markAppAudienceRefused(message);
           return { error: message, status: 403, errorCode: APP_AUDIENCE_CODE };
         }
@@ -6122,7 +6122,7 @@ class ApiClient {
     return this.request<WhatsAppOptIn>('/whatsapp/me/verify/confirm/', { method: 'POST', body: JSON.stringify({ otp }) });
   }
 
-  /** Phones signed in through the IIC Booking app (each can be signed out remotely). */
+  /** Phones signed in through the IITR Equipment Booking app (each can be signed out remotely). */
   async listMobileDevices() {
     return this.request<{ results: MobileDeviceSession[] }>('/auth/mobile/devices/');
   }
