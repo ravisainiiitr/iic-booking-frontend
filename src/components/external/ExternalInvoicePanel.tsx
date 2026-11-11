@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { GstEinvoiceNote } from "./GstEinvoiceNote";
 import {
   externalBookingApi,
   formatInstant,
@@ -129,6 +130,7 @@ export function ExternalInvoicePanel({ bookingId, initialStatus = null }: { book
               Download the official GST invoice{status.document.invoice_number ? ` (${status.document.invoice_number})` : ""}
             </Button>
           ) : null}
+          {status.request ? <GstEinvoiceNote bookingId={bookingId} /> : null}
 
           {!status.request ? (
             <fieldset className="space-y-2">

@@ -365,6 +365,10 @@ export default function AccountsExternalInvoices() {
           Refunds to users' bank accounts go to SRIC in the same weekly batch:{" "}
           <Link to="/accounts/refunds" className="font-medium underline">Refunds to bank accounts</Link>.
         </p>
+        <p className="text-sm">
+          GST invoices the portal prepares itself (e-invoice with IRN, or signed with SRIC's DSC; sandbox demonstration):{" "}
+          <Link to="/accounts/gst-invoices" className="font-medium underline">Portal GST invoices</Link>.
+        </p>
         <Tabs defaultValue={defaultTab}>
           <TabsList>
             <TabsTrigger value="requests">Invoice requests</TabsTrigger>
