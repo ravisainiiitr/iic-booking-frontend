@@ -206,6 +206,8 @@ interface Booking extends BookingRef {
   disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
   maintenance_auto_reschedule_pending?: boolean | null;
+  /** Settled by the OIC / Main Administrator during a maintenance hold: no refund (server-enforced). */
+  refund_locked?: boolean | null;
   auto_reschedule?: AutoReschedulePayload | null;
   maintenance_reschedule_extra_week?: boolean;
   /** When equipment became operational again; used server-side for extra reschedule weeks */
@@ -969,7 +971,7 @@ const MyBookings = () => {
     booking.status?.toUpperCase() === "WAITLISTED" || booking.is_waitlist_entry === true;
 
   const canCancelBooking = (booking: Booking) =>
-    isWaitlistedEntry(booking) || canCancelOrReschedule(booking.status);
+    !booking.refund_locked && (isWaitlistedEntry(booking) || canCancelOrReschedule(booking.status));
 
   /** Rejected by the lab and waiting for new files: the owner may cancel for a full refund at any time. */
   const isFabricationRejected = (booking: Booking) => bookingBadgeStatus(booking) === "FABRICATION_REJECTED";

@@ -78,7 +78,7 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight, Lock } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { IstemAutomaticStatus, istemAutomaticOf, type IstemAutomatic } from "@/components/IstemAutomaticStatus";
 import { EquipmentLink } from "@/components/EquipmentLink";
@@ -117,6 +117,7 @@ import LiveFeedPanel from "@/components/livefeed/LiveFeedPanel";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
 import BookingStatusOverrideDialog, { STATUS_OVERRIDE_SOURCES } from "@/components/booking/BookingStatusOverrideDialog";
+import MaintenanceSettlementDialog, { MAINTENANCE_SETTLEMENT_USER_TYPES } from "@/components/booking/MaintenanceSettlementDialog";
 
 const LabOutreachDialog = lazy(() => import("@/components/booking/LabOutreachDialog"));
 
@@ -302,6 +303,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
   maintenance_auto_reschedule_pending?: boolean | null;
+  /** Settled by the OIC / Main Administrator during a maintenance hold: can no longer be refunded (server-enforced). */
+  refund_locked?: boolean | null;
   auto_reschedule?: AutoReschedulePayload | null;
   /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
@@ -581,6 +584,7 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
       if (traceHasAnalyzed) return false;
       return status === "BOOKED";
     case "refund":
+      if (booking.refund_locked) return false;
       return status !== "REFUNDED" && status !== "COMPLETED";
     case "absent":
       return status === "BOOKED";
@@ -805,6 +809,7 @@ export function BookingDetailCard({
   const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label" | "receipt">(null);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [labFailureOpen, setLabFailureOpen] = useState(false);
+  const [settleOpen, setSettleOpen] = useState(false);
   const [shipmentRefreshKey, setShipmentRefreshKey] = useState(0);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
@@ -2819,7 +2824,44 @@ export function BookingDetailCard({
                   Refund
                 </Button>
               )}
+              {booking.refund_locked && isOperatorOrManager && !isExternalSelfView ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  title="Settled by the Officer In-Charge or the Main Administrator during the equipment maintenance; it can no longer be refunded."
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Refund locked
+                </Button>
+              ) : null}
+              {MAINTENANCE_SETTLEMENT_USER_TYPES.has(normalizedCurrentUserType) &&
+                bookingPk != null &&
+                booking.equipment != null &&
+                booking.status.toUpperCase() === "DISRUPTION_PENDING" &&
+                String(booking.disruption_kind || "").toUpperCase() === "MAINTENANCE" &&
+                !isExternalSelfView ? (
+                <Button size="sm" variant="outline" onClick={() => setSettleOpen(true)}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Settle booking
+                </Button>
+              ) : null}
+              {settleOpen && bookingPk != null && booking.equipment != null ? (
+                <MaintenanceSettlementDialog
+                  open
+                  onOpenChange={setSettleOpen}
+                  equipmentId={Number(booking.equipment)}
+                  equipmentName={booking.equipment_name}
+                  onlyBookingId={Number(bookingPk)}
+                  onSettled={() => {
+                    setSettleOpen(false);
+                    void refreshBookingDetail({ silent: true });
+                    onUpdated();
+                  }}
+                />
+              ) : null}
               {isExternalBookingType && (isManagerOrAdmin || isFinanceUser) && !isExternalSelfView &&
+                !booking.refund_locked &&
                 !["CANCELLED", "REFUNDED", "BOOKING_NOT_UTILIZED"].includes(String(booking.status).toUpperCase()) &&
                 bookingPk != null ? (
                 <Button size="sm" variant="outline" onClick={() => setLabFailureOpen(true)}>
