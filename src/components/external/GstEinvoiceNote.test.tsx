@@ -44,4 +44,15 @@ describe("GST e-invoice note", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(container.innerHTML).toBe("");
   });
+
+  it("lists the booking's credit notes", async () => {
+    m.myBooking.mockResolvedValue({
+      enabled: true,
+      invoice: { ...base, credit_notes: [{ number: "ECN/26-27/0001", date: "2026-11-12", total: "10620.00", status_label: "E-invoice issued (IRN)", issued: true, download_url: "/api/v1/gst-einvoice/invoices/9/pdf/" }] },
+    });
+    render(<GstEinvoiceNote bookingId={7} />);
+    expect(await screen.findByText(/Credit note ECN\/26-27\/0001/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "download" })).toBeTruthy();
+  });
 });
+

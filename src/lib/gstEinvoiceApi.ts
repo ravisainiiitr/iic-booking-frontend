@@ -113,6 +113,9 @@ export interface GstInvoice {
   provider: string;
   simulated: boolean;
   is_demo: boolean;
+  doc_type?: "INV" | "CRN";
+  doc_type_label?: string;
+  original_invoice?: { id: number; number: string; date: string } | null;
   review_reasons: string[];
   buyer: {
     name: string;
@@ -162,6 +165,10 @@ export interface GstInvoice {
   pdf_sha256?: string;
   signed_pdf_sha256?: string;
   review_remarks?: string;
+  credit_reason?: string;
+  credit_note_permission?: { enabled_by: string; reason: string; enabled_at: string } | null;
+  credit_notes?: Array<{ id: number; number: string; status: GstInvoiceStatus; status_label: string; total: string }>;
+  credit_remaining?: { taxable_value: string; total: string };
 }
 
 export interface RegisterRow {
@@ -237,6 +244,7 @@ export interface BuyerGstInvoice {
   total: string;
   receipt_number: string;
   signed_at: string | null;
+  credit_notes?: Array<{ number: string; date: string | null; total: string; status_label: string; issued: boolean; download_url: string | null }>;
   download_url: string | null;
   next_step: string;
 }
@@ -290,6 +298,11 @@ export const gstEinvoiceApi = {
   invoice: (id: number) => request<GstInvoice>(`${gstBase()}/invoices/${id}/`),
   createDemo: (body: DemoInvoiceInput) => request<GstInvoice>(`${gstBase()}/invoices/demo/`, json("POST", body)),
   fromRequest: (requestId: number) => request<GstInvoice>(`${gstBase()}/invoices/from-request/${requestId}/`, json("POST", {})),
+  allowCreditNote: (id: number, reason: string) =>
+    request<GstInvoice>(`${gstBase()}/invoices/${id}/credit-note-permission/`, json("POST", { reason })),
+  revokeCreditNote: (id: number, reason: string) =>
+    request<GstInvoice>(`${gstBase()}/invoices/${id}/credit-note-permission/revoke/`, json("POST", { reason })),
+  downloadDocument: (url: string, name: string) => download(`${API_BASE_URL}${url.replace(/^\/api/, "")}`, name),
   approve: (id: number, remarks: string) => request<GstInvoice>(`${gstBase()}/invoices/${id}/approve/`, json("POST", { remarks })),
   reject: (id: number, remarks: string) => request<GstInvoice>(`${gstBase()}/invoices/${id}/reject/`, json("POST", { remarks })),
   submit: (id: number) => request<GstInvoice>(`${gstBase()}/invoices/${id}/submit/`, json("POST", {})),
