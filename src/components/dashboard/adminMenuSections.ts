@@ -115,6 +115,7 @@ export const ADMIN_MENU_SECTIONS: AdminMenuSection[] = [
       "payment_issues",
       "wallet_recharge_requests",
       "sric_wallet_recharges",
+      "offline_payment_recharges",
       "wallet_payment_modes",
       "receipt_template",
       "wallet_management",

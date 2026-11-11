@@ -10,6 +10,11 @@ import type {
   TicketTriagePreview,
   TicketTriageResponse,
 } from "@/lib/automationTypes";
+import type {
+  OfflineRecharge,
+  OfflineRechargeListResponse,
+  OfflineRechargeQueueResponse,
+} from "@/lib/offlineRecharge";
 import { postFormWithProgress, type UploadProgress } from "@/lib/uploadWithProgress";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
@@ -9874,6 +9879,59 @@ class ApiClient {
       `/wallet/recharge-requests/${requestId}/attach-receipt/`,
       { method: 'POST', body: formData }
     );
+  }
+
+  /** External users: their offline payment recharges, and whether the option is open for them. */
+  async getOfflineRecharges() {
+    return this.request<OfflineRechargeListResponse>(`/wallet/offline-recharge/`);
+  }
+
+  /** External users: declare an offline payment with its receipt (multipart). */
+  async submitOfflineRecharge(form: FormData) {
+    return this.request<{ request: OfflineRecharge; created: boolean; message: string }>(`/wallet/offline-recharge/`, {
+      method: "POST",
+      body: form,
+    });
+  }
+
+  async getOfflineRecharge(id: number) {
+    return this.request<{ request: OfflineRecharge }>(`/wallet/offline-recharge/${id}/`);
+  }
+
+  async cancelOfflineRecharge(id: number) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/cancel/`, {
+      method: "POST",
+    });
+  }
+
+  /** Main Administrator, Department Administrator or Accounts In Charge: requests in their scope. */
+  async getOfflineRechargeQueue(params: { state?: string; q?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set("state", params.state);
+    if (params.q) qs.set("q", params.q);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return this.request<OfflineRechargeQueueResponse>(`/wallet/offline-recharge/queue/${suffix}`);
+  }
+
+  async decideOfflineRecharge(
+    id: number,
+    action: "approve" | "reject",
+    body: { note: string; approved_amount?: string },
+  ) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/${action}/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async reconcileOfflineRecharge(
+    id: number,
+    body: { outcome: "reconciled" | "mismatch"; reference?: string; credit_date?: string; note?: string },
+  ) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/reconcile/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   }
 
   async resendWalletRechargeNotification(requestId: number) {
