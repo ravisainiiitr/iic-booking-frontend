@@ -36,6 +36,7 @@ export default function ConnectNewThread() {
   const [params] = useSearchParams();
   const presetCommunity = params.get("community");
   const presetEquipment = Number(params.get("equipment") || "") || null;
+  const presetCategory = params.get("category");
   const { available, loading } = useConnectAvailability();
 
   const [communities, setCommunities] = useState<CommunitySummary[] | null>(null);
@@ -79,8 +80,12 @@ export default function ConnectNewThread() {
       setDetail(null);
       return;
     }
-    void connectApi.community(communitySlug).then((res) => setDetail(res.data ?? null));
-  }, [communitySlug]);
+    void connectApi.community(communitySlug).then((res) => {
+      setDetail(res.data ?? null);
+      const preset = presetCategory ? res.data?.categories.find((c) => c.slug === presetCategory) : undefined;
+      if (preset) setCategoryId(preset.id);
+    });
+  }, [communitySlug, presetCategory]);
 
   // Keep the equipment choice valid for the chosen group (never send equipment from another group).
   useEffect(() => {

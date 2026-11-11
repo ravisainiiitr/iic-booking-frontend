@@ -16,12 +16,21 @@ import {
   Pencil,
   Reply,
   Share2,
+  ShieldCheck,
   ThumbsUp,
   Trash2,
   Heart,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -534,6 +543,42 @@ export default function ConnectThread() {
           >
             <Share2 className="h-4 w-4" aria-hidden /> Copy link
           </Button>
+          {thread.permissions.can_moderate ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <ShieldCheck className="h-4 w-4" aria-hidden /> Staff tools
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  These labels never change the instrument&apos;s availability or bookings.
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {(
+                  [
+                    ["is_pinned", "Pin to the top of the community", thread.is_pinned],
+                    ["is_known_problem", "Known problem", thread.is_known_problem],
+                    ["has_workaround", "Workaround available", thread.has_workaround],
+                    ["is_outdated", "Outdated guidance", thread.is_outdated],
+                    ["resolved", "Mark issue resolved", Boolean(thread.marked_resolved_at)],
+                  ] as const
+                ).map(([key, label, checked]) => (
+                  <DropdownMenuCheckboxItem
+                    key={key}
+                    checked={checked}
+                    onCheckedChange={async (value) => {
+                      const res = await connectApi.staffTools(thread.id, { [key]: value === true });
+                      if (!res.data) toast.error(res.error || "Could not update this discussion.");
+                      else setThread(res.data);
+                    }}
+                  >
+                    {label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
           {thread.permissions.can_curate ? (
             <Button
               variant="outline"

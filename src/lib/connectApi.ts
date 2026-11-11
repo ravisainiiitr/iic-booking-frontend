@@ -155,6 +155,29 @@ export interface SearchPage extends Paginated<SearchHit> {
   articles?: Array<{ id: number; title: string; summary: string; community: string; is_institutional_guidance: boolean }>;
 }
 
+export type EquipmentDiscussions =
+  | {
+      available: false;
+      reason: "members_only" | "internal_only" | "not_set_up";
+      equipment: EquipmentRef;
+      community_name?: string;
+    }
+  | {
+      available: true;
+      equipment: EquipmentRef;
+      community: { id: number; slug: string; name: string; kind: CommunityKind };
+      category: { slug: string; name: string } | null;
+      can_post: boolean;
+      counts: { threads: number; open_questions: number; solved: number; known_problems: number };
+      note: string;
+      recent: ThreadCard[];
+      questions: ThreadCard[];
+      solutions: ThreadCard[];
+      known_problems: ThreadCard[];
+      announcements: ThreadCard[];
+      articles: ArticleCard[];
+    };
+
 export interface AttachmentRef {
   id: string;
   name: string;
@@ -424,6 +447,11 @@ export const connectApi = {
   follow: (threadId: number, level: "watching" | "muted" | null) =>
     send<{ level: string | null }>("PUT", `threads/${threadId}/follow/`, { level }),
   vote: (threadId: number, optionId: number) => send<PollView>("POST", `threads/${threadId}/vote/`, { option_id: optionId }),
+  equipmentDiscussions: (equipmentId: number) => request<EquipmentDiscussions>(`equipment/${equipmentId}/discussions/`),
+  staffTools: (
+    threadId: number,
+    changes: Partial<{ is_pinned: boolean; is_known_problem: boolean; has_workaround: boolean; is_outdated: boolean; resolved: boolean; reason: string }>,
+  ) => send<ThreadDetail>("PATCH", `threads/${threadId}/staff/`, changes),
   acceptSolution: (threadId: number, postId: number) => send<ThreadDetail>("POST", `threads/${threadId}/solution/`, { post_id: postId }),
   revokeSolution: (threadId: number) => send<ThreadDetail>("DELETE", `threads/${threadId}/solution/`, {}),
   articles: (params: Partial<{ status: "published" | "workflow" | ArticleStatus; community: string; equipment: number; tag: string; q: string; guidance: boolean; page: number }> = {}) =>

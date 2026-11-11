@@ -32,10 +32,11 @@ export const connectPaths = {
   communities: "/connect/communities",
   community: (slug: string) => `/connect/c/${encodeURIComponent(slug)}`,
   thread: (id: number) => `/connect/t/${id}`,
-  newThread: (params: { community?: string; equipment?: number } = {}) => {
+  newThread: (params: { community?: string; equipment?: number; category?: string } = {}) => {
     const sp = new URLSearchParams();
     if (params.community) sp.set("community", params.community);
     if (params.equipment) sp.set("equipment", String(params.equipment));
+    if (params.category) sp.set("category", params.category);
     const s = sp.toString();
     return `/connect/new${s ? `?${s}` : ""}`;
   },

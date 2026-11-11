@@ -30,6 +30,8 @@ const api = vi.hoisted(() => ({
   articleAction: vi.fn(),
   editArticle: vi.fn(),
   articleRevisions: vi.fn(),
+  equipmentDiscussions: vi.fn(),
+  staffTools: vi.fn(),
 }));
 
 vi.mock("@/lib/connectApi", async (orig) => {
@@ -54,6 +56,7 @@ import { query, type ThreadCard as ThreadCardData } from "@/lib/connectApi";
 import ConnectHome from "./ConnectHome";
 import ConnectSearch from "./ConnectSearch";
 import ConnectArticle from "./ConnectArticle";
+import { EquipmentDiscussionsPanel } from "@/components/connect/EquipmentDiscussionsPanel";
 import { SimilarDiscussions } from "@/components/connect/SimilarDiscussions";
 import ConnectNewThread from "./ConnectNewThread";
 import ConnectThread from "./ConnectThread";
@@ -469,5 +472,97 @@ describe("Accepted solutions and Knowledge Hub (M7)", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("This article is not available to you")).toBeTruthy();
+  });
+});
+
+describe("Equipment Discussions panel and staff tools (M8)", () => {
+  const sectionData = (over = {}) => ({
+    available: true,
+    equipment: { id: 38, name: "Rigaku SmartLab", code: "XRD1" },
+    community: { id: 2, slug: "xrd-3", name: "XRD Group", kind: "group" },
+    category: null,
+    can_post: true,
+    counts: { threads: 2, open_questions: 1, solved: 1, known_problems: 1 },
+    note: "Discussions never change this instrument's availability, maintenance status or bookings.",
+    recent: [card({ id: 1, title: "Detector drift" }), card({ id: 2, title: "Tube conditioning tip" })],
+    questions: [card({ id: 1, title: "Detector drift" })],
+    solutions: [card({ id: 2, title: "Tube conditioning tip" })],
+    known_problems: [card({ id: 3, title: "Purge leak", is_known_problem: true })],
+    announcements: [card({ id: 4, title: "Maintenance on Friday", type: "announcement" })],
+    articles: [],
+    ...over,
+  });
+
+  it("shows sections, announcements and a Start a Discussion link pre-filled with the equipment", async () => {
+    api.equipmentDiscussions.mockResolvedValue({ data: sectionData() });
+    render(
+      <MemoryRouter>
+        <EquipmentDiscussionsPanel equipmentId={38} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Discussions about Rigaku SmartLab")).toBeTruthy();
+    expect(screen.getByText("Maintenance on Friday")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Start a Discussion/ }).getAttribute("href")).toBe("/connect/new?community=xrd-3&equipment=38");
+    fireEvent.click(screen.getByRole("tab", { name: /Common problems/ }));
+    expect(await screen.findByText("Purge leak")).toBeTruthy();
+    expect(screen.getByText(/never change this instrument's availability/)).toBeTruthy();
+  });
+
+  it("shows no threads to people outside the group", async () => {
+    api.equipmentDiscussions.mockResolvedValue({
+      data: { available: false, reason: "members_only", equipment: { id: 38, name: "Rigaku SmartLab", code: "XRD1" }, community_name: "XRD Group" },
+    });
+    render(
+      <MemoryRouter>
+        <EquipmentDiscussionsPanel equipmentId={38} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("XRD Group community")).toBeTruthy();
+    expect(screen.getByText(/open to people who have booked/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Start a Discussion/ })).toBeNull();
+  });
+
+  it("starts General Instrumentation threads for ungrouped equipment", async () => {
+    api.equipmentDiscussions.mockResolvedValue({
+      data: sectionData({ community: { id: 1, slug: "general", name: "General IITR Discussions", kind: "general" }, category: { slug: "general-instrumentation", name: "General Instrumentation Discussions" } }),
+    });
+    render(
+      <MemoryRouter>
+        <EquipmentDiscussionsPanel equipmentId={38} />
+      </MemoryRouter>,
+    );
+    const link = await screen.findByRole("link", { name: /Start a Discussion/ });
+    expect(link.getAttribute("href")).toBe("/connect/new?community=general&equipment=38&category=general-instrumentation");
+    expect(screen.getByText(/Visible to IIT Roorkee users/)).toBeTruthy();
+  });
+
+  it("offers staff tools only to moderators", async () => {
+    const opening = {
+      id: 70, is_opening: true, parent_id: null, author: { id: 9, name: "Asha", badge: "" }, is_verified_response: false,
+      body_html: "<p>x</p>", visibility: "visible", created_at: new Date().toISOString(), edited_at: null, edit_count: 0,
+      helpful_count: 0, reactions: {}, my_reactions: [], attachments: [], is_accepted: false, can_edit: false, can_delete: false,
+    };
+    const base = { ...card(), opening_post: opening, poll: null, accepted_post_id: null, solution: null, articles: [] };
+    api.posts.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [] } });
+    api.thread.mockResolvedValue({ data: { ...base, permissions: { can_reply: true, can_moderate: false, can_edit: false, can_delete: false, can_accept: false, can_curate: false } } });
+    const first = render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { level: 1 })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Staff tools/ })).toBeNull();
+    first.unmount();
+    api.thread.mockResolvedValue({ data: { ...base, permissions: { can_reply: true, can_moderate: true, can_edit: false, can_delete: false, can_accept: true, can_curate: true } } });
+    render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("button", { name: /Staff tools/ })).toBeTruthy();
   });
 });
