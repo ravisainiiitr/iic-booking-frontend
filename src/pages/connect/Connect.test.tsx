@@ -39,6 +39,19 @@ const api = vi.hoisted(() => ({
   markNotificationsRead: vi.fn(),
   notificationPrefs: vi.fn(),
   saveNotificationPrefs: vi.fn(),
+  reportReasons: vi.fn(),
+  report: vi.fn(),
+  moderatePost: vi.fn(),
+  lockThread: vi.fn(),
+  moderationQueue: vi.fn(),
+  moderationDashboard: vi.fn(),
+  moderationLog: vi.fn(),
+  communityAdmins: vi.fn(),
+  addCommunityAdmin: vi.fn(),
+  removeCommunityAdmin: vi.fn(),
+  analytics: vi.fn(),
+  settings: vi.fn(),
+  saveSettings: vi.fn(),
 }));
 
 vi.mock("@/lib/connectApi", async (orig) => {
@@ -65,6 +78,8 @@ import ConnectSearch from "./ConnectSearch";
 import ConnectArticle from "./ConnectArticle";
 import { EquipmentDiscussionsPanel } from "@/components/connect/EquipmentDiscussionsPanel";
 import ConnectNotifications from "./ConnectNotifications";
+import ConnectModeration from "./ConnectModeration";
+import ConnectAnalytics from "./ConnectAnalytics";
 import { SimilarDiscussions } from "@/components/connect/SimilarDiscussions";
 import ConnectNewThread from "./ConnectNewThread";
 import ConnectThread from "./ConnectThread";
@@ -664,5 +679,117 @@ describe("Resolved, announcements and notifications (M9, M10)", () => {
     expect(screen.getByText("1 unread")).toBeTruthy();
     fireEvent.click(await screen.findByLabelText("Immediately"));
     await waitFor(() => expect(api.saveNotificationPrefs).toHaveBeenCalledWith({ email_mode: "immediate" }));
+  });
+});
+
+describe("Moderation, analytics and staff navigation (M11, M12)", () => {
+  const opening = {
+    id: 70, is_opening: true, parent_id: null, author: { id: 9, name: "Asha", badge: "" }, is_verified_response: false,
+    body_html: "<p>q</p>", visibility: "visible", created_at: new Date().toISOString(), edited_at: null, edit_count: 0,
+    helpful_count: 0, reactions: {}, my_reactions: [], attachments: [], is_accepted: false, can_edit: false, can_delete: false,
+  };
+  const spam = { ...opening, id: 71, is_opening: false, author: { id: 5, name: "Spammer", badge: "" }, body_html: "<p>Buy now</p>" };
+  const detail = (perms = {}) => ({
+    ...card(), opening_post: opening, poll: null, accepted_post_id: null, solution: null, articles: [], announcement: null,
+    permissions: { can_reply: true, can_moderate: false, can_edit: false, can_delete: false, can_accept: false, can_curate: false, ...perms },
+  });
+
+  it("lets a member report someone else's post", async () => {
+    api.thread.mockResolvedValue({ data: detail() });
+    api.posts.mockResolvedValue({ data: { count: 1, next: null, previous: null, results: [spam] } });
+    api.reportReasons.mockResolvedValue({ data: { reasons: [{ key: "spam", label: "Spam or advertising" }] } });
+    api.report.mockResolvedValue({ data: { reported: true } });
+    render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const buttons = await screen.findAllByRole("button", { name: /Report/ });
+    fireEvent.click(buttons[buttons.length - 1]);
+    fireEvent.click(await screen.findByLabelText("Spam or advertising"));
+    fireEvent.click(screen.getByRole("button", { name: "Send report" }));
+    await waitFor(() => expect(api.report).toHaveBeenCalledWith(71, "spam", ""));
+    expect(screen.queryByRole("button", { name: /Moderate/ })).toBeNull();
+  });
+
+  it("shows the queue and requires a reason to hide", async () => {
+    api.moderationQueue.mockResolvedValue({
+      data: {
+        reported: [{ post_id: 71, thread_id: 7, thread_title: "Sputter targets", community: { id: 2, name: "Thin films" }, author: { id: 5, name: "Spammer" },
+          excerpt: "Buy cheap targets", visibility: "visible", is_opening: false, created_at: new Date().toISOString(), open_reports: 2,
+          reports: [{ reason: "spam", details: "ad", reporter: "Asha", created_at: new Date().toISOString() }] }],
+        hidden: [],
+      },
+    });
+    api.moderationDashboard.mockResolvedValue({ data: { totals: { open_reports: 2, hidden_posts: 0, locked_threads: 0, communities_moderated: 1 }, communities: [] } });
+    api.moderationLog.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [] } });
+    api.moderatePost.mockResolvedValue({ data: { post_id: 71, visibility: "hidden" } });
+    render(
+      <MemoryRouter>
+        <ConnectModeration />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Sputter targets")).toBeTruthy();
+    expect(screen.getByText("2 reports")).toBeTruthy();
+    const hide = screen.getByRole("button", { name: "Hide" });
+    expect(hide.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Moderation reason"), { target: { value: "Advertising" } });
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(api.moderatePost).toHaveBeenCalledWith(71, "hide", "Advertising"));
+  });
+
+  it("tells non-moderators moderation is for staff", async () => {
+    api.moderationQueue.mockResolvedValue({ error: "x", status: 404 });
+    api.moderationDashboard.mockResolvedValue({ error: "x", status: 404 });
+    api.moderationLog.mockResolvedValue({ error: "x", status: 404 });
+    render(
+      <MemoryRouter>
+        <ConnectModeration />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Moderation is for facility staff and moderators")).toBeTruthy();
+  });
+
+  it("shows analytics with the not-downtime note and hides admin-only panels for moderators", async () => {
+    api.analytics.mockResolvedValue({
+      data: {
+        scope: { community_ids: [2], days: 90, is_admin: false },
+        note: "Discussion activity shows where users need help. It is not a measure of equipment downtime or availability.",
+        totals: { threads: 4, open_questions: 2 }, most_active_communities: [], trends: [],
+        most_discussed_equipment: [{ equipment_id: 38, name: "Rigaku SmartLab", threads: 3 }], recurring_problems: [],
+        frequently_unanswered: [], useful_solutions: [], most_viewed_articles: [], low_participation_groups: [], top_searches: [], searches_without_answers: [],
+      },
+    });
+    render(
+      <MemoryRouter>
+        <ConnectAnalytics />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/not a measure of equipment downtime/)).toBeTruthy();
+    expect(screen.getByText("Rigaku SmartLab")).toBeTruthy();
+    expect(screen.queryByText("Top searches")).toBeNull();
+  });
+
+  it("shows staff navigation only to moderators", async () => {
+    api.home.mockResolvedValue({ data: { latest: [], trending: [], recently_solved: [], technical_support: [], announcements: [], active_contributors: [] } });
+    const first = render(
+      <MemoryRouter>
+        <ConnectHome />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "IITR Connect" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Moderation" })).toBeNull();
+    first.unmount();
+    resetConnectBootstrapCache();
+    api.bootstrap.mockResolvedValue({ data: { ...ON, moderates_any: true } });
+    render(
+      <MemoryRouter>
+        <ConnectHome />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("link", { name: "Moderation" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Analytics" })).toBeTruthy();
   });
 });

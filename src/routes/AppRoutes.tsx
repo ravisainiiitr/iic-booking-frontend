@@ -189,6 +189,8 @@ const ConnectSearch = lazyPage(() => import("@/pages/connect/ConnectSearch"));
 const ConnectKnowledge = lazyPage(() => import("@/pages/connect/ConnectKnowledge"));
 const ConnectArticle = lazyPage(() => import("@/pages/connect/ConnectArticle"));
 const ConnectNotifications = lazyPage(() => import("@/pages/connect/ConnectNotifications"));
+const ConnectModeration = lazyPage(() => import("@/pages/connect/ConnectModeration"));
+const ConnectAnalytics = lazyPage(() => import("@/pages/connect/ConnectAnalytics"));
 const ResearchWorkspace = lazyPage(() => import("@/pages/ResearchWorkspace"));
 const ResearchGroup = lazyPage(() => import("@/pages/ResearchGroup"));
 const EquipmentAvailability = lazyPage(() => import("@/pages/EquipmentAvailability"));
@@ -315,6 +317,8 @@ export default function AppRoutes() {
           <Route path="/connect/knowledge" element={<ConnectKnowledge />} />
           <Route path="/connect/knowledge/:id" element={<ConnectArticle />} />
           <Route path="/connect/notifications" element={<ConnectNotifications />} />
+          <Route path="/connect/moderation" element={<ConnectModeration />} />
+          <Route path="/connect/analytics" element={<ConnectAnalytics />} />
           <Route path="/training/demo-requests" element={<TrainingDemoRequests />} />
           <Route path="/training/nominations" element={<TrainingNominations />} />
           <Route path="/training/oic" element={<TrainingWorkspace />} />

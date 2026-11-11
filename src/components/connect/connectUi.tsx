@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/PageShell";
 import { THREAD_TYPE_LABEL, type CommunitySummary, type ThreadCard as ThreadCardData, type ThreadType } from "@/lib/connectApi";
-import { timeAgo, useNoIndex } from "./useConnect";
+import { timeAgo, useConnectAvailability, useNoIndex } from "./useConnect";
 import "./connect.css";
 
 export const CONNECT_TAGLINE = "Connect. Discuss. Share Knowledge. Solve Together.";
@@ -274,8 +274,15 @@ function useNavActive() {
   };
 }
 
+const STAFF_NAV = [
+  { to: "/connect/moderation", label: "Moderation", icon: ShieldCheck },
+  { to: "/connect/analytics", label: "Analytics", icon: Sparkles },
+];
+
 function LeftNav({ communities }: { communities?: CommunitySummary[] }) {
   const isActive = useNavActive();
+  const { bootstrap } = useConnectAvailability();
+  const staffNav = bootstrap?.moderates_any || bootstrap?.is_community_admin ? STAFF_NAV : [];
   const groups = (communities ?? []).filter((c) => c.kind === "group");
   const general = (communities ?? []).find((c) => c.kind === "general");
   return (
@@ -297,6 +304,28 @@ function LeftNav({ communities }: { communities?: CommunitySummary[] }) {
           </li>
         ))}
       </ul>
+      {staffNav.length ? (
+        <div>
+          <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Staff</p>
+          <ul className="mt-1 space-y-0.5">
+            {staffNav.map((item) => (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  aria-current={isActive(item.to) ? "page" : undefined}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2.5 py-2 text-muted-foreground hover:bg-muted hover:text-foreground",
+                    isActive(item.to) && "bg-primary/10 font-medium text-primary dark:text-sky-200",
+                  )}
+                >
+                  <item.icon className="h-4 w-4" aria-hidden />
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {general ? (
         <div>
           <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">General</p>

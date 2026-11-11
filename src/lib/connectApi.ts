@@ -180,6 +180,58 @@ export type EquipmentDiscussions =
       articles: ArticleCard[];
     };
 
+export interface ModerationPostRow {
+  post_id: number;
+  thread_id: number;
+  thread_title: string;
+  community: { id: number; name: string };
+  author: { id: number; name: string };
+  excerpt: string;
+  visibility: string;
+  is_opening: boolean;
+  created_at: string;
+  open_reports?: number;
+  reports?: Array<{ reason: string; details: string; reporter: string; created_at: string }>;
+}
+
+export interface ModerationLogRow {
+  id: number;
+  action: string;
+  actor: string;
+  community: string;
+  target_type: string;
+  target_id: string;
+  reason: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ConnectAnalytics {
+  scope: { community_ids: number[]; days: number; is_admin: boolean };
+  note: string;
+  totals: Record<string, number>;
+  most_active_communities: Array<{ community_id: number; name: string; posts: number }>;
+  trends: Array<{ week: string; threads: number; solved: number; replies: number }>;
+  most_discussed_equipment: Array<{ equipment_id: number; name: string; threads: number }>;
+  recurring_problems: Array<{ equipment_id: number; name: string; technical_issues: number; known_problems: number; open: number }>;
+  frequently_unanswered: Array<{ thread_id: number; title: string; views: number; created_at: string }>;
+  useful_solutions: Array<{ thread_id: number; title: string; helpful: number; author: string }>;
+  most_viewed_articles: Array<{ article_id: number; title: string; views: number }>;
+  low_participation_groups: Array<{ community_id: number; name: string; members: number; threads_90d: number }>;
+  top_searches: Array<{ query: string; count: number }>;
+  searches_without_answers: Array<{ query: string; count: number }>;
+}
+
+export interface ConnectSettingsData {
+  recognition_enabled: boolean;
+  edit_window_minutes: number;
+  delete_window_minutes: number;
+  max_attachment_mb: number;
+  max_attachments_per_post: number;
+  min_account_age_hours_to_post: number;
+}
+
 export interface AttachmentRef {
   id: string;
   name: string;
@@ -331,7 +383,14 @@ export interface HomeSections {
   recently_solved: ThreadCard[];
   technical_support: ThreadCard[];
   announcements: ThreadCard[];
-  active_contributors: Array<{ id: number; name: string; accepted_answers: number; helpful_received: number; replies: number }>;
+  active_contributors: Array<{
+    id: number;
+    name: string;
+    accepted_answers: number;
+    helpful_received: number;
+    replies: number;
+    badges?: Array<{ code: string; name: string; description: string }>;
+  }>;
 }
 
 export interface ThreadInput {
@@ -497,6 +556,26 @@ export const connectApi = {
   ) => send<ThreadDetail>("PATCH", `threads/${threadId}/staff/`, changes),
   acceptSolution: (threadId: number, postId: number) => send<ThreadDetail>("POST", `threads/${threadId}/solution/`, { post_id: postId }),
   revokeSolution: (threadId: number) => send<ThreadDetail>("DELETE", `threads/${threadId}/solution/`, {}),
+  reportReasons: (postId: number) => request<{ reasons: Array<{ key: string; label: string }> }>(`posts/${postId}/report/`),
+  report: (postId: number, reason: string, details = "") => send<{ reported: boolean }>("POST", `posts/${postId}/report/`, { reason, details }),
+  moderatePost: (postId: number, action: "hide" | "remove" | "restore" | "dismiss_reports", reason = "") =>
+    send<{ post_id: number; visibility: string }>("POST", `posts/${postId}/moderate/`, { action, reason }),
+  lockThread: (threadId: number, locked: boolean, reason = "") => send<ThreadDetail>("POST", `threads/${threadId}/lock/`, { locked, reason }),
+  moderationQueue: (community?: number) =>
+    request<{ reported: ModerationPostRow[]; hidden: ModerationPostRow[] }>(`moderation/queue/${query({ community })}`),
+  moderationDashboard: () =>
+    request<{ totals: Record<string, number>; communities: Array<{ community_id: number; name: string; open_reports: number; hidden_posts: number; locked_threads: number }> }>(
+      "moderation/dashboard/",
+    ),
+  moderationLog: (page = 1) => request<Paginated<ModerationLogRow>>(`moderation/log/${query({ page })}`),
+  communityAdmins: () => request<{ results: Array<{ user_id: number; name: string; email: string; granted_at: string }> }>("moderation/community-admins/"),
+  addCommunityAdmin: (email: string) =>
+    send<{ results: Array<{ user_id: number; name: string; email: string; granted_at: string }> }>("POST", "moderation/community-admins/", { email }),
+  removeCommunityAdmin: (userId: number) =>
+    send<{ results: Array<{ user_id: number; name: string; email: string; granted_at: string }> }>("DELETE", "moderation/community-admins/", { user_id: userId }),
+  analytics: (params: { community?: number; days?: number } = {}) => request<ConnectAnalytics>(`analytics/${query(params)}`),
+  settings: () => request<ConnectSettingsData>("admin/settings/"),
+  saveSettings: (input: Partial<ConnectSettingsData>) => send<ConnectSettingsData>("PATCH", "admin/settings/", input),
   confirmResolved: (threadId: number) => send<ThreadDetail>("PUT", `threads/${threadId}/solution/`, {}),
   acknowledge: (threadId: number) => send<ThreadDetail>("POST", `threads/${threadId}/acknowledge/`),
   acknowledgements: (threadId: number) =>

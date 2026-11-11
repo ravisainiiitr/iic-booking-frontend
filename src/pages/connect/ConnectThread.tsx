@@ -9,6 +9,7 @@ import {
   CircleCheck,
   Clock,
   CornerDownRight,
+  Flag,
   History,
   Lightbulb,
   Lock,
@@ -27,6 +28,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -108,6 +110,132 @@ function AnnouncementBanner({ info, onAcknowledge }: { info: NonNullable<ThreadD
   );
 }
 
+function ReportButton({ postId }: { postId: number }) {
+  const [open, setOpen] = useState(false);
+  const [reasons, setReasons] = useState<Array<{ key: string; label: string }>>([]);
+  const [reason, setReason] = useState("");
+  const [details, setDetails] = useState("");
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-8 gap-1.5 text-muted-foreground"
+        onClick={async () => {
+          setOpen(true);
+          if (!reasons.length) {
+            const res = await connectApi.reportReasons(postId);
+            setReasons(res.data?.reasons ?? []);
+          }
+        }}
+      >
+        <Flag className="h-3.5 w-3.5" aria-hidden /> Report
+      </Button>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Report this post</AlertDialogTitle>
+            <AlertDialogDescription>Moderators review every report. Several reports hide a post until they do.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <fieldset className="space-y-1.5">
+            <legend className="sr-only">Reason</legend>
+            {reasons.map((r) => (
+              <label key={r.key} className="flex items-center gap-2 text-sm">
+                <input type="radio" name={`report-${postId}`} checked={reason === r.key} onChange={() => setReason(r.key)} />
+                {r.label}
+              </label>
+            ))}
+          </fieldset>
+          <textarea
+            className="min-h-[4rem] w-full rounded-md border bg-background px-3 py-2 text-sm"
+            placeholder="Anything moderators should know (optional)"
+            aria-label="Report details"
+            value={details}
+            maxLength={1000}
+            onChange={(e) => setDetails(e.target.value)}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!reason}
+              onClick={async () => {
+                const res = await connectApi.report(postId, reason, details);
+                if (res.error) toast.error(res.error);
+                else toast.success("Thank you. A moderator will review it.");
+              }}
+            >
+              Send report
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function ModerateMenu({ post, onDone }: { post: PostView; onDone: (visibility: string) => void }) {
+  const [pending, setPending] = useState<"hide" | "remove" | null>(null);
+  const [reason, setReason] = useState("");
+  const act = async (action: "hide" | "remove" | "restore", why = "") => {
+    const res = await connectApi.moderatePost(post.id, action, why);
+    if (!res.data) toast.error(res.error || "Could not moderate this post.");
+    else {
+      onDone(res.data.visibility);
+      toast.success(action === "restore" ? "Post restored." : "Post moderated. The author has been told why.");
+    }
+  };
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden /> Moderate
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {post.visibility === "visible" ? (
+            <>
+              <DropdownMenuItem onClick={() => setPending("hide")}>Hide (reversible)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setPending("remove")}>Remove</DropdownMenuItem>
+            </>
+          ) : post.visibility !== "deleted" ? (
+            <DropdownMenuItem onClick={() => void act("restore")}>Restore</DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={pending !== null} onOpenChange={(open) => !open && setPending(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pending === "remove" ? "Remove this post?" : "Hide this post?"}</AlertDialogTitle>
+            <AlertDialogDescription>The reason is recorded in the moderation log and shown to the author.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <textarea
+            className="min-h-[4rem] w-full rounded-md border bg-background px-3 py-2 text-sm"
+            placeholder="Reason"
+            aria-label="Moderation reason"
+            value={reason}
+            maxLength={1000}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!reason.trim()}
+              onClick={() => {
+                if (pending) void act(pending, reason);
+                setReason("");
+                setPending(null);
+              }}
+            >
+              {pending === "remove" ? "Remove" : "Hide"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function formatHours(h: number): string {
   if (h < 1) return "under an hour";
   if (h < 48) return `${Math.round(h)} h`;
@@ -168,6 +296,7 @@ function PostCard({
   onDeleted,
   onAccept,
   isAsker = false,
+  canModerate = false,
 }: {
   post: PostView;
   community: string;
@@ -180,6 +309,8 @@ function PostCard({
   onAccept?: (p: PostView) => void;
   /** The viewer started the thread (accepting marks it Resolved). */
   isAsker?: boolean;
+  /** Moderator of this community: hide / remove / restore. */
+  canModerate?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(post.body_html);
@@ -305,6 +436,13 @@ function PostCard({
               <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => onReply(post)}>
                 <Reply className="h-3.5 w-3.5" aria-hidden /> Reply
               </Button>
+            ) : null}
+            {currentUserId && post.author.id !== currentUserId && !hidden ? <ReportButton postId={post.id} /> : null}
+            {canModerate ? (
+              <ModerateMenu
+                post={post}
+                onDone={(visibility) => onChanged({ ...post, visibility })}
+              />
             ) : null}
             {post.can_edit ? (
               <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => setEditing(true)}>
@@ -621,6 +759,17 @@ export default function ConnectThread() {
                     {label}
                   </DropdownMenuCheckboxItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={thread.status === "locked"}
+                  onCheckedChange={async (value) => {
+                    const res = await connectApi.lockThread(thread.id, value === true);
+                    if (!res.data) toast.error(res.error || "Could not change the lock.");
+                    else setThread(res.data);
+                  }}
+                >
+                  Lock replies
+                </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
@@ -784,6 +933,7 @@ export default function ConnectThread() {
               toast.success(res.data.is_resolved ? "Marked as resolved." : "Marked as the accepted solution.");
             } : undefined}
             isAsker={user?.id === thread.author.id}
+            canModerate={thread.permissions.can_moderate}
             onChanged={(updated) => setPosts((list) => list.map((x) => (x.id === updated.id ? updated : x)))}
             onDeleted={(gone) => {
               setPosts((list) => list.filter((x) => x.id !== gone.id));

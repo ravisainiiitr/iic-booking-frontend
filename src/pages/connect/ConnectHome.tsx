@@ -138,7 +138,12 @@ export default function ConnectHome() {
           <ul className="space-y-2">
             {home.active_contributors.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-2">
-                <span className="truncate">{p.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{p.name}</span>
+                  {p.badges?.length ? (
+                    <span className="block truncate text-[11px] font-medium text-amber-700 dark:text-amber-300">{p.badges.map((b) => b.name).join(" · ")}</span>
+                  ) : null}
+                </span>
                 <span className="shrink-0 text-xs text-muted-foreground">
                   {p.accepted_answers ? `${p.accepted_answers} solved · ` : ""}
                   {p.helpful_received} helpful
