@@ -179,6 +179,13 @@ const UserGuidePage = lazyPage(() => import("@/pages/UserGuidePage"));
 const ViewResults = lazyPage(() => import("@/pages/ViewResults"));
 const SharedWithMe = lazyPage(() => import("@/pages/SharedWithMe"));
 const MyResearch = lazyPage(() => import("@/pages/MyResearch"));
+// IITR Connect (private discussions; the server answers 404 while the module is off)
+const ConnectHome = lazyPage(() => import("@/pages/connect/ConnectHome"));
+const ConnectCommunities = lazyPage(() => import("@/pages/connect/ConnectCommunities"));
+const ConnectCommunity = lazyPage(() => import("@/pages/connect/ConnectCommunity"));
+const ConnectThread = lazyPage(() => import("@/pages/connect/ConnectThread"));
+const ConnectNewThread = lazyPage(() => import("@/pages/connect/ConnectNewThread"));
+const ConnectSearch = lazyPage(() => import("@/pages/connect/ConnectSearch"));
 const ResearchWorkspace = lazyPage(() => import("@/pages/ResearchWorkspace"));
 const ResearchGroup = lazyPage(() => import("@/pages/ResearchGroup"));
 const EquipmentAvailability = lazyPage(() => import("@/pages/EquipmentAvailability"));
@@ -296,6 +303,12 @@ export default function AppRoutes() {
           <Route path="/my-research" element={<MyResearch />} />
           <Route path="/my-research/groups/:groupId" element={<ResearchGroup />} />
           <Route path="/my-research/:workspaceId" element={<ResearchWorkspace />} />
+          <Route path="/connect" element={<ConnectHome />} />
+          <Route path="/connect/communities" element={<ConnectCommunities />} />
+          <Route path="/connect/c/:slug" element={<ConnectCommunity />} />
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+          <Route path="/connect/new" element={<ConnectNewThread />} />
+          <Route path="/connect/search" element={<ConnectSearch />} />
           <Route path="/training/demo-requests" element={<TrainingDemoRequests />} />
           <Route path="/training/nominations" element={<TrainingNominations />} />
           <Route path="/training/oic" element={<TrainingWorkspace />} />
