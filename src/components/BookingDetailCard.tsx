@@ -1378,6 +1378,9 @@ export function BookingDetailCard({
     setConfirmAction({ open: false, type: null });
   };
 
+  /** The server refuses a charge-recalculation refund on a Completed or settled (refund-locked) booking. */
+  const recalcRefundBlocked = String(booking.status || "").toUpperCase() === "COMPLETED" || Boolean(booking.refund_locked);
+
   const handleProcessChargeRecalcRefund = async (b: BookingDetailCardBooking) => {
     setChargeRecalcActionLoading(true);
     try {
@@ -3975,11 +3978,15 @@ export function BookingDetailCard({
                       <span>{formatINR(Math.abs(Number(booking.charge_recalculation_pending_amount)))}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">
-                      {isManagerOrAdmin
-                        ? "Confirm the refund to credit this amount to the user's wallet."
-                        : "This refund is waiting for the Officer In Charge's approval. Once approved, it is credited to the wallet the booking was paid from."}
+                      {recalcRefundBlocked
+                        ? booking.refund_locked
+                          ? "This booking was settled during the equipment maintenance, so this refund can no longer be made."
+                          : "This booking is Completed, so this refund can no longer be made."
+                        : isManagerOrAdmin
+                          ? "Confirm the refund to credit this amount to the user's wallet."
+                          : "This refund is waiting for the Officer In Charge's approval. Once approved, it is credited to the wallet the booking was paid from."}
                     </p>
-                    {isManagerOrAdmin && (
+                    {isManagerOrAdmin && !recalcRefundBlocked && (
                       <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                         <RotateCcw className="h-4 w-4 mr-2" />
                         {chargeRecalcActionLoading ? "Processing…" : "Confirm refund"}
