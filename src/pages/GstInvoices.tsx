@@ -23,6 +23,7 @@ import {
   type GstInvoice,
   type GstRegister,
   type GstStatus,
+  type Gstr1Month,
   type SignerCertificate,
   type SignerDevice,
 } from "@/lib/gstEinvoiceApi";
@@ -584,6 +585,74 @@ function RegisterTab() {
   );
 }
 
+function Gstr1Export() {
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const [from, setFrom] = useState(`${today.slice(0, 7)}-01`);
+  const [to, setTo] = useState(today);
+  const [months, setMonths] = useState<Gstr1Month[] | null>(null);
+  const [limit, setLimit] = useState("");
+  useEffect(() => {
+    if (!from || !to || to < from) return;
+    setMonths(null);
+    gstEinvoiceApi
+      .gstr1Preview(from, to)
+      .then((d) => {
+        setMonths(d.months);
+        setLimit(d.b2cl_limit);
+      })
+      .catch((e) => toast.error(errorText(e)));
+  }, [from, to]);
+  const save = (kind: "json" | "xlsx") => gstEinvoiceApi.downloadGstr1(from, to, kind).catch((e) => toast.error(errorText(e)));
+  return (
+    <section className="space-y-2 rounded-md border p-3" aria-labelledby="gstr1-title">
+      <h2 id="gstr1-title" className="text-base font-semibold">
+        GSTR-1 export: invoices to buyers without a GSTIN
+      </h2>
+      <p className="text-muted-foreground">
+        One file per month (SRIC files monthly): B2CS (Table 7), B2CL above {limit ? rupees(limit) : "₹1,00,000"} inter-state (Table 5), credit notes (Table 9B), HSN B2C
+        (Table 12) and documents issued (Table 13). E-invoices reach GSTR-1 from the e-invoice system and are not included. A range over several months downloads as a zip.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <Label htmlFor="g1-from">From</Label>
+          <Input id="g1-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-44" />
+        </div>
+        <div>
+          <Label htmlFor="g1-to">To</Label>
+          <Input id="g1-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44" />
+        </div>
+        <Button variant="outline" disabled={!months} onClick={() => save("json")}>
+          <FileDown className="mr-1 h-4 w-4" aria-hidden="true" />
+          JSON (offline tool / portal upload)
+        </Button>
+        <Button variant="outline" disabled={!months} onClick={() => save("xlsx")}>
+          <FileDown className="mr-1 h-4 w-4" aria-hidden="true" />
+          Excel (to enter by hand)
+        </Button>
+      </div>
+      {to < from ? <p className="text-destructive">The end date is before the start date.</p> : null}
+      {months?.map((m) => (
+        <div key={m.fp} className="text-sm" data-testid={`gstr1-${m.fp}`}>
+          <p>
+            <span className="font-medium">
+              {m.fp.slice(0, 2)}/{m.fp.slice(2)}
+            </span>
+            : {m.summary.b2c_invoices} signed B2C invoice(s) ({m.summary.b2cl_invoices} B2CL, {m.summary.b2cs_rows} B2CS row(s)), taxable{" "}
+            {rupees(m.summary.taxable_value)}, tax {rupees(m.summary.tax)}; {m.summary.credit_notes} credit note(s); {m.summary.documents_issued} document(s) in the series.
+          </p>
+          {m.warnings.length ? (
+            <ul className="list-disc pl-5 text-amber-700 dark:text-amber-300">
+              {m.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function SigningTab({ status }: { status: GstStatus }) {
   const [certs, setCerts] = useState<SignerCertificate[]>([]);
   const [devices, setDevices] = useState<SignerDevice[]>([]);
@@ -892,8 +961,9 @@ export default function GstInvoices() {
                       }}
                     />
                   </TabsContent>
-                  <TabsContent value="register">
+                  <TabsContent value="register" className="space-y-4">
                     <RegisterTab />
+                    <Gstr1Export />
                   </TabsContent>
                 </>
               ) : null}
