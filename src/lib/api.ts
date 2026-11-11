@@ -4814,6 +4814,30 @@ export interface BookingStatusOverrideOptions {
   targets: { value: string; label: string; help: string }[];
 }
 
+/** A booking on hold for equipment maintenance whose user has not taken a refund. */
+export interface MaintenanceSettlementBooking {
+  booking_id: number;
+  booking_ref: string;
+  user_name: string;
+  user_email: string;
+  start: string | null;
+  end: string | null;
+  total_charge: string;
+  /** The user chose (or was switched) to wait for the automatic reschedule. */
+  waiting_for_reschedule: boolean;
+}
+
+/** OIC of the equipment / Main Administrator: bookings to settle before marking the equipment Operational. */
+export interface MaintenanceSettlementOverview {
+  equipment_id: number;
+  equipment_name: string;
+  equipment_status: string;
+  under_maintenance: boolean;
+  reason_min_length: number;
+  targets: { value: string; label: string; help: string }[];
+  bookings: MaintenanceSettlementBooking[];
+}
+
 export interface IstemInstituteStatus {
   institute_id: string | null;
   /** "token": named by I-STEM's sign-in; "portal": saved by the Main Admin; "": unknown. */
@@ -10589,6 +10613,27 @@ class ApiClient {
     }>(`/bookings/${bookingId}/refund/`, {
       method: 'POST',
       body: JSON.stringify({ notes }),
+    });
+  }
+
+  /** OIC of the equipment / Main Administrator: bookings on hold for maintenance that can be settled. */
+  async getMaintenanceSettlement(equipmentId: number) {
+    return this.request<MaintenanceSettlementOverview>(`/equipments/${equipmentId}/maintenance-settlement/`);
+  }
+
+  /** OIC of the equipment / Main Administrator: close a maintenance hold (e.g. Completed); it can no longer be refunded. */
+  async settleMaintenanceBooking(bookingId: number, payload: { status: string; reason: string; notify_user: boolean }) {
+    return this.request<{
+      message: string;
+      booking_id: number;
+      previous_status: string;
+      status: string;
+      event_id: number;
+      user_notified: boolean;
+      refund_locked: boolean;
+    }>(`/bookings/${bookingId}/maintenance-settle/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 

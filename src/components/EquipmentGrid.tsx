@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
+import { useMaintenanceSettlementGate } from "@/components/booking/useMaintenanceSettlementGate";
 import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 
 // Staff-only dialog with date pickers; keep it out of the home page's first download.
@@ -76,6 +77,7 @@ const EquipmentGrid = () => {
   const [loading, setLoading] = useState(true);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const disruptionPrompt = useDisruptionPrompt();
+  const settlementGate = useMaintenanceSettlementGate(user?.user_type != null ? String(user.user_type) : null);
   const gatedIds = useGatedEquipmentIds(Boolean(user));
   const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
     noticeId: number;
@@ -237,6 +239,9 @@ const EquipmentGrid = () => {
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
   }) => {
+    if (next.newStatus === "ACTIVE" && !(await settlementGate.confirmBeforeOperational(next.equipmentId, next.equipmentName))) {
+      return;
+    }
     const outcome = await disruptionPrompt.askForEquipmentStatusChange({
       equipmentId: next.equipmentId,
       equipmentName: next.equipmentName,
@@ -435,6 +440,7 @@ const EquipmentGrid = () => {
       )}
 
       {disruptionPrompt.element}
+      {settlementGate.element}
       {noticeExpiryPrompt != null && (
         <Suspense fallback={null}>
           <NoticeExpiryDialog

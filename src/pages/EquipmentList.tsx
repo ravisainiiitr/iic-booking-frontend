@@ -17,6 +17,7 @@ import { NoticeExpiryDialog } from "@/components/NoticeExpiryDialog";
 import { EquipmentFlashArea } from "@/components/flashMessages/EquipmentFlashArea";
 import type { PublicFlashMessage } from "@/lib/flashMessages";
 import { useDisruptionPrompt, type DisruptionPromptOutcome } from "@/components/disruptions/useDisruptionPrompt";
+import { useMaintenanceSettlementGate } from "@/components/booking/useMaintenanceSettlementGate";
 import EquipmentCatalogCard, { type EquipmentCatalogCardItem } from "@/components/EquipmentCatalogCard";
 import { useGatedEquipmentIds } from "@/components/training/useAuthorisation";
 import { accentForEquipmentId } from "@/lib/equipmentCardAccents";
@@ -221,6 +222,7 @@ const EquipmentList = () => {
   const [departmentReady, setDepartmentReady] = useState(() => initialDepartment != null);
   const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
   const disruptionPrompt = useDisruptionPrompt();
+  const settlementGate = useMaintenanceSettlementGate(user?.user_type != null ? String(user.user_type) : null);
   const gatedIds = useGatedEquipmentIds(Boolean(user));
   const [noticeExpiryPrompt, setNoticeExpiryPrompt] = useState<{
     noticeId: number;
@@ -422,6 +424,9 @@ const EquipmentList = () => {
     equipmentName: string;
     newStatus: "ACTIVE" | "REPAIR";
   }) => {
+    if (next.newStatus === "ACTIVE" && !(await settlementGate.confirmBeforeOperational(next.equipmentId, next.equipmentName))) {
+      return;
+    }
     const outcome = await disruptionPrompt.askForEquipmentStatusChange({
       equipmentId: next.equipmentId,
       equipmentName: next.equipmentName,
@@ -689,6 +694,7 @@ const EquipmentList = () => {
       </main>
 
       {disruptionPrompt.element}
+      {settlementGate.element}
       <NoticeExpiryDialog
         open={noticeExpiryPrompt != null}
         noticeId={noticeExpiryPrompt?.noticeId ?? null}
