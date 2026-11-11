@@ -4506,10 +4506,14 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         const a = document.createElement("a");
         a.href = url;
         const code = equipmentDetail.code || `equipment_${selectedEquipment.id}`;
-        a.download = `charge_estimate_${code}_${localDateStamp()}.pdf`;
+        a.download = res.numbers?.length === 1 ? `${res.numbers[0]}.pdf` : `charge_estimate_${code}_${localDateStamp()}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success("Charge estimate downloaded.");
+        toast.success(
+          res.numbers?.length
+            ? `Charge estimate downloaded and saved as proforma ${res.numbers.join(", ")} (My proforma invoices).`
+            : "Charge estimate downloaded.",
+        );
       }
     } finally {
       setExportingChargePdf(false);

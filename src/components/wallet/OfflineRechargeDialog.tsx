@@ -28,11 +28,21 @@ import {
   type OfflineRechargeForm,
 } from "@/lib/offlineRecharge";
 
+/** Paying a saved proforma: the department is the proforma's and the amount starts at what is still to pay. */
+export type OfflineRechargeProforma = {
+  id: number;
+  number: string;
+  departmentId: number | null;
+  departmentName: string;
+  outstanding: string;
+};
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmitted: (request: OfflineRecharge) => void;
   maxReceiptMb?: number;
+  proforma?: OfflineRechargeProforma | null;
 };
 
 type FieldKey = keyof OfflineRechargeForm | "receipt_file";
@@ -40,7 +50,7 @@ type FieldKey = keyof OfflineRechargeForm | "receipt_file";
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted, maxReceiptMb = 10 }: Props) {
+export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted, maxReceiptMb = 10, proforma = null }: Props) {
   const [form, setForm] = useState<OfflineRechargeForm>(EMPTY_FORM);
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
@@ -59,7 +69,16 @@ export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted,
   }, [previewUrl]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !proforma) return;
+    setForm((f) => ({
+      ...f,
+      department_id: proforma.departmentId ? String(proforma.departmentId) : "",
+      amount: f.amount || String(Number(proforma.outstanding) || ""),
+    }));
+  }, [open, proforma]);
+
+  useEffect(() => {
+    if (!open || proforma) return;
     let cancelled = false;
     void apiClient.getDepartmentsForRecharge().then((res) => {
       if (cancelled) return;
@@ -70,7 +89,7 @@ export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted,
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, proforma]);
 
   const reset = () => {
     setForm(EMPTY_FORM);
@@ -95,7 +114,10 @@ export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted,
     setErrors(found);
     if (Object.keys(found).length > 0 || !file) return;
     setBusy(true);
-    const res = await apiClient.submitOfflineRecharge(buildOfflineRechargeFormData(form, file, clientId.current));
+    const formData = buildOfflineRechargeFormData(form, file, clientId.current);
+    const res = proforma
+      ? await apiClient.recordProformaOfflinePayment(proforma.id, formData)
+      : await apiClient.submitOfflineRecharge(formData);
     setBusy(false);
     if (res.error || !res.data) {
       const field = typeof res.fieldErrors?.field === "string" ? (res.fieldErrors.field as FieldKey) : null;
@@ -125,17 +147,25 @@ export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted,
     >
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Recharge with an offline payment</DialogTitle>
+          <DialogTitle>
+            {proforma ? `Record an offline payment for proforma ${proforma.number}` : "Recharge with an offline payment"}
+          </DialogTitle>
           <DialogDescription>
             Already paid the institute by NEFT, RTGS, IMPS, UPI, demand draft or cheque? Enter the payment details and
             attach the receipt. Your wallet is credited once the Accounts In Charge, Department Administrator or Main
             Administrator approves it.
+            {proforma ? " The payment is recorded against this proforma for reconciliation." : null}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="orc-department">Credit to (department)</Label>
+            {proforma ? (
+              <p id="orc-department" className="rounded-md border bg-muted/40 px-3 py-2 text-sm" data-testid="orc-fixed-department">
+                {proforma.departmentName || "The proforma's department"}
+              </p>
+            ) : (
             <select
               id="orc-department"
               className={selectClass}
@@ -149,6 +179,7 @@ export default function OfflineRechargeDialog({ open, onOpenChange, onSubmitted,
                 </option>
               ))}
             </select>
+            )}
             {err("department_id")}
           </div>
           <div className="space-y-1.5">

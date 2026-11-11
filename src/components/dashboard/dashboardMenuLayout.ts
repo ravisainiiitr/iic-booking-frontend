@@ -24,6 +24,7 @@ const FACULTY_DASHBOARD_MENU_HEAD = [
   "urgent_booking_requests",
   "view_results",
   "proforma_invoice",
+  "my_proforma_invoices",
   "reports_statistics",
   NOTIFICATION_SETTINGS_MENU_ID,
 ];

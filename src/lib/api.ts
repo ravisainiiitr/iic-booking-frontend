@@ -5015,6 +5015,63 @@ export interface WhatsAppOptIn {
   codes_available?: boolean;
 }
 
+/** A saved proforma invoice (backend equipment.proforma_store.serialize). */
+export type ProformaPaymentRow = {
+  id: number;
+  kind: 'ONLINE' | 'OFFLINE';
+  amount: string;
+  created_at: string;
+  state: string;
+  credited: string;
+  pending: string;
+  reconciled: boolean;
+  references: Record<string, string>;
+};
+
+export type SavedProformaInvoice = {
+  id: number;
+  number: string;
+  issued_at: string;
+  valid_until: string;
+  department: { id: number | null; name: string };
+  buyer: { name: string; organisation: string; email: string; gstin: string };
+  user_id: number | null;
+  lines: Array<{ title: string; details: string[]; taxable: string; gst: string; total: string }>;
+  request_items: Array<{
+    equipment_id: number | null;
+    equipment_code?: string;
+    equipment_name?: string;
+    profile_type?: string;
+    input_values: Record<string, number | string>;
+    input_labels_and_values?: Record<string, string | number>;
+  }>;
+  taxable_total: string;
+  gst_total: string;
+  total: string;
+  place_of_supply: string;
+  place_of_supply_name: string;
+  inter_state: boolean;
+  amount_source: 'SERVER' | 'CLIENT';
+  revision: number;
+  replaces: string;
+  replaced_by: string;
+  cancel_reason: string;
+  cancelled_at: string | null;
+  state: {
+    key: string;
+    label: string;
+    credited: string;
+    pending: string;
+    reconciled: string;
+    outstanding: string;
+    can_pay: boolean;
+    can_edit: boolean;
+    can_cancel: boolean;
+  };
+  payments: ProformaPaymentRow[];
+  history?: Array<{ at: string; action: string; detail: Record<string, unknown>; actor: string }>;
+};
+
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
@@ -7340,7 +7397,7 @@ class ApiClient {
     subtotal: string;
     total_gst: string;
     total_amount: string;
-  }): Promise<{ blob?: Blob; error?: string }> {
+  }): Promise<{ blob?: Blob; error?: string; numbers?: string[] }> {
     const token = this.getToken();
     const url = `${this.baseURL.replace(/\/$/, '')}/proforma-invoice/download.pdf`;
     const headers: HeadersInit = {
@@ -7353,7 +7410,92 @@ class ApiClient {
       return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     }
     const blob = await res.blob();
-    return { blob };
+    // Every proforma in the file is saved on the server (My proforma invoices).
+    const numbers = (res.headers.get('X-Proforma-Numbers') || '').split(',').map((n) => n.trim()).filter(Boolean);
+    return { blob, numbers };
+  }
+
+  /** The signed-in user's saved proforma invoices (newest first). */
+  async getMyProformaInvoices(params: { state?: string; q?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set('state', params.state);
+    if (params.q) qs.set('q', params.q);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{ results: SavedProformaInvoice[]; states: Record<string, string> }>(`/proforma-invoices/${suffix}`);
+  }
+
+  async getProformaInvoice(id: number) {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/`);
+  }
+
+  async cancelProformaInvoice(id: number, reason = '') {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/cancel/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Issue a revision of a proforma from new equipment and inputs; the old one is marked replaced. */
+  async reviseProformaInvoice(
+    id: number,
+    items: Array<{ equipment_id: number; input_values: Record<string, number | string>; input_labels_and_values?: Record<string, string | number> }>,
+  ) {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/revise/`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+  }
+
+  /** Start a Razorpay wallet recharge for the proforma's department (same checkout payload as createRazorpayOrder). */
+  async payProformaInvoiceOnline(id: number, amount?: string) {
+    return this.request<{
+      order_id: string;
+      razorpay_order_id: string;
+      amount: number;
+      currency: string;
+      key: string;
+      key_id: string;
+      checkout_name?: string;
+      payment_purpose?: string;
+      proforma_number: string;
+    }>(`/proforma-invoices/${id}/pay-online/`, {
+      method: 'POST',
+      body: JSON.stringify(amount ? { amount } : {}),
+    });
+  }
+
+  /** Offline payment (with its receipt) against a proforma: same fields as submitOfflineRecharge. */
+  async recordProformaOfflinePayment(id: number, form: FormData) {
+    return this.request<{ proforma: SavedProformaInvoice; request: OfflineRecharge; message: string }>(
+      `/proforma-invoices/${id}/offline-payment/`,
+      { method: 'POST', body: form },
+    );
+  }
+
+  /** Main Administrator / Department Administrator / Accounts In Charge: proformas in their scope. */
+  async getStaffProformaInvoices(params: { state?: string; q?: string; department?: string } = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v) qs.set(k, v);
+    });
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{ results: SavedProformaInvoice[]; states: Record<string, string>; role: string }>(
+      `/admin/proforma-invoices/${suffix}`,
+    );
+  }
+
+  /** A saved proforma's PDF, or the staff reconciliation CSV, as a blob. */
+  async downloadProformaFile(path: string): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const res = await fetch(`${this.baseURL.replace(/\/$/, '')}${path}`, {
+      headers: token ? { Authorization: `Token ${token}` } : {},
+      credentials: 'omit',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    }
+    return { blob: await res.blob() };
   }
 
   /** Calculate proforma invoice for multiple equipments (samples/slots/elements). Charge is based on logged-in user type. */

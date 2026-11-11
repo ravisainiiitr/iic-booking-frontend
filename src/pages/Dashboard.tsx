@@ -30,6 +30,7 @@ import {
 import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, QrCode as QrCodeIcon } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { OFFLINE_RECHARGES_ADMIN_PATH } from "@/lib/offlineRecharge";
+import { MY_PROFORMAS_PATH, STAFF_PROFORMAS_PATH } from "@/lib/savedProformas";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
@@ -204,6 +205,14 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   [SRIC_WALLET_RECHARGES_PATH]: {
     title: "SRIC Wallet Recharges",
     description: "Recharges read from the SRIC Wallet_Recharge.csv: credit, reject or verify each row.",
+  },
+  [MY_PROFORMAS_PATH]: {
+    title: "My Proforma Invoices",
+    description: "Every proforma you have downloaded: pay it online, record an offline payment, edit or cancel it.",
+  },
+  [STAFF_PROFORMAS_PATH]: {
+    title: "Proforma Invoices",
+    description: "Every proforma issued, what has been paid against it online or offline, and the references to reconcile it.",
   },
   [OFFLINE_RECHARGES_ADMIN_PATH]: {
     title: "Offline Payment Recharges",
@@ -2112,6 +2121,38 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "proforma_invoices_admin",
+      label: "Proforma invoices",
+      path: STAFF_PROFORMAS_PATH,
+      visible: Boolean(isAdmin || isDeptAdmin || isAccountsInChargeUser),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace(STAFF_PROFORMAS_PATH)}
+          data-testid="staff-proforma-invoices-card"
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">Proforma invoices</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  Every proforma issued, what was paid against it, and the references to reconcile it
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={(e) => { e.stopPropagation(); openWorkspace(STAFF_PROFORMAS_PATH); }}>
+              Review proformas
+            </Button>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
       id: "offline_payment_recharges",
       label: "Offline payment recharges",
       path: OFFLINE_RECHARGES_ADMIN_PATH,
@@ -2705,6 +2746,38 @@ const Dashboard = () => {
                 </Button>
               </CardContent>
             </Card>
+      ),
+    },
+    {
+      id: "my_proforma_invoices",
+      label: "My proforma invoices",
+      path: MY_PROFORMAS_PATH,
+      visible: Boolean(!isOperatorOrManager),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace(MY_PROFORMAS_PATH)}
+          data-testid="my-proforma-invoices-card"
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-accent text-white shadow-lg">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">My proforma invoices</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  Proformas you downloaded: pay online, record an offline payment, edit or cancel
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={(e) => { e.stopPropagation(); openWorkspace(MY_PROFORMAS_PATH); }}>
+              Open my proformas
+            </Button>
+          </CardContent>
+        </Card>
       ),
     },
     {
@@ -4790,6 +4863,33 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <Button className="w-full">Review requests</Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith(STAFF_PROFORMAS_PATH) ? "page" : undefined}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+            onClick={() => openWorkspace(STAFF_PROFORMAS_PATH)}
+            onKeyDown={activateOnEnterOrSpace}
+            data-testid="accounts-proforma-invoices-card"
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                  <Receipt className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Proforma invoices</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Proformas of your department and what was paid against them
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full">Review proformas</Button>
             </CardContent>
           </Card>
 
