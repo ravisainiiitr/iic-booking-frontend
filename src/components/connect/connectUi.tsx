@@ -242,6 +242,7 @@ const NAV = [
   { to: connectPaths.communities, label: "My Communities", icon: Users },
   { to: "/connect/search?type=question,technical_issue", label: "Technical Support", icon: Wrench },
   { to: "/connect/search?status=solved&sort=solved", label: "Solved", icon: CheckCircle2 },
+  { to: "/connect/knowledge", label: "Knowledge Hub", icon: BookOpen },
   { to: "/connect/search?type=announcement", label: "Announcements", icon: Sparkles },
   { to: connectPaths.bookmarks, label: "Bookmarks", icon: Bookmark },
   { to: connectPaths.mine, label: "My Discussions", icon: MessageSquare },

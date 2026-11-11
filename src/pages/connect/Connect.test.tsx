@@ -22,6 +22,14 @@ const api = vi.hoisted(() => ({
   react: vi.fn(),
   search: vi.fn(),
   suggest: vi.fn(),
+  acceptSolution: vi.fn(),
+  revokeSolution: vi.fn(),
+  promote: vi.fn(),
+  article: vi.fn(),
+  articles: vi.fn(),
+  articleAction: vi.fn(),
+  editArticle: vi.fn(),
+  articleRevisions: vi.fn(),
 }));
 
 vi.mock("@/lib/connectApi", async (orig) => {
@@ -45,6 +53,7 @@ import { ThreadCard } from "@/components/connect/connectUi";
 import { query, type ThreadCard as ThreadCardData } from "@/lib/connectApi";
 import ConnectHome from "./ConnectHome";
 import ConnectSearch from "./ConnectSearch";
+import ConnectArticle from "./ConnectArticle";
 import { SimilarDiscussions } from "@/components/connect/SimilarDiscussions";
 import ConnectNewThread from "./ConnectNewThread";
 import ConnectThread from "./ConnectThread";
@@ -272,7 +281,7 @@ describe("ConnectThread", () => {
       helpful_count: 0, reactions: {}, my_reactions: [], attachments: [], is_accepted: false, can_edit: false, can_delete: false,
     };
     api.thread.mockResolvedValue({
-      data: { ...card({ is_solved: false }), opening_post: opening, poll: null, accepted_post_id: null, permissions: { can_reply: true, can_moderate: false, can_edit: false, can_delete: false } },
+      data: { ...card({ is_solved: false }), opening_post: opening, poll: null, accepted_post_id: null, solution: null, articles: [], permissions: { can_reply: true, can_moderate: false, can_edit: false, can_delete: false, can_accept: false, can_curate: false } },
     });
     api.posts.mockResolvedValue({ data: { count: 0, next: null, previous: null, results: [] } });
     api.reply.mockResolvedValue({
@@ -351,5 +360,114 @@ describe("Search (M6)", () => {
     );
     await new Promise((r) => setTimeout(r, 600));
     expect(api.suggest).not.toHaveBeenCalled();
+  });
+});
+
+describe("Accepted solutions and Knowledge Hub (M7)", () => {
+  const opening = {
+    id: 70, is_opening: true, parent_id: null, author: { id: 1, name: "Me", badge: "" }, is_verified_response: false,
+    body_html: "<p>Seeing drift</p>", visibility: "visible", created_at: new Date().toISOString(), edited_at: null, edit_count: 0,
+    helpful_count: 0, reactions: {}, my_reactions: [], attachments: [], is_accepted: false, can_edit: true, can_delete: false,
+  };
+  const replyPost = { ...opening, id: 71, is_opening: false, author: { id: 3, name: "Mohan Lal", badge: "Lab Operator (Lab In-charge)" }, body_html: "<p>Condition the tube.</p>", can_edit: false };
+  const threadDetail = (over = {}) => ({
+    ...card({ is_solved: false }),
+    opening_post: opening, poll: null, accepted_post_id: null, solution: null, articles: [],
+    permissions: { can_reply: true, can_moderate: false, can_edit: true, can_delete: false, can_accept: true, can_curate: false },
+    ...over,
+  });
+
+  it("lets the person who asked accept a reply and shows the solved banner", async () => {
+    api.thread.mockResolvedValue({ data: threadDetail() });
+    api.posts.mockResolvedValue({ data: { count: 1, next: null, previous: null, results: [replyPost] } });
+    api.acceptSolution.mockResolvedValue({
+      data: threadDetail({
+        is_solved: true, accepted_post_id: 71,
+        solution: { post_id: 71, solver: { id: 3, name: "Mohan Lal", badge: "Lab Operator (Lab In-charge)" }, accepted_by: "Me", accepted_by_author: true, accepted_at: new Date().toISOString(), resolution_hours: 3 },
+      }),
+    });
+    render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Accept as solution/ }));
+    await waitFor(() => expect(api.acceptSolution).toHaveBeenCalledWith(7, 71));
+    expect(await screen.findByRole("heading", { level: 2, name: "Solved" })).toBeTruthy();
+    expect(screen.getByText(/accepted by the person who asked/)).toBeTruthy();
+    expect(screen.getByText(/resolved in 3 h/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeTruthy();
+  });
+
+  it("hides accept and promote when the caller may not use them", async () => {
+    api.thread.mockResolvedValue({ data: threadDetail({ permissions: { can_reply: true, can_moderate: false, can_edit: false, can_delete: false, can_accept: false, can_curate: false } }) });
+    api.posts.mockResolvedValue({ data: { count: 1, next: null, previous: null, results: [replyPost] } });
+    render(
+      <MemoryRouter initialEntries={["/connect/t/7"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Condition the tube.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Accept as solution/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Promote to Knowledge Hub/ })).toBeNull();
+  });
+
+  const article = (over = {}) => ({
+    id: 5, title: "Removing moisture before TGA runs", summary: "Dry first.", status: "published",
+    community: { id: 2, slug: "xrd-3", name: "XRD Group", kind: "group" }, category: null, equipment: null, tags: [],
+    author: { id: 3, name: "Mohan Lal" }, reviewer: { id: 4, name: "Dr. Kavita Rao" }, is_institutional_guidance: true, needs_review: false,
+    version: 2, view_count: 4, published_at: new Date().toISOString(), last_reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    source_thread_id: 7, body_html: "<h3>Solution</h3><p>Dry at 60 C.</p>", source: { thread_id: 7, post: { id: 71, author: "Mohan Lal", badge: "Lab Operator (Lab In-charge)", is_verified_response: true } },
+    permissions: { can_edit: false, can_submit: false, can_review: false, can_publish: false, can_archive: false, can_restore: false },
+    ...over,
+  });
+
+  it("shows reviewed guidance with its reviewer and no workflow buttons for members", async () => {
+    api.article.mockResolvedValue({ data: article() });
+    render(
+      <MemoryRouter initialEntries={["/connect/knowledge/5"]}>
+        <Routes>
+          <Route path="/connect/knowledge/:id" element={<ConnectArticle />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "Removing moisture before TGA runs" })).toBeTruthy();
+    expect(screen.getAllByText("Reviewed institutional guidance").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Dr. Kavita Rao/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Publish" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+
+  it("warns when an article is not reviewed guidance and lets a reviewer approve", async () => {
+    api.article.mockResolvedValue({
+      data: article({ status: "under_review", is_institutional_guidance: false, reviewer: null, permissions: { can_edit: true, can_submit: false, can_review: true, can_publish: false, can_archive: true, can_restore: false } }),
+    });
+    api.articleAction.mockResolvedValue({ data: article() });
+    render(
+      <MemoryRouter initialEntries={["/connect/knowledge/5"]}>
+        <Routes>
+          <Route path="/connect/knowledge/:id" element={<ConnectArticle />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/not reviewed institutional guidance/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(api.articleAction).toHaveBeenCalledWith(5, "review", { decision: "approved", comment: "", institutional: true }));
+  });
+
+  it("shows a neutral message when the article is not readable", async () => {
+    api.article.mockResolvedValue({ error: "This page is not available to you.", status: 404 });
+    render(
+      <MemoryRouter initialEntries={["/connect/knowledge/9"]}>
+        <Routes>
+          <Route path="/connect/knowledge/:id" element={<ConnectArticle />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("This article is not available to you")).toBeTruthy();
   });
 });

@@ -151,7 +151,26 @@ export default function ConnectHome() {
         )}
       </SideCard>
       <SideCard title="Knowledge Hub" icon={<MessagesSquare className="h-4 w-4 text-primary" aria-hidden />}>
-        <p className="text-sm text-muted-foreground">Reviewed guidance from facility staff, promoted from solved discussions.</p>
+        {home?.articles?.length ? (
+          <ul className="space-y-2.5">
+            {home.articles.map((a) => (
+              <li key={a.id}>
+                <Link to={`/connect/knowledge/${a.id}`} className="line-clamp-2 text-sm font-medium hover:text-primary hover:underline">
+                  {a.title}
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  {a.community}
+                  {a.is_institutional_guidance ? " · Reviewed guidance" : ""}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">Reviewed guidance from facility staff, promoted from solved discussions.</p>
+        )}
+        <Link to="/connect/knowledge" className="mt-3 inline-block text-xs text-primary hover:underline">
+          Open the Knowledge Hub
+        </Link>
       </SideCard>
     </>
   );

@@ -152,6 +152,7 @@ export interface SearchHit extends ThreadCard {
 
 export interface SearchPage extends Paginated<SearchHit> {
   facets: { types?: Partial<Record<ThreadType, number>>; solved?: number };
+  articles?: Array<{ id: number; title: string; summary: string; community: string; is_institutional_guidance: boolean }>;
 }
 
 export interface AttachmentRef {
@@ -193,14 +194,77 @@ export interface PollView {
   is_closed: boolean;
 }
 
+export interface SolutionSummary {
+  post_id: number;
+  solver: AuthorRef;
+  accepted_by: string;
+  accepted_by_author: boolean;
+  accepted_at: string;
+  resolution_hours: number;
+}
+
 export interface ThreadDetail extends ThreadCard {
   opening_post: PostView | null;
   poll: PollView | null;
   accepted_post_id: number | null;
-  permissions: { can_reply: boolean; can_moderate: boolean; can_edit: boolean; can_delete: boolean };
+  solution: SolutionSummary | null;
+  articles: Array<{ id: number; title: string; status: ArticleStatus }>;
+  permissions: {
+    can_reply: boolean;
+    can_moderate: boolean;
+    can_edit: boolean;
+    can_delete: boolean;
+    can_accept: boolean;
+    can_curate: boolean;
+  };
+}
+
+export type ArticleStatus = "draft" | "under_review" | "published" | "archived";
+
+export const ARTICLE_STATUS_LABEL: Record<ArticleStatus, string> = {
+  draft: "Draft",
+  under_review: "Under Review",
+  published: "Published",
+  archived: "Archived",
+};
+
+export interface ArticleCard {
+  id: number;
+  title: string;
+  summary: string;
+  status: ArticleStatus;
+  community: { id: number; slug: string; name: string; kind: CommunityKind };
+  category: { id: number; name: string } | null;
+  equipment: EquipmentRef | null;
+  tags: Array<{ slug: string; name: string }>;
+  author: { id: number; name: string };
+  reviewer: { id: number; name: string } | null;
+  is_institutional_guidance: boolean;
+  needs_review: boolean;
+  version: number;
+  view_count: number;
+  published_at: string | null;
+  last_reviewed_at: string | null;
+  updated_at: string;
+  source_thread_id: number | null;
+}
+
+export interface ArticleDetail extends ArticleCard {
+  body_html: string;
+  source: { thread_id: number | null; post: { id: number; author: string; badge: string; is_verified_response: boolean } | null };
+  permissions: {
+    can_edit: boolean;
+    can_submit: boolean;
+    can_review: boolean;
+    can_publish: boolean;
+    can_archive: boolean;
+    can_restore: boolean;
+  };
+  reviews?: Array<{ decision: "approved" | "changes_requested" | "rejected"; comment: string; reviewer: string; version: number; created_at: string }>;
 }
 
 export interface HomeSections {
+  articles?: Array<{ id: number; title: string; community: string; is_institutional_guidance: boolean; published_at: string }>;
   latest: ThreadCard[];
   trending: ThreadCard[];
   recently_solved: ThreadCard[];
@@ -360,6 +424,23 @@ export const connectApi = {
   follow: (threadId: number, level: "watching" | "muted" | null) =>
     send<{ level: string | null }>("PUT", `threads/${threadId}/follow/`, { level }),
   vote: (threadId: number, optionId: number) => send<PollView>("POST", `threads/${threadId}/vote/`, { option_id: optionId }),
+  acceptSolution: (threadId: number, postId: number) => send<ThreadDetail>("POST", `threads/${threadId}/solution/`, { post_id: postId }),
+  revokeSolution: (threadId: number) => send<ThreadDetail>("DELETE", `threads/${threadId}/solution/`, {}),
+  articles: (params: Partial<{ status: "published" | "workflow" | ArticleStatus; community: string; equipment: number; tag: string; q: string; guidance: boolean; page: number }> = {}) =>
+    request<Paginated<ArticleCard>>(`articles/${query(params)}`),
+  article: (id: number) => request<ArticleDetail>(`articles/${id}/`),
+  promote: (input: { thread_id: number; post_id?: number | null; title?: string; summary?: string }) => send<ArticleDetail>("POST", "articles/", input),
+  editArticle: (id: number, input: Partial<{ title: string; summary: string; body: string; tags: string[]; note: string }>) =>
+    send<ArticleDetail>("PATCH", `articles/${id}/`, input),
+  articleAction: (
+    id: number,
+    action: "submit" | "review" | "publish" | "archive" | "restore",
+    body: Partial<{ decision: "approved" | "changes_requested" | "rejected"; comment: string; institutional: boolean; reason: string }> = {},
+  ) => send<ArticleDetail>("POST", `articles/${id}/${action}/`, body),
+  articleRevisions: (id: number) =>
+    request<{ results: Array<{ version: number; title: string; summary: string; body_html: string; status: string; editor: string; note: string; created_at: string }> }>(
+      `articles/${id}/revisions/`,
+    ),
   categories: (community?: string) => request<{ results: CategoryRef[] }>(`categories/${query({ community })}`),
   tags: (q = "") => request<{ results: Array<{ slug: string; name: string; count: number }> }>(`tags/${query({ q })}`),
   draft: (key: string) => request<{ context_key: string; payload: DraftPayload; updated_at: string }>(`drafts/${encodeURIComponent(key)}/`),

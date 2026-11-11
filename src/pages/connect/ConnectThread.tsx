@@ -3,8 +3,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   BadgeCheck,
   Bell,
+  BookOpen,
   Bookmark,
   CheckCircle2,
+  CircleCheck,
+  Clock,
   CornerDownRight,
   History,
   Lightbulb,
@@ -53,6 +56,12 @@ import { ConnectEditor } from "@/components/connect/ConnectEditor";
 import { AttachmentList, PostBody } from "@/components/connect/PostBody";
 import { timeAgo, useConnectAvailability } from "@/components/connect/useConnect";
 import { useAuth } from "@/contexts/AuthContext";
+
+function formatHours(h: number): string {
+  if (h < 1) return "under an hour";
+  if (h < 48) return `${Math.round(h)} h`;
+  return `${Math.round(h / 24)} days`;
+}
 
 const REACTIONS: Array<{ kind: ReactionKind; label: string; icon: typeof ThumbsUp }> = [
   { kind: "helpful", label: "Helpful", icon: ThumbsUp },
@@ -106,6 +115,7 @@ function PostCard({
   onReply,
   onChanged,
   onDeleted,
+  onAccept,
 }: {
   post: PostView;
   community: string;
@@ -114,6 +124,8 @@ function PostCard({
   onReply?: (p: PostView) => void;
   onChanged: (p: PostView) => void;
   onDeleted: (p: PostView) => void;
+  /** Shown to the thread's author and moderators on Question / Technical Issue threads. */
+  onAccept?: (p: PostView) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(post.body_html);
@@ -230,6 +242,11 @@ function PostCard({
         <footer className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <Reactions post={post} canReact={post.author.id !== currentUserId && !hidden} onChange={onChanged} />
           <div className="flex items-center gap-1">
+            {onAccept && !post.is_opening && !post.is_accepted && !hidden ? (
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-emerald-700 hover:text-emerald-800 dark:text-emerald-300" onClick={() => onAccept(post)}>
+                <CircleCheck className="h-3.5 w-3.5" aria-hidden /> Accept as solution
+              </Button>
+            ) : null}
             {onReply ? (
               <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => onReply(post)}>
                 <Reply className="h-3.5 w-3.5" aria-hidden /> Reply
@@ -517,6 +534,20 @@ export default function ConnectThread() {
           >
             <Share2 className="h-4 w-4" aria-hidden /> Copy link
           </Button>
+          {thread.permissions.can_curate ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={async () => {
+                const res = await connectApi.promote({ thread_id: thread.id, post_id: thread.accepted_post_id });
+                if (!res.data) toast.error(res.error || "Could not create the article.");
+                else navigate(`/connect/knowledge/${res.data.id}`);
+              }}
+            >
+              <BookOpen className="h-4 w-4" aria-hidden /> Promote to Knowledge Hub
+            </Button>
+          ) : null}
           {thread.permissions.can_delete ? (
             <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
               <Trash2 className="h-4 w-4" aria-hidden /> Delete
@@ -534,14 +565,67 @@ export default function ConnectThread() {
       />
       {thread.poll ? <Poll threadId={thread.id} poll={thread.poll} canVote={thread.permissions.can_reply} onChange={(poll) => setThread({ ...thread, poll })} /> : null}
 
-      {accepted ? (
-        <section aria-label="Accepted solution" className="space-y-2">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="h-5 w-5" aria-hidden /> Accepted solution
-          </h2>
-          <a href={`#post-${accepted.id}`} className="block text-xs text-muted-foreground hover:underline">
-            Jump to it in the discussion
-          </a>
+      {thread.solution ? (
+        <section aria-label="Accepted solution" className="space-y-3 rounded-xl border border-emerald-300 bg-emerald-50/60 p-4 dark:border-emerald-800 dark:bg-emerald-950/30">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h2 className="flex items-center gap-2 text-base font-semibold text-emerald-800 dark:text-emerald-200">
+                <CheckCircle2 className="h-5 w-5" aria-hidden /> Solved
+              </h2>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-emerald-900/80 dark:text-emerald-200/80">
+                <span className="inline-flex items-center gap-1">
+                  Answer by <span className="font-medium">{thread.solution.solver.name}</span>
+                  {thread.solution.solver.badge ? <RoleBadge badge={thread.solution.solver.badge} /> : null}
+                </span>
+                <span>· accepted by {thread.solution.accepted_by_author ? "the person who asked" : thread.solution.accepted_by}</span>
+                <span className="inline-flex items-center gap-1">
+                  · <Clock className="h-3 w-3" aria-hidden /> resolved in {formatHours(thread.solution.resolution_hours)}
+                </span>
+              </p>
+            </div>
+            {thread.permissions.can_accept ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={async () => {
+                  const res = await connectApi.revokeSolution(thread.id);
+                  if (!res.data) toast.error(res.error || "Could not change the accepted answer.");
+                  else {
+                    setThread(res.data);
+                    setPosts((list) => list.map((p) => ({ ...p, is_accepted: false })));
+                  }
+                }}
+              >
+                Revoke
+              </Button>
+            ) : null}
+          </div>
+          {accepted ? (
+            <div className="rounded-lg border bg-card p-3">
+              <PostBody html={accepted.body_html} />
+              <a href={`#post-${accepted.id}`} className="mt-2 block text-xs text-muted-foreground hover:underline">
+                See it in the discussion
+              </a>
+            </div>
+          ) : null}
+        </section>
+      ) : thread.is_solvable && thread.permissions.can_accept && posts.length ? (
+        <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+          Did a reply solve this? Choose <span className="font-medium">Accept as solution</span> on it so others find the answer.
+        </p>
+      ) : null}
+
+      {thread.articles.length ? (
+        <section aria-label="Knowledge Hub" className="flex flex-wrap items-center gap-2 text-sm">
+          <BookOpen className="h-4 w-4 text-primary" aria-hidden />
+          <span className="text-muted-foreground">In the Knowledge Hub:</span>
+          {thread.articles.map((ar) => (
+            <Link key={ar.id} to={`/connect/knowledge/${ar.id}`} className="font-medium text-primary hover:underline">
+              {ar.title}
+              {ar.status !== "published" ? ` (${ar.status.replace("_", " ")})` : ""}
+            </Link>
+          ))}
         </section>
       ) : null}
 
@@ -559,6 +643,16 @@ export default function ConnectThread() {
             onReply={thread.permissions.can_reply ? (target) => {
               setReplyTo(target);
               replyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+            } : undefined}
+            onAccept={thread.permissions.can_accept && thread.is_solvable ? async (target) => {
+              const res = await connectApi.acceptSolution(thread.id, target.id);
+              if (!res.data) {
+                toast.error(res.error || "Could not accept this answer.");
+                return;
+              }
+              setThread(res.data);
+              setPosts((list) => list.map((x) => ({ ...x, is_accepted: x.id === target.id })));
+              toast.success("Marked as the accepted solution.");
             } : undefined}
             onChanged={(updated) => setPosts((list) => list.map((x) => (x.id === updated.id ? updated : x)))}
             onDeleted={(gone) => {
