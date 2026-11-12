@@ -92,10 +92,13 @@ describe("Researcher of the Month spotlight", () => {
     expect(within(featured).getByText("Researcher 3")).toBeTruthy();
     expect(within(featured).getByText("4 publications")).toBeTruthy();
     expect(within(featured).getByText("Paper 3")).toBeTruthy();
-    const rows = within(card).getAllByRole("listitem").map((li) => li.textContent);
-    expect(rows).toHaveLength(1);  // everyone else, once (the Researcher of the Month is on top)
-    expect(rows[0]).toContain("Researcher 7");
-    expect(rows[0]).toContain("2 publications");
+    // Everyone's portrait in one strip, most publications first; no "Also acknowledged" list.
+    expect(within(card).queryByText("Also acknowledged")).toBeNull();
+    const strip = within(card).getByTestId("portrait-strip");
+    const faces = within(strip).getAllByRole("listitem");
+    expect(faces.map((li) => li.textContent)).toEqual(["4Researcher 3", "2Researcher 7"]);
+    expect(faces[0].getAttribute("data-top")).toBe("true");  // the strip rests longer here
+    expect(within(strip).getByLabelText("2 publications")).toBeTruthy();
     expect(within(card).getByTestId("acknowledgement-totals").textContent).toBe("2 researchers · 6 publications");
     expect(within(card).queryByRole("button", { name: "Next researcher" })).toBeNull();
     expect(within(card).getByRole("link", { name: /All publications/ })).toBeTruthy();
@@ -214,5 +217,43 @@ describe("Acknowledgement strip (phones and tablets)", () => {
     render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
     expect(await screen.findByTestId("acknowledgers-only")).toBeTruthy();
     expect(screen.getByText("Researcher 9")).toBeTruthy();
+  });
+});
+
+
+describe("Hero portrait strip", () => {
+  it("glides through everyone continuously and rests longer on the researcher with the most publications", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [] } });
+      api.getAcknowledgers.mockResolvedValue({ data: { results: [1, 2, 3, 4, 5].map((id) =>
+        person(id, { user_id: id, publication_count: id === 4 ? 9 : 1 })) } });
+      render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+      const track = await screen.findByTestId("portrait-track");
+      expect(within(track).getAllByRole("listitem")[0].textContent).toContain("Researcher 4");  // most publications first
+      expect(track.getAttribute("data-index")).toBe("0");
+      await act(async () => { vi.advanceTimersByTime(2400); });
+      expect(track.getAttribute("data-index")).toBe("0");  // resting on the top researcher
+      await act(async () => { vi.advanceTimersByTime(400); });
+      expect(track.getAttribute("data-index")).toBe("1");
+      await act(async () => { vi.advanceTimersByTime(1650); });
+      expect(track.getAttribute("data-index")).toBe("2");  // then about one portrait every 1.6 s
+      fireEvent.mouseEnter(track.parentElement as HTMLElement);
+      await act(async () => { vi.advanceTimersByTime(8000); });
+      expect(track.getAttribute("data-index")).toBe("2");  // paused while hovered
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("names only the institute-wide Researcher of the Month in the hero", async () => {
+    const winner = (id: number, titles: string[], dept: number | null) => ({ ...person(id, { user_id: id }), month: "2026-11-01",
+      department_id: dept, department_name: titles[0], titles, publication_count: id });
+    api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [
+      winner(7, ["Institute-wide", "Biosciences"], null), winner(1, ["Civil"], 5)] } });
+    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    const featured = await screen.findByRole("region", { name: "Researcher of the Month" });
+    expect(within(featured).getByText("Researcher 7")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Next researcher" })).toBeNull();  // the department winner is not rotated in
   });
 });
