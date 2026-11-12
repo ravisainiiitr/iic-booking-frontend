@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ExternalLink,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { StandaloneOnly } from "@/components/PageShell";
+import { DsaFleetPanel } from "@/components/department-sync/DsaFleetPanel";
 
 type AgentRow = {
   id: string;
@@ -90,7 +91,10 @@ export default function DepartmentSync() {
   const { user } = useAuth();
   const isAdmin = String(user?.user_type || "").toLowerCase() === "admin";
 
-  const [tab, setTab] = useState("overview");
+  const [searchParams] = useSearchParams();
+  // Alert emails link to ?tab=fleet&agent=<id>; the fleet view is the default for Main Administrators.
+  const [tab, setTab] = useState(searchParams.get("tab") || (isAdmin ? "fleet" : "overview"));
+  const deepLinkAgent = searchParams.get("agent") || "";
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
@@ -309,6 +313,7 @@ export default function DepartmentSync() {
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
               <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl bg-muted/40 p-1">
                 {[
+                  ...(isAdmin ? [["fleet", "Fleet health"]] : []),
                   ["overview", "Operations"],
                   ["agents", "Agents"],
                   ["assignments", "Assignments"],
@@ -324,6 +329,12 @@ export default function DepartmentSync() {
                   </TabsTrigger>
                 ))}
               </TabsList>
+
+              {isAdmin ? (
+                <TabsContent value="fleet" className="space-y-4">
+                  <DsaFleetPanel initialAgentId={deepLinkAgent} />
+                </TabsContent>
+              ) : null}
 
               <TabsContent value="overview" className="space-y-4">
                 <div className="grid gap-4 lg:grid-cols-2">
