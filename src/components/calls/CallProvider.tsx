@@ -100,6 +100,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("iic-call-native-unmute", onNativeUnmute);
       cancelled = true;
       unsubscribe();
+      // Signed out or switched user mid-call: release the app's ongoing-call notification and microphone service too.
+      if (nativeActive) {
+        nativeActive = false;
+        void setNativeCallActive(false);
+      }
       eng.stop();
       setEngine(null);
       setEnabled(false);
