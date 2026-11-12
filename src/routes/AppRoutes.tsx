@@ -261,11 +261,17 @@ function DashboardEntry() {
   return <Dashboard />;
 }
 
-/** The app has its own screen for these; `?full=1` keeps the website page reachable from them. */
-function AppRedirect({ to, page }: { to: string; page: ReactElement }) {
+/**
+ * The app has its own screen for these; `?full=1` keeps the website page reachable from them.
+ * `publicWhenSignedOut`: the app screens need an account, so a signed-out visitor (browsing from the
+ * sign-in screen's "Browse equipment without signing in") gets the public website page instead of
+ * being bounced back to sign-in.
+ */
+function AppRedirect({ to, page, publicWhenSignedOut = false }: { to: string; page: ReactElement; publicWhenSignedOut?: boolean }) {
   const { search } = useLocation();
   const { id } = useParams<{ id?: string }>();
   if (!isNativeApp() || search.includes("full=1")) return page;
+  if (publicWhenSignedOut && !apiClient.getToken()) return page;
   return <Navigate to={id ? `${to}/${id}` : to} replace />;
 }
 
@@ -310,7 +316,7 @@ export default function AppRoutes() {
           <Route path="/external-checkout/:checkoutId" element={<ExternalCheckout />} />
           <Route path="/external-checkout/:checkoutId/confirmation" element={<ExternalCheckoutConfirmation />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
-          <Route path="/equipment/:id" element={<AppRedirect to="/app/equipment" page={<EquipmentPageRoute />} />} />
+          <Route path="/equipment/:id" element={<AppRedirect to="/app/equipment" page={<EquipmentPageRoute />} publicWhenSignedOut />} />
           <Route path="/equipment-qr-codes" element={<ErrorBoundary fallbackTitle="Equipment QR Codes" backPath="/dashboard"><EquipmentQrCodes /></ErrorBoundary>} />
           <Route path="/equipment-qr-codes/print" element={<EquipmentQrPrint />} />
           <Route path="/verify-receipt" element={<VerifyReceipt />} />

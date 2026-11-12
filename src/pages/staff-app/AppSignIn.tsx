@@ -350,7 +350,8 @@ export default function AppSignIn() {
               </span>
               <ExternalLink className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             </button>
-            <Link to="/equipments" className="flex items-center justify-between py-1 text-foreground">
+            {/* /equipments needs an account; /availability is the public catalogue (equipment, next free slots). */}
+            <Link to="/availability" className="flex items-center justify-between py-1 text-foreground">
               <span>
                 <span className="font-medium text-primary">Browse equipment</span> without signing in
               </span>
