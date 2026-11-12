@@ -77,21 +77,26 @@ describe("Hall of Frames", () => {
 describe("Researcher of the Month spotlight", () => {
   const month = (results: unknown[]) => ({ data: { month: "2026-11-01", history: false, results } });
 
-  it("in the hero shows only the strip: the month, the Researcher of the Month first, and no publication block", async () => {
+  it("in the hero shows the Researcher of the Month with their latest paper, everyone else with counts, and the totals", async () => {
     api.getResearchersOfTheMonth.mockResolvedValue(
       month([{ ...person(3, { publication_count: 4, user_id: 3 }), month: "2026-11-01", department_id: null, department_name: "Institute-wide",
                titles: ["Institute-wide", "Physics"] }]),
     );
-    api.getAcknowledgers.mockResolvedValue({ data: { results: [person(7, { user_id: 7 })] } });
+    api.getAcknowledgers.mockResolvedValue({ data: { results: [person(3, { user_id: 3, publication_count: 4 }), person(7, { user_id: 7, publication_count: 2 })] } });
     render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
     const card = await screen.findByTestId("researcher-spotlight");
-    expect(await within(card).findByTestId("spotlight-month")).toBeTruthy();
+    expect(await within(card).findByText("Researcher 7")).toBeTruthy();
     expect(within(card).getByTestId("spotlight-month").textContent).toBe("November 2026");
+    expect(within(card).getByRole("heading", { name: "Acknowledged IIC in their research" })).toBeTruthy();
+    const featured = within(card).getByRole("region", { name: "Researcher of the Month" });
+    expect(within(featured).getByText("Researcher 3")).toBeTruthy();
+    expect(within(featured).getByText("4 publications")).toBeTruthy();
+    expect(within(featured).getByText("Paper 3")).toBeTruthy();
     const rows = within(card).getAllByRole("listitem").map((li) => li.textContent);
-    expect(rows[0]).toContain("Researcher of the Month");
-    expect(rows[0]).toContain("Researcher 3");
-    expect(within(card).queryByRole("heading")).toBeNull();  // the large Researcher of the Month block is gone
-    expect(within(card).queryByText("Paper 3")).toBeNull();
+    expect(rows).toHaveLength(1);  // everyone else, once (the Researcher of the Month is on top)
+    expect(rows[0]).toContain("Researcher 7");
+    expect(rows[0]).toContain("2 publications");
+    expect(within(card).getByTestId("acknowledgement-totals").textContent).toBe("2 researchers · 6 publications");
     expect(within(card).queryByRole("button", { name: "Next researcher" })).toBeNull();
     expect(within(card).getByRole("link", { name: /All publications/ })).toBeTruthy();
   });
@@ -149,14 +154,14 @@ describe("Hall of Frames details", () => {
   });
 });
 
-describe("Acknowledgement list in the hero", () => {
+describe("Acknowledgement strip (phones and tablets)", () => {
   const month = (id: number) => ({ ...person(id, { user_id: id }), month: "2026-11-01", department_id: null, department_name: "Institute-wide", titles: ["Institute-wide"], publication_count: 4 });
 
   it("starts the strip with the Researcher of the Month, then everyone else once, and steps manually", async () => {
     api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
     api.getAcknowledgers.mockResolvedValue({ data: { results: [
       person(3, { user_id: 3, publication_count: 4 }), person(7, { user_id: 7, publication_count: 2 }), person(8, { user_id: 8, publication_count: 1 })] } });
-    render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+    render(<MemoryRouter><ResearcherSpotlight variant="compact" /></MemoryRouter>);
     const list = await screen.findByRole("region", { name: "Researchers acknowledging IIC" });
     const rows = within(list).getAllByRole("listitem").map((li) => li.textContent);
     expect(rows).toHaveLength(3);
@@ -180,7 +185,7 @@ describe("Acknowledgement list in the hero", () => {
     try {
       api.getResearchersOfTheMonth.mockResolvedValue({ data: { month: "2026-11-01", results: [month(3)] } });
       api.getAcknowledgers.mockResolvedValue({ data: { results: [person(3, { user_id: 3 }), person(7, { user_id: 7 })] } });
-      render(<MemoryRouter><ResearcherSpotlight /></MemoryRouter>);
+      render(<MemoryRouter><ResearcherSpotlight variant="compact" /></MemoryRouter>);
       const track = await screen.findByTestId("acknowledgers-track");
       expect(track.getAttribute("data-index")).toBe("0");  // Researcher of the Month at the front
       await act(async () => { vi.advanceTimersByTime(2500); });

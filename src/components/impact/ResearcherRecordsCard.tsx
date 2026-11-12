@@ -2,19 +2,28 @@ import { useState } from "react";
 import { toast } from "sonner";
 import AuthorRecordCard from "@/components/impact/AuthorRecordCard";
 import { Button } from "@/components/ui/button";
-import { authorConfirmationsApi, type ResearcherRecords } from "@/lib/authorConfirmationsApi";
+import { authorConfirmationsApi, type AuthorRecord, type ResearcherRecords } from "@/lib/authorConfirmationsApi";
+
+/** The records still to decide: lookalikes, plus (for the researcher themself) the automatic matches they have not confirmed. */
+export function recordsToConfirm(row: ResearcherRecords, includeAutoLinked = false): AuthorRecord[] {
+  return includeAutoLinked ? [...row.waiting, ...row.linked.filter((r) => r.status === "AUTO_LINKED")] : row.waiting;
+}
 
 /** A researcher's lookalike author records with Yes / No per record and "None of these". */
 export default function ResearcherCard({
   row,
   onUpdated,
   self = false,
+  includeAutoLinked = false,
 }: {
   row: ResearcherRecords;
   onUpdated: (next: ResearcherRecords) => void;
   self?: boolean;
+  /** Also list automatic matches (the sign-in prompt asks the researcher to confirm those too). */
+  includeAutoLinked?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const records = recordsToConfirm(row, includeAutoLinked);
 
   const send = async (body: { confirm?: number[]; reject?: number[] }) => {
     setBusy(true);
@@ -42,19 +51,20 @@ export default function ResearcherCard({
         </div>
       ) : null}
       <ul className="space-y-2" aria-label={`Possible author records for ${row.researcher.name}`}>
-        {row.waiting.map((rec) => (
+        {records.map((rec) => (
           <AuthorRecordCard
             key={rec.id}
             record={rec}
             busy={busy || !row.can_decide}
             self={self}
+            note={rec.status === "AUTO_LINKED" ? "Matched to you automatically: please confirm" : undefined}
             onDecide={(id, yes) => void send(yes ? { confirm: [id] } : { reject: [id] })}
           />
         ))}
       </ul>
-      {row.waiting.length > 1 ? (
+      {records.length > 1 ? (
         <div className="mt-3 flex justify-end">
-          <Button size="sm" variant="ghost" disabled={busy || !row.can_decide} onClick={() => void send({ reject: row.waiting.map((w) => w.id) })}>
+          <Button size="sm" variant="ghost" disabled={busy || !row.can_decide} onClick={() => void send({ reject: records.map((w) => w.id) })}>
             {self ? "None of these are me" : "None of these"}
           </Button>
         </div>

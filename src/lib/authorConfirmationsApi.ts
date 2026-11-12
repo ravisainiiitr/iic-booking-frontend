@@ -28,6 +28,8 @@ export interface ResearcherRecords {
   rejected: AuthorRecord[];
   can_decide: boolean;
   scan_started?: boolean;
+  /** The signed-in faculty member had no records: a background name search has just started. */
+  searching?: boolean;
 }
 
 export interface RecentWork {

@@ -12,11 +12,13 @@ export default function AuthorRecordCard({
   busy,
   onDecide,
   self = false,
+  note,
 }: {
   record: AuthorRecord;
   busy: boolean;
   onDecide: (recordId: number, confirm: boolean) => void;
   self?: boolean;
+  note?: string;
 }) {
   const [works, setWorks] = useState<RecentWork[] | null>(null);
   const [loadingWorks, setLoadingWorks] = useState(false);
@@ -35,6 +37,9 @@ export default function AuthorRecordCard({
     <li data-testid="author-record" className="rounded-lg border bg-background p-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
         <div className="min-w-0 flex-1">
+          {note ? (
+            <p className="mb-1 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-200">{note}</p>
+          ) : null}
           <p className="font-semibold leading-snug">
             {r.display_name}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
