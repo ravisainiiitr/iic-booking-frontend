@@ -5,12 +5,18 @@ import { addDays, format, startOfWeek } from "date-fns";
 
 const getEquipmentSlots = vi.fn();
 vi.mock("@/lib/api", () => ({ apiClient: { getEquipmentSlots: (...args: unknown[]) => getEquipmentSlots(...args) } }));
+const viewer = vi.hoisted(() => ({ user: null as null | { user_type: string } }));
+vi.mock("@/contexts/AuthContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/contexts/AuthContext")>()),
+  useOptionalAuth: () => (viewer.user ? { user: viewer.user } : null),
+}));
 
 import EquipmentAvailabilityCalendar from "./EquipmentAvailabilityCalendar";
 
 afterEach(() => {
   cleanup();
   getEquipmentSlots.mockReset();
+  viewer.user = null;
 });
 
 function slot(id: number, day: Date, fields: Record<string, unknown>) {
@@ -73,7 +79,8 @@ describe("EquipmentAvailabilityCalendar", () => {
     expect(screen.queryByText("Past")).toBeNull();
   });
 
-  it("shows a Booking Not Utilized slot as plain Booked, naming the booker only when the server sends one", async () => {
+  it("shows a Booking Not Utilized slot as plain Booked, naming the booker in the cell for staff", async () => {
+    viewer.user = { user_type: "operator" };
     const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
     getEquipmentSlots.mockResolvedValue({
       data: {
@@ -98,6 +105,35 @@ describe("EquipmentAvailabilityCalendar", () => {
     expect(screen.queryByText(/Not Utilized/i)).toBeNull();
     // The server sent the booker (it does so only for viewers allowed to see them), so the cell names them.
     expect(screen.getByText("Other Person")).toBeTruthy();
+  });
+
+  it("shows a Booking Not Utilized slot as plain Booked, keeping the booker name out of the cell for a student", async () => {
+    viewer.user = { user_type: "student" };
+    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    getEquipmentSlots.mockResolvedValue({
+      data: {
+        slots: [
+          slot(1, monday, {
+            status: "BOOKING_NOT_UTILIZED",
+            booking_id: "NU-41",
+            real_booking_id: 41,
+            booking_user_name: "Other Person",
+          }),
+          slot(2, addDays(monday, 6), { status: "AVAILABLE", start_datetime: "2099-01-01T09:00:00+05:30" }),
+        ],
+        slot_master_times: ["09:00:00"],
+        slot_duration_minutes: 60,
+      },
+    });
+
+    render(<EquipmentAvailabilityCalendar equipmentId={5} />);
+
+    // The cell plus the legend entry; the status stays plain Booked.
+    await waitFor(() => expect(screen.getAllByText("Booked")).toHaveLength(2));
+    expect(screen.queryByText(/Not Utilized/i)).toBeNull();
+    // The cell says only Booked; the name the server sent stays in the hover / tap details.
+    expect(screen.queryByText("Other Person")).toBeNull();
+    expect(screen.getByRole("button", { name: /Other Person/ })).toBeTruthy();
   });
 
   it("explains a disrupted slot on hover with the public reason and expected recovery only", async () => {
