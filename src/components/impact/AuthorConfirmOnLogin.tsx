@@ -31,7 +31,7 @@ function markShown(userId: unknown): void {
 
 /**
  * On sign-in, every faculty member is asked to confirm the OpenAlex author records found under their name (lookalikes
- * and automatic matches alike), so papers acknowledging IIC are credited to the right person. Once per sign-in
+ * and automatic matches alike), so papers acknowledging IIT Roorkee facilities are credited to the right person. Once per sign-in
  * session; it comes back on the next sign-in until nothing is left to confirm. A faculty member with no records yet
  * gets a background name search, and the prompt looks again once shortly after.
  */
@@ -78,7 +78,7 @@ export default function AuthorConfirmOnLogin() {
           </DialogTitle>
           <DialogDescription>
             We searched OpenAlex (a public index of scholarly works) for {row.researcher.name || "your name"}. Confirm each record
-            that is yours and mark the others “Not me”, so papers that acknowledge IIC facilities are credited to you.
+            that is yours and mark the others “Not me”, so papers that acknowledge IIT Roorkee facilities (IIC or your department) are credited to you.
           </DialogDescription>
         </DialogHeader>
         <ul>

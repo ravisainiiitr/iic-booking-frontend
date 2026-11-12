@@ -87,7 +87,7 @@ describe("Researcher of the Month spotlight", () => {
     const card = await screen.findByTestId("researcher-spotlight");
     expect(await within(card).findByText("Researcher 7")).toBeTruthy();
     expect(within(card).getByTestId("spotlight-month").textContent).toBe("November 2026");
-    expect(within(card).getByRole("heading", { name: "Acknowledged IIC in their research" })).toBeTruthy();
+    expect(within(card).getByRole("heading", { name: "Acknowledged IIT Roorkee facilities in their research" })).toBeTruthy();
     const featured = within(card).getByRole("region", { name: "Researcher of the Month" });
     expect(within(featured).getByText("Researcher 3")).toBeTruthy();
     expect(within(featured).getByText("4 publications")).toBeTruthy();
@@ -148,7 +148,7 @@ describe("Hall of Frames details", () => {
     api.getHallOfFrames.mockResolvedValue({ data: { results: [person(1, { publication_count: 9 })] } });
     render(<HallOfFrames />);
     const section = await screen.findByTestId("hall-of-frames");
-    expect(within(section).getByText("9 publications acknowledging IIC")).toBeTruthy();
+    expect(within(section).getByText("9 publications acknowledging IITR facilities")).toBeTruthy();
     fireEvent.error(within(section).getByRole("img", { name: "Portrait of Researcher 1" }));
     expect(within(section).queryByRole("img", { name: "Portrait of Researcher 1" })).toBeNull();
   });
@@ -162,7 +162,7 @@ describe("Acknowledgement strip (phones and tablets)", () => {
     api.getAcknowledgers.mockResolvedValue({ data: { results: [
       person(3, { user_id: 3, publication_count: 4 }), person(7, { user_id: 7, publication_count: 2 }), person(8, { user_id: 8, publication_count: 1 })] } });
     render(<MemoryRouter><ResearcherSpotlight variant="compact" /></MemoryRouter>);
-    const list = await screen.findByRole("region", { name: "Researchers acknowledging IIC" });
+    const list = await screen.findByRole("region", { name: "Researchers acknowledging IIT Roorkee facilities" });
     const rows = within(list).getAllByRole("listitem").map((li) => li.textContent);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toContain("Researcher of the Month");

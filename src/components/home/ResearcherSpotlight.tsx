@@ -22,7 +22,7 @@ function prefersReducedMotion(): boolean {
 }
 
 /**
- * One horizontal row of everyone who acknowledged IIC, the Researcher of the Month first, stepping left one person
+ * One horizontal row of everyone who acknowledged IIT Roorkee facilities, the Researcher of the Month first, stepping left one person
  * about once a second and pausing 2 s on the Researcher of the Month, continuously. The list is followed by a copy of itself so the loop never shows a gap; on reaching the copy it
  * jumps back to the start without animation. The row never grows the card: it is one line high whatever the count.
  */
@@ -104,7 +104,7 @@ function AcknowledgerMarquee({ people, featured, dark, label, badge }: {
     <section aria-label={label} className={dark ? "relative mt-4" : "mt-3"} data-testid="acknowledgers-strip">
       <div className="flex items-center justify-between gap-3">
         <p className={cn("text-[11px] font-semibold uppercase tracking-wider", dark ? "text-slate-500 dark:text-white/55" : "text-muted-foreground")}>
-          Acknowledged IIC in their research
+          Acknowledged IIT Roorkee facilities in their research
         </p>
         {badge}
       </div>
@@ -187,7 +187,7 @@ const LIST_STEP_REM = 4.25;
 const LIST_HOLD_MS = 2600;
 
 /**
- * Everyone else who acknowledged IIC, as a vertical list filling the rest of the hero card. When more names than fit
+ * Everyone else who acknowledged IIT Roorkee facilities, as a vertical list filling the rest of the hero card. When more names than fit
  * it scrolls up one row every few seconds and loops (a copy follows the list); hover or focus pauses it.
  */
 function AcknowledgerColumn({ people }: { people: ResearchRecognition[] }) {
@@ -390,13 +390,13 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   const featured = new Set(people.map((x) => x.user_id).filter(Boolean));
   const others = acknowledgers.filter((a) => !featured.has(a.user_id ?? a.id));
   const dark = variant !== "compact";
-  // The strip starts with this month's researcher(s), where it pauses, then everyone else who acknowledged IIC.
+  // The strip starts with this month's researcher(s), where it pauses, then everyone else who acknowledged IIT Roorkee facilities.
   const featuredRows: ResearchRecognition[] = people.map((m) => {
     const known = acknowledgers.find((a) => (a.user_id ?? a.id) === m.user_id);
     return known ?? m;
   });
   const ackList = others.length ? (
-    <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark={dark} label="Researchers acknowledging IIC" />
+    <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark={dark} label="Researchers acknowledging IIT Roorkee facilities" />
   ) : null;
 
   if (people.length === 0 && others.length === 0) return null;
@@ -408,7 +408,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
     // No Researcher of the Month this month: the acknowledgement list alone.
     return (
       <aside
-        aria-label="Researchers acknowledging IIC"
+        aria-label="Researchers acknowledging IIT Roorkee facilities"
         data-testid="acknowledgers-only"
         className={cn(dark ? "relative w-full rounded-3xl border border-slate-200/90 bg-white/80 p-5 text-slate-900 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:text-white backdrop-blur-xl" : "mx-auto w-full max-w-7xl px-4 pt-5 sm:px-6", className)}
       >
@@ -445,7 +445,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
             </p>
             <p className="truncate text-base font-semibold">{p.researcher_name}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {[titlesOf(p).join(" · "), count ? `${count} publication${count === 1 ? "" : "s"} acknowledging IIC` : ""].filter(Boolean).join(" — ")}
+              {[titlesOf(p).join(" · "), count ? `${count} publication${count === 1 ? "" : "s"} acknowledging IITR facilities` : ""].filter(Boolean).join(" — ")}
             </p>
             {steps.by === "publication" && pub ? (
               <p key={pubAt} className="mt-0.5 truncate text-xs font-medium text-foreground/80 animate-in fade-in duration-500" title={pub.title}>
@@ -488,7 +488,7 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
 
 /**
  * The hero card (large screens): a tall glass panel beside the title. This month's Researcher of the Month on top
- * with their latest acknowledging publication, then everyone else who acknowledged IIC with their publication
+ * with their latest acknowledging publication, then everyone else who acknowledged IIT Roorkee facilities with their publication
  * counts, and the totals.
  */
 function HeroAcknowledgements({
@@ -514,7 +514,7 @@ function HeroAcknowledgements({
   const pub = p ? publicationsOf(p)[pubAt] : undefined;
   return (
     <aside
-      aria-label="Researchers acknowledging IIC"
+      aria-label="Researchers acknowledging IIT Roorkee facilities"
       data-testid={p ? "researcher-spotlight" : "acknowledgers-only"}
       className={cn(
         "relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/80 px-6 pb-4 pt-5 text-slate-900 shadow-[0_30px_80px_-30px_hsl(215_45%_25%/0.45)] ring-1 ring-slate-900/5 backdrop-blur-xl dark:border-white/15 dark:bg-[hsl(218_50%_12%/0.62)] dark:text-white dark:ring-white/10 dark:shadow-[0_30px_80px_-24px_hsl(215_60%_4%/0.85)]",
@@ -529,7 +529,7 @@ function HeroAcknowledgements({
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Research impact</p>
           <h2 className="mt-1 text-lg font-semibold leading-snug tracking-tight text-[hsl(218_60%_18%)] dark:text-white">
-            Acknowledged IIC in their research
+            Acknowledged IIT Roorkee facilities in their research
           </h2>
         </div>
         <span className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm dark:border-white/15 dark:bg-white/10 dark:text-white/80" data-testid="spotlight-month">
@@ -580,7 +580,7 @@ function HeroAcknowledgements({
       {others.length ? (
         <div className="relative mt-4 flex min-h-0 flex-1 basis-0 flex-col">
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/55">
-            {p ? "Also acknowledged IIC" : "Researchers"}
+            {p ? "Also acknowledged" : "Researchers"}
           </p>
           <AcknowledgerColumn people={others} />
         </div>
