@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 const api = vi.hoisted(() => ({
   bootstrap: vi.fn(),
+  publicPreview: vi.fn(),
   home: vi.fn(),
   communities: vi.fn(),
   community: vi.fn(),
@@ -61,7 +62,8 @@ vi.mock("@/lib/connectApi", async (orig) => {
 vi.mock("@/lib/api", () => ({ API_BASE_URL: "/api", apiClient: { getToken: () => "tok" } }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@/components/PageShell", () => ({ PageShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: 1 } }) }));
+const auth = vi.hoisted(() => ({ value: { user: { id: 1 } as unknown, isAuthenticated: true } }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
 // The TipTap editor is exercised in the browser; pages get a plain textarea stand-in.
 vi.mock("@/components/connect/ConnectEditor", () => ({
   ConnectEditor: ({ value, onChange, ariaLabel }: { value: string; onChange: (v: string) => void; ariaLabel?: string }) => (
@@ -190,6 +192,61 @@ describe("ThreadCard", () => {
 });
 
 describe("ConnectHome", () => {
+  afterEach(() => {
+    auth.value = { user: { id: 1 }, isAuthenticated: true };
+  });
+
+  it("shows signed-out visitors the communities and General titles, and sends them to sign in to read", async () => {
+    auth.value = { user: null, isAuthenticated: false };
+    sessionStorage.clear();
+    api.publicPreview.mockResolvedValue({
+      data: {
+        enabled: true,
+        communities: [
+          { slug: "general", name: "General Discussions", kind: "general", description: "", member_count: null, thread_count: 4 },
+          { slug: "g-xrd", name: "XRD Group", kind: "group", description: "", member_count: 12, thread_count: 3 },
+        ],
+        general_threads: [
+          { id: 41, title: "Where is the shared plotter?", category: "Help", reply_count: 2, last_activity_at: new Date().toISOString(), is_pinned: false },
+        ],
+      },
+    });
+    render(
+      <MemoryRouter initialEntries={["/connect"]}>
+        <Routes>
+          <Route path="/connect" element={<ConnectHome />} />
+          <Route path="/auth" element={<p>Sign-in page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Where is the shared plotter?")).toBeTruthy();
+    expect(screen.getByText("XRD Group")).toBeTruthy();
+    expect(screen.getByText(/12 members/)).toBeTruthy();
+    expect(screen.getByText(/Open to IIT Roorkee users/)).toBeTruthy();
+    expect(api.bootstrap).not.toHaveBeenCalled();
+    expect(api.home).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Where is the shared plotter? (sign in to read)" }));
+    expect(await screen.findByText("Sign-in page")).toBeTruthy();
+    expect(sessionStorage.getItem("postLoginRedirect")).toBe("/connect/t/41");
+  });
+
+  it("asks a signed-out visitor to sign in on a discussion page", async () => {
+    auth.value = { user: null, isAuthenticated: false };
+    sessionStorage.clear();
+    api.bootstrap.mockResolvedValue({ data: { ...ON, enabled: false } }); // no token: Connect is not on for a visitor
+    render(
+      <MemoryRouter initialEntries={["/connect/t/41"]}>
+        <Routes>
+          <Route path="/connect/t/:id" element={<ConnectThread />} />
+          <Route path="/auth" element={<p>Sign-in page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in" }));
+    expect(await screen.findByText("Sign-in page")).toBeTruthy();
+    expect(sessionStorage.getItem("postLoginRedirect")).toBe("/connect/t/41");
+  });
+
   it("says Connect is unavailable when the server reports it off", async () => {
     api.bootstrap.mockResolvedValue({ data: { ...ON, enabled: false } });
     render(

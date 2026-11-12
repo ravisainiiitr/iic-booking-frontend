@@ -17,6 +17,8 @@ import {
   connectPaths,
 } from "@/components/connect/connectUi";
 import { useConnectAvailability } from "@/components/connect/useConnect";
+import { useAuth } from "@/contexts/AuthContext";
+import ConnectPublicPreview from "./ConnectPublicPreview";
 
 function CompactList({ items, empty }: { items: ThreadCardData[]; empty: string }) {
   if (!items.length) return <p className="text-sm text-muted-foreground">{empty}</p>;
@@ -59,6 +61,13 @@ function CommunityTile({ c }: { c: CommunitySummary }) {
 }
 
 export default function ConnectHome() {
+  const { isAuthenticated } = useAuth();
+  // Visitors who are not signed in get the public preview (communities and General Discussions titles).
+  if (!isAuthenticated) return <ConnectPublicPreview />;
+  return <ConnectMemberHome />;
+}
+
+function ConnectMemberHome() {
   const navigate = useNavigate();
   const { available, loading: availabilityLoading, bootstrap } = useConnectAvailability();
   const [communities, setCommunities] = useState<CommunitySummary[] | null>(null);
