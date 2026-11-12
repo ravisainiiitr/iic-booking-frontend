@@ -51,6 +51,9 @@ async function download(url: string, fallbackName: string) {
   URL.revokeObjectURL(a.href);
 }
 
+/** json: GSTR-1 JSON; xlsx: the offline tool's Excel template; the registers (Excel); all: the four in one zip. */
+export type Gstr1Kind = "json" | "xlsx" | "invoice_register" | "credit_note_register" | "b2b_register" | "all";
+
 export type GstInvoiceStatus =
   | "pending_review"
   | "rejected"
@@ -314,8 +317,11 @@ export const gstEinvoiceApi = {
   downloadRegister: (month: string) => download(`${gstBase()}/register/?month=${encodeURIComponent(month)}&export=csv`, `gst-invoice-register-${month}-sandbox.csv`),
   gstr1Preview: (from: string, to: string) =>
     request<{ months: Gstr1Month[]; b2cl_limit: string }>(`${gstBase()}/gstr1/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
-  downloadGstr1: (from: string, to: string, kind: "json" | "xlsx") =>
-    download(`${gstBase()}/gstr1/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&kind=${kind}`, `GSTR1-B2C-${from}-${to}.${kind}`),
+  downloadGstr1: (from: string, to: string, kind: Gstr1Kind) =>
+    download(
+      `${gstBase()}/gstr1/?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&kind=${kind}`,
+      `GSTR1-${kind}-${from}-${to}.${kind === "json" ? "json" : kind === "all" ? "zip" : "xlsx"}`,
+    ),
   certificates: () => request<{ results: SignerCertificate[] }>(`${gstBase()}/certificates/`),
   registerCertificate: (data: { user_email: string; file: File; label?: string; is_test?: boolean }) => {
     const form = new FormData();

@@ -23,6 +23,7 @@ import {
   type GstInvoice,
   type GstRegister,
   type GstStatus,
+  type Gstr1Kind,
   type Gstr1Month,
   type SignerCertificate,
   type SignerDevice,
@@ -671,6 +672,14 @@ function RegisterTab() {
   );
 }
 
+const GSTR1_FILES: Array<[Gstr1Kind, string]> = [
+  ["json", "GSTR-1 JSON (upload)"],
+  ["invoice_register", "Invoice Register (Excel)"],
+  ["credit_note_register", "Credit Note Register (Excel)"],
+  ["b2b_register", "B2B e-invoices (Excel, verify GSTR-1)"],
+  ["xlsx", "GSTR-1 offline-tool Excel"],
+];
+
 function Gstr1Export() {
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const [from, setFrom] = useState(`${today.slice(0, 7)}-01`);
@@ -688,15 +697,17 @@ function Gstr1Export() {
       })
       .catch((e) => toast.error(errorText(e)));
   }, [from, to]);
-  const save = (kind: "json" | "xlsx") => gstEinvoiceApi.downloadGstr1(from, to, kind).catch((e) => toast.error(errorText(e)));
+  const save = (kind: Gstr1Kind) => gstEinvoiceApi.downloadGstr1(from, to, kind).catch((e) => toast.error(errorText(e)));
   return (
     <section className="space-y-2 rounded-md border p-3" aria-labelledby="gstr1-title">
       <h2 id="gstr1-title" className="text-base font-semibold">
-        GSTR-1 export: invoices to buyers without a GSTIN
+        Monthly export: GSTR-1 JSON and registers
       </h2>
       <p className="text-muted-foreground">
         One file per month (SRIC files monthly): B2CS (Table 7), B2CL above {limit ? rupees(limit) : "₹1,00,000"} inter-state (Table 5), credit notes (Table 9B), HSN B2C
         (Table 12) and documents issued (Table 13). E-invoices reach GSTR-1 from the e-invoice system and are not included. A range over several months downloads as a zip.
+        The Invoice and Credit Note Registers list the same B2C documents one by one (credit notes with their original invoice); the B2B
+        E-Invoice Register lists the e-invoices and their credit notes with IRN, to check that GSTR-1 picked them up by itself (Tables 4A and 9B).
       </p>
       <div className="flex flex-wrap items-end gap-2">
         <div>
@@ -707,14 +718,18 @@ function Gstr1Export() {
           <Label htmlFor="g1-to">To</Label>
           <Input id="g1-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-44" />
         </div>
-        <Button variant="outline" disabled={!months} onClick={() => save("json")}>
+        <Button disabled={!months} onClick={() => save("all")}>
           <FileDown className="mr-1 h-4 w-4" aria-hidden="true" />
-          JSON (offline tool / portal upload)
+          All files (zip)
         </Button>
-        <Button variant="outline" disabled={!months} onClick={() => save("xlsx")}>
-          <FileDown className="mr-1 h-4 w-4" aria-hidden="true" />
-          Excel (to enter by hand)
-        </Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {GSTR1_FILES.map(([kind, label]) => (
+          <Button key={kind} size="sm" variant="outline" disabled={!months} onClick={() => save(kind)}>
+            <FileDown className="mr-1 h-4 w-4" aria-hidden="true" />
+            {label}
+          </Button>
+        ))}
       </div>
       {to < from ? <p className="text-destructive">The end date is before the start date.</p> : null}
       {months?.map((m) => (
