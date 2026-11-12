@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const auth = vi.hoisted(() => ({ value: { isAuthenticated: true, user: { id: 1, user_type: "student" } } }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth.value }));
@@ -81,11 +81,22 @@ describe("Hero IITR Connect action", () => {
     expect(buttons[i].className).toBe(buttons[i + 1].className);
   });
 
-  it("is never shown to signed-out visitors", async () => {
-    connect.available = true;
+  it("is shown to signed-out visitors and sends them to sign in, then on to Connect", async () => {
     auth.value = { isAuthenticated: false, user: null as never };
-    render(<MemoryRouter><Hero /></MemoryRouter>);
+    sessionStorage.clear();
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<Hero />} />
+          <Route path="/auth" element={<p>Sign-in page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
     const nav = await screen.findByRole("navigation", { name: "Quick actions" });
-    expect(within(nav).queryByRole("button", { name: /IITR Connect/ })).toBeNull();
+    const button = within(nav).getByRole("button", { name: "IITR Connect (new)" });
+    expect(within(button).getByTestId("connect-new-badge").textContent).toBe("New");
+    fireEvent.click(button);
+    expect(await screen.findByText("Sign-in page")).toBeTruthy();
+    expect(sessionStorage.getItem("postLoginRedirect")).toBe("/connect");
   });
 });
