@@ -10,6 +10,7 @@ import {
   IndianRupee,
   LogIn,
   Mail,
+  MessagesSquare,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import iitrMainBuilding from "@/assets/iitr-main-building.webp";
 import { cn } from "@/lib/utils";
 import { HeroSearchBar } from "@/components/search/GlobalSearch";
 import ResearcherSpotlight from "@/components/home/ResearcherSpotlight";
+import { useConnectAvailability } from "@/components/connect/useConnect";
 
 const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
@@ -151,6 +153,8 @@ const STAT_ICONS: Record<string, LucideIcon> = {
 const Hero = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
+  // IITR Connect is private: only signed-in users the module admits see the action (same check as the header menu).
+  const { available: connectAvailable } = useConnectAvailability(isAuthenticated);
   const isLabIncharge =
     user?.user_type != null && String(user.user_type).toLowerCase() === "operator";
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
@@ -379,6 +383,24 @@ const Hero = () => {
                 <CalendarClock className="h-4 w-4" />
                 Booking Calendar
               </Button>
+              {connectAvailable && (
+                <Button
+                  size="lg"
+                  className={secondaryCtaClass}
+                  onClick={() => navigate("/connect")}
+                  aria-label="IITR Connect (new)"
+                >
+                  <MessagesSquare className="h-4 w-4" />
+                  IITR Connect
+                  <span
+                    aria-hidden
+                    data-testid="connect-new-badge"
+                    className="rounded-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 px-1.5 py-0.5 text-[10px] font-bold uppercase leading-none tracking-wider text-white shadow-sm ring-1 ring-white/60 motion-safe:animate-pulse"
+                  >
+                    New
+                  </span>
+                </Button>
+              )}
               <Button
                 size="lg"
                 className={secondaryCtaClass}

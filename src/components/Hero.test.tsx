@@ -15,10 +15,18 @@ vi.mock("@/lib/api", () => ({
 }));
 vi.mock("@/components/search/GlobalSearch", () => ({ HeroSearchBar: () => null }));
 vi.mock("@/components/home/ResearcherSpotlight", () => ({ default: () => null }));
+const connect = vi.hoisted(() => ({ available: false }));
+vi.mock("@/components/connect/useConnect", () => ({
+  useConnectAvailability: (enabled: boolean) => ({ available: enabled && connect.available, bootstrap: null, loading: false }),
+}));
 
 import Hero from "./Hero";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  connect.available = false;
+  auth.value = { isAuthenticated: true, user: { id: 1, user_type: "student" } };
+});
 
 describe("Hero quick actions", () => {
   it("shows the four actions in one style, without Browse Catalog", async () => {
@@ -51,5 +59,33 @@ describe("Hero instrument showcase", () => {
     expect(ticker.textContent).toMatch(/Now bookable:/);
     expect(ticker.textContent).not.toContain("[B]");
     expect(ticker.textContent).toMatch(/Powder X-Ray Diffractometer \(PXRD\)|Field Emission SEM/);
+  });
+});
+
+describe("Hero IITR Connect action", () => {
+  it("is hidden when IITR Connect is not available to the user", async () => {
+    render(<MemoryRouter><Hero /></MemoryRouter>);
+    const nav = await screen.findByRole("navigation", { name: "Quick actions" });
+    expect(within(nav).queryByRole("button", { name: /IITR Connect/ })).toBeNull();
+  });
+
+  it("sits just before Contact Us with a New badge when available", async () => {
+    connect.available = true;
+    render(<MemoryRouter><Hero /></MemoryRouter>);
+    const nav = await screen.findByRole("navigation", { name: "Quick actions" });
+    const buttons = within(nav).getAllByRole("button");
+    const i = buttons.findIndex((b) => b.getAttribute("aria-label") === "IITR Connect (new)");
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(buttons[i + 1].textContent?.trim()).toBe("Contact Us");
+    expect(within(buttons[i]).getByTestId("connect-new-badge").textContent).toBe("New");
+    expect(buttons[i].className).toBe(buttons[i + 1].className);
+  });
+
+  it("is never shown to signed-out visitors", async () => {
+    connect.available = true;
+    auth.value = { isAuthenticated: false, user: null as never };
+    render(<MemoryRouter><Hero /></MemoryRouter>);
+    const nav = await screen.findByRole("navigation", { name: "Quick actions" });
+    expect(within(nav).queryByRole("button", { name: /IITR Connect/ })).toBeNull();
   });
 });
