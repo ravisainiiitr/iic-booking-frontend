@@ -231,6 +231,12 @@ describe("App sign-in", () => {
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Sign in with Channel i/i })).toBeTruthy();
   });
+
+  it("browses the public catalogue without signing in (not /equipments, which needs an account)", () => {
+    renderAt("/app/sign-in", <AppSignIn />);
+    const link = screen.getByRole("link", { name: /Browse equipment without signing in/i });
+    expect(link.getAttribute("href")).toBe("/availability");
+  });
 });
 
 describe("Get the Android app card", () => {

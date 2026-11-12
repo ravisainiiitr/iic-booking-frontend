@@ -134,6 +134,7 @@ import {
   isInternalRateUserType,
   normalizeUserTypeCode,
   getUserTypeDisplayName,
+  printsBookerNameInSlotCell,
 } from "@/lib/userTypes";
 import { Print3DBookingPanel, type Print3DBookingValues, PRINT_3D_TENTATIVE_CHARGE_NOTE } from "@/components/Print3DBookingPanel";
 import type { MaxPrintSizePayload } from "@/lib/printSizeLimit";
@@ -12038,8 +12039,9 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
                               style={cellStyle}
                             >
                               {restrictedToStaff ? <Lock className="mr-1 h-3.5 w-3.5 shrink-0" aria-label="Visible only to OIC and administrators" /> : null}
-                              {showsBooker && !isSelected ? (
-                                // Booked slot whose booker this viewer may see: status and name, as on the other calendars.
+                              {showsBooker && !isSelected && printsBookerNameInSlotCell(userType) ? (
+                                // Booked slot, staff viewer: status and name, as on the other calendars. Other viewers
+                                // see the status only; the name stays in the hover / tap details (Slot Exchange).
                                 <span className="flex w-full min-w-0 flex-col items-center leading-tight">
                                   <span className="w-full truncate">{displayStatus}</span>
                                   <span className="w-full truncate text-[11px] font-medium opacity-90">

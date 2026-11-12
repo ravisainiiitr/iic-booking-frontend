@@ -114,6 +114,19 @@ const STAFF_USER_TYPE_CODES = [
   "external_relations",
 ] as const;
 
+/** Lab and portal staff who run bookings: Main Admin, Dept Admin, Officer In Charge, Lab Operator. */
+const SLOT_GRID_BOOKER_NAME_USER_TYPE_CODES = ["admin", "dept_admin", "manager", "operator"] as const;
+
+/**
+ * Whether a booked cell on a slot grid prints the booker's name. Everyone else sees just "Booked"; the name
+ * (when the server sends it, e.g. for Slot Exchange) stays in the cell's hover / tap details.
+ */
+export function printsBookerNameInSlotCell(userType: string | number | null | undefined): boolean {
+  const normalized = normalizeUserTypeCode(userType);
+  if (!normalized) return false;
+  return (SLOT_GRID_BOOKER_NAME_USER_TYPE_CODES as readonly string[]).includes(normalized);
+}
+
 export function isInternalRateUserType(userType: string | number | null | undefined): boolean {
   const normalized = normalizeUserTypeCode(userType);
   if (!normalized) return false;

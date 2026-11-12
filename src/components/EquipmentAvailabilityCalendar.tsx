@@ -13,7 +13,7 @@ import {
 } from "@/components/slot-calendar/SlotWeekGrid";
 import { SlotHoverCard } from "@/components/slot-calendar/SlotHoverCard";
 import { apiClient } from "@/lib/api";
-import { isInternalRateUserType } from "@/lib/userTypes";
+import { isInternalRateUserType, printsBookerNameInSlotCell } from "@/lib/userTypes";
 import { bookerHoverLines, slotHoldsBooking } from "@/lib/slotBooker";
 import { useOptionalAuth } from "@/contexts/AuthContext";
 import BookedSlotDialog from "@/components/slot-exchange/BookedSlotDialog";
@@ -219,6 +219,8 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
 
   const user = useOptionalAuth()?.user;
   const viewerInternal = isInternalRateUserType(user?.user_type);
+  // Staff see the booker's name in the cell; everyone else sees "Booked" and gets the name on hover / tap.
+  const viewerPrintsBookerName = printsBookerNameInSlotCell(user?.user_type);
   const [openSlotId, setOpenSlotId] = useState<number | null>(null);
 
   // Only OIC / administrators receive slots outside the user visibility window; by default they see what users see.
@@ -275,10 +277,14 @@ export default function EquipmentAvailabilityCalendar({ equipmentId, weeklyViewD
             onClick={() => viewerInternal && setOpenSlotId(slot.id)}
             aria-label={lines.join(". ")}
           >
-            <span className="flex w-full min-w-0 flex-col items-center leading-tight">
-              <span className="w-full truncate">{display.label}</span>
-              <span className="w-full truncate text-[10px] font-medium opacity-90">{bookerName}</span>
-            </span>
+            {viewerPrintsBookerName ? (
+              <span className="flex w-full min-w-0 flex-col items-center leading-tight">
+                <span className="w-full truncate">{display.label}</span>
+                <span className="w-full truncate text-[10px] font-medium opacity-90">{bookerName}</span>
+              </span>
+            ) : (
+              display.label
+            )}
           </button>
         </SlotHoverCard>
       );
