@@ -182,54 +182,59 @@ function CountPill({ n, className }: { n: number; className?: string }) {
   );
 }
 
-/** Height of one row in the hero list (h-[3.75rem]) plus the gap (0.5rem). */
-const LIST_STEP_REM = 4.25;
-const LIST_HOLD_MS = 2600;
+/** One portrait in the hero strip (w-[5.5rem]) plus the gap (gap-3), so each step is a fixed distance. */
+const STRIP_STEP_REM = 6.25;
+/** The strip glides one portrait at a time, rests briefly, and rests longer on the researcher with most publications. */
+const STRIP_MOVE_MS = 1100;
+const STRIP_HOLD_MS = 500;
+const STRIP_TOP_HOLD_MS = 2600;
+/** Below this many people the strip does not move (a copy of a short list would show the same faces twice). */
+const STRIP_MIN_TO_SCROLL = 5;
 
 /**
- * Everyone else who acknowledged IIT Roorkee facilities, as a vertical list filling the rest of the hero card. When more names than fit
- * it scrolls up one row every few seconds and loops (a copy follows the list); hover or focus pauses it.
+ * Every researcher who acknowledged IIT Roorkee facilities, as a row of portraits gliding continuously to the left
+ * (most publications first; it loops for ever, with a copy following the list so there is never a gap). It rests a
+ * little longer when the researcher with the most publications is at the front. Hover, focus or touch pauses it.
  */
-function AcknowledgerColumn({ people }: { people: ResearchRecognition[] }) {
-  const n = people.length;
-  const box = useRef<HTMLDivElement>(null);
-  const [fits, setFits] = useState(n);
-  useEffect(() => {
-    const el = box.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const measure = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const h = el.clientHeight;
-      if (h > 0) setFits(Math.max(1, Math.floor((h + 0.5 * rem) / (LIST_STEP_REM * rem))));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const loops = n > fits;
+function PortraitStrip({ people }: { people: ResearchRecognition[] }) {
+  const ranked = [...people].sort((a, b) => (b.publication_count ?? 0) - (a.publication_count ?? 0));
+  const n = ranked.length;
+  const top = ranked[0];
+  const topKey = top ? top.user_id ?? top.id : undefined;
+  const loops = n >= STRIP_MIN_TO_SCROLL;
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(true);
   const paused = useRef(false);
+  const lastTouch = useRef(Number.NEGATIVE_INFINITY);
   const reduced = useRef(false);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     reduced.current = prefersReducedMotion();
   }, []);
+
   useEffect(() => {
-    if (!loops || reduced.current) return;
-    const t = window.setInterval(() => {
-      if (paused.current) return;
+    if (!loops || reduced.current || index >= n) return;
+    const front = ranked[index % n];
+    const hold = (front?.user_id ?? front?.id) === topKey ? STRIP_TOP_HOLD_MS : STRIP_HOLD_MS;
+    const t = window.setTimeout(() => {
+      if (paused.current || performance.now() - lastTouch.current < RESUME_AFTER_MS) {
+        setTick((k) => k + 1);  // look again shortly
+        return;
+      }
       setAnimate(true);
       setIndex((i) => i + 1);
-    }, LIST_HOLD_MS);
-    return () => window.clearInterval(t);
-  }, [loops]);
+    }, index === 0 && tick === 0 ? hold : STRIP_MOVE_MS + hold);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, loops, n, tick]);
+
+  // After gliding onto the copy of the first portrait, jump back to the real first one without animation.
   useEffect(() => {
     if (index < n) return;
     const t = window.setTimeout(() => {
       setAnimate(false);
       setIndex(index - n);
-    }, 650);
+    }, reduced.current ? 0 : STRIP_MOVE_MS);
     return () => window.clearTimeout(t);
   }, [index, n]);
   useEffect(() => {
@@ -237,50 +242,67 @@ function AcknowledgerColumn({ people }: { people: ResearchRecognition[] }) {
     const raf = requestAnimationFrame(() => setAnimate(true));
     return () => cancelAnimationFrame(raf);
   }, [animate]);
-  const items = loops ? [...people, ...people] : people;
+
+  const items = loops ? [...ranked, ...ranked] : ranked;
   return (
-    <div
-      ref={box}
-      className="relative min-h-[8rem] flex-1 basis-0 overflow-hidden"
-      onMouseEnter={() => (paused.current = true)}
-      onMouseLeave={() => (paused.current = false)}
-      onFocus={() => (paused.current = true)}
-      onBlur={() => (paused.current = false)}
-    >
-      {/* Only whole rows: the viewport is exactly as tall as the rows that fit. */}
-      <div className="overflow-hidden" style={{ height: `${Math.min(fits, n) * LIST_STEP_REM - 0.5}rem` }}>
-      <ul
-        className="flex flex-col gap-2"
-        data-testid="acknowledgers-column"
-        data-index={index}
-        style={{
-          transform: `translateY(-${index * LIST_STEP_REM}rem)`,
-          transition: animate && !reduced.current ? "transform 600ms ease-in-out" : "none",
-        }}
+    <section aria-label="Researchers acknowledging IIT Roorkee facilities" className="relative mt-4" data-testid="portrait-strip">
+      <div
+        className={cn("overflow-hidden py-1", loops && "[mask-image:linear-gradient(to_right,transparent,black_6%,black_88%,transparent)]")}
+        onMouseEnter={() => (paused.current = true)}
+        onMouseLeave={() => (paused.current = false)}
+        onFocus={() => (paused.current = true)}
+        onBlur={() => (paused.current = false)}
+        onTouchStart={() => (lastTouch.current = performance.now())}
       >
-        {items.map((a, i) => {
-          const count = a.publication_count ?? 0;
-          return (
-            <li
-              key={`${a.user_id ?? a.id}-${i}`}
-              aria-hidden={i >= n || undefined}
-              className="flex h-[3.75rem] shrink-0 items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/75 px-3 transition-colors hover:border-sky-200 hover:bg-white dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08]"
-            >
-              <Portrait person={a as unknown as ResearcherOfTheMonthItem} className="h-10 w-10 bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-white/70 dark:ring-white/15" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{a.researcher_name}</p>
-                <p className="truncate text-xs text-slate-500 dark:text-white/60">{a.affiliation}</p>
-              </div>
-              {count ? <CountPill n={count} /> : null}
-            </li>
-          );
-        })}
-      </ul>
+        <ul
+          className={cn("flex gap-3", !loops && "justify-center")}
+          data-testid="portrait-track"
+          data-index={index}
+          style={{
+            transform: `translateX(-${index * STRIP_STEP_REM}rem)`,
+            transition: animate && !reduced.current ? `transform ${STRIP_MOVE_MS}ms cubic-bezier(0.45, 0, 0.25, 1)` : "none",
+          }}
+        >
+          {items.map((a, i) => {
+            const count = a.publication_count ?? 0;
+            const isTop = (a.user_id ?? a.id) === topKey;
+            return (
+              <li
+                key={`${a.user_id ?? a.id}-${i}`}
+                aria-hidden={i >= n || undefined}
+                data-top={isTop || undefined}
+                title={[a.researcher_name, a.affiliation, count ? `${count} publication${count === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
+                className="flex w-[5.5rem] shrink-0 flex-col items-center text-center"
+              >
+                <span className="relative">
+                  <Portrait
+                    person={a as unknown as ResearcherOfTheMonthItem}
+                    className={cn(
+                      "h-14 w-14 bg-slate-100 text-slate-500 shadow-sm ring-2 ring-white dark:bg-white/10 dark:text-white/70 dark:ring-white/20",
+                      isTop && "ring-amber-300 ring-offset-2 ring-offset-white dark:ring-amber-300/80 dark:ring-offset-transparent",
+                    )}
+                  />
+                  {count ? (
+                    <span
+                      className={cn(
+                        "absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums shadow-sm ring-2 ring-white dark:ring-[hsl(218_50%_14%)]",
+                        isTop ? "bg-amber-400 text-amber-950" : "bg-sky-700 text-white dark:bg-sky-500",
+                      )}
+                      aria-label={`${count} publication${count === 1 ? "" : "s"}`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-2 line-clamp-2 text-[11px] font-medium leading-tight text-slate-800 dark:text-white/90">
+                  {a.researcher_name}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       </div>
-      {loops ? (
-        <span className="sr-only">The list scrolls; hover to pause.</span>
-      ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -349,13 +371,17 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
         if (cancelled || !res.data) return;
         // A failed or unexpected response must never take the home page down with it.
         setMonth(typeof res.data.month === "string" ? res.data.month : "");
-        setPeople(Array.isArray(res.data.results) ? res.data.results : []);
+        const all = Array.isArray(res.data.results) ? res.data.results : [];
+        // The hero names one Researcher of the Month: the institute-wide winner (most publications). Department
+        // winners are only for the phone strip and department pages. Without an institute-wide winner, show all.
+        const institute = all.filter((r) => r.department_id == null || (r.titles ?? []).includes("Institute-wide"));
+        setPeople(variant !== "compact" && institute.length ? institute : all);
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [variant]);
 
   // One step every ROTATE_MS (paused while hovered or focused): the next researcher, or with a single researcher
   // their next publication.
@@ -577,16 +603,8 @@ function HeroAcknowledgements({
         </section>
       ) : null}
 
-      {others.length ? (
-        <div className="relative mt-4 flex min-h-0 flex-1 basis-0 flex-col">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/55">
-            {p ? "Also acknowledged" : "Researchers"}
-          </p>
-          <AcknowledgerColumn people={others} />
-        </div>
-      ) : (
-        <div className="flex-1" />
-      )}
+      <div className="flex-1" />
+      {everyone.length ? <PortraitStrip people={everyone} /> : null}
 
       <footer className="relative mt-3 flex items-center justify-between gap-3 border-t border-slate-200/80 pt-3 dark:border-white/10">
         <p className="text-xs text-slate-600 dark:text-white/70" data-testid="acknowledgement-totals">
