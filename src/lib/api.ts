@@ -4945,6 +4945,8 @@ export interface IstemEquipmentDetailsResponse {
     funding_agency_types: IstemChoice[];
     equipment_categories: IstemChoice[];
     facilities: IstemChoice[];
+    /** Yes / No, for the pre- and post-experiment support answers I-STEM requires. */
+    yes_no?: IstemChoice[];
   };
 }
 
