@@ -445,6 +445,13 @@ export type FeedParams = Partial<{
   page_size: number;
 }>;
 
+/** Public preview for visitors who are not signed in: the community directory and General Discussions titles. */
+export interface PublicPreview {
+  enabled: boolean;
+  communities: { slug: string; name: string; kind: "general" | "group"; description: string; member_count: number | null; thread_count: number }[];
+  general_threads: { id: number; title: string; category: string; reply_count: number; last_activity_at: string; is_pinned: boolean }[];
+}
+
 function headers(json: boolean): HeadersInit {
   const token = apiClient.getToken();
   return {
@@ -517,6 +524,7 @@ export async function downloadAttachment(a: AttachmentRef): Promise<boolean> {
 
 export const connectApi = {
   bootstrap: () => request<ConnectBootstrap>("bootstrap/"),
+  publicPreview: () => request<PublicPreview>("public/"),
   home: () => request<HomeSections>("home/"),
   communities: () => request<{ results: CommunitySummary[] }>("communities/"),
   community: (slug: string) => request<CommunityDetail>(`communities/${encodeURIComponent(slug)}/`),

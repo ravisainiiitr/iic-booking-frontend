@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   BadgeCheck,
@@ -22,6 +22,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/PageShell";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { setPostLoginRedirect } from "@/lib/authRedirect";
 import { THREAD_TYPE_LABEL, type CommunitySummary, type ThreadCard as ThreadCardData, type ThreadType } from "@/lib/connectApi";
 import { timeAgo, useConnectAvailability, useNoIndex } from "./useConnect";
 import "./connect.css";
@@ -456,9 +459,41 @@ export function SectionTitle({ title, action, icon }: { title: string; action?: 
   );
 }
 
-/** Shown when Connect is off or not enabled for this user (the API answers 404 then as well). */
+/** Send a signed-out visitor to sign in, then on to ``path``. */
+export function useSignInTo() {
+  const navigate = useNavigate();
+  return (path: string) => {
+    setPostLoginRedirect(path);
+    navigate("/auth");
+  };
+}
+
+/**
+ * Shown when Connect is off or not enabled for this user (the API answers 404 then as well). A visitor who is not
+ * signed in is asked to sign in instead, and comes back to the page they opened.
+ */
 export function ConnectUnavailable() {
   useNoIndex();
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  const signInTo = useSignInTo();
+  if (!isAuthenticated) {
+    return (
+      <PageShell>
+        <main className="container mx-auto max-w-xl px-4 py-16">
+          <EmptyState icon={<Lock className="h-5 w-5" />} title="Sign in to continue">
+            <p>Discussions in IITR Connect are open to signed-in portal users. Sign in to read this page and take part.</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button onClick={() => signInTo(`${location.pathname}${location.search}`)}>Sign in</Button>
+              <Button variant="outline" asChild>
+                <Link to="/connect">Back to IITR Connect</Link>
+              </Button>
+            </div>
+          </EmptyState>
+        </main>
+      </PageShell>
+    );
+  }
   return (
     <PageShell>
       <main className="container mx-auto max-w-xl px-4 py-16">
