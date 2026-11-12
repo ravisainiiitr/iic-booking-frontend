@@ -76,7 +76,7 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Rightmost on md+: its two links leave the bottom-right free for the fixed IITR Assistant button. */}
+          {/* Rightmost on md+: its two links leave the bottom-right free for the fixed IITR Equipment Booking Assistant button. */}
           <div className="md:order-last">
             <h4 className={HEADING_CLASS}>Resources</h4>
             <ul className={LIST_CLASS}>
@@ -116,6 +116,11 @@ const Footer = () => {
                   </li>
                 ))}
               {/* Plain links: these are static files served by nginx, outside the React app's routes. */}
+              <li>
+                <a href="/cancellation-refund-policy/" className={LINK_CLASS}>
+                  Cancellation and Refund Policy
+                </a>
+              </li>
               <li>
                 <a href="/privacy-policy/" className={LINK_CLASS}>
                   Privacy Policy

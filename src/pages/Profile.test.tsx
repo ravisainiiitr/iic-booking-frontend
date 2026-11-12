@@ -27,20 +27,22 @@ vi.mock("@/lib/api", () => ({
     getDepartments: vi.fn().mockResolvedValue({ data: { departments: [] } }),
     getProjects: vi.fn().mockResolvedValue({ data: [] }),
     getProfilePictureUrl: vi.fn(() => ""),
+    getExternalBillingProfileMe: vi.fn().mockResolvedValue({ data: { billing_name: "Demo Org" } }),
   },
 }));
 
 vi.mock("@/components/DashboardHeader", () => ({ default: () => null }));
 vi.mock("@/components/profile/LoginPasswordCard", () => ({ default: () => null }));
 vi.mock("@/components/profile/MobileDevicesCard", () => ({ default: () => null }));
+vi.mock("@/components/istem/IstemProfileReadinessNotice", () => ({ IstemProfileReadinessNotice: () => null }));
 
 import Profile from "./Profile";
 
 const storedUser = { id: 5, email: "person@example.com", name: "Test Person", user_type: "student" };
 
-function page() {
+function page(path = "/profile") {
   return (
-    <MemoryRouter initialEntries={["/profile"]}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/profile" element={<Profile />} />
         <Route path="/auth" element={<p>Sign-in page</p>} />
@@ -86,5 +88,19 @@ describe("Profile after a reload", () => {
 
     expect(await screen.findByText("Sign-in page")).toBeTruthy();
     expect(getProfileMe).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("Profile layout", () => {
+  it("shows the summary and opens the tab a link points at", async () => {
+    const external = { ...storedUser, user_type: "external" };
+    getProfileMe.mockResolvedValue({ data: { ...external, email_verified: true, admin_approved: true, is_active: true } });
+    auth.current = { user: external, loading: false, isAuthenticated: true };
+    render(page("/profile#external-billing"));
+    expect(await screen.findByTestId("profile-summary")).toBeTruthy();
+    expect(screen.getByText("Email verified")).toBeTruthy();
+    expect(await screen.findByLabelText("Billing name / company")).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Billing & shipping" }).getAttribute("data-state")).toBe("active");
   });
 });

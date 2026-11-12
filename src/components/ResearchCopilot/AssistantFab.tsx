@@ -17,7 +17,7 @@ const LONG_PRESS_MS = 550;
 const REVEAL_MS = 4000;
 
 type Props = {
-  /** Accessible name, e.g. "Open IITR Assistant". */
+  /** Accessible name, e.g. "Open IITR Equipment Booking Assistant". */
   label: string;
   icon: ReactNode;
   onActivate?: () => void;
@@ -43,7 +43,7 @@ type Gesture = {
 };
 
 /**
- * Round floating IITR Assistant button. Drag it (mouse or touch) to either side edge; the spot is
+ * Round floating IITR Equipment Booking Assistant button. Drag it (mouse or touch) to either side edge; the spot is
  * remembered per user on this device. A tap opens the assistant; hover / long-press shows a hide control.
  * Steps aside while a modal dialog or drawer is open.
  */
@@ -165,7 +165,7 @@ export function AssistantFab({ label, icon, onActivate, onPreload, disabled = fa
   const hide = () => {
     setRevealHide(false);
     hideAssistantFab();
-    toast("IITR Assistant hidden", {
+    toast("IITR Equipment Booking Assistant hidden", {
       description: "It comes back when you reload the page.",
       action: { label: "Undo", onClick: () => showAssistantFab() },
     });
@@ -210,7 +210,7 @@ export function AssistantFab({ label, icon, onActivate, onPreload, disabled = fa
             </button>
           </TooltipTrigger>
           <TooltipContent side={position.side === "right" ? "left" : "right"}>
-            IITR Assistant
+            IITR Equipment Booking Assistant
             <span className="block text-xs text-muted-foreground">Drag to move</span>
           </TooltipContent>
         </Tooltip>
@@ -218,7 +218,7 @@ export function AssistantFab({ label, icon, onActivate, onPreload, disabled = fa
       {!expanded && !disabled ? (
         <button
           type="button"
-          aria-label="Hide IITR Assistant"
+          aria-label="Hide IITR Equipment Booking Assistant"
           title="Hide until the page is reloaded"
           onClick={hide}
           className="assistant-fab-hide absolute -top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-foreground shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

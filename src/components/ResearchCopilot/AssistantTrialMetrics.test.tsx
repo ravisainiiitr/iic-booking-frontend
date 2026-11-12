@@ -12,7 +12,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("IITR Assistant trial metrics", () => {
+describe("IITR Equipment Booking Assistant trial metrics", () => {
   it("shows the recognition rate, outcomes, top requests and roles", async () => {
     api.assistantTrialMetrics.mockResolvedValue({
       data: {

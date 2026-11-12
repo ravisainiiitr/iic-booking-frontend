@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { BadgeCheck, Link2, Loader2, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +29,7 @@ function formatWhen(value: string | null | undefined): string {
  * OTP is entered the accounts are linked and blank billing details are filled from I-STEM. Hidden unless the server
  * says linking is available to this user (or the user already has a link to show).
  */
-export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
+export default function IstemLinkCard({ onLinked, className }: { onLinked?: () => void; className?: string }) {
   const [status, setStatus] = useState<IstemLinkStatus | null>(null);
   const [lookupBy, setLookupBy] = useState<LookupBy>("email");
   const [value, setValue] = useState("");
@@ -117,7 +118,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
 
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Link2 className="h-5 w-5" aria-hidden /> I-STEM account

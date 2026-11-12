@@ -14,7 +14,7 @@ const STEPS = [
   "Open this page on your Android phone and tap Download APK.",
   "Open the downloaded file (from the notification or the Downloads folder).",
   "If Android asks, allow your browser to install unknown apps, then tap Install.",
-  "Open IIC Booking and sign in with OTP (a code is sent to your email).",
+  "Open IITR Equipment Booking and sign in with OTP (a code is sent to your email).",
   "Turn on fingerprint / PIN unlock so next time the app opens straight to your bookings.",
 ];
 
@@ -67,7 +67,7 @@ export default function AppDownload() {
             <Smartphone className="h-7 w-7" aria-hidden />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">IIC Booking for Android</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">IITR Equipment Booking for Android</h1>
             <p className="text-sm text-muted-foreground">Book equipment, pay, and follow your samples and results on the go.</p>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function AppDownload() {
                 )}
                 <p className="flex items-start gap-2 text-muted-foreground">
                   <Fingerprint className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
-                  The app only signs in to equip.iitr.ac.in. Your sign-in stays on the phone and can be signed out from Profile → IIC Booking app on the website.
+                  The app only signs in to equip.iitr.ac.in. Your sign-in stays on the phone and can be signed out from Profile → IITR Equipment Booking app on the website.
                 </p>
               </CardContent>
             </Card>

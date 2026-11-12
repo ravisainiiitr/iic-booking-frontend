@@ -157,7 +157,7 @@ const AdminSettingsCopilotAnswers = () => {
         return;
       }
       if (res.error || !res.data) {
-        toast.error(res.error || "Could not load IITR Assistant answers");
+        toast.error(res.error || "Could not load IITR Equipment Booking Assistant answers");
         return;
       }
       setGate("ok");
@@ -309,8 +309,8 @@ const AdminSettingsCopilotAnswers = () => {
 
   const header = (
     <PageHero
-      title="IITR Assistant Answers & Console"
-      description="Reviewed answers the IITR Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
+      title="IITR Equipment Booking Assistant Answers & Console"
+      description="Reviewed answers the IITR Equipment Booking Assistant may use, plus unanswered questions, escalations, feedback and usage. Only approved answers are ever shown to users."
     >
       <StandaloneOnly>
         <Button
@@ -334,8 +334,8 @@ const AdminSettingsCopilotAnswers = () => {
           <Card>
             <CardContent className="py-8 text-sm text-muted-foreground">
               {gate === "disabled"
-                ? "IITR Assistant knowledge features are not enabled on this server."
-                : "You do not have permission to manage IITR Assistant answers."}
+                ? "IITR Equipment Booking Assistant knowledge features are not enabled on this server."
+                : "You do not have permission to manage IITR Equipment Booking Assistant answers."}
             </CardContent>
           </Card>
         </main>
@@ -542,7 +542,7 @@ const AdminSettingsCopilotAnswers = () => {
                 <Card>
                   <CardContent className="p-0">
                     {escalations.length === 0 ? (
-                      <p className="p-6 text-sm text-muted-foreground">No IITR Assistant escalations yet.</p>
+                      <p className="p-6 text-sm text-muted-foreground">No IITR Equipment Booking Assistant escalations yet.</p>
                     ) : (
                       <div className="overflow-x-auto">
                         <Table>

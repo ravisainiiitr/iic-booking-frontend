@@ -28,9 +28,42 @@ describe("Automatic I-STEM status", () => {
     expect([...document.querySelectorAll("li")].every((li) => li.getAttribute("data-state") === "done")).toBe(true);
   });
 
-  it("tells the user nothing is needed when the IIC team is completing the record", () => {
+  it("tells the user nothing is needed when the IIT Roorkee Equipment Booking team is completing the record", () => {
     render(<IstemAutomaticStatus status={status({ step: "attention" })} />);
     expect(screen.getByText(/Nothing is needed from you/)).toBeTruthy();
+  });
+
+  it("keeps the accepted steps and their numbers while the record is held (IICXRF202600014)", () => {
+    render(<IstemAutomaticStatus status={status({ step: "attention", reached: "confirmed", fbr_no: "1976095587", confirmation_id: "72001" })} />);
+    expect(screen.getByText("FBR 1976095587")).toBeTruthy();
+    expect(screen.getByText("Confirmation 72001")).toBeTruthy();
+    const states = [...document.querySelectorAll("li")].map((li) => li.getAttribute("data-state"));
+    expect(states).toEqual(["done", "done", "held"]);
+    expect(screen.getByTestId("istem-held").textContent).toMatch(/Nothing is needed from you/);
+  });
+
+  it("says FBR Execute is under way once the booking is completed", () => {
+    const { rerender } = render(<IstemAutomaticStatus status={status()} />);
+    expect(screen.getByText("After your booking is completed")).toBeTruthy();
+    rerender(<IstemAutomaticStatus status={status({ booking_completed: true })} />);
+    expect(screen.getByText("Being recorded on I-STEM now that the booking is completed")).toBeTruthy();
+  });
+
+  it("says why a queued booking is not on I-STEM yet, with the exact fields for staff only", () => {
+    const queued = status({
+      step: "queued",
+      fbr_no: "",
+      waiting_reasons: ["Your portal account is not linked to an I-STEM account yet."],
+      waiting_detail: ["public_user_id: missing"],
+    });
+    const { rerender } = render(<IstemAutomaticStatus status={queued} compact />);
+    expect(screen.getByText("Why it is not on I-STEM yet")).toBeTruthy();
+    expect(screen.getByText(/not linked to an I-STEM account/)).toBeTruthy();
+    expect(screen.queryByTestId("istem-waiting-detail")).toBeNull();
+    rerender(<IstemAutomaticStatus status={queued} compact showDetail />);
+    expect(screen.getByText("public_user_id: missing")).toBeTruthy();
+    rerender(<IstemAutomaticStatus status={{ ...queued, step: "registered" }} compact showDetail />);
+    expect(screen.queryByTestId("istem-waiting")).toBeNull();
   });
 
   it("reads the record from a booking only when automatic", () => {

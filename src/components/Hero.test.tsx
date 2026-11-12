@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({
   apiClient: {
     getCmsHome: vi.fn(async () => ({ data: { content: { cta_browse_text: "Browse Catalog" } } })),
     getCmsSiteStats: vi.fn(async () => ({ data: null })),
+    getEquipments: vi.fn(async () => ({ data: { equipments: [{ name: "Powder X-Ray Diffractometer (PXRD) [B]" }, { name: "Field Emission SEM" }] } })),
     getOmniportAuthUrl: vi.fn(),
   },
 }));
@@ -40,5 +41,15 @@ describe("Hero quick actions", () => {
     expect(buttons[0].textContent).toMatch(/Login with/);
     expect(new Set(buttons.map((b) => b.className)).size).toBe(1);
     expect(buttons[0].className).toContain("bg-white/10");
+  });
+});
+
+describe("Hero instrument showcase", () => {
+  it("names instruments from the catalogue, without the [B]-style suffix", async () => {
+    render(<MemoryRouter><Hero /></MemoryRouter>);
+    const ticker = await screen.findByTestId("instrument-ticker");
+    expect(ticker.textContent).toMatch(/Now bookable:/);
+    expect(ticker.textContent).not.toContain("[B]");
+    expect(ticker.textContent).toMatch(/Powder X-Ray Diffractometer \(PXRD\)|Field Emission SEM/);
   });
 });

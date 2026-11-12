@@ -151,7 +151,7 @@ const authSchema = z.object({
   gender: z.enum(["male", "female", "other"], {
     error: (issue) => (issue.input === undefined ? "Gender is required" : "Please select gender"),
   }),
-  program_end_date: z.string().min(1, "Current Program/Employment Validity is required"),
+  program_end_date: z.string().optional(),
 }).refine((data) => data.password === data.password_confirm, {
   message: "Passwords do not match",
   path: ["password_confirm"],
@@ -1106,13 +1106,18 @@ const Auth = () => {
         whatsappOtp={istemWhatsappOtp}
         onVerified={applyIstemProfile}
         userType={userType ? userType.split("|")[0] : undefined}
-        onSignedIn={(token, signedIn) => {
-          // Created and signed in from the verified I-STEM account; the dashboard asks for the rest.
+        onSignedIn={(token, signedIn, outcome) => {
+          // Created (or, when the I-STEM email already had a portal account, linked to it) and signed in.
           apiClient.setToken(token);
           setUserFromAuth(signedIn as unknown as Parameters<typeof setUserFromAuth>[0]);
-          toast.success("Your account is ready. Complete a few details on the dashboard.");
+          toast.success(
+            outcome === "linked_existing"
+              ? "You already had a portal account with this email. Your I-STEM account is now linked to it, and you are signed in."
+              : "Your account is ready. Complete a few details on the dashboard.",
+          );
           navigate("/dashboard");
         }}
+        onSignInInstead={() => setActiveTab("signin")}
       />
       {/* Brand panel (desktop): the gradient fills the whole column; the content stays pinned beside the long Create account form */}
       <aside className="relative hidden bg-gradient-to-b from-[hsl(215_62%_20%)] via-brand to-[hsl(200_65%_30%)] text-white lg:block">
@@ -2139,6 +2144,8 @@ const Auth = () => {
                   )}
                 </SignupSection>
 
+                {/* External users give no end date: the whole section is for IIT Roorkee users only. */}
+                {signupIsIitr && (
                 <SignupSection
                   icon={UserCheck}
                   title={signupIsIitr ? "Supervisor and validity" : "Validity"}
@@ -2244,6 +2251,7 @@ const Auth = () => {
                     </SignupField>
                   )}
                 </SignupSection>
+                )}
 
                 <SignupSection
                   icon={Paperclip}

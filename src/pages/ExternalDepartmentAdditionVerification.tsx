@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import DashboardHeader from "@/components/DashboardHeader";
-import { ArrowLeft, Building2, Loader2, Pencil, Check, X, ThumbsUp, ThumbsDown, Upload, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, Pencil, Check, X, ThumbsUp, ThumbsDown, Upload, Download, Trash2, GitMerge } from "lucide-react";
 import { toast } from "sonner";
 import { StandaloneOnly } from "@/components/PageShell";
 
@@ -63,6 +63,63 @@ const getOrganizationTypeLabel = (v: string | null | undefined) => {
   if (!key) return "—";
   return key;
 };
+
+const normName = (s: string) => s.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Listed organisations in the same State/UT, the most alike first (shared words), for merging a duplicate. */
+function mergeCandidates(row: OrganizationRequestRow, rows: OrganizationRequestRow[]) {
+  const words = new Set(normName(row.approved_name || row.name).split(" ").filter((w) => w.length > 2));
+  return rows
+    .filter((r) => r.status === "approved" && r.created_department != null && r.created_department !== row.created_department)
+    .filter((r) => !row.state || r.state === row.state)
+    .map((r) => {
+      const name = (r.approved_name || r.name || "").trim();
+      const score = normName(name).split(" ").filter((w) => words.has(w)).length;
+      return { id: Number(r.created_department), name, score };
+    })
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
+/** An organisation a user added: merge it into a listed one when it is a duplicate. */
+function MergeControl({ row, rows, busy, onMerge }: {
+  row: OrganizationRequestRow;
+  rows: OrganizationRequestRow[];
+  busy: boolean;
+  onMerge: (departmentId: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState("");
+  const options = mergeCandidates(row, rows);
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" className="h-8 gap-1" onClick={() => setOpen(true)} disabled={busy}
+        title="This is a duplicate of a listed organisation">
+        <GitMerge className="h-4 w-4" aria-hidden /> Merge
+      </Button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        aria-label="Merge into"
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className="h-8 max-w-[14rem] rounded-md border bg-background px-2 text-xs"
+      >
+        <option value="">{options.length ? "Merge into…" : "No listed organisation in this State/UT"}</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>{o.name}</option>
+        ))}
+      </select>
+      <Button size="sm" className="h-8" disabled={!target || busy} onClick={() => onMerge(Number(target))}>
+        Merge
+      </Button>
+      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label="Cancel merge" onClick={() => setOpen(false)}>
+        <X className="h-4 w-4" aria-hidden />
+      </Button>
+    </div>
+  );
+}
 
 const ExternalDepartmentAdditionVerification = () => {
   const navigate = useNavigate();
@@ -253,6 +310,24 @@ const ExternalDepartmentAdditionVerification = () => {
       await loadOrganizationRequests();
     } catch {
       toast.error("Failed to approve");
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleMerge = async (id: number | string, departmentId: number) => {
+    if (typeof id !== "number") return;
+    setActionId(id);
+    try {
+      const res = await apiClient.mergeOrganizationRequest(id, departmentId);
+      if (res.error) {
+        toast.error(res.error || "Failed to merge");
+        return;
+      }
+      toast.success(res.data?.detail || "Merged.");
+      await loadOrganizationRequests();
+    } catch {
+      toast.error("Failed to merge");
     } finally {
       setActionId(null);
     }
@@ -614,6 +689,11 @@ const ExternalDepartmentAdditionVerification = () => {
                             >
                               {row.status_display || row.status}
                             </span>
+                            {row.status === "pending" && row.created_department != null ? (
+                              <span className="mt-0.5 block text-[11px] text-muted-foreground" data-testid="user-added-org">
+                                Added by the user, already in use
+                              </span>
+                            ) : null}
                           </TableCell>
                           <TableCell className="text-right">
                             {row.status === "pending" && row.type !== "standalone_department" && (
@@ -647,6 +727,14 @@ const ExternalDepartmentAdditionVerification = () => {
                                     </>
                                   )}
                                 </Button>
+                                {row.created_department != null ? (
+                                  <MergeControl
+                                    row={row}
+                                    rows={orgRequests}
+                                    busy={actionId !== null}
+                                    onMerge={(departmentId) => void handleMerge(row.id, departmentId)}
+                                  />
+                                ) : null}
                                 <Button
                                   size="sm"
                                   variant="destructive"
@@ -740,7 +828,7 @@ const ExternalDepartmentAdditionVerification = () => {
               )}
               {pendingOrgs.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-3">
-                  {pendingOrgs.length} pending request{pendingOrgs.length !== 1 ? "s" : ""}. Edit the approved name if needed, then Approve to create the department and link users.
+                  {pendingOrgs.length} pending request{pendingOrgs.length !== 1 ? "s" : ""}. Edit the approved name if needed, then Approve to create the department and link users. Organisations marked “Added by the user” are already in use: Approve keeps them (renamed if you corrected the name), Merge moves their users into a listed organisation, Reject asks their users to choose again.
                 </p>
               )}
             </CardContent>

@@ -20,7 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 
-/** IITR Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
+/** IITR Equipment Booking Assistant cards (`ba_*`): live availability, equipment facts and the confirm-gated booking flow. */
 
 type Rec = Record<string, unknown>;
 

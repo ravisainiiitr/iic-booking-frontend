@@ -195,7 +195,7 @@ describe("App sign-in", () => {
     state.api.requestLoginOtp.mockResolvedValue({ data: { message: "OTP sent." } });
     renderAt("/app/sign-in", <AppSignIn />);
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "Op@IITR.ac.in " } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in with OTP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
     expect(await screen.findByText("OTP sent.")).toBeTruthy();
     expect(state.api.requestLoginOtp).toHaveBeenCalledWith("op@iitr.ac.in");
     expect(screen.getByLabelText(/6-digit code sent to op@iitr.ac.in/)).toBeTruthy();
@@ -206,7 +206,7 @@ describe("App sign-in", () => {
     state.api.verifyLoginOtp.mockResolvedValue({ data: { token: "web", user: { id: 5, user_type: "operator" } } });
     renderAt("/app/sign-in", <AppSignIn />);
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "op@iitr.ac.in" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in with OTP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
     fireEvent.change(await screen.findByLabelText(/6-digit code/), { target: { value: "12 34 56" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify and sign in" }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/app/setup-lock"));
@@ -217,14 +217,14 @@ describe("App sign-in", () => {
     state.api.requestLoginOtp.mockResolvedValue({ error: "The IIC Booking app is currently available…", errorCode: "APP_AUDIENCE", status: 403 });
     renderAt("/app/sign-in", <AppSignIn />);
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "student@iitr.ac.in" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in with OTP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/app/not-available"));
   });
 
   it("keeps password and Channel i as secondary options", async () => {
     state.api.signIn.mockResolvedValue({ error: "Invalid credentials" });
     renderAt("/app/sign-in", <AppSignIn />);
-    fireEvent.click(screen.getByRole("button", { name: "Sign in with password" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Password" }));
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "op@iitr.ac.in" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "x" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));

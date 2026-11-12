@@ -112,4 +112,43 @@ describe("PendingActionsSummary", () => {
     expect(await screen.findByText("Needs your attention (2)")).toBeTruthy();
     expect(api.getMaintenanceStatus).not.toHaveBeenCalled();
   });
+
+  it("folds in disruptions without a reason, counted and opened from the details", async () => {
+    api.getPendingActions.mockResolvedValue({ data: { items: [approvals] } });
+    const onReview = vi.fn();
+    render(
+      <MemoryRouter>
+        <PendingActionsSummary disruptionsMissingReason={2} onReviewDisruptions={onReview} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Needs your attention (4)")).toBeTruthy();
+    expect(screen.getByText(/Disruptions without a reason \(2\)/)).toBeTruthy();
+    expect(screen.queryByTestId("attention-disruptions")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /View details/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Review disruptions/ }));
+    expect(onReview).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries only the equipment part on the administration overview", async () => {
+    api.getMaintenanceStatus.mockResolvedValue({ data: { periods: [period(1, true)] } });
+    render(
+      <MemoryRouter>
+        <PendingActionsSummary showPendingItems={false} includeMaintenance disruptionsMissingReason={1} />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Needs your attention (2)")).toBeTruthy();
+    expect(api.getPendingActions).not.toHaveBeenCalled();
+  });
+
+  it("renders nothing with no actions, maintenance or disruptions", async () => {
+    api.getPendingActions.mockResolvedValue({ data: { items: [] } });
+    const { container } = render(
+      <MemoryRouter>
+        <PendingActionsSummary disruptionsMissingReason={0} />
+      </MemoryRouter>,
+    );
+    await vi.waitFor(() => expect(api.getPendingActions).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.textContent).toBe("");
+  });
 });

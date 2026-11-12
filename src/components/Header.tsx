@@ -157,7 +157,7 @@ const Header = ({ variant = "default" }: HeaderProps) => {
       data-variant={glass ? "overlay" : "default"}
       className={
         glass
-          ? "fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-gradient-to-b from-[hsl(218_60%_7%/0.72)] via-[hsl(218_55%_9%/0.45)] to-[hsl(218_55%_9%/0.2)] pt-safe px-safe backdrop-blur-md transition-colors duration-300"
+          ? "fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[hsl(218_58%_17%/0.94)] dark:bg-transparent dark:bg-gradient-to-b dark:from-[hsl(218_60%_7%/0.72)] dark:via-[hsl(218_55%_9%/0.45)] dark:to-[hsl(218_55%_9%/0.2)] pt-safe px-safe backdrop-blur-md transition-colors duration-300"
           : "fixed top-0 left-0 right-0 z-50 border-b border-border/80 bg-card/95 pt-safe px-safe backdrop-blur-md shadow-sm shadow-primary/5 transition-colors duration-300 supports-[backdrop-filter]:bg-card/90"
       }
     >

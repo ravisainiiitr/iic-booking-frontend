@@ -310,7 +310,8 @@ import { toast } from "sonner";
 import { MODE_INACTIVE_LABEL, type ModeInactive } from "@/lib/modeAvailability";
 import { format, addDays, startOfWeek, endOfWeek, addWeeks, subWeeks, isSameDay, parseISO, startOfDay, startOfMonth, endOfMonth, addMonths, subMonths, eachDayOfInterval, eachMonthOfInterval, isSameMonth, startOfYear, endOfYear, addYears, subYears } from "date-fns";
 import { type EquipmentData } from "@/data/equipmentData";
-import { externalBookingApi } from "@/lib/externalBookingApi";
+import { ExternalBookingApiError, externalBookingApi } from "@/lib/externalBookingApi";
+import { ISTEM_PROFILE_INCOMPLETE_CODE, IstemProfileReadinessNotice } from "@/components/istem/IstemProfileReadinessNotice";
 
 interface Equipment extends EquipmentData {}
 
@@ -3572,7 +3573,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
     }
   }, [altFromParam, equipmentDetail?.equipment_id]);
 
-  // IITR Assistant deep links: `date=YYYY-MM-DD` opens that week, and `from=assistant` fills the
+  // IITR Equipment Booking Assistant deep links: `date=YYYY-MM-DD` opens that week, and `from=assistant` fills the
   // inputs the user already gave in chat — once per equipment/date handoff.
   const assistantDateParam = (searchParams.get("date") || "").trim();
   const fromAssistant = searchParams.get("from") === "assistant";
@@ -3609,7 +3610,7 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
       setChargeCalculated(false);
       setCalculatedCharge(null);
       lastCalculatedValuesRef.current = "";
-      toast.success("Details from IITR Assistant filled in. Complete the remaining fields and pick your slot.");
+      toast.success("Details from IITR Equipment Booking Assistant filled in. Complete the remaining fields and pick your slot.");
       if (droppedLabels.length > 0) {
         toast.info(`Some details no longer match this equipment's options and were reset: ${droppedLabels.join(", ")}.`);
       }
@@ -4216,12 +4217,17 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
   );
 
   // Collapse Charge Calculation once charges are ready (and when slots appear); Sample Information stays expanded.
+  // External users always see their charges open: they pay against this breakdown, so it is never folded away.
   useEffect(() => {
     if (!chargeCalculated) return;
+    if (isExternalUser) {
+      setChargeCalcExpanded(true);
+      return;
+    }
     if (showSlots || isCalculateChargesFlow || isProformaFlow || isTemplateFlow) {
       setChargeCalcExpanded(false);
     }
-  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow, isTemplateFlow]);
+  }, [chargeCalculated, showSlots, isCalculateChargesFlow, isProformaFlow, isTemplateFlow, isExternalUser]);
 
   // Calculate charge based on input fields
   const calculateCharge = useCallback(async () => {
@@ -4500,10 +4506,14 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
         const a = document.createElement("a");
         a.href = url;
         const code = equipmentDetail.code || `equipment_${selectedEquipment.id}`;
-        a.download = `charge_estimate_${code}_${localDateStamp()}.pdf`;
+        a.download = res.numbers?.length === 1 ? `${res.numbers[0]}.pdf` : `charge_estimate_${code}_${localDateStamp()}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-        toast.success("Charge estimate downloaded.");
+        toast.success(
+          res.numbers?.length
+            ? `Charge estimate downloaded and saved as proforma ${res.numbers.join(", ")} (My proforma invoices).`
+            : "Charge estimate downloaded.",
+        );
       }
     } finally {
       setExportingChargePdf(false);
@@ -6884,6 +6894,14 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
    * Failed or queued submit. Waitlisted: the request is recorded, so the form is reset like a success.
    * Failed: the form stays as it was, minus slots that are no longer free.
    */
+  /** I-STEM needs the user's I-STEM link and billing details first: say what is missing and open the profile. */
+  const showIstemProfileRefusal = (message: string) => {
+    toast.error(message, {
+      duration: 15000,
+      action: { label: "Open my profile", onClick: () => navigate("/profile") },
+    });
+  };
+
   const reportUnsuccessfulBooking = async (
     errRes: {
       error?: string | null;
@@ -7348,8 +7366,16 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
             const checkout = await externalBookingApi.startCheckout(Number(selectedEquipment.id), bookBody);
             navigate(`/external-checkout/${encodeURIComponent(checkout.id)}`);
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "This booking cannot be made.");
+            if (e instanceof ExternalBookingApiError && e.code === ISTEM_PROFILE_INCOMPLETE_CODE) {
+              showIstemProfileRefusal(e.message);
+            } else {
+              toast.error(e instanceof Error ? e.message : "This booking cannot be made.");
+            }
           }
+          return;
+        }
+        if (res.error && res.errorCode === ISTEM_PROFILE_INCOMPLETE_CODE) {
+          showIstemProfileRefusal(res.error);
           return;
         }
         const altPayload = res.data as unknown as GroupAlternativesPayload | undefined;
@@ -7912,6 +7938,11 @@ const BookEquipment = ({ slotStatusFilters, slotStatusWeekStartsHidden = false }
               supervisorId={bookingSupervisorId}
               onSupervisorChange={setBookingSupervisorId}
             />
+          </div>
+        ) : null}
+        {authGateSelf && !authGateForUserId ? (
+          <div className={isEmbedFlow ? "mb-2 px-2 sm:px-3" : "max-w-6xl mx-auto mb-3"}>
+            <IstemProfileReadinessNotice equipmentId={Number(equipmentDetail.equipment_id)} />
           </div>
         ) : null}
         {!isEmbedFlow && (

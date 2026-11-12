@@ -15,7 +15,7 @@ import {
   type CheckoutGatewayOrder,
   type CheckoutOption,
 } from "@/lib/externalBookingApi";
-import { INSTITUTION, institutionLogoUrl } from "@/lib/institutionIdentity";
+import { checkoutBranding } from "@/lib/institutionIdentity";
 import { formatINRWithPaise } from "@/lib/money";
 import { loadRazorpayScript } from "@/lib/razorpay";
 
@@ -95,10 +95,8 @@ export default function ExternalCheckout() {
       amount: order.amount,
       currency: order.currency || "INR",
       order_id: order.order_id,
-      name: INSTITUTION.checkoutName,
-      description: "IIC equipment booking",
-      image: institutionLogoUrl(),
-      theme: { color: INSTITUTION.themeColor },
+      ...checkoutBranding(order.checkout_name),
+      description: (order.payment_purpose || c.payment_purpose || `Analysis charges for '${c.summary.equipment_name}'`).slice(0, 250),
       // Close the payment window when the slot hold ends (pay-by time plus one minute of grace).
       ...(c.expires_at
         ? { timeout: Math.max(30, Math.floor((new Date(c.expires_at).getTime() - Date.now()) / 1000)) }

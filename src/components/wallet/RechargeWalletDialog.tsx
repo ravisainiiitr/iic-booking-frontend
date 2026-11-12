@@ -1,3 +1,5 @@
+import { PaymentPurposeImage } from "@/components/payments/PaymentPurposeImage";
+import { checkoutBranding } from "@/lib/institutionIdentity";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CheckCircle2, CreditCard, Loader2, Plus, Search, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -633,8 +635,8 @@ export default function RechargeWalletDialog({
         key: order.key || order.key_id,
         amount: order.amount,
         currency: order.currency || "INR",
-        name: "IIC Equipment Booking",
-        description: `Wallet recharge — ${selectedDepartment?.name ?? "department"}`,
+        ...checkoutBranding((order as { checkout_name?: string }).checkout_name),
+        description: (order.payment_purpose || `Wallet recharge for the ${selectedDepartment?.name ?? "department"} sub-wallet`).slice(0, 250),
         order_id: order.order_id,
         handler: async (response: {
           razorpay_order_id: string;
@@ -647,12 +649,14 @@ export default function RechargeWalletDialog({
             setFormError(verify.error);
             return;
           }
+          const paidId = verify.data?.payment_id || response.razorpay_payment_id;
           toast.success(`Payment successful. ${formatMoney(amount)} added to your wallet.`);
           await onSubmitted();
           onClose();
+          // Straight to the receipt; Continue brings the user back to the wallet.
+          window.location.assign(`/payments/receipts/${encodeURIComponent(paidId)}?next=${encodeURIComponent("/wallet")}`);
         },
         modal: { ondismiss: finish },
-        theme: { color: "#1e4d8c" },
       });
       setCheckoutOpen(true);
       rzp.open();
@@ -1100,6 +1104,7 @@ export default function RechargeWalletDialog({
 
       {isOnline ? (
         <Section index={stepIndex("Payment")} title="Payment">
+          <PaymentPurposeImage alt="Research laboratory at IIT Roorkee" caption="Wallet recharge: credit for booking IIT Roorkee research and testing facilities" />
           <p className="text-sm text-muted-foreground">
             You will be taken to the secure Razorpay payment page. A convenience fee and GST are added to the amount and
             shown there before you pay. The amount is added to the selected department as soon as the payment is

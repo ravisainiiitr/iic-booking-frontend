@@ -24,10 +24,12 @@ const EmailVerificationCallback = lazyPage(() => import("@/pages/EmailVerificati
 const SelfVerify = lazyPage(() => import("@/pages/SelfVerify"));
 const Dashboard = lazyPage(() => import("@/pages/Dashboard"));
 const ProformaInvoice = lazyPage(() => import("@/pages/ProformaInvoice"));
+const AdminProformaInvoices = lazyPage(() => import("@/pages/AdminProformaInvoices"));
 const EquipmentList = lazyPage(() => import("@/pages/EquipmentList"));
 const InstrumentFinder = lazyPage(() => import("@/pages/InstrumentFinder"));
 const BookEquipment = lazyPage(() => import("@/pages/BookEquipment"));
 const BookingPayment = lazyPage(() => import("@/pages/BookingPayment"));
+const PaymentReceipt = lazyPage(() => import("@/pages/PaymentReceipt"));
 const ExternalCheckout = lazyPage(() => import("@/pages/ExternalCheckout"));
 const ExternalCheckoutConfirmation = lazyPage(() => import("@/pages/ExternalCheckoutConfirmation"));
 const BookingNextSteps = lazyPage(() => import("@/pages/BookingNextSteps"));
@@ -96,7 +98,10 @@ const AdminBookingBufferConfig = lazyPage(() => import("@/pages/AdminBookingBuff
 const AdminStudentNominations = lazyPage(() => import("@/pages/AdminStudentNominations"));
 const AdminWalletSricSettings = lazyPage(() => import("@/pages/AdminWalletSricSettings"));
 const AdminWalletPaymentModes = lazyPage(() => import("@/pages/AdminWalletPaymentModes"));
+const AdminReceiptTemplate = lazyPage(() => import("@/pages/AdminReceiptTemplate"));
+const AdminOfflineRecharges = lazyPage(() => import("@/pages/AdminOfflineRecharges"));
 const AdminWalletLedger = lazyPage(() => import("@/pages/AdminWalletLedger"));
+const PaymentIssues = lazyPage(() => import("@/pages/PaymentIssues"));
 const AdminWalletLedgerOwner = lazyPage(() => import("@/pages/AdminWalletLedgerOwner"));
 const AdminIstemEquipmentMapping = lazyPage(() => import("@/pages/AdminIstemEquipmentMapping"));
 const AdminEquipmentConfigAudit = lazyPage(() => import("@/pages/AdminEquipmentConfigAudit"));
@@ -149,6 +154,7 @@ const Print3DAnalyzerTest = lazyPage(() => import("@/pages/Print3DAnalyzerTest")
 const EquipmentPageRoute = lazyPage(() => import("@/pages/EquipmentPageRoute"));
 const EquipmentQrCodes = lazyPage(() => import("@/pages/EquipmentQrCodes"));
 const EquipmentQrPrint = lazyPage(() => import("@/pages/EquipmentQrPrint"));
+const VerifyReceipt = lazyPage(() => import("@/pages/VerifyReceipt"));
 const Tickets = lazyPage(() => import("@/pages/Tickets"));
 const Notifications = lazyPage(() => import("@/pages/Notifications"));
 const CallHistory = lazyPage(() => import("@/pages/CallHistory"));
@@ -199,6 +205,7 @@ const StaffSampleReceipt = lazyPage(() => import("@/pages/StaffSampleReceipt"));
 const ExternalSpecialRequests = lazyPage(() => import("@/pages/ExternalSpecialRequests"));
 const ExternalSpecialRequestsManage = lazyPage(() => import("@/pages/ExternalSpecialRequestsManage"));
 const AccountsExternalInvoices = lazyPage(() => import("@/pages/AccountsExternalInvoices"));
+const GstInvoices = lazyPage(() => import("@/pages/GstInvoices"));
 const AccountsExternalRefunds = lazyPage(() => import("@/pages/AccountsExternalRefunds"));
 const AdminUserGroups = lazyPage(() => import("@/pages/AdminUserGroups"));
 const BookingCalendar = lazyPage(() => import("@/pages/BookingCalendar"));
@@ -272,12 +279,14 @@ export default function AppRoutes() {
           <Route path="/find-instrument" element={<InstrumentFinder />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
+          <Route path="/payments/receipts/:paymentId" element={<PaymentReceipt />} />
           <Route path="/external-checkout/:checkoutId" element={<ExternalCheckout />} />
           <Route path="/external-checkout/:checkoutId/confirmation" element={<ExternalCheckoutConfirmation />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
           <Route path="/equipment/:id" element={<EquipmentPageRoute />} />
           <Route path="/equipment-qr-codes" element={<ErrorBoundary fallbackTitle="Equipment QR Codes" backPath="/dashboard"><EquipmentQrCodes /></ErrorBoundary>} />
           <Route path="/equipment-qr-codes/print" element={<EquipmentQrPrint />} />
+          <Route path="/verify-receipt" element={<VerifyReceipt />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/slot-exchanges" element={<SlotExchanges />} />
           <Route path="/courier-tracking" element={<ErrorBoundary fallbackTitle="Sample dispatch" backPath="/dashboard"><CourierTracking /></ErrorBoundary>} />
@@ -337,6 +346,7 @@ export default function AppRoutes() {
           <Route path="/admin/wallet-credit" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin/wallet-credit/:facilityId" element={<Navigate to="/user-management" replace />} />
           <Route path="/admin/wallet-ledger" element={<AdminWalletLedger />} />
+          <Route path="/payment-issues" element={<ErrorBoundary fallbackTitle="Payment issues" backPath="/dashboard"><PaymentIssues /></ErrorBoundary>} />
           <Route path="/admin/wallet-ledger/:ownerId" element={<AdminWalletLedgerOwner />} />
           <Route path="/admin/istem-equipment" element={<ErrorBoundary fallbackTitle="I-STEM equipment mapping" backPath="/dashboard"><AdminIstemEquipmentMapping /></ErrorBoundary>} />
           <Route path="/oic-request-audit" element={<ErrorBoundary fallbackTitle="OIC request audit" backPath="/dashboard"><OicRequestAudit /></ErrorBoundary>} />
@@ -359,6 +369,7 @@ export default function AppRoutes() {
           <Route path="/reports/bookings" element={<ReportBookingsList />} />
           <Route path="/reports/drilldown" element={<ReportDrilldown />} />
           <Route path="/proforma-invoice" element={<ProformaInvoice />} />
+          <Route path="/my-proforma-invoices" element={<Navigate to="/proforma-invoice?tab=saved" replace />} />
           {/* /admin is deprecated: everything is on /dashboard */}
           <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
           <Route path="/admin/external-user-management" element={<ExternalUserManagement />} />
@@ -445,6 +456,9 @@ export default function AppRoutes() {
           <Route path="/admin-settings/equipment/student-nominations" element={<AdminStudentNominations />} />
           <Route path="/admin-settings/wallet-sric-settings" element={<AdminWalletSricSettings />} />
           <Route path="/admin-settings/wallet-payment-modes" element={<AdminWalletPaymentModes />} />
+          <Route path="/admin-settings/receipt-template" element={<AdminReceiptTemplate />} />
+          <Route path="/admin-settings/offline-recharges" element={<AdminOfflineRecharges />} />
+          <Route path="/admin-settings/proforma-invoices" element={<AdminProformaInvoices />} />
           <Route path="/admin-settings/wallet-withdrawal-requests" element={<AdminWalletWithdrawalRequests />} />
           <Route path="/admin-settings/wallet-recharge-requests" element={<AdminWalletRechargeRequests />} />
           <Route path="/admin-settings/sric-wallet-recharges" element={<AdminWalletRechargeRequests />} />
@@ -462,6 +476,7 @@ export default function AppRoutes() {
           <Route path="/external-special-requests" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
           <Route path="/external-special-requests/new" element={<ErrorBoundary fallbackTitle="Special booking requests" backPath="/dashboard"><ExternalSpecialRequests /></ErrorBoundary>} />
           <Route path="/external-special-requests/manage" element={<ErrorBoundary fallbackTitle="External special requests" backPath="/dashboard"><ExternalSpecialRequestsManage /></ErrorBoundary>} />
+          <Route path="/accounts/gst-invoices" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><GstInvoices /></ErrorBoundary>} />
           <Route path="/accounts/invoice-requests" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />
           <Route path="/accounts/refunds" element={<ErrorBoundary fallbackTitle="Refunds" backPath="/dashboard"><AccountsExternalRefunds /></ErrorBoundary>} />
           <Route path="/accounts/invoice-dispatch" element={<ErrorBoundary fallbackTitle="GST invoices" backPath="/dashboard"><AccountsExternalInvoices /></ErrorBoundary>} />

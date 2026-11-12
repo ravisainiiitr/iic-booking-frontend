@@ -12,6 +12,7 @@ import {
   externalBookingApi,
   formatInstant,
   formatSlotRange,
+  type LabelStatus,
   type ScanOutcome,
   type ScanResult,
 } from "@/lib/externalBookingApi";
@@ -69,6 +70,17 @@ export default function StaffSampleReceipt() {
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [manual, setManual] = useState("");
+  // What anyone sees when the label is scanned (signed out, or signed in but not the office or the lab).
+  const [publicStatus, setPublicStatus] = useState<LabelStatus | null>(null);
+
+  const loadPublic = useCallback(async (c: string) => {
+    try {
+      setPublicStatus(await externalBookingApi.labelStatus(c));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "This label was not found.");
+    }
+  }, []);
   const handled = useRef("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -82,21 +94,26 @@ export default function StaffSampleReceipt() {
     setBusy(true);
     try {
       setResult(await externalBookingApi.scanSample(c));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "This label was not found.");
+    } catch {
+      // Not the receiving office or the lab: show what anyone scanning the parcel sees.
+      await loadPublic(c);
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [loadPublic]);
 
   useEffect(() => {
     const fromUrl = params.get("code");
     if (!fromUrl || authLoading) return;
     if (isAuthenticated) void scan(fromUrl);
-    else setCode(extractCode(fromUrl));
+    else {
+      const c = extractCode(fromUrl);
+      setCode(c);
+      void loadPublic(c);
+    }
     params.delete("code"); // keep the code out of the address bar and history
     setParams(params, { replace: true });
-  }, [params, setParams, authLoading, isAuthenticated, scan]);
+  }, [params, setParams, authLoading, isAuthenticated, scan, loadPublic]);
 
   const staffSignIn = () => {
     setPostLoginRedirect(`/staff/sample-receipt?code=${encodeURIComponent(code)}`);
@@ -158,6 +175,52 @@ export default function StaffSampleReceipt() {
           <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
             {error}
           </p>
+        ) : null}
+
+        {publicStatus && !result ? (
+          <section className="space-y-4 rounded-xl border-2 border-[#1e4d8c]/30 bg-white p-4 text-sm text-slate-900" data-testid="label-public">
+            <div className="flex items-start gap-3">
+              <Package className="h-8 w-8 shrink-0 text-[#1e4d8c]" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">IIT Roorkee · sample parcel</p>
+                <h1 className="text-xl font-bold">{publicStatus.current_status}</h1>
+                {publicStatus.updated_at ? <p className="text-slate-600">Updated {formatInstant(publicStatus.updated_at)}</p> : null}
+              </div>
+            </div>
+            <dl className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[170px_1fr]">
+              <dt className="text-slate-500">Booking ID</dt>
+              <dd className="font-mono font-medium">{publicStatus.booking_reference}</dd>
+              <dt className="text-slate-500">Equipment</dt>
+              <dd className="font-medium">{publicStatus.equipment}</dd>
+              <dt className="text-slate-500">Department</dt>
+              <dd>{publicStatus.department || "—"}</dd>
+              <dt className="text-slate-500">Booked by</dt>
+              <dd>{publicStatus.user_name}</dd>
+              <dt className="text-slate-500">Payment</dt>
+              <dd className={publicStatus.payment === "Paid" ? "font-medium text-emerald-700" : "font-medium text-amber-700"}>{publicStatus.payment}</dd>
+              <dt className="text-slate-500">Booking status</dt>
+              <dd>{publicStatus.booking_status}</dd>
+              <dt className="text-slate-500">Samples</dt>
+              <dd>{publicStatus.sample_count}</dd>
+              <dt className="text-slate-500">Slot (IST)</dt>
+              <dd>{publicStatus.slot_ranges.map((s) => formatSlotRange(s.start, s.end)).join("; ") || "—"}</dd>
+            </dl>
+            <div>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Sample history</p>
+              <ol className="space-y-1" data-testid="label-public-timeline">
+                {publicStatus.timeline.length ? (
+                  publicStatus.timeline.map((e, i) => (
+                    <li key={`${e.status}-${i}`} className="flex flex-wrap gap-x-2">
+                      <span className="font-medium">{e.label}</span>
+                      <span className="text-slate-500">{formatInstant(e.at)}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-slate-500">Not received at the office yet</li>
+                )}
+              </ol>
+            </div>
+          </section>
         ) : null}
 
         {result && banner ? (
