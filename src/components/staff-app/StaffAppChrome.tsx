@@ -1,17 +1,17 @@
 import { lazy, Suspense } from "react";
 import { useLocation } from "react-router-dom";
-import { isStaffAppNavPath, useStaffAppShell } from "@/lib/staffApp";
+import { isAppNavPath, useAppAudience } from "@/lib/appShell";
 
 const StaffBottomNav = lazy(() => import("@/pages/staff-app/StaffBottomNav"));
 
-/** App-only bottom navigation for Officers In Charge and Lab Operators (never loaded on the website). */
+/** App-only bottom navigation (never loaded on the website). */
 export default function StaffAppChrome() {
   const { pathname } = useLocation();
-  const staffShell = useStaffAppShell();
-  if (!staffShell || !isStaffAppNavPath(pathname)) return null;
+  const audience = useAppAudience();
+  if (!audience || !isAppNavPath(pathname, audience)) return null;
   return (
     <Suspense fallback={null}>
-      <StaffBottomNav />
+      <StaffBottomNav audience={audience} />
     </Suspense>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense, type ReactElement } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import AdminModuleGuard from "@/components/AdminModuleGuard";
@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiClient } from "@/lib/api";
 import { lazyPage } from "@/lib/lazyPage";
 import { appEntryPath, APP_SIGN_IN_PATH, isNativeApp } from "@/lib/nativeApp";
-import { isStaffAppUserType } from "@/lib/staffApp";
+import { appAudienceFor } from "@/lib/appShell";
 import NotFound from "@/pages/NotFound";
 
 const Index = lazyPage(() => import("@/pages/Index"));
@@ -251,14 +251,29 @@ function storedUserType(): unknown {
   }
 }
 
-/** In the app, Officers In Charge and Lab Operators get the simplified home; `?full=1` opens the full dashboard. */
+/** In the app everyone but administrators gets the app home; `?full=1` opens the full dashboard. */
 function DashboardEntry() {
   const { search } = useLocation();
   const { user } = useAuth();
-  if (isNativeApp() && !search && isStaffAppUserType(user?.user_type ?? storedUserType())) {
+  if (isNativeApp() && !search && appAudienceFor(user?.user_type ?? storedUserType()) !== "admin") {
     return <Navigate to="/app" replace />;
   }
   return <Dashboard />;
+}
+
+/** The app has its own screen for these; `?full=1` keeps the website page reachable from them. */
+function AppRedirect({ to, page }: { to: string; page: ReactElement }) {
+  const { search } = useLocation();
+  const { id } = useParams<{ id?: string }>();
+  if (!isNativeApp() || search.includes("full=1")) return page;
+  return <Navigate to={id ? `${to}/${id}` : to} replace />;
+}
+
+/** Browse: lab staff and administrators keep the website's catalogue, which has their management tools. */
+function EquipmentBrowseEntry() {
+  const { user } = useAuth();
+  if (appAudienceFor(user?.user_type ?? storedUserType()) !== "user") return <EquipmentList />;
+  return <AppRedirect to="/app/equipment" page={<EquipmentList />} />;
 }
 
 /**
@@ -287,7 +302,7 @@ export default function AppRoutes() {
           <Route path="/registration-decision" element={<RegistrationDecision />} />
           <Route path="/extension-decision" element={<ExtensionDecision />} />
           <Route path="/dashboard" element={<DashboardEntry />} />
-          <Route path="/equipments" element={<EquipmentList />} />
+          <Route path="/equipments" element={<EquipmentBrowseEntry />} />
           <Route path="/find-instrument" element={<InstrumentFinder />} />
           <Route path="/book-equipment" element={<BookEquipment />} />
           <Route path="/bookings/:bookingId/payment" element={<BookingPayment />} />
@@ -295,7 +310,7 @@ export default function AppRoutes() {
           <Route path="/external-checkout/:checkoutId" element={<ExternalCheckout />} />
           <Route path="/external-checkout/:checkoutId/confirmation" element={<ExternalCheckoutConfirmation />} />
           <Route path="/bookings/:bookingId/next-steps" element={<BookingNextSteps />} />
-          <Route path="/equipment/:id" element={<EquipmentPageRoute />} />
+          <Route path="/equipment/:id" element={<AppRedirect to="/app/equipment" page={<EquipmentPageRoute />} />} />
           <Route path="/equipment-qr-codes" element={<ErrorBoundary fallbackTitle="Equipment QR Codes" backPath="/dashboard"><EquipmentQrCodes /></ErrorBoundary>} />
           <Route path="/equipment-qr-codes/print" element={<EquipmentQrPrint />} />
           <Route path="/verify-receipt" element={<VerifyReceipt />} />
@@ -519,7 +534,7 @@ export default function AppRoutes() {
           <Route path="/test/print3d-analyzer" element={<Print3DAnalyzerTest />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/notifications" element={<Notifications />} />
-          <Route path="/calls" element={<CallHistory />} />
+          <Route path="/calls" element={<AppRedirect to="/app/calls" page={<CallHistory />} />} />
           <Route path="/equipment-references" element={<ErrorBoundary fallbackTitle="Manufacturer references" backPath="/dashboard"><EquipmentReferences /></ErrorBoundary>} />
           <Route path="/ups-health" element={<ErrorBoundary fallbackTitle="UPS health" backPath="/dashboard"><UpsHealth /></ErrorBoundary>} />
           <Route path="/calls/answer/:callId" element={<CallHistory />} />

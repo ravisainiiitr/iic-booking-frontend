@@ -214,7 +214,7 @@ describe("App sign-in", () => {
   });
 
   it("shows the not-available screen for roles outside the app audience", async () => {
-    state.api.requestLoginOtp.mockResolvedValue({ error: "The IIC Booking app is currently available…", errorCode: "APP_AUDIENCE", status: 403 });
+    state.api.requestLoginOtp.mockResolvedValue({ error: "The IIT Roorkee Equipment Booking app is currently available…", errorCode: "APP_AUDIENCE", status: 403 });
     renderAt("/app/sign-in", <AppSignIn />);
     fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "student@iitr.ac.in" } });
     fireEvent.click(screen.getByRole("button", { name: "Send sign-in code" }));

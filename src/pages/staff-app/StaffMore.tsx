@@ -3,18 +3,25 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   CalendarOff,
   ChevronRight,
+  Bell,
+  ClipboardList,
   Download,
+  FileCheck2,
   LayoutDashboard,
   LifeBuoy,
   ListOrdered,
   Loader2,
   LogOut,
+  PhoneCall,
   User,
+  Wallet,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CallAvatar } from "@/components/calls/CallScreen";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiClient, type MobileAppRelease } from "@/lib/api";
+import { appAudienceFor } from "@/lib/appShell";
 import { APP_SIGN_IN_PATH, getNativeAppInfo, openInBrowser, type NativeAppInfo } from "@/lib/nativeApp";
 import StaffTopBar from "./StaffTopBar";
 
@@ -46,6 +53,9 @@ export default function StaffMore() {
   const [updating, setUpdating] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const isOic = String(user?.user_type ?? "").toLowerCase() === "manager";
+  const audience = appAudienceFor(user?.user_type);
+  const isBookingUser = audience === "user";
+  const displayName = String((user as { name?: unknown } | null)?.name || user?.email || "Your account");
 
   useEffect(() => {
     let cancelled = false;
@@ -84,8 +94,16 @@ export default function StaffMore() {
 
   return (
     <div className="min-h-[100dvh] bg-muted/20">
-      <StaffTopBar title="More" subtitle={user?.email ?? undefined} />
+      <StaffTopBar title="More" />
       <main className="mx-auto max-w-3xl space-y-5 px-4 py-4">
+        <Link to="/profile" className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm active:bg-muted/50">
+          <CallAvatar name={displayName} className="h-14 w-14 bg-primary/10 text-lg text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold text-foreground">{displayName}</span>
+            {user?.email ? <span className="block truncate text-sm text-muted-foreground">{user.email}</span> : null}
+          </span>
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
         {update && (
           <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
             <Download className="h-5 w-5 shrink-0 text-primary" aria-hidden />
@@ -100,11 +118,15 @@ export default function StaffMore() {
         )}
 
         <ul className="divide-y divide-border/70 overflow-hidden rounded-xl border bg-card">
-          <Row to="/leave-management" icon={<CalendarOff className="h-5 w-5" />} label="Intimate Unavailability" hint={isOic ? "Tell users when you are away" : "Tell users and your OIC when you are away"} />
-          <Row to="/tickets" icon={<LifeBuoy className="h-5 w-5" />} label="Support tickets" />
+          {isBookingUser && <Row to="/wallet" icon={<Wallet className="h-5 w-5" />} label="Wallet" hint="Balance, recharge and transactions" />}
+          {isBookingUser && <Row to="/my-results" icon={<FileCheck2 className="h-5 w-5" />} label="Results" />}
+          {isBookingUser && <Row to="/my-bookings" icon={<ClipboardList className="h-5 w-5" />} label="Booking tools" hint="Cancel, reschedule, export and more" />}
+          <Row to="/app/notifications" icon={<Bell className="h-5 w-5" />} label="Notifications" />
+          {audience === "staff" && <Row to="/leave-management" icon={<CalendarOff className="h-5 w-5" />} label="Intimate Unavailability" hint={isOic ? "Tell users when you are away" : "Tell users and your OIC when you are away"} />}
+          <Row to="/tickets" icon={<LifeBuoy className="h-5 w-5" />} label="Help and support" hint="Support tickets" />
           {isOic && <Row to="/urgent-requests" icon={<Zap className="h-5 w-5" />} label="Urgent requests" />}
           {isOic && <Row to="/equipment-waitlist" icon={<ListOrdered className="h-5 w-5" />} label="Waitlist" />}
-          <Row to="/profile" icon={<User className="h-5 w-5" />} label="Profile" />
+          <Row to="/profile" icon={<User className="h-5 w-5" />} label="Profile and settings" hint="Contact details, privacy and preferences" />
           <Row to="/dashboard?full=1" icon={<LayoutDashboard className="h-5 w-5" />} label="Full dashboard" hint="Everything from the website" />
         </ul>
 
