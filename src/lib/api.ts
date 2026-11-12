@@ -3165,6 +3165,88 @@ export interface MobileAppSettingsPayload {
   latest_release: MobileAppRelease | null;
 }
 
+export type DsaHealth = 'healthy' | 'warning' | 'critical' | 'offline' | 'unknown';
+
+export interface DsaReason {
+  code: string;
+  severity: 'critical' | 'warning' | 'info';
+  message: string;
+  subject?: string;
+  action?: string;
+}
+
+export interface DsaFleetAgent {
+  id: string;
+  agent_name: string;
+  machine_name: string;
+  department: string;
+  department_code: string;
+  status: string;
+  health: DsaHealth;
+  why: DsaReason[];
+  version: string;
+  last_heartbeat_at: string | null;
+  uptime_seconds?: number | null;
+  uploads_pending?: number | null;
+  uploads_failed?: number | null;
+  oldest_pending_age_minutes?: number | null;
+  disk_free_percent?: number | null;
+  equipment_pcs: { total: number; online: number };
+  open_incidents: number;
+  clock_skew_seconds?: number | null;
+  diagnostics_supported: boolean;
+}
+
+export interface DsaFleetListResponse {
+  count: number;
+  counts: Record<DsaHealth, number>;
+  heartbeat_timeout_seconds: number;
+  server_time: string;
+  results: DsaFleetAgent[];
+}
+
+export interface DsaIncident {
+  id: string;
+  code: string;
+  title: string;
+  message: string;
+  severity: string;
+  status: string;
+  subject: string;
+  opened_at: string | null;
+  resolved_at: string | null;
+  notified_at?: string | null;
+  notify_count: number;
+  acknowledged_by?: string;
+}
+
+export interface DsaFleetCommand {
+  id: string;
+  command_type: string;
+  status: string;
+  created_at: string | null;
+  completed_at: string | null;
+  created_by: string;
+  reason: string;
+  result: Record<string, unknown>;
+  last_error: string;
+}
+
+export interface DsaFleetDetail {
+  agent: DsaFleetAgent;
+  reasons: DsaReason[];
+  diagnostics: Record<string, unknown>;
+  equipment_pcs: Array<Record<string, unknown>>;
+  received_at: string | null;
+  agent_sent_at: string | null;
+  evaluated_at: string | null;
+  heartbeat: Record<string, unknown> | null;
+  incidents: DsaIncident[];
+  commands: DsaFleetCommand[];
+  bundles: Array<{ id: string; file_name: string; size_bytes: number; truncated: boolean; created_at: string }>;
+  actions: Array<{ key: string; label: string; command_type: string; supported: boolean }>;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: string;
@@ -18945,6 +19027,41 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ workstation_id: workstationId }),
     });
+  }
+
+  // --- Department Sync fleet health (headless DSAs; Main Administrator only) ---
+  async getDepartmentSyncFleet() {
+    return this.request<DsaFleetListResponse>('/v1/sync/admin/fleet/', { method: 'GET' });
+  }
+
+  async getDepartmentSyncFleetAgent(agentId: string) {
+    return this.request<DsaFleetDetail>(`/v1/sync/admin/fleet/${agentId}/`, { method: 'GET' });
+  }
+
+  async runDepartmentSyncFleetAction(agentId: string, action: string, reason = '', force = false) {
+    return this.request<Record<string, unknown>>(`/v1/sync/admin/fleet/${agentId}/actions/`, {
+      method: 'POST',
+      body: JSON.stringify({ action, reason, force }),
+    });
+  }
+
+  async acknowledgeDepartmentSyncIncident(agentId: string, incidentId: string) {
+    return this.request<Record<string, unknown>>(
+      `/v1/sync/admin/fleet/${agentId}/incidents/${incidentId}/acknowledge/`,
+      { method: 'POST' },
+    );
+  }
+
+  async getDepartmentSyncBundleBlob(bundleId: string): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const url = `${this.baseURL}/v1/sync/admin/fleet/bundles/${bundleId}/download/`;
+    const headers: HeadersInit = { ...(token ? { Authorization: `Token ${token}` } : {}) };
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { detail?: string }).detail || `HTTP error! status: ${res.status}` };
+    }
+    return { blob: await res.blob() };
   }
 
   // --- Department Sync Agent (Main Admin hub) ---
