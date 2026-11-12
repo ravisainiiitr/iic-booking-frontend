@@ -25,6 +25,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { StandaloneOnly } from "@/components/PageShell";
+import OneClickSetupCard from "@/components/deployment/OneClickSetupCard";
 
 type Release = {
   product?: string;
@@ -178,6 +179,8 @@ export default function DeploymentCenterPage() {
             </Button>
           </div>
         </div>
+
+        <OneClickSetupCard />
 
         {loading ? (
           <div className="flex items-center justify-center py-24 text-muted-foreground">
