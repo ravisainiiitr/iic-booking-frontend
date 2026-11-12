@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { HeroSearchBar } from "@/components/search/GlobalSearch";
 import ResearcherSpotlight from "@/components/home/ResearcherSpotlight";
 import { useConnectAvailability } from "@/components/connect/useConnect";
+import { setPostLoginRedirect } from "@/lib/authRedirect";
 
 const DEFAULT_HOME = {
   hero_title_line1: "Institute Equipment Booking Portal",
@@ -153,8 +154,18 @@ const STAT_ICONS: Record<string, LucideIcon> = {
 const Hero = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  // IITR Connect is private: only signed-in users the module admits see the action (same check as the header menu).
+  // IITR Connect is private. Signed-out visitors see the action and sign in first; once signed in, only users the
+  // module admits keep it (same check as the header menu).
   const { available: connectAvailable } = useConnectAvailability(isAuthenticated);
+  const showConnect = !isAuthenticated || connectAvailable;
+  const openConnect = () => {
+    if (isAuthenticated) {
+      navigate("/connect");
+      return;
+    }
+    setPostLoginRedirect("/connect");
+    navigate("/auth");
+  };
   const isLabIncharge =
     user?.user_type != null && String(user.user_type).toLowerCase() === "operator";
   const [home, setHome] = useState<Record<string, string>>(DEFAULT_HOME);
@@ -383,11 +394,11 @@ const Hero = () => {
                 <CalendarClock className="h-4 w-4" />
                 Booking Calendar
               </Button>
-              {connectAvailable && (
+              {showConnect && (
                 <Button
                   size="lg"
                   className={secondaryCtaClass}
-                  onClick={() => navigate("/connect")}
+                  onClick={openConnect}
                   aria-label="IITR Connect (new)"
                 >
                   <MessagesSquare className="h-4 w-4" />
