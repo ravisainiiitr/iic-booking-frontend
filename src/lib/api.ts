@@ -327,7 +327,7 @@ export interface ResearchRecognition {
   /** The researcher's profile photo; null when there is none. */
   photo_url: string | null;
   affiliation: string;
-  /** Approved publications that acknowledge IIC (Researcher of the Month: in the last 12 months). */
+  /** Approved publications that acknowledge IIT Roorkee facilities (Researcher of the Month: in the last 12 months). */
   publication_count?: number;
   publication_title: string;
   research_summary: string;
@@ -6694,7 +6694,7 @@ class ApiClient {
     return this.request<{ results: ResearchRecognition[] }>('/cms/hall-of-frames/');
   }
 
-  /** Everyone whose publication acknowledging IIC is approved (home page hero list; most publications first). */
+  /** Everyone whose publication acknowledging IIT Roorkee facilities is approved (home page hero list; most publications first). */
   async getAcknowledgers() {
     return this.request<{ results: ResearchRecognition[] }>('/cms/acknowledgers/');
   }
