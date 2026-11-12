@@ -19,6 +19,8 @@ const CHOICE_FIELDS: Record<string, { key: keyof IstemEquipmentDetailsResponse["
   funding_agency_type: { key: "funding_agency_types", by: "name" },
   category: { key: "equipment_categories", by: "id" },
   facility_id: { key: "facilities", by: "id" },
+  pre_experiment_support: { key: "yes_no", by: "id" },
+  post_experiment_support: { key: "yes_no", by: "id" },
 };
 
 function choiceValue(c: IstemChoice, by: "id" | "name") {
@@ -160,7 +162,7 @@ export default function IstemEquipmentCreateDialog({ equipmentId, onClose, onCre
             <div className="grid gap-3 sm:grid-cols-2">
               {fields.map((f) => {
                 const choice = CHOICE_FIELDS[f.name];
-                const options = choice ? data.choices[choice.key] : [];
+                const options = (choice ? data.choices[choice.key] : undefined) ?? [];
                 const value = form[f.name] ?? "";
                 const id = `istem-create-${f.name}`;
                 const problem = problems[f.name];
@@ -175,7 +177,7 @@ export default function IstemEquipmentCreateDialog({ equipmentId, onClose, onCre
                           <SelectItem value={NONE}>Not set</SelectItem>
                           {options.map((o) => (
                             <SelectItem key={`${o.id}-${o.name}`} value={choiceValue(o, choice.by)}>
-                              {o.name}{choice.by === "id" && o.id ? ` (${o.id})` : ""}{o.mapped_to_instrument_department ? " · this department" : ""}
+                              {o.name}{choice.by === "id" && o.id && o.id !== o.name ? ` (${o.id})` : ""}{o.mapped_to_instrument_department ? " · this department" : ""}
                             </SelectItem>
                           ))}
                         </SelectContent>

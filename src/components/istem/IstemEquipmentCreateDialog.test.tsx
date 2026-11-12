@@ -77,6 +77,24 @@ describe("Create on I-STEM dialog", () => {
     expect(onCreated).toHaveBeenCalled();
   });
 
+  it("asks for I-STEM's alert email and the Yes / No support answers", async () => {
+    const fields = [...FIELDS,
+      { name: "alert_mailid", label: "Alert email (I-STEM sends this instrument's alerts here)", required: true },
+      { name: "pre_experiment_support", label: "Pre-experiment support", required: true },
+      { name: "post_experiment_support", label: "Post-experiment support", required: true }];
+    const base = details();
+    state.api.getIstemEquipmentDetails.mockResolvedValue({ data: details({
+      fields,
+      details: { ...base.details, alert_mailid: "oic@iitr.ac.in", pre_experiment_support: "No", post_experiment_support: "No" },
+      choices: { ...base.choices, yes_no: [{ id: "Yes", name: "Yes" }, { id: "No", name: "No" }] },
+    }) });
+    render(<IstemEquipmentCreateDialog equipmentId={45} onClose={() => {}} onCreated={() => {}} />);
+    expect(((await screen.findByLabelText("Alert email (I-STEM sends this instrument's alerts here) *")) as HTMLInputElement).value).toBe("oic@iitr.ac.in");
+    const pre = screen.getByRole("combobox", { name: "Pre-experiment support" });
+    expect(pre.textContent).toBe("No");  // a Yes / No choice, not free text
+    expect(screen.getByRole("combobox", { name: "Post-experiment support" })).toBeTruthy();
+  });
+
   it("shows an instrument already created", async () => {
     state.api.getIstemEquipmentDetails.mockResolvedValue({ data: details({ problems: {}, created: { istem_equipment_id: "40001", at: "2026-11-08" } }) });
     render(<IstemEquipmentCreateDialog equipmentId={45} onClose={() => {}} onCreated={() => {}} />);
