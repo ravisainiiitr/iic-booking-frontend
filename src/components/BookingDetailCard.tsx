@@ -1,3 +1,4 @@
+import { bookingReceiptPdfs, downloadBookingReceipts } from "@/lib/receiptDownload";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { format } from "date-fns";
 import {
@@ -77,7 +78,7 @@ import UserProfile from "@/components/UserProfile";
 import RescheduleSlotPicker from "@/components/RescheduleSlotPicker";
 import { QuotaRefusalNotice } from "@/components/quota/QuotaRefusalNotice";
 import { quotaFailureFrom, type QuotaFailure } from "@/lib/quotaBreakdown";
-import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight } from "lucide-react";
+import { CheckCircle2, XCircle, RotateCcw, Calendar, History, UserCheck, FolderDown, Download, Star, Banknote, Printer, AlertCircle, ArrowLeft, CopyPlus, BadgeCheck, Handshake, Loader2, Wrench, Timer, ThumbsUp, ThumbsDown, BellRing, HelpCircle, FilePlus2, ArrowLeftRight, Lock } from "lucide-react";
 import { IstemFbrSeal } from "@/components/IstemFbrSeal";
 import { IstemAutomaticStatus, istemAutomaticOf, type IstemAutomatic } from "@/components/IstemAutomaticStatus";
 import { EquipmentLink } from "@/components/EquipmentLink";
@@ -116,6 +117,7 @@ import LiveFeedPanel from "@/components/livefeed/LiveFeedPanel";
 import { BookingShareButton } from "@/components/BookingShareButton";
 import { UploadToMyResearchButton } from "@/components/my-research/UploadToMyResearchButton";
 import BookingStatusOverrideDialog, { STATUS_OVERRIDE_SOURCES } from "@/components/booking/BookingStatusOverrideDialog";
+import MaintenanceSettlementDialog, { MAINTENANCE_SETTLEMENT_USER_TYPES } from "@/components/booking/MaintenanceSettlementDialog";
 
 const LabOutreachDialog = lazy(() => import("@/components/booking/LabOutreachDialog"));
 
@@ -254,6 +256,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   created_at: string;
   updated_at: string;
   charge_recalculation_pending_amount?: string | null;
+  /** True when part or all of the booking was paid through the payment gateway (a receipt exists). */
+  has_online_payment?: boolean;
   /** Set while the booking user's own edit awaits payment of the extra amount. */
   charge_recalculation_pay_deadline?: string | null;
   charge_recalculation_pay_seconds_remaining?: number | null;
@@ -299,6 +303,8 @@ export interface BookingDetailCardBooking extends BookingRef {
   disruption_kind?: string | null;
   maintenance_decision_deadline_at?: string | null;
   maintenance_auto_reschedule_pending?: boolean | null;
+  /** Settled by the OIC / Main Administrator during a maintenance hold: can no longer be refunded (server-enforced). */
+  refund_locked?: boolean | null;
   auto_reschedule?: AutoReschedulePayload | null;
   /** Server rule for the viewer: false once the lab has accepted the sample, and for non-owners (e.g. supervisors); null when unknown. */
   can_reschedule?: boolean | null;
@@ -578,6 +584,7 @@ function canPerformAction(booking: BookingDetailCardBooking, action: ActionType,
       if (traceHasAnalyzed) return false;
       return status === "BOOKED";
     case "refund":
+      if (booking.refund_locked) return false;
       return status !== "REFUNDED" && status !== "COMPLETED";
     case "absent":
       return status === "BOOKED";
@@ -799,9 +806,10 @@ export function BookingDetailCard({
   const [extendHoldReasonDetail, setExtendHoldReasonDetail] = useState("");
   const [extendHoldLoading, setExtendHoldLoading] = useState(false);
   const [atmosphereSaving, setAtmosphereSaving] = useState(false);
-  const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label">(null);
+  const [downloadingDoc, setDownloadingDoc] = useState<null | "invoice" | "label" | "receipt">(null);
   const [labelDialogOpen, setLabelDialogOpen] = useState(false);
   const [labFailureOpen, setLabFailureOpen] = useState(false);
+  const [settleOpen, setSettleOpen] = useState(false);
   const [shipmentRefreshKey, setShipmentRefreshKey] = useState(0);
   const [ratingCriteriaDraft, setRatingCriteriaDraft] = useState<{
     on_time_operator_availability: boolean | null;
@@ -1369,6 +1377,9 @@ export function BookingDetailCard({
     }
     setConfirmAction({ open: false, type: null });
   };
+
+  /** The server refuses a charge-recalculation refund on a Completed or settled (refund-locked) booking. */
+  const recalcRefundBlocked = String(booking.status || "").toUpperCase() === "COMPLETED" || Boolean(booking.refund_locked);
 
   const handleProcessChargeRecalcRefund = async (b: BookingDetailCardBooking) => {
     setChargeRecalcActionLoading(true);
@@ -2101,7 +2112,7 @@ export function BookingDetailCard({
 
           {showIstemWorkflow && !isJobSheetView && istemAutomatic ? (
             <div className="mb-4">
-              <IstemAutomaticStatus status={istemAutomatic} compact />
+              <IstemAutomaticStatus status={istemAutomatic} compact showDetail={isOperatorOrManager} />
             </div>
           ) : null}
 
@@ -2667,29 +2678,29 @@ export function BookingDetailCard({
                     </Dialog>
                   </>
                 )}
+              {isOwnBooking && booking.has_online_payment && bookingPk != null && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={downloadingDoc !== null}
+                    data-testid="download-receipt"
+                    onClick={async () => {
+                      setDownloadingDoc("receipt");
+                      try {
+                        await downloadBookingReceipts(Number(bookingPk), String(booking.virtual_booking_id || booking.booking_id));
+                      } catch (e: any) {
+                        toast.error(e?.message || "The receipt could not be downloaded.");
+                      } finally {
+                        setDownloadingDoc(null);
+                      }
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    {downloadingDoc === "receipt" ? "Preparing…" : "Download receipt"}
+                  </Button>
+                )}
               {isExternalSelfView && (
                   <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={isRefunded}
-                      onClick={async () => {
-                        try {
-                          const blob = await generateExternalEquipmentRequisitionFormPdf(booking);
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `equipment_requisition_${booking.virtual_booking_id || booking.booking_id}.pdf`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        } catch (e: any) {
-                          toast.error(e?.message || "Failed to generate form.");
-                        }
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Equipment requisition form
-                    </Button>
                     <InvoiceAction
                       bookingId={Number(bookingPk ?? 0)}
                       disabled={isRefunded || bookingPk == null}
@@ -2739,6 +2750,7 @@ export function BookingDetailCard({
                         open={labelDialogOpen}
                         onOpenChange={setLabelDialogOpen}
                         requisitionPdf={() => generateExternalEquipmentRequisitionFormPdf(booking)}
+                        receiptPdfs={booking.has_online_payment ? () => bookingReceiptPdfs(Number(bookingPk)) : undefined}
                         legacyLabelPdf={async () => {
                           // Sample labels switched off: the previous plain label.
                           const res = await apiClient.getBookingShippingLabelPdfBlob(bookingPk);
@@ -2815,7 +2827,44 @@ export function BookingDetailCard({
                   Refund
                 </Button>
               )}
+              {booking.refund_locked && isOperatorOrManager && !isExternalSelfView ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled
+                  title="Settled by the Officer In-Charge or the Main Administrator during the equipment maintenance; it can no longer be refunded."
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Refund locked
+                </Button>
+              ) : null}
+              {MAINTENANCE_SETTLEMENT_USER_TYPES.has(normalizedCurrentUserType) &&
+                bookingPk != null &&
+                booking.equipment != null &&
+                booking.status.toUpperCase() === "DISRUPTION_PENDING" &&
+                String(booking.disruption_kind || "").toUpperCase() === "MAINTENANCE" &&
+                !isExternalSelfView ? (
+                <Button size="sm" variant="outline" onClick={() => setSettleOpen(true)}>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Settle booking
+                </Button>
+              ) : null}
+              {settleOpen && bookingPk != null && booking.equipment != null ? (
+                <MaintenanceSettlementDialog
+                  open
+                  onOpenChange={setSettleOpen}
+                  equipmentId={Number(booking.equipment)}
+                  equipmentName={booking.equipment_name}
+                  onlyBookingId={Number(bookingPk)}
+                  onSettled={() => {
+                    setSettleOpen(false);
+                    void refreshBookingDetail({ silent: true });
+                    onUpdated();
+                  }}
+                />
+              ) : null}
               {isExternalBookingType && (isManagerOrAdmin || isFinanceUser) && !isExternalSelfView &&
+                !booking.refund_locked &&
                 !["CANCELLED", "REFUNDED", "BOOKING_NOT_UTILIZED"].includes(String(booking.status).toUpperCase()) &&
                 bookingPk != null ? (
                 <Button size="sm" variant="outline" onClick={() => setLabFailureOpen(true)}>
@@ -3929,11 +3978,15 @@ export function BookingDetailCard({
                       <span>{formatINR(Math.abs(Number(booking.charge_recalculation_pending_amount)))}</span>
                     </div>
                     <p className="text-muted-foreground text-xs mt-2">
-                      {isManagerOrAdmin
-                        ? "Confirm the refund to credit this amount to the user's wallet."
-                        : "This refund is waiting for the Officer In Charge's approval. Once approved, it is credited to the wallet the booking was paid from."}
+                      {recalcRefundBlocked
+                        ? booking.refund_locked
+                          ? "This booking was settled during the equipment maintenance, so this refund can no longer be made."
+                          : "This booking is Completed, so this refund can no longer be made."
+                        : isManagerOrAdmin
+                          ? "Confirm the refund to credit this amount to the user's wallet."
+                          : "This refund is waiting for the Officer In Charge's approval. Once approved, it is credited to the wallet the booking was paid from."}
                     </p>
-                    {isManagerOrAdmin && (
+                    {isManagerOrAdmin && !recalcRefundBlocked && (
                       <Button size="sm" className="mt-2" onClick={() => setConfirmAction({ open: true, type: "charge_recalc_refund", chargeRecalcBooking: booking })} disabled={chargeRecalcActionLoading}>
                         <RotateCcw className="h-4 w-4 mr-2" />
                         {chargeRecalcActionLoading ? "Processing…" : "Confirm refund"}

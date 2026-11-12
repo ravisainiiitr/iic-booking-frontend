@@ -119,10 +119,43 @@ export default {
             height: "0",
           },
         },
+        "hero-drift": {
+          from: { transform: "scale(1.02) translate3d(0, 0, 0)" },
+          to: { transform: "scale(1.1) translate3d(-1.5%, -1%, 0)" },
+        },
+        "hero-float": {
+          from: { transform: "translate3d(0, 0, 0) scale(1)" },
+          to: { transform: "translate3d(2.5rem, -1.5rem, 0) scale(1.12)" },
+        },
+        // A band of light crosses the title once, then the title rests on its gradient.
+        "hero-shine": {
+          from: { backgroundPosition: "100% 0" },
+          to: { backgroundPosition: "0% 0" },
+        },
+        "hero-border": {
+          from: { backgroundPosition: "0% 0" },
+          to: { backgroundPosition: "300% 0" },
+        },
+        "bar-grow": {
+          from: { transform: "scaleY(0)" },
+          to: { transform: "scaleY(1)" },
+        },
+        "hero-word": {
+          from: { opacity: "0", transform: "translateY(0.6em)", filter: "blur(4px)" },
+          to: { opacity: "1", transform: "translateY(0)", filter: "blur(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        // Home hero: the photo drifts slowly, the glows float. Used with motion-safe: only.
+        "hero-drift": "hero-drift 32s ease-in-out infinite alternate",
+        "hero-float": "hero-float 14s ease-in-out infinite alternate",
+        "hero-float-slow": "hero-float 20s ease-in-out infinite alternate-reverse",
+        "hero-shine": "hero-shine 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.5s both",
+        "hero-border": "hero-border 9s linear infinite",
+        "hero-word": "hero-word 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both",
+        "bar-grow": "bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both",
       },
     },
   },

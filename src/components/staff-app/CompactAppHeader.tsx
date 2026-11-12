@@ -13,7 +13,7 @@ export default function CompactAppHeader() {
         <BackButton className="h-11 w-11 rounded-full border-0 p-0" />
         <Link to="/app" aria-label="Home" className="flex min-w-0 flex-1 items-center gap-2">
           <img src={iitrLogo128} width={28} height={28} alt="" className="h-7 w-7 shrink-0 object-contain" />
-          <span className="truncate text-sm font-semibold text-foreground">IIT Roorkee Equipment Booking</span>
+          <span className="truncate text-sm font-semibold text-foreground">IITR Equipment Booking</span>
         </Link>
         <Link to="/app/notifications" aria-label={unreadCount ? `Notifications, ${unreadCount} unread` : "Notifications"} className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-foreground active:bg-muted">
           <Bell className="h-5 w-5" aria-hidden />

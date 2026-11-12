@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
 import { BadgeCheck, Link2, Loader2, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useOtpCountdown } from "@/lib/useOtpCountdown";
 import { Label } from "@/components/ui/label";
 import { IstemLinkError, istemLinkApi, type IstemLinkStatus } from "@/lib/istemLinkApi";
 
@@ -27,7 +29,7 @@ function formatWhen(value: string | null | undefined): string {
  * OTP is entered the accounts are linked and blank billing details are filled from I-STEM. Hidden unless the server
  * says linking is available to this user (or the user already has a link to show).
  */
-export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
+export default function IstemLinkCard({ onLinked, className }: { onLinked?: () => void; className?: string }) {
   const [status, setStatus] = useState<IstemLinkStatus | null>(null);
   const [lookupBy, setLookupBy] = useState<LookupBy>("email");
   const [value, setValue] = useState("");
@@ -35,6 +37,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const [busy, setBusy] = useState<"find" | "send" | "verify" | null>(null);
   const [searching, setSearching] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const countdown = useOtpCountdown(status?.otp?.expires_at ? Date.parse(status.otp.expires_at) : null);
 
   const load = useCallback(async () => {
     try {
@@ -58,7 +61,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
     setBusy("send");
     try {
       const sent = await istemLinkApi.sendOtp();
-      toast.success(`OTP sent to ${sent.email_masked}.`);
+      toast.success(sent.whatsapp_masked ? `OTP sent to ${sent.email_masked} and on WhatsApp.` : `OTP sent to ${sent.email_masked}.`);
       setOtp("");
       setResendIn(60);
       await load();
@@ -115,7 +118,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
   const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
 
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Link2 className="h-5 w-5" aria-hidden /> I-STEM account
@@ -152,7 +155,8 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
               <span>
                 We found your I-STEM account. Enter the 6-digit OTP sent to <strong>{status.email_masked}</strong>, the
                 email registered on I-STEM.
-                {status.otp?.expires_at ? ` It is valid until ${formatWhen(status.otp.expires_at)}.` : ""}
+                {status.otp?.whatsapp_masked ? ` The same OTP went on WhatsApp to the ${status.otp.whatsapp_masked}.` : status.whatsapp_otp_available && !status.otp ? " It also goes on WhatsApp to the mobile number registered on I-STEM." : ""}
+                {countdown.label ? ` ${countdown.label}` : ""}
               </span>
             </p>
             {paused ? (
@@ -172,7 +176,7 @@ export default function IstemLinkCard({ onLinked }: { onLinked?: () => void }) {
                   <p className="text-xs text-muted-foreground">{status.otp.attempts_left} attempt(s) left.</p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={verify} disabled={otp.length !== 6 || busy !== null}>
+                  <Button onClick={verify} disabled={otp.length !== 6 || busy !== null || countdown.expired}>
                     {busy === "verify" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
                     Verify and link
                   </Button>

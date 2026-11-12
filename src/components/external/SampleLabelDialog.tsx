@@ -14,8 +14,8 @@ const EMPTY_ADDRESS: PostalAddress = { recipient_name: "", organisation: "", lin
 
 /**
  * The booking's "Shipping label and requisition form" action for external users: one PDF with the sample label
- * (booking ID in large type, TO and FROM with mobile numbers, a QR code scanned once at the receiving office) on page 1 and the
- * filled equipment requisition form after it. Asks only for the sender address and the number of samples; the
+ * (booking ID in large type, TO and FROM with mobile numbers, a QR code scanned once at the receiving office) on page 1, the
+ * filled equipment requisition form after it, and the payment receipt last when the booking was paid online. Asks only for the sender address and the number of samples; the
  * sender of the latest label is offered first (a newly typed one is saved to the address book by the server). When
  * sample labels are switched off the previous plain label is used through ``legacyLabelPdf``, still with the form.
  */
@@ -25,6 +25,7 @@ export function SampleLabelDialog({
   open,
   onOpenChange,
   requisitionPdf,
+  receiptPdfs,
   legacyLabelPdf,
 }: {
   bookingId: number;
@@ -34,6 +35,8 @@ export function SampleLabelDialog({
   onOpenChange: (open: boolean) => void;
   /** The filled equipment requisition form for this booking. */
   requisitionPdf: () => Promise<Blob>;
+  /** The booking's payment receipts, when it was paid online: added at the end of the same PDF. */
+  receiptPdfs?: () => Promise<Blob[]>;
   /** The previous plain shipping label, used while sample labels are switched off. */
   legacyLabelPdf: () => Promise<Blob | null>;
 }) {
@@ -71,16 +74,19 @@ export function SampleLabelDialog({
     }
     setBusy(true);
     try {
-      const [label, form] = await Promise.all([
+      const [label, form, receipts] = await Promise.all([
         externalBookingApi.sampleLabelBytes(
           bookingId,
           choice === "new" ? { sample_count: n, description: "", sender } : { sample_count: n, description: "", address_id: Number(choice) },
         ),
         requisitionPdf(),
+        receiptPdfs ? receiptPdfs().catch(() => [] as Blob[]) : Promise.resolve([] as Blob[]),
       ]);
-      saveBlob(await mergePdfs([label, form]), dispatchPackName(bookingReference));
+      saveBlob(await mergePdfs([label, form, ...receipts]), dispatchPackName(bookingReference));
       toast.success(
-        "Downloaded: label (page 1) and requisition form. Print the label at actual size for the parcel; sign the form and put it inside.",
+        receipts.length
+          ? "Downloaded: label (page 1), requisition form and payment receipt. Print the label at actual size for the parcel; sign the form and put it and a copy of the receipt inside."
+          : "Downloaded: label (page 1) and requisition form. Print the label at actual size for the parcel; sign the form and put it inside.",
       );
       onOpenChange(false);
     } catch (e) {
@@ -98,8 +104,13 @@ export function SampleLabelDialog({
     if (busy) return;
     setBusy(true);
     try {
-      const [label, form] = await Promise.all([legacyLabelPdf(), requisitionPdf()]);
-      saveBlob(label ? await mergePdfs([label, form]) : form, dispatchPackName(bookingReference));
+      const [label, form, receipts] = await Promise.all([
+        legacyLabelPdf(),
+        requisitionPdf(),
+        receiptPdfs ? receiptPdfs().catch(() => [] as Blob[]) : Promise.resolve([] as Blob[]),
+      ]);
+      const parts = [...(label ? [label] : []), form, ...receipts];
+      saveBlob(parts.length === 1 ? form : await mergePdfs(parts), dispatchPackName(bookingReference));
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "The documents could not be prepared.");
@@ -115,8 +126,9 @@ export function SampleLabelDialog({
           <DialogTitle>Shipping label and requisition form</DialogTitle>
           <DialogDescription>
             One PDF: the 10 × 4.5 inch label with your booking ID in large type and the TO and FROM addresses with mobile
-            numbers (page 1), then your filled equipment requisition form. Print the label at actual size and stick it on
-            the parcel; sign the form and put it inside. Each new label replaces the previous one.
+            numbers (page 1), then your one-page equipment requisition form{receiptPdfs ? ", then your payment receipt" : ""}.
+            Print the label at actual size and stick it on the parcel; sign the form and put it inside. Each new label
+            replaces the previous one.
           </DialogDescription>
         </DialogHeader>
         {disabled ? (

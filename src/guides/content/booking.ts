@@ -87,7 +87,7 @@ export function bookSection(g: Gate): GuideSection {
     ]),
     tips: compact([
       "If no slot is free, tick Join the waitlist (when offered). You are told your place in the queue. If a booking gives a slot back more than 48 hours before it starts, the queue gets it automatically, in order. From 48 hours down to just over 1 hour before, nobody is placed automatically and you are emailed that it is free to book. In the last hour it shows Not Available.",
-      g.when(g.flags.assistant, "After a failed booking, click Ask the IITR Assistant under Need help? for the reason and the next step."),
+      g.when(g.flags.assistant, "After a failed booking, click Ask the IITR Equipment Booking Assistant under Need help? for the reason and the next step."),
     ]),
   };
 }
@@ -186,11 +186,11 @@ export function assistantSection(g: Gate): GuideSection | null {
   const booker = g.is("student", "project_staff", "faculty", "startup", "external");
   return {
     id: "assistant",
-    title: "IITR Assistant",
+    title: "IITR Equipment Booking Assistant",
     icon: "bot",
     group: booker ? GROUP : "Tools",
     intro: compact([
-      "Open IITR Assistant (the round sparkle button, bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data. If it covers something, drag it up or to the left edge; it remembers the spot.",
+      "Open IITR Equipment Booking Assistant (the round sparkle button, bottom-right) to ask about equipment, free slots, charges, contacts and your bookings, using live portal data. If it covers something, drag it up or to the left edge; it remembers the spot.",
       g.when(!booker, "It answers look-ups; booking management stays on View Booking and your role's pages."),
     ]),
     steps: booker

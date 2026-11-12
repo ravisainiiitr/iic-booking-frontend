@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { localDateStamp } from "@/lib/localDate";
 import { formatINR, formatRupees } from "@/lib/money";
@@ -37,6 +37,16 @@ import {
 import { Plus, FileText, Trash2, Download, Pencil, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { formatDMY } from "@/lib/dateFormat";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SavedProformasPanel } from "@/components/proforma/SavedProformasPanel";
+import type { SavedProformaInvoice } from "@/lib/api";
+import {
+  clearRevisingProforma,
+  readRevisingProforma,
+  saveBlob,
+  startRevising,
+  type RevisingProforma,
+} from "@/lib/savedProformas";
 
 function fieldMapFor(entry: ProformaLineItemStored | undefined): Record<string, ProformaLineItemField> {
   const map: Record<string, ProformaLineItemField> = {};
@@ -76,6 +86,18 @@ type LineItemResult = {
 
 export default function ProformaInvoice() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "saved" ? "saved" : "create";
+  const showTab = (next: "create" | "saved") =>
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        if (next === "saved") out.set("tab", "saved");
+        else out.delete("tab");
+        return out;
+      },
+      { replace: true },
+    );
   const [equipmentList, setEquipmentList] = useState<
     Array<{ equipment_id: number; code: string; name: string; internal_department: number | null }>
   >([]);
@@ -95,6 +117,34 @@ export default function ProformaInvoice() {
   } | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  // Set when the user chose Edit on a saved proforma: downloading then issues its revision.
+  const [revising, setRevising] = useState<RevisingProforma | null>(() => readRevisingProforma());
+
+  const editSaved = (pi: SavedProformaInvoice) => {
+    startRevising(pi);
+    setLineItems(readProformaLineItemsFromStorage());
+    setRevising(readRevisingProforma());
+    setResult(null);
+    showTab("create");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const stopRevising = () => {
+    clearRevisingProforma();
+    setRevising(null);
+  };
+
+  const showSaved = (numbers: string[] | undefined, verb: string) => {
+    const list = numbers ?? [];
+    toast.success(
+      list.length > 1
+        ? `${verb}: ${list.length} proformas, one per department (${list.join(", ")}). They are kept under My proforma invoices.`
+        : list.length === 1
+          ? `${verb}: proforma ${list[0]}. It is kept under My proforma invoices, where you can pay, edit or cancel it.`
+          : `${verb}.`,
+      { action: list.length ? { label: "Open", onClick: () => showTab("saved") } : undefined, duration: 8000 },
+    );
+  };
 
   const loadEquipments = useCallback(async () => {
     setLoadingList(true);
@@ -240,6 +290,16 @@ export default function ProformaInvoice() {
           <h1 className="mb-4 text-2xl font-bold tracking-tight">Proforma invoice</h1>
         </StandaloneOnly>
 
+        <Tabs value={tab} onValueChange={(v) => showTab(v === "saved" ? "saved" : "create")} className="space-y-4">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="create">Create proforma</TabsTrigger>
+            <TabsTrigger value="saved">My proforma invoices</TabsTrigger>
+          </TabsList>
+          <TabsContent value="saved" className="mt-0">
+            <SavedProformasPanel onEdit={editSaved} />
+          </TabsContent>
+          <TabsContent value="create" className="mt-0">
+
         <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -255,6 +315,22 @@ export default function ProformaInvoice() {
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
+            {revising ? (
+              <div
+                className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between"
+                data-testid="pi-revising-banner"
+              >
+                <span>
+                  Editing proforma <strong>{revising.number}</strong>
+                  {revising.department ? ` (${revising.department})` : ""}. Change the equipment or inputs, then issue the
+                  revised proforma: it gets a new number and replaces {revising.number}. Keep to equipment of the same
+                  department.
+                </span>
+                <Button size="sm" variant="outline" onClick={stopRevising}>
+                  Stop editing
+                </Button>
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-end gap-3">
               {departments.length > 0 && (
                 <div className="w-full sm:w-auto sm:min-w-[240px] space-y-2">
@@ -479,6 +555,25 @@ export default function ProformaInvoice() {
                             total_charge: row.total_charge,
                           };
                         });
+                        if (revising) {
+                          const revised = await apiClient.reviseProformaInvoice(
+                            revising.id,
+                            line_items.map((li) => ({
+                              equipment_id: li.equipment_id,
+                              input_values: li.input_values,
+                              input_labels_and_values: li.input_labels_and_values,
+                            })),
+                          );
+                          if (revised.error || !revised.data) {
+                            toast.error(revised.error || "Could not issue the revised proforma.");
+                            return;
+                          }
+                          const file = await apiClient.downloadProformaFile(`/proforma-invoices/${revised.data.id}/pdf/`);
+                          if (file.blob) saveBlob(file.blob, `${revised.data.number}.pdf`);
+                          stopRevising();
+                          showSaved([revised.data.number], `Revised proforma issued, replacing ${revising.number}`);
+                          return;
+                        }
                         const res = await apiClient.proformaInvoiceDownloadPdf({
                           line_items,
                           subtotal: result.subtotal,
@@ -493,10 +588,11 @@ export default function ProformaInvoice() {
                           const url = URL.createObjectURL(res.blob);
                           const a = document.createElement("a");
                           a.href = url;
-                          a.download = `proforma_invoice_${localDateStamp()}.pdf`;
+                          a.download =
+                            res.numbers && res.numbers.length === 1 ? `${res.numbers[0]}.pdf` : `proforma_invoice_${localDateStamp()}.pdf`;
                           a.click();
                           URL.revokeObjectURL(url);
-                          toast.success("Proforma invoice downloaded.");
+                          showSaved(res.numbers, "Proforma invoice downloaded and saved");
                         }
                       } catch {
                         toast.error("Failed to download PDF.");
@@ -510,18 +606,25 @@ export default function ProformaInvoice() {
                     ) : (
                       <>
                         <Download className="h-4 w-4 mr-2" />
-                        Download proforma invoice (PDF)
+                        {revising ? `Issue revised proforma (replaces ${revising.number})` : "Download proforma invoice (PDF)"}
                       </>
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    PDF includes IIT Roorkee letterhead, your details, date & time of request, and a computer-generated disclaimer.
+                    Each proforma is saved under{" "}
+                    <button type="button" className="underline" onClick={() => showTab("saved")}>
+                      My proforma invoices
+                    </button>
+                    , where you can pay it online, record an offline payment, edit or cancel it. Equipment of different
+                    departments gets one proforma per department.
                   </p>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

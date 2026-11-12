@@ -170,6 +170,14 @@ const USER_MANAGEMENT_CARDS: SubCard[] = [
     moduleKey: "user_management.wallet_payment_modes",
   },
   {
+    key: "receiptTemplate",
+    label: "Receipt Template",
+    description: "Wording, GSTIN, notes and colours of the receipt users download after an online payment",
+    icon: <Receipt className="h-6 w-6" />,
+    path: "/admin-settings/receipt-template",
+    mainAdminOnly: true,
+  },
+  {
     key: "walletSricSettings",
     label: "Wallet Recharge Routing Emails (SRIC / Cash)",
     description: "Edit SRIC Office and cash / bank-transfer Bill Section routing emails",

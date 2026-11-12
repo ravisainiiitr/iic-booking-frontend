@@ -9,6 +9,8 @@ import type { AdminDashboardSummary } from "@/lib/api";
 const api = vi.hoisted(() => ({
   getAdminDashboardSummary: vi.fn(),
   getPendingActions: vi.fn(),
+  getIntegrationHealth: vi.fn(async () => ({ error: "Only the Main Administrator can view integration health." })),
+  runIntegrationHealth: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ apiClient: api }));
@@ -177,6 +179,35 @@ describe("AdminOverview", () => {
     });
     render(<AdminOverview onOpen={vi.fn()} canOpen={() => true} />);
     expect(await screen.findByText("Last 30 days · 9 cancellations · 9 refund requests · 2.5% of 363 bookings")).toBeTruthy();
+  });
+
+  it("opens the bookings made today in View Booking and says how many test bookings it left out", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-09T09:00:00Z") });
+    try {
+      api.getAdminDashboardSummary.mockResolvedValue({
+        data: summary({
+          bookings: { created_today: 0, test_created_today: 2, created_this_week: 4, created_last_7_days: 6, sessions_today: 1, sessions_next_7_days: 3 },
+        }),
+      });
+      const onOpen = vi.fn();
+      render(<AdminOverview onOpen={onOpen} canOpen={() => true} />);
+      await screen.findByText("Administration overview");
+      expect(screen.getByText("4 this week · 6 in 7 days · 2 test bookings not counted")).toBeTruthy();
+      await userEvent.setup().click(screen.getByRole("button", { name: /Bookings made today/ }));
+      expect(onOpen).toHaveBeenLastCalledWith("/booking-management?made_from=2026-11-09&made_to=2026-11-09");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows quick links only for pages in the user's menu", async () => {
+    const onOpen = vi.fn();
+    render(<AdminOverview onOpen={onOpen} canOpen={(p) => p === "/admin/registration-requests"} />);
+    await screen.findByText("Administration overview");
+    const nav = screen.getByRole("navigation", { name: "Quick links" });
+    expect(nav.textContent).toBe("Registration requests");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Registration requests" }));
+    expect(onOpen).toHaveBeenLastCalledWith("/admin/registration-requests");
   });
 
   it("keeps the insight cards plain when the pages are not in the user's menu or the server is older", async () => {

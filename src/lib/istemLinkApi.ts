@@ -27,7 +27,9 @@ export interface IstemLinkStatus {
   otp_required: boolean;
   email_masked?: string;
   paused_until?: string | null;
-  otp?: { expires_at: string; attempts_left: number };
+  otp?: { expires_at: string; attempts_left: number; whatsapp_masked?: string };
+  /** The user may ask for the OTP on WhatsApp as well, to the mobile number registered on I-STEM. */
+  whatsapp_otp_available?: boolean;
   public_user_id?: string;
   istem_profile?: IstemProfile;
 }
@@ -70,7 +72,11 @@ export const istemLinkApi = {
   status: () => request<IstemLinkStatus>("/"),
   findAccount: (lookup: { email?: string; mobile?: string }) =>
     request<{ message: string; email_masked: string }>("/find-account/", lookup),
-  sendOtp: () => request<{ message: string; email_masked: string; expires_at: string; attempts_left: number }>("/send-otp/", {}),
+  sendOtp: () =>
+    request<{ message: string; email_masked: string; whatsapp_masked?: string; expires_at: string; attempts_left: number }>(
+      "/send-otp/",
+      {},
+    ),
   verifyOtp: (otp: string) => request<IstemLinkStatus & { message: string }>("/verify-otp/", { otp }),
 };
 
@@ -109,10 +115,10 @@ async function publicRequest<T>(path: string, json?: unknown): Promise<T> {
 export const istemRegisterApi = {
   availability: () => {
     const key = istemTestKey();
-    return publicRequest<{ available: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
+    return publicRequest<{ available: boolean; whatsapp_otp?: boolean }>(`/availability/${key ? `?istem_test=${encodeURIComponent(key)}` : ""}`);
   },
   lookup: (email: string, mobile: string) =>
-    publicRequest<{ message: string; token: string; email_masked: string; expires_in: number }>("/lookup/", {
+    publicRequest<{ message: string; token: string; email_masked: string; whatsapp_masked?: string; expires_in: number }>("/lookup/", {
       email,
       mobile,
       ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),
@@ -124,7 +130,13 @@ export const istemRegisterApi = {
     ),
   /** Creates the approved account from the verified I-STEM profile and signs the user in (no password, no form). */
   complete: (linkToken: string, userType: string) =>
-    publicRequest<{ token: string; user: Record<string, unknown>; onboarding: { required: boolean; steps: string[] } }>("/complete/", {
+    publicRequest<{
+      token: string;
+      user: Record<string, unknown>;
+      onboarding: { required: boolean; steps: string[] };
+      /** "linked_existing": the I-STEM email already had a portal account; it was linked and signed in. */
+      outcome?: "created" | "linked_existing";
+    }>("/complete/", {
       link_token: linkToken,
       user_type: userType,
       ...(istemTestKey() ? { istem_test: istemTestKey() } : {}),

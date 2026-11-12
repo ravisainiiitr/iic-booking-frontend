@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles, BellRing } from "lucide-react";
+import { User as UserIcon, Wallet, LogOut, Home, HelpCircle, Package, ClipboardList, FileCheck, BookOpen, FlaskConical, Sparkles, BellRing, MessagesSquare } from "lucide-react";
 import NotificationBell from "@/components/NotificationBell";
 import { GlobalSearchButton } from "@/components/search/GlobalSearch";
 import IITRBanner from "@/components/IITRBanner";
@@ -24,6 +24,7 @@ import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { formatPersonName, formatUserDisplayName, getNameInitial } from "@/lib/displayName";
 import { useEmbeddedMode } from "@/contexts/EmbeddedModeContext";
 import { useMyResearchAvailability } from "@/components/my-research/useMyResearchAvailability";
+import { useConnectAvailability } from "@/components/connect/useConnect";
 import { ServerClock } from "@/components/ServerClock";
 import { cn } from "@/lib/utils";
 import { SkipToContent } from "@/components/SkipToContent";
@@ -58,6 +59,7 @@ const WebsiteHeader = () => {
   const mayUseMyResearch =
     isAuthenticated && (userTypeStr === 'student' || userTypeStr === 'individual_student' || isInternalFaculty);
   const { available: myResearchAvailable } = useMyResearchAvailability(mayUseMyResearch);
+  const { available: connectAvailable } = useConnectAvailability(isAuthenticated);
   const isOnDashboard =
     location.pathname === "/dashboard" || location.pathname.startsWith("/dashboard/");
   const showServerClock = true;
@@ -315,7 +317,7 @@ const WebsiteHeader = () => {
         <div className="flex h-14 items-center gap-3 px-4">
           <BackButton />
           <img src={iitrLogo128} width={32} height={32} alt="IIT Roorkee" className="h-8 w-8 shrink-0 object-contain" />
-          <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IIC Booking</span>
+          <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">IITR Equipment Booking</span>
           {isOnDashboard ? null : <GlobalSearchButton wideFrom="xl" />}
           <NotificationBell />
         </div>
@@ -440,6 +442,12 @@ const WebsiteHeader = () => {
                 <DropdownMenuItem onClick={() => safeNavigate("/my-research")}>
                   <FlaskConical className="mr-2 h-4 w-4" />
                   <span>My Research</span>
+                </DropdownMenuItem>
+              )}
+              {connectAvailable && (
+                <DropdownMenuItem onClick={() => safeNavigate("/connect")}>
+                  <MessagesSquare className="mr-2 h-4 w-4" />
+                  <span>IITR Connect</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => safeNavigate("/profile")}>

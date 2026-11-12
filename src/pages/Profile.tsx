@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { apiClient } from "@/lib/api";
 import { isExternalBookingUserType } from "@/lib/userTypes";
 import { INDIAN_MOBILE_ERROR, INDIAN_MOBILE_HINT, isValidMobileNumber } from "@/lib/mobileNumber";
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -22,10 +23,20 @@ import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
 import WhatsAppCard from "@/components/profile/WhatsAppCard";
 import IstemLinkCard from "@/components/profile/IstemLinkCard";
+import { IstemProfileReadinessNotice } from "@/components/istem/IstemProfileReadinessNotice";
 import { formatDMY } from "@/lib/dateFormat";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  // The tab a link points at: /profile#external-billing, #projects or #istem-portal-ack open their tab.
+  const [tab, setTab] = useState(() =>
+    location.hash === "#external-billing" ? "billing"
+      : location.hash === "#projects" ? "projects"
+        : location.hash === "#istem-portal-ack" ? "istem"
+          : location.hash === "#whatsapp" ? "notifications"
+            : "details",
+  );
   const { user, loading: authLoading, isAuthenticated, refreshUser, updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -529,370 +540,399 @@ const Profile = () => {
     );
   }
 
+  const utLower = String(profileData.user_type ?? user?.user_type ?? "").toLowerCase();
+  const isExternalUser = isExternalBookingUserType(utLower);
+  const statusChips: Array<{ label: string; ok: boolean; warn?: boolean }> = [
+    { label: profileData.email_verified ? "Email verified" : "Email not verified", ok: !!profileData.email_verified },
+    { label: profileData.admin_approved ? "Approved" : "Approval pending", ok: !!profileData.admin_approved, warn: !profileData.admin_approved },
+    { label: profileData.is_active ? "Active" : "Inactive", ok: !!profileData.is_active },
+    { label: profileData.can_have_wallet ? "Wallet eligible" : "No wallet", ok: !!profileData.can_have_wallet, warn: !profileData.can_have_wallet },
+  ];
+  const tabs = [
+    { value: "details", label: "Personal details", show: true },
+    { value: "billing", label: "Billing & shipping", show: isExternalUser },
+    { value: "notifications", label: "Notifications", show: !!user },
+    { value: "security", label: "Sign-in & devices", show: !!user },
+    { value: "istem", label: "I-STEM", show: !!user },
+    { value: "projects", label: "Projects", show: isFacultyUser() },
+  ].filter((t) => t.show);
+  const saveBar = (
+    <div className="sticky bottom-0 z-20 -mx-4 mt-4 border-t border-border/70 bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:mx-0 sm:rounded-2xl sm:border">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p className="mr-auto hidden text-xs text-muted-foreground sm:block">Changes on every tab are saved together.</p>
+        <Button variant="outline" onClick={() => navigate("/dashboard")}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={saving} className="min-w-[9rem]">
+          {saving ? "Saving..." : "Save changes"}
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="page-shell">
       <DashboardHeader />
-      <main className="container mx-auto px-4 py-5">
-        <div className="mb-6 max-w-2xl mx-auto rounded-2xl bg-gradient-to-r from-brand via-brand to-brand-accent p-5 text-white shadow-lg">
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">My Profile</h1>
-          <p className="mt-1 text-white/85 text-sm">Update your personal information and preferences</p>
-        </div>
-        <Card className="max-w-2xl mx-auto border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden">
-          <CardHeader className="bg-muted/30 border-b border-border/50">
-            <CardTitle>Profile details</CardTitle>
-            <CardDescription>Keep contact and account information current</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-6">
-            <div className="flex flex-col items-center gap-4">
-              <Avatar className="h-24 w-24 ring-4 ring-primary/15">
+      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6">
+        {/* Summary: who you are and the state of your account, across the full width */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand via-brand to-brand-accent p-5 text-white shadow-lg sm:px-6 sm:py-5" data-testid="profile-summary">
+          <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
+          <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-16 w-16 shrink-0 ring-4 ring-white/25">
                 <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })} />
-                <AvatarFallback className="text-3xl bg-primary/10 text-primary dark:text-sky-100">
+                <AvatarFallback className="bg-white/15 text-2xl text-white">
                   {getNameInitial(profileData.name || user?.name, profileData.email || user?.email, "U")}
                 </AvatarFallback>
               </Avatar>
-              {/* Only show upload button if no profile picture exists */}
-              {!profileData.profile_picture && !user?.profile_picture && (
-                <div>
-                  <Input
-                    id="avatar"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarUpload}
-                    disabled={uploading}
-                  />
-                  <Label htmlFor="avatar">
-                    <Button variant="outline" size="sm" asChild disabled={uploading}>
-                      <span className="cursor-pointer">
-                        <Upload className="h-4 w-4 mr-2" />
-                        {uploading ? "Uploading..." : "Upload Avatar"}
-                      </span>
-                    </Button>
-                  </Label>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profileData.email}
-                  disabled
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                {String(profileData.user_type || user?.user_type || "").toLowerCase() === "faculty" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Displayed as{" "}
-                    <strong>
-                      {formatUserDisplayName({
-                        name: profileData.name,
-                        user_type: "faculty",
-                        display_name: user?.display_name,
-                      })}
-                    </strong>{" "}
-                    across the portal (Prof. is added automatically).
-                  </p>
-                ) : null}
-                <Input
-                  id="name"
-                  type="text"
-                  value={profileData.name}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                  maxLength={255}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gender">
-                  Gender{" "}
-                  {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
-                    <span className="text-muted-foreground font-normal">(Channel-I / read-only)</span>
-                  ) : (
-                    <span className="text-destructive">*</span>
-                  )}
-                </Label>
-                {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
-                  <>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">My Profile</p>
+                <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
+                  {formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })}
+                </h1>
+                <p className="truncate text-sm text-white/85">{profileData.email}</p>
+                <p className="truncate text-sm text-white/75">
+                  {[profileData.department_name, profileData.designation].filter(Boolean).join(" · ") || "Update your personal information and preferences"}
+                </p>
+                {!profileData.profile_picture && !user?.profile_picture && (
+                  <div>
                     <Input
-                      id="gender"
-                      value={
-                        profileData.gender === "male"
-                          ? "Male"
-                          : profileData.gender === "female"
-                            ? "Female"
-                            : profileData.gender === "other"
-                              ? "Other"
-                              : profileData.gender || "—"
-                      }
-                      disabled
-                      readOnly
+                      id="avatar"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                      disabled={uploading}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Gender is supplied by Channel-I and cannot be edited here.
-                    </p>
-                  </>
-                ) : (
-                  <Select
-                    value={profileData.gender || ""}
-                    onValueChange={(v) => setProfileData((prev) => ({ ...prev, gender: v }))}
-                  >
-                    <SelectTrigger id="gender">
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Label htmlFor="avatar">
+                      <Button variant="secondary" size="sm" className="mt-2 h-8" asChild disabled={uploading}>
+                        <span className="cursor-pointer">
+                          <Upload className="h-4 w-4 mr-2" />
+                          {uploading ? "Uploading..." : "Upload Avatar"}
+                        </span>
+                      </Button>
+                    </Label>
+                  </div>
                 )}
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="emp_id">Employee ID</Label>
-                <Input
-                  id="emp_id"
-                  type="text"
-                  value={profileData.emp_id}
-                  disabled
-                  maxLength={50}
-                  placeholder="Employee/Student ID"
-                />
-                <p className="text-xs text-muted-foreground">Employee ID (read-only)</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone_number">Mobile number</Label>
-                <Input
-                  id="phone_number"
-                  type="tel"
-                  value={profileData.phone_number}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, phone_number: e.target.value }))}
-                  maxLength={20}
-                  placeholder="Contact phone number"
-                />
-                <p className="text-xs text-muted-foreground">{INDIAN_MOBILE_HINT}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="user_type">User Type</Label>
-                <Select
-                  value={String(profileData.user_type)}
-                  disabled
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select user type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="manager">Officer In Charge</SelectItem>
-                    <SelectItem value="operator">Lab Operator</SelectItem>
-                    <SelectItem value="finance">Accounts In Charge</SelectItem>
-                    <SelectItem value="student">Student</SelectItem>
-                    <SelectItem value="individual_student">Individual Student</SelectItem>
-                    <SelectItem value="faculty">Faculty</SelectItem>
-                    <SelectItem value="external">Educational Institute</SelectItem>
-                    <SelectItem value="RND">Govt R&D Organizations</SelectItem>
-                    <SelectItem value="Industry">Industry</SelectItem>
-                    <SelectItem value="startup_incubated_iitr">IITR Startup</SelectItem>
-                    <SelectItem value="external_startup_msme">External Startup/MSME</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">User type (read-only)</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department_name">Department</Label>
-                <Input
-                  id="department_name"
-                  type="text"
-                  value={profileData.department_name || (profileData.department ? `Department ID: ${profileData.department}` : "Not assigned")}
-                  disabled
-                />
-                <p className="text-xs text-muted-foreground">Department name (read-only)</p>
-              </div>
-
-              {profileData.department_code && (
-                <div className="space-y-2">
-                  <Label htmlFor="department_code">Department Code</Label>
-                  <Input
-                    id="department_code"
-                    type="text"
-                    value={profileData.department_code}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Department code (read-only)</p>
-                </div>
-              )}
-
-              {profileData.secondary_phone_number && (
-                <div className="space-y-2">
-                  <Label htmlFor="secondary_phone_number">Secondary Phone Number</Label>
-                  <Input
-                    id="secondary_phone_number"
-                    type="tel"
-                    value={profileData.secondary_phone_number}
-                    disabled
-                    maxLength={20}
-                  />
-                  <p className="text-xs text-muted-foreground">Secondary phone number (read-only)</p>
-                </div>
-              )}
-
-              {profileData.date_of_birth && (
-                <div className="space-y-2">
-                  <Label htmlFor="date_of_birth">Date of Birth</Label>
-                  <Input
-                    id="date_of_birth"
-                    type="text"
-                    value={profileData.date_of_birth ? formatDMY(profileData.date_of_birth) : ""}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Date of birth (read-only)</p>
-                </div>
-              )}
-
-              {profileData.branch_name && (
-                <div className="space-y-2">
-                  <Label htmlFor="branch_name">Branch Name</Label>
-                  <Input
-                    id="branch_name"
-                    type="text"
-                    value={profileData.branch_name}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Branch name (read-only)</p>
-                </div>
-              )}
-
-              {profileData.degree_name && (
-                <div className="space-y-2">
-                  <Label htmlFor="degree_name">Degree Name</Label>
-                  <Input
-                    id="degree_name"
-                    type="text"
-                    value={profileData.degree_name}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Degree name (read-only)</p>
-                </div>
-              )}
-
-              {profileData.designation && (
-                <div className="space-y-2">
-                  <Label htmlFor="designation">Designation</Label>
-                  <Input
-                    id="designation"
-                    type="text"
-                    value={profileData.designation}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">From Channel i (read-only)</p>
-                </div>
-              )}
-
-              {profileData.joining_date && (
-                <div className="space-y-2">
-                  <Label htmlFor="joining_date">Joining Date</Label>
-                  <Input
-                    id="joining_date"
-                    type="text"
-                    value={formatDMY(profileData.joining_date)}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Institute joining / programme start (from Channel i)</p>
-                </div>
-              )}
-
-              {profileData.graduation_date && (
-                <div className="space-y-2">
-                  <Label htmlFor="graduation_date">Graduation Date</Label>
-                  <Input
-                    id="graduation_date"
-                    type="text"
-                    value={formatDMY(profileData.graduation_date)}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Programme end / graduation (from Channel i)</p>
-                </div>
-              )}
-
-              {user?.account_lifecycle ? (
-                <ProgrammeEndDateFields showDegree={!profileData.degree_name} endDate={user.account_lifecycle.programme_end_date} />
-              ) : null}
-
-              {profileData.supervisor && (
-                <div className="space-y-2">
-                  <Label htmlFor="supervisor">Supervisor</Label>
-                  <Input
-                    id="supervisor"
-                    type="text"
-                    value={typeof profileData.supervisor === 'object' ? profileData.supervisor.name : String(profileData.supervisor)}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">Supervisor (read-only)</p>
-                </div>
-              )}
             </div>
+            <div className="md:ml-auto md:text-right">
+              <div className="flex flex-wrap gap-1.5 md:justify-end" data-testid="profile-status">
+                {statusChips.map((c) => (
+                  <span
+                    key={c.label}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${
+                      c.ok ? "bg-emerald-400/20 text-white ring-emerald-200/40" : c.warn ? "bg-amber-400/20 text-white ring-amber-200/40" : "bg-rose-400/25 text-white ring-rose-200/40"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${c.ok ? "bg-emerald-300" : c.warn ? "bg-amber-300" : "bg-rose-300"}`} aria-hidden />
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-white/75">
+                {profileData.date_joined ? `Member since ${new Date(profileData.date_joined).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                {profileData.date_joined && profileData.last_login ? " · " : ""}
+                {profileData.last_login ? `Last sign-in ${new Date(profileData.last_login).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}
+              </p>
+            </div>
+          </div>
+        </section>
 
-            <Separator />
+        {user ? (
+          <div className="mt-4">
+            <IstemProfileReadinessNotice onProfile />
+          </div>
+        ) : null}
 
-            {/* External billing & shipping details (for invoice / shipping label) */}
-            {(() => {
-              const ut = profileData.user_type ?? user?.user_type;
-              const utStr = typeof ut === "string" ? ut.toLowerCase() : "";
-              const isExternal = isExternalBookingUserType(utStr);
-              if (!isExternal) return null;
-              return (
-                <>
-                  <div id="istem-portal-ack" className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4 scroll-mt-24">
-                    <div>
-                      <h3 className="text-lg font-semibold">I-STEM national portal</h3>
-                      <p className="text-sm text-muted-foreground">
-                        External bookings are aligned with the Government of India I-STEM facility map. Register or log in at{" "}
-                        <a
-                          href="https://www.istem.gov.in/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-primary underline"
-                        >
-                          https://www.istem.gov.in/
-                        </a>
-                        , raise your facility booking there, then enter the FBR number on your booking in this portal after you confirm a slot here.
-                      </p>
-                    </div>
-                    <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border/50 bg-background/80 p-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="istem-portal-ack-switch" className="text-sm font-medium">
-                          I confirm I have an I-STEM portal account
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          Required before you can confirm equipment bookings as an external user.
-                        </p>
-                      </div>
-                      <Switch
-                        id="istem-portal-ack-switch"
-                        checked={profileData.istem_portal_acknowledged}
-                        onCheckedChange={(v) =>
-                          setProfileData((p) => ({ ...p, istem_portal_acknowledged: v === true }))
-                        }
-                      />
-                    </div>
+        <Tabs value={tab} onValueChange={setTab} className="mt-4">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-2xl bg-muted/60 p-1">
+            {tabs.map((t) => (
+              <TabsTrigger key={t.value} value={t.value} className="rounded-xl px-4 py-2 data-[state=active]:shadow-sm">
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          <TabsContent value="details" className="mt-4">
+            <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Personal details</CardTitle>
+                <CardDescription>Your name, gender and mobile number can be changed here; the rest comes from your registration or Channel i.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={profileData.email}
+                      disabled
+                    />
                   </div>
 
-                  <div id="external-billing" className="space-y-4 scroll-mt-24">
-                    <div>
-                      <h3 className="text-lg font-semibold">Billing & shipping (External users)</h3>
-                      <p className="text-sm text-muted-foreground">Used for invoice generation and prefilled shipping labels.</p>
-                    </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name">Name</Label>
+                    {String(profileData.user_type || user?.user_type || "").toLowerCase() === "faculty" ? (
+                      <p className="text-xs text-muted-foreground">
+                        Displayed as{" "}
+                        <strong>
+                          {formatUserDisplayName({
+                            name: profileData.name,
+                            user_type: "faculty",
+                            display_name: user?.display_name,
+                          })}
+                        </strong>{" "}
+                        across the portal (Prof. is added automatically).
+                      </p>
+                    ) : null}
+                    <Input
+                      id="name"
+                      type="text"
+                      value={profileData.name}
+                      onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
+                      maxLength={255}
+                    />
+                  </div>
 
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gender">
+                      Gender{" "}
+                      {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
+                        <span className="text-muted-foreground font-normal">(Channel-I / read-only)</span>
+                      ) : (
+                        <span className="text-destructive">*</span>
+                      )}
+                    </Label>
+                    {(user as { gender_from_channel_i?: boolean })?.gender_from_channel_i ? (
+                      <>
+                        <Input
+                          id="gender"
+                          value={
+                            profileData.gender === "male"
+                              ? "Male"
+                              : profileData.gender === "female"
+                                ? "Female"
+                                : profileData.gender === "other"
+                                  ? "Other"
+                                  : profileData.gender || "—"
+                          }
+                          disabled
+                          readOnly
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Gender is supplied by Channel-I and cannot be edited here.
+                        </p>
+                      </>
+                    ) : (
+                      <Select
+                        value={profileData.gender || ""}
+                        onValueChange={(v) => setProfileData((prev) => ({ ...prev, gender: v }))}
+                      >
+                        <SelectTrigger id="gender">
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="male">Male</SelectItem>
+                          <SelectItem value="female">Female</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="emp_id">Employee ID</Label>
+                    <Input
+                      id="emp_id"
+                      type="text"
+                      value={profileData.emp_id}
+                      disabled
+                      maxLength={50}
+                      placeholder="Employee/Student ID"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phone_number">Mobile number</Label>
+                    <Input
+                      id="phone_number"
+                      type="tel"
+                      value={profileData.phone_number}
+                      onChange={(e) => setProfileData(prev => ({ ...prev, phone_number: e.target.value }))}
+                      maxLength={20}
+                      placeholder="Contact phone number"
+                    />
+                    <p className="text-xs text-muted-foreground">{INDIAN_MOBILE_HINT}</p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="user_type">User Type</Label>
+                    <Select
+                      value={String(profileData.user_type)}
+                      disabled
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select user type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Officer In Charge</SelectItem>
+                        <SelectItem value="operator">Lab Operator</SelectItem>
+                        <SelectItem value="finance">Accounts In Charge</SelectItem>
+                        <SelectItem value="student">Student</SelectItem>
+                        <SelectItem value="individual_student">Individual Student</SelectItem>
+                        <SelectItem value="faculty">Faculty</SelectItem>
+                        <SelectItem value="external">Educational Institute</SelectItem>
+                        <SelectItem value="RND">Govt R&D Organizations</SelectItem>
+                        <SelectItem value="Industry">Industry</SelectItem>
+                        <SelectItem value="startup_incubated_iitr">IITR Startup</SelectItem>
+                        <SelectItem value="external_startup_msme">External Startup/MSME</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="department_name">Department</Label>
+                    <Input
+                      id="department_name"
+                      type="text"
+                      value={profileData.department_name || (profileData.department ? `Department ID: ${profileData.department}` : "Not assigned")}
+                      disabled
+                    />
+                  </div>
+
+                  {profileData.department_code && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="department_code">Department Code</Label>
+                      <Input
+                        id="department_code"
+                        type="text"
+                        value={profileData.department_code}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {profileData.secondary_phone_number && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="secondary_phone_number">Secondary Phone Number</Label>
+                      <Input
+                        id="secondary_phone_number"
+                        type="tel"
+                        value={profileData.secondary_phone_number}
+                        disabled
+                        maxLength={20}
+                      />
+                    </div>
+                  )}
+
+                  {profileData.date_of_birth && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="date_of_birth">Date of Birth</Label>
+                      <Input
+                        id="date_of_birth"
+                        type="text"
+                        value={profileData.date_of_birth ? formatDMY(profileData.date_of_birth) : ""}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {profileData.branch_name && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="branch_name">Branch Name</Label>
+                      <Input
+                        id="branch_name"
+                        type="text"
+                        value={profileData.branch_name}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {profileData.degree_name && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="degree_name">Degree Name</Label>
+                      <Input
+                        id="degree_name"
+                        type="text"
+                        value={profileData.degree_name}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {profileData.designation && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="designation">Designation</Label>
+                      <Input
+                        id="designation"
+                        type="text"
+                        value={profileData.designation}
+                        disabled
+                      />
+                    </div>
+                  )}
+
+                  {profileData.joining_date && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="joining_date">Joining Date</Label>
+                      <Input
+                        id="joining_date"
+                        type="text"
+                        value={formatDMY(profileData.joining_date)}
+                        disabled
+                      />
+                      <p className="text-xs text-muted-foreground">Institute joining / programme start (from Channel i)</p>
+                    </div>
+                  )}
+
+                  {profileData.graduation_date && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="graduation_date">Graduation Date</Label>
+                      <Input
+                        id="graduation_date"
+                        type="text"
+                        value={formatDMY(profileData.graduation_date)}
+                        disabled
+                      />
+                      <p className="text-xs text-muted-foreground">Programme end / graduation (from Channel i)</p>
+                    </div>
+                  )}
+
+                  {user?.account_lifecycle ? (
+                    <ProgrammeEndDateFields showDegree={!profileData.degree_name} endDate={user.account_lifecycle.programme_end_date} />
+                  ) : null}
+
+                  {profileData.supervisor && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="supervisor">Supervisor</Label>
+                      <Input
+                        id="supervisor"
+                        type="text"
+                        value={typeof profileData.supervisor === 'object' ? profileData.supervisor.name : String(profileData.supervisor)}
+                        disabled
+                      />
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {isExternalUser ? (
+            <TabsContent value="billing" className="mt-4">
+              <div id="external-billing" className="grid scroll-mt-24 gap-4 lg:grid-cols-2">
+                <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Billing</CardTitle>
+                    <CardDescription>Used on invoices and receipts.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-[2fr_1fr]">
                     <div className="space-y-2">
                       <Label htmlFor="billing_name">Billing name / company</Label>
                       <Input
@@ -913,6 +953,7 @@ const Profile = () => {
                         maxLength={30}
                         placeholder="Optional"
                       />
+                    </div>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -936,7 +977,7 @@ const Profile = () => {
                       </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-4">
                       <div className="space-y-2">
                         <Label htmlFor="billing_city">City</Label>
                         <Input
@@ -964,18 +1005,24 @@ const Profile = () => {
                           maxLength={20}
                         />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="billing_country">Country</Label>
+                        <Input
+                          id="billing_country"
+                          value={externalBilling.billing_country}
+                          onChange={(e) => setExternalBilling((p) => ({ ...p, billing_country: e.target.value }))}
+                          maxLength={120}
+                        />
+                      </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="billing_country">Country</Label>
-                      <Input
-                        id="billing_country"
-                        value={externalBilling.billing_country}
-                        onChange={(e) => setExternalBilling((p) => ({ ...p, billing_country: e.target.value }))}
-                        maxLength={120}
-                      />
-                    </div>
-
+                  </CardContent>
+                </Card>
+                <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Shipping</CardTitle>
+                    <CardDescription>Where results and samples are sent back; prefilled on shipping labels.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div className="flex items-center justify-between rounded-lg border p-3 bg-muted/30">
                       <div className="space-y-0.5">
                         <Label>Shipping same as billing</Label>
@@ -1031,7 +1078,7 @@ const Profile = () => {
                           </div>
                         </div>
 
-                        <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="grid gap-4 sm:grid-cols-4">
                           <div className="space-y-2">
                             <Label htmlFor="shipping_city">City</Label>
                             <Input
@@ -1059,16 +1106,15 @@ const Profile = () => {
                               maxLength={20}
                             />
                           </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="shipping_country">Country</Label>
-                          <Input
-                            id="shipping_country"
-                            value={externalBilling.shipping_country}
-                            onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_country: e.target.value }))}
-                            maxLength={120}
-                          />
+                          <div className="space-y-2">
+                            <Label htmlFor="shipping_country">Country</Label>
+                            <Input
+                              id="shipping_country"
+                              value={externalBilling.shipping_country}
+                              onChange={(e) => setExternalBilling((p) => ({ ...p, shipping_country: e.target.value }))}
+                              maxLength={120}
+                            />
+                          </div>
                         </div>
                       </>
                     )}
@@ -1076,387 +1122,362 @@ const Profile = () => {
                     {loadingExternalBilling && (
                       <p className="text-sm text-muted-foreground">Loading billing profile…</p>
                     )}
-                  </div>
-
-                  <Separator />
-                </>
-              );
-            })()}
-
-            {/* Account Status Section */}
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold">Account Status</h3>
-                <p className="text-sm text-muted-foreground">Your account verification and approval status</p>
+                  </CardContent>
+                </Card>
               </div>
+            </TabsContent>
+          ) : null}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Email Verified</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${profileData.email_verified ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className="text-sm">{profileData.email_verified ? 'Verified' : 'Not Verified'}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Admin Approved</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${profileData.admin_approved ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                    <span className="text-sm">{profileData.admin_approved ? 'Approved' : 'Pending Approval'}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Account Status</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${profileData.is_active ? 'bg-green-500' : 'bg-red-500'}`} />
-                    <span className="text-sm">{profileData.is_active ? 'Active' : 'Inactive'}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Wallet Access</Label>
-                  <div className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${profileData.can_have_wallet ? 'bg-green-500' : 'bg-gray-500'}`} />
-                    <span className="text-sm">{profileData.can_have_wallet ? 'Eligible' : 'Not Eligible'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {profileData.date_joined && (
-                <div className="space-y-2">
-                  <Label>Member Since</Label>
-                  <Input
-                    aria-label="Member Since"
-                    type="text"
-                    value={profileData.date_joined ? new Date(profileData.date_joined).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    }) : ""}
-                    disabled
-                  />
-                </div>
-              )}
-
-              {profileData.last_login && (
-                <div className="space-y-2">
-                  <Label>Last Login</Label>
-                  <Input
-                    aria-label="Last Login"
-                    type="text"
-                    value={profileData.last_login ? new Date(profileData.last_login).toLocaleString('en-US', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    }) : "Never"}
-                    disabled
-                  />
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Wallet low balance alert - only for users who can have a wallet */}
-            {profileData.can_have_wallet && (
-              <>
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <Wallet className="h-5 w-5" />
-                      Wallet low balance notification
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Get an email every day at 11:00 AM when your wallet balance falls below a threshold. Disabled by default.
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-4 rounded-lg border p-4 bg-muted/30">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="wallet-low-balance-enable" className="cursor-pointer">
-                        Enable low balance alert
-                      </Label>
-                      <Switch
-                        id="wallet-low-balance-enable"
-                        checked={profileData.wallet_low_balance_alert_enabled}
-                        onCheckedChange={(checked) =>
-                          setProfileData((prev) => ({
-                            ...prev,
-                            wallet_low_balance_alert_enabled: !!checked,
-                            wallet_low_balance_alert_threshold: checked ? prev.wallet_low_balance_alert_threshold : null,
-                          }))
-                        }
-                      />
-                    </div>
-                    {profileData.wallet_low_balance_alert_enabled && (
-                      <div className="space-y-2">
-                        <Label htmlFor="wallet-low-balance-threshold">Alert when balance is below (₹)</Label>
-                        <Input
-                          id="wallet-low-balance-threshold"
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          placeholder="e.g. 500"
-                          value={
-                            profileData.wallet_low_balance_alert_threshold !== null &&
-                            profileData.wallet_low_balance_alert_threshold !== ""
-                              ? String(profileData.wallet_low_balance_alert_threshold)
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setProfileData((prev) => ({
-                              ...prev,
-                              wallet_low_balance_alert_threshold: v === "" ? null : v,
-                            }));
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          You will receive an email each day at 11:00 AM if your wallet balance is below this amount.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <Separator />
-              </>
-            )}
-
-            {/* Projects Section - Only for Faculty */}
-            {isFacultyUser() && (
-              <>
-                <div id="projects" className="space-y-4 scroll-mt-24">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">Projects</h3>
-                      <p className="text-sm text-muted-foreground">Manage your research projects</p>
-                    </div>
-                    {!showProjectForm && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowProjectForm(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Project
-                      </Button>
-                    )}
-                  </div>
-
-                  {showProjectForm && (
-                    <Card className="border-primary/50">
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          {editingProjectId ? "Edit Project" : "Add New Project"}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="project_name">Project Name *</Label>
-                          <Input
-                            id="project_name"
-                            type="text"
-                            value={projectForm.name}
-                            onChange={(e) => setProjectForm(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Enter project name"
-                            maxLength={255}
-                          />
+          {user ? (
+            <TabsContent value="notifications" className="mt-4">
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                <WhatsAppCard className="mx-0 mt-0 max-w-none" />
+                {profileData.can_have_wallet ? (
+                  <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                    <CardContent className="pt-6">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <Wallet className="h-5 w-5" />
+                            Wallet low balance notification
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Get an email every day at 11:00 AM when your wallet balance falls below a threshold. Disabled by default.
+                          </p>
                         </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="project_code">Project Code *</Label>
-                          <Input
-                            id="project_code"
-                            type="text"
-                            value={projectForm.project_code}
-                            onChange={(e) => setProjectForm(prev => ({ ...prev, project_code: e.target.value }))}
-                            placeholder="Enter project code"
-                            maxLength={100}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="agency">Agency *</Label>
-                          <Input
-                            id="agency"
-                            type="text"
-                            value={projectForm.agency}
-                            onChange={(e) => setProjectForm(prev => ({ ...prev, agency: e.target.value }))}
-                            placeholder="Enter funding agency"
-                            maxLength={255}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="start_date">Start Date</Label>
-                            <DateInput
-                              id="start_date"
-                              value={projectForm.start_date}
-                              onChange={(e) => setProjectForm(prev => ({ ...prev, start_date: e.target.value }))}
+                        <div className="flex flex-col gap-4 rounded-lg border p-4 bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="wallet-low-balance-enable" className="cursor-pointer">
+                              Enable low balance alert
+                            </Label>
+                            <Switch
+                              id="wallet-low-balance-enable"
+                              checked={profileData.wallet_low_balance_alert_enabled}
+                              onCheckedChange={(checked) =>
+                                setProfileData((prev) => ({
+                                  ...prev,
+                                  wallet_low_balance_alert_enabled: !!checked,
+                                  wallet_low_balance_alert_threshold: checked ? prev.wallet_low_balance_alert_threshold : null,
+                                }))
+                              }
                             />
                           </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor="end_date">End Date</Label>
-                            <DateInput
-                              id="end_date"
-                              value={projectForm.end_date}
-                              onChange={(e) => setProjectForm(prev => ({ ...prev, end_date: e.target.value }))}
-                              min={projectForm.start_date || undefined}
-                            />
-                          </div>
-                        </div>
-
-                        {editingProjectId && (
-                          <div className="space-y-2">
-                            <Label htmlFor="is_active">Status</Label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
-                                id="is_active"
-                                checked={projectForm.is_active}
-                                onChange={(e) => setProjectForm(prev => ({ ...prev, is_active: e.target.checked }))}
-                                className="h-4 w-4 rounded border-gray-300"
+                          {profileData.wallet_low_balance_alert_enabled && (
+                            <div className="space-y-2">
+                              <Label htmlFor="wallet-low-balance-threshold">Alert when balance is below (₹)</Label>
+                              <Input
+                                id="wallet-low-balance-threshold"
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                placeholder="e.g. 500"
+                                value={
+                                  profileData.wallet_low_balance_alert_threshold !== null &&
+                                  profileData.wallet_low_balance_alert_threshold !== ""
+                                    ? String(profileData.wallet_low_balance_alert_threshold)
+                                    : ""
+                                }
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setProfileData((prev) => ({
+                                    ...prev,
+                                    wallet_low_balance_alert_threshold: v === "" ? null : v,
+                                  }));
+                                }}
                               />
-                              <Label htmlFor="is_active" className="text-sm font-normal cursor-pointer">
-                                Active
-                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                You will receive an email each day at 11:00 AM if your wallet balance is below this amount.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </div>
+            </TabsContent>
+          ) : null}
+
+          {user ? (
+            <TabsContent value="security" className="mt-4">
+              <div className="grid items-start gap-4 lg:grid-cols-[3fr_2fr]">
+                <LoginPasswordCard className="mx-0 mt-0 max-w-none" />
+                <MobileDevicesCard className="mx-0 mt-0 max-w-none" />
+              </div>
+            </TabsContent>
+          ) : null}
+
+          {user ? (
+            <TabsContent value="istem" className="mt-4">
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                <IstemLinkCard className="mx-0 mt-0 max-w-none" onLinked={loadExternalBilling} />
+                {isExternalUser ? (
+                  <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                    <CardContent className="pt-6">
+                      <div id="istem-portal-ack" className="space-y-3 rounded-lg border border-border/60 bg-muted/30 p-4 scroll-mt-24">
+                        <div>
+                          <h3 className="text-lg font-semibold">I-STEM national portal</h3>
+                          <p className="text-sm text-muted-foreground">
+                            External bookings are aligned with the Government of India I-STEM facility map. Register or log in at{" "}
+                            <a
+                              href="https://www.istem.gov.in/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-primary underline"
+                            >
+                              https://www.istem.gov.in/
+                            </a>
+                            , raise your facility booking there, then enter the FBR number on your booking in this portal after you confirm a slot here.
+                          </p>
+                        </div>
+                        <div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border/50 bg-background/80 p-3">
+                          <div className="space-y-1">
+                            <Label htmlFor="istem-portal-ack-switch" className="text-sm font-medium">
+                              I confirm I have an I-STEM portal account
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Required before you can confirm equipment bookings as an external user.
+                            </p>
+                          </div>
+                          <Switch
+                            id="istem-portal-ack-switch"
+                            checked={profileData.istem_portal_acknowledged}
+                            onCheckedChange={(v) =>
+                              setProfileData((p) => ({ ...p, istem_portal_acknowledged: v === true }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </div>
+            </TabsContent>
+          ) : null}
+
+          {isFacultyUser() ? (
+            <TabsContent value="projects" className="mt-4">
+              <Card className="rounded-2xl border-border/70 shadow-[var(--shadow-card)]">
+                <CardContent className="pt-6">
+                  <div id="projects" className="space-y-4 scroll-mt-24">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Projects</h3>
+                        <p className="text-sm text-muted-foreground">Manage your research projects</p>
+                      </div>
+                      {!showProjectForm && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowProjectForm(true)}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Project
+                        </Button>
+                      )}
+                    </div>
+
+                    {showProjectForm && (
+                      <Card className="border-primary/50">
+                        <CardHeader>
+                          <CardTitle className="text-base">
+                            {editingProjectId ? "Edit Project" : "Add New Project"}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="project_name">Project Name *</Label>
+                            <Input
+                              id="project_name"
+                              type="text"
+                              value={projectForm.name}
+                              onChange={(e) => setProjectForm(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="Enter project name"
+                              maxLength={255}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="project_code">Project Code *</Label>
+                            <Input
+                              id="project_code"
+                              type="text"
+                              value={projectForm.project_code}
+                              onChange={(e) => setProjectForm(prev => ({ ...prev, project_code: e.target.value }))}
+                              placeholder="Enter project code"
+                              maxLength={100}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="agency">Agency *</Label>
+                            <Input
+                              id="agency"
+                              type="text"
+                              value={projectForm.agency}
+                              onChange={(e) => setProjectForm(prev => ({ ...prev, agency: e.target.value }))}
+                              placeholder="Enter funding agency"
+                              maxLength={255}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="start_date">Start Date</Label>
+                              <DateInput
+                                id="start_date"
+                                value={projectForm.start_date}
+                                onChange={(e) => setProjectForm(prev => ({ ...prev, start_date: e.target.value }))}
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="end_date">End Date</Label>
+                              <DateInput
+                                id="end_date"
+                                value={projectForm.end_date}
+                                onChange={(e) => setProjectForm(prev => ({ ...prev, end_date: e.target.value }))}
+                                min={projectForm.start_date || undefined}
+                              />
                             </div>
                           </div>
-                        )}
 
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={editingProjectId ? handleUpdateProject : handleAddProject}
-                            disabled={addingProject || updatingProject}
-                            size="sm"
-                          >
-                            {addingProject ? "Adding..." : updatingProject ? "Updating..." : editingProjectId ? "Update Project" : "Add Project"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowProjectForm(false);
-                              setEditingProjectId(null);
-                              setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
-                            }}
-                            size="sm"
-                            disabled={addingProject || updatingProject}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                          {editingProjectId && (
+                            <div className="space-y-2">
+                              <Label htmlFor="is_active">Status</Label>
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id="is_active"
+                                  checked={projectForm.is_active}
+                                  onChange={(e) => setProjectForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <Label htmlFor="is_active" className="text-sm font-normal cursor-pointer">
+                                  Active
+                                </Label>
+                              </div>
+                            </div>
+                          )}
 
-                  {loadingProjects ? (
-                    <div className="flex items-center justify-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    </div>
-                  ) : projects.length > 0 ? (
-                    <div className="space-y-3">
-                      {projects.map((project) => (
-                        <Card key={project.id} className={`border ${!project.is_active ? 'opacity-60' : ''}`}>
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1 space-y-2">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-semibold text-base">{project.name}</h4>
-                                      {project.is_expired && (
-                                        <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                                          Expired
-                                        </span>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={editingProjectId ? handleUpdateProject : handleAddProject}
+                              disabled={addingProject || updatingProject}
+                              size="sm"
+                            >
+                              {addingProject ? "Adding..." : updatingProject ? "Updating..." : editingProjectId ? "Update Project" : "Add Project"}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setShowProjectForm(false);
+                                setEditingProjectId(null);
+                                setProjectForm({ name: "", project_code: "", agency: "", start_date: "", end_date: "", is_active: true });
+                              }}
+                              size="sm"
+                              disabled={addingProject || updatingProject}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {loadingProjects ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      </div>
+                    ) : projects.length > 0 ? (
+                      <div className="space-y-3">
+                        {projects.map((project) => (
+                          <Card key={project.id} className={`border ${!project.is_active ? 'opacity-60' : ''}`}>
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 space-y-2">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="font-semibold text-base">{project.name}</h4>
+                                        {project.is_expired && (
+                                          <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                            Expired
+                                          </span>
+                                        )}
+                                        {!project.is_active && !project.is_expired && (
+                                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                            Inactive
+                                          </span>
+                                        )}
+                                        {project.is_active && !project.is_expired && (
+                                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            Active
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-muted-foreground">Code: {project.project_code}</p>
+                                      <p className="text-sm text-muted-foreground">Agency: {project.agency}</p>
+                                      {project.start_date && (
+                                        <p className="text-sm text-muted-foreground">
+                                          Start Date: {formatDMY(project.start_date)}
+                                        </p>
                                       )}
-                                      {!project.is_active && !project.is_expired && (
-                                        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                                          Inactive
-                                        </span>
-                                      )}
-                                      {project.is_active && !project.is_expired && (
-                                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                          Active
-                                        </span>
+                                      {project.end_date && (
+                                        <p className="text-sm text-muted-foreground">
+                                          End Date: {formatDMY(project.end_date)}
+                                        </p>
                                       )}
                                     </div>
-                                    <p className="text-sm text-muted-foreground">Code: {project.project_code}</p>
-                                    <p className="text-sm text-muted-foreground">Agency: {project.agency}</p>
-                                    {project.start_date && (
-                                      <p className="text-sm text-muted-foreground">
-                                        Start Date: {formatDMY(project.start_date)}
-                                      </p>
-                                    )}
-                                    {project.end_date && (
-                                      <p className="text-sm text-muted-foreground">
-                                        End Date: {formatDMY(project.end_date)}
-                                      </p>
-                                    )}
                                   </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Created: {formatDMY(project.created_at)}
+                                  </p>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Created: {formatDMY(project.created_at)}
-                                </p>
+                                <div className="flex gap-1">
+                                  <Button
+                                    aria-label="Edit project"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleEditProject(project)}
+                                    className="text-primary hover:text-primary"
+                                    title="Edit project"
+                                  >
+                                    <Edit className="h-4 w-4" aria-hidden />
+                                  </Button>
+                                  <Button
+                                    aria-label="Delete project"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteProject(project.id)}
+                                    className="text-destructive hover:text-destructive"
+                                    title="Delete project"
+                                  >
+                                    <Trash2 className="h-4 w-4" aria-hidden />
+                                  </Button>
+                                </div>
                               </div>
-                              <div className="flex gap-1">
-                                <Button
-                                  aria-label="Edit project"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditProject(project)}
-                                  className="text-primary hover:text-primary"
-                                  title="Edit project"
-                                >
-                                  <Edit className="h-4 w-4" aria-hidden />
-                                </Button>
-                                <Button
-                                  aria-label="Delete project"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteProject(project.id)}
-                                  className="text-destructive hover:text-destructive"
-                                  title="Delete project"
-                                >
-                                  <Trash2 className="h-4 w-4" aria-hidden />
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    !showProjectForm && (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <p>No projects added yet.</p>
-                        <p className="text-sm">Click "Add Project" to get started.</p>
+                            </CardContent>
+                          </Card>
+                        ))}
                       </div>
-                    )
-                  )}
-                </div>
-                <Separator />
-              </>
-            )}
+                    ) : (
+                      !showProjectForm && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p>No projects added yet.</p>
+                          <p className="text-sm">Click "Add Project" to get started.</p>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ) : null}
+        </Tabs>
 
-            <div className="flex gap-4">
-              <Button onClick={handleSave} disabled={saving} className="flex-1">
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-              <Button variant="outline" onClick={() => navigate("/dashboard")} className="flex-1">
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        {user && <LoginPasswordCard />}
-        {user && <MobileDevicesCard />}
-        {user && <WhatsAppCard />}
-        {user && <IstemLinkCard onLinked={loadExternalBilling} />}
+        {saveBar}
       </main>
     </div>
   );

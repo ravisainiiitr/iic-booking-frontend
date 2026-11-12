@@ -1,5 +1,5 @@
 /**
- * "Need help?" hand-off from a failed booking or charge calculation to the IITR Assistant.
+ * "Need help?" hand-off from a failed booking or charge calculation to the IITR Equipment Booking Assistant.
  *
  * Pages call `offerAssistantHelp(...)` where they show the error; the assistant launcher listens for the
  * event, shows a small dismissible prompt and, if the user accepts, opens the assistant with a `ba_help`
@@ -67,13 +67,13 @@ export function classifyBookingFailure(message: string | null | undefined): Assi
 }
 
 const PROMPT_TEXT: Record<AssistantHelpCode, string> = {
-  slot_taken: "The IITR Assistant can find you another free slot or add you to the waitlist.",
-  no_slots: "The IITR Assistant can show the next free slots and the waitlist.",
-  quota_exceeded: "The IITR Assistant can explain how much quota is left and when it resets.",
-  no_wallet: "The IITR Assistant can show you how to link your supervisor's wallet.",
-  insufficient_funds: "The IITR Assistant can explain how to top up the wallet this booking uses.",
-  charge_error: "The IITR Assistant can tell you which details are missing for the charge.",
-  booking_failed: "The IITR Assistant can find another free slot or explain what to do.",
+  slot_taken: "The IITR Equipment Booking Assistant can find you another free slot or add you to the waitlist.",
+  no_slots: "The IITR Equipment Booking Assistant can show the next free slots and the waitlist.",
+  quota_exceeded: "The IITR Equipment Booking Assistant can explain how much quota is left and when it resets.",
+  no_wallet: "The IITR Equipment Booking Assistant can show you how to link your supervisor's wallet.",
+  insufficient_funds: "The IITR Equipment Booking Assistant can explain how to top up the wallet this booking uses.",
+  charge_error: "The IITR Equipment Booking Assistant can tell you which details are missing for the charge.",
+  booking_failed: "The IITR Equipment Booking Assistant can find another free slot or explain what to do.",
 };
 
 const UTTERANCE: Record<AssistantHelpCode, string> = {

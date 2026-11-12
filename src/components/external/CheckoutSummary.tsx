@@ -1,11 +1,13 @@
 import { formatSlotRange, type BookingCheckout } from "@/lib/externalBookingApi";
 import { formatINRWithPaise } from "@/lib/money";
+import { PaymentPurposeImage } from "@/components/payments/PaymentPurposeImage";
 
 /** Equipment, slots, samples and the server's charge breakdown (including GST) for a checkout. */
 export function CheckoutSummary({ checkout }: { checkout: BookingCheckout }) {
   const s = checkout.summary;
   return (
     <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900" data-testid="checkout-summary">
+      <PaymentPurposeImage src={checkout.equipment_image_url} alt={s.equipment_name} caption={`You are paying: ${checkout.payment_purpose || `Analysis charges for '${s.equipment_name}'`}`} />
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Equipment</p>
         <p className="font-semibold">

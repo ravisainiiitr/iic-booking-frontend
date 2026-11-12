@@ -14,7 +14,7 @@ afterEach(() => {
 
 const card = { type: "ba_equipment_picker", action: "slot_exchange", title: "Search for the instrument", placeholder: "Name, code or model" };
 
-describe("IITR Assistant equipment picker", () => {
+describe("IITR Equipment Booking Assistant equipment picker", () => {
   it("searches the instruments allowed for the action and picks one", async () => {
     api.portalActionEquipment.mockResolvedValue({ data: { equipment: [{ id: 7, name: "Powder X-Ray Diffractometer", code: "XRD-1", on: false }] } });
     const onAction = vi.fn();

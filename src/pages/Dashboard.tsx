@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, QrCode as QrCodeIcon } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
+import { OFFLINE_RECHARGES_ADMIN_PATH } from "@/lib/offlineRecharge";
+import { STAFF_PROFORMAS_PATH } from "@/lib/savedProformas";
 import { moduleAvailable } from "@/lib/departmentModulesApi";
 import { useUserGuide } from "@/components/UserGuide/UserGuideProvider";
 import { useProcurementAvailability } from "@/pages/procurement/useProcurementAvailability";
@@ -38,6 +40,7 @@ import DashboardHeader from "@/components/DashboardHeader";
 import { DashboardSearchBar } from "@/components/search/GlobalSearch";
 import { MenuActionsPublisher } from "@/components/search/menuActions";
 import MyActivity from "@/components/dashboard/MyActivity";
+import WhatsAppPrompt from "@/components/dashboard/WhatsAppPrompt";
 import ProfileOnboarding from "@/components/dashboard/ProfileOnboarding";
 import { AccountLifecycleNotice } from "@/components/accountLifecycle/AccountLifecycleBanner";
 import PendingActionsSummary from "@/components/PendingActions/PendingActionsSummary";
@@ -50,7 +53,6 @@ import {
   showsBookingsAwaitingCompletion,
 } from "@/components/dashboard/awaitingCompletion";
 import ResultsOverdueCard from "@/components/dashboard/ResultsOverdueCard";
-import MaintenanceBanner from "@/components/dashboard/MaintenanceBanner";
 import OrcidPromptBanner from "@/components/impact/OrcidPromptBanner";
 import AuthorConfirmPrompt from "@/components/impact/AuthorConfirmPrompt";
 import { maintenancePlacement } from "@/components/dashboard/maintenanceVisibility";
@@ -67,6 +69,7 @@ import { BookingDetailCard, type BookingDetailCardBooking } from "@/components/B
 import { EXTERNAL_BOOKED_COLOR, LabOperatorWeekCalendarGrid, PENDING_COLOR } from "@/components/LabOperatorWeekCalendarGrid";
 import { NextWeekOpeningCountdown } from "@/components/booking/NextWeekOpeningCountdown";
 import { LabCalendarColorConfig } from "@/components/LabCalendarColorConfig";
+import { CalendarKeyPanel } from "@/components/dashboard/CalendarKeyPanel";
 import {
   LabCalendarSlotActions,
   isDashboardSelectableSlot,
@@ -81,12 +84,9 @@ import {
 import {
   canViewDisruptions,
   DISRUPTIONS_CHANGED_EVENT,
-  dismissDisruptionBanner,
-  isDisruptionBannerDismissed,
   type DisruptionAttention,
   type DisruptionEventIds,
 } from "@/lib/disruptions";
-import { DisruptionAttentionBanner } from "@/components/disruptions/DisruptionAttentionBanner";
 import { slotOperationLabel } from "@/lib/slotOperations";
 import type { LabWeekCalendarSlotsPayload } from "@/lib/labOperatorCalendarTypes";
 import { slotCalendarLegend, slotCalendarPalette } from "@/lib/slotCalendarDisplay";
@@ -186,6 +186,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Experience Ratings",
     description: "Ratings and suggestions users shared through “Rate your experience”.",
   },
+  "/admin/operations-audit": {
+    title: "Operations Audit",
+    description: "Waitlist clearing, slot exchanges, Type A and B urgent requests and refunds, with who did it and when.",
+  },
   "/admin/equipment-config-audit": {
     title: "Equipment Configuration Audit Trail",
     description: "Every change to equipment settings: who or which system process, when, from where, before and after.",
@@ -194,6 +198,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "I-STEM Equipment Mapping",
     description: "Link each instrument to its I-STEM equipment so I-STEM FBR bookings are registered automatically.",
   },
+  "/payment-issues": {
+    title: "Payment Issues",
+    description: "Payments that reached Razorpay but were not applied normally: refund or apply them, then close each with a note.",
+  },
   "/admin/wallet-ledger": {
     title: "Wallet Ledger",
     description: "Wallet owners, sub-wallet balances and transactions, with manual credit and debit.",
@@ -201,6 +209,18 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   [SRIC_WALLET_RECHARGES_PATH]: {
     title: "SRIC Wallet Recharges",
     description: "Recharges read from the SRIC Wallet_Recharge.csv: credit, reject or verify each row.",
+  },
+  [STAFF_PROFORMAS_PATH]: {
+    title: "Proforma Invoices",
+    description: "Every proforma issued, what has been paid against it online or offline, and the references to reconcile it.",
+  },
+  [OFFLINE_RECHARGES_ADMIN_PATH]: {
+    title: "Offline Payment Recharges",
+    description: "External users' wallet recharges paid offline: approve or reject, then reconcile with the funds received.",
+  },
+  "/admin-settings/receipt-template": {
+    title: "Receipt Template",
+    description: "The wording and look of the receipt users download after an online payment.",
   },
   "/admin-settings/wallet-payment-modes": {
     title: "Wallet Payment Modes",
@@ -588,7 +608,8 @@ const Dashboard = () => {
   const isAccountsInChargeUser = isAccountsInChargeRole(user);
   /** Same weekly metrics, instrument hero, and week calendar as Lab Operator. */
   const showsLabStyleDashboard = isLabInchargeUser || isOicUser;
-  const [labColorsOpen, setLabColorsOpen] = useRememberedOpen("lab-dash-calendar-colours", user?.id, false);
+  // Not remembered: the calendar colours start collapsed on every visit.
+  const [labColorsOpen, setLabColorsOpen] = useState(false);
   /** Collapsed by default for Lab Operators; OICs keep it open until they collapse it. */
   const [labOverviewOpen, setLabOverviewOpen] = useRememberedOpen(
     "lab-dash-booking-overview",
@@ -1245,7 +1266,6 @@ const Dashboard = () => {
   const disruptionPrompt = useDisruptionPrompt();
   const askForSlotStatusChange = disruptionPrompt.askForSlotStatusChange;
   const [disruptionAttention, setDisruptionAttention] = useState<DisruptionAttention | null>(null);
-  const [disruptionBannerDismissed, setDisruptionBannerDismissed] = useState(() => isDisruptionBannerDismissed());
 
   useEffect(() => {
     if (!canViewDisruptions(userTypeStr)) {
@@ -2101,6 +2121,113 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "proforma_invoices_admin",
+      label: "Proforma invoices",
+      path: STAFF_PROFORMAS_PATH,
+      visible: Boolean(isAdmin || isDeptAdmin || isAccountsInChargeUser),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace(STAFF_PROFORMAS_PATH)}
+          data-testid="staff-proforma-invoices-card"
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                <Receipt className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">Proforma invoices</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  Every proforma issued, what was paid against it, and the references to reconcile it
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full" onClick={(e) => { e.stopPropagation(); openWorkspace(STAFF_PROFORMAS_PATH); }}>
+              Review proformas
+            </Button>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      id: "offline_payment_recharges",
+      label: "Offline payment recharges",
+      path: OFFLINE_RECHARGES_ADMIN_PATH,
+      visible: Boolean(isAdmin || isDeptAdmin || isAccountsInChargeUser),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH)}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                <Landmark className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">Offline payment recharges</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  External users' NEFT, UPI, DD and cheque payments: check the receipt, approve, reconcile
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH);
+              }}
+            >
+              Review requests
+            </Button>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      id: "receipt_template",
+      label: "Receipt template",
+      path: "/admin-settings/receipt-template",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-indigo-200 dark:hover:border-indigo-800 h-full"
+              onClick={() => openWorkspace("/admin-settings/receipt-template")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-800 text-white shadow-lg">
+                    <Receipt className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Receipt template</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Wording, GSTIN, notes and colours of the online-payment receipt, with a live preview
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-indigo-600 to-blue-700 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-indigo-700 hover:bg-indigo-800 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin-settings/receipt-template");
+                  }}
+                >
+                  Edit template
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
       id: "wallet_ledger",
       label: "Wallet ledger",
       path: "/admin/wallet-ledger",
@@ -2139,6 +2266,44 @@ const Dashboard = () => {
       ),
     },
     {
+      id: "payment_issues",
+      label: "Payment issues",
+      path: "/payment-issues",
+      visible: Boolean(isAdmin || isAccountsInChargeUser),
+      render: () => (
+        <Card
+          className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+          onClick={() => openWorkspace("/payment-issues")}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-4 mb-1">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-rose-600 text-white shadow-lg">
+                <AlertCircle className="h-6 w-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-lg">Payment issues</CardTitle>
+                <CardDescription className="text-sm mt-0.5">
+                  Payments Razorpay received that were not applied normally — refund or apply, then close
+                </CardDescription>
+              </div>
+            </div>
+            <div className="h-1 w-16 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 mt-3" />
+          </CardHeader>
+          <CardContent>
+            <Button
+              className="w-full bg-amber-700 hover:bg-amber-800 text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                openWorkspace("/payment-issues");
+              }}
+            >
+              Open payment issues
+            </Button>
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
       id: "istem_equipment",
       label: "I-STEM Equipment Mapping",
       path: "/admin/istem-equipment",
@@ -2171,6 +2336,44 @@ const Dashboard = () => {
                   }}
                 >
                   Open mapping
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "operations_audit",
+      label: "Operations Audit",
+      path: "/admin/operations-audit",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+              onClick={() => openWorkspace("/admin/operations-audit")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md">
+                    <History className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Operations Audit</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Waitlist clearing, slot exchanges, Type A and B urgent requests and refunds, with who did it
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-slate-900 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin/operations-audit");
+                  }}
+                >
+                  Open operations audit
                 </Button>
               </CardContent>
             </Card>
@@ -2601,7 +2804,7 @@ const Dashboard = () => {
                   <div className="flex-1 min-w-0">
                     <CardTitle className="text-lg">Proforma invoice</CardTitle>
                     <CardDescription className="text-sm mt-0.5">
-                      Get cost estimate for equipments and samples/slots before booking
+                      Get a cost estimate before booking, and pay, edit or cancel your saved proformas
                     </CardDescription>
                   </div>
                 </div>
@@ -4480,9 +4683,26 @@ const Dashboard = () => {
   // Dashboard home only, between the page header card and the first section; each renders nothing when empty.
   // The administration overview lists pending actions under its own "Needs attention".
   const loginTip = <LoginTipCard user={user} nextSampleReminder={nextSampleReminder} />;
+  // One "Needs your attention" panel for every user type: pending actions, equipment maintenance and disruptions
+  // without a reason. On the administration overview it carries only the equipment part, as the overview lists
+  // pending actions under its own "Needs attention".
+  // OIC of at least one equipment in view, with the full calendar: may select free slots to block or open them.
+  const labSlotSelectionAllowed =
+    isOicUser &&
+    !labCalendarBookedOnly &&
+    labEquipmentSummariesForScope.some((eq) => labManageableEquipmentIds.has(eq.equipment_id));
+  const attentionPanel = (
+    <PendingActionsSummary
+      excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]}
+      includeMaintenance={maintenanceShown.inAttention || maintenanceShown.banner}
+      showPendingItems={!showAdminOverview}
+      disruptionsMissingReason={!workspacePath && disruptionAttention?.enabled ? disruptionAttention.reason_missing : 0}
+      onReviewDisruptions={() => openWorkspace("/disruptions?reason_missing=1")}
+    />
+  );
   const dashboardNotices = (
     <>
-      <PendingActionsSummary excludeKeys={[BOOKINGS_AWAITING_COMPLETION_KEY]} includeMaintenance={maintenanceShown.inAttention} />
+      {attentionPanel}
       {loginTip}
     </>
   );
@@ -4622,6 +4842,60 @@ const Dashboard = () => {
               <Button className="w-full bg-amber-700 hover:bg-amber-800 text-white">
                 Review &amp; verify
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith(OFFLINE_RECHARGES_ADMIN_PATH) ? "page" : undefined}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+            onClick={() => openWorkspace(OFFLINE_RECHARGES_ADMIN_PATH)}
+            onKeyDown={activateOnEnterOrSpace}
+            data-testid="accounts-offline-recharges-card"
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                  <Landmark className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Offline payment recharges</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    External users' offline payments: approve, reject and reconcile
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full">Review requests</Button>
+            </CardContent>
+          </Card>
+
+          <Card
+            role="button"
+            tabIndex={0}
+            aria-current={activeMenuPath?.startsWith(STAFF_PROFORMAS_PATH) ? "page" : undefined}
+            className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 h-full"
+            onClick={() => openWorkspace(STAFF_PROFORMAS_PATH)}
+            onKeyDown={activateOnEnterOrSpace}
+            data-testid="accounts-proforma-invoices-card"
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-4 mb-1">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-600 to-blue-800 text-white shadow-lg">
+                  <Receipt className="h-6 w-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg">Proforma invoices</CardTitle>
+                  <CardDescription className="text-sm mt-0.5">
+                    Proformas of your department and what was paid against them
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full">Review proformas</Button>
             </CardContent>
           </Card>
 
@@ -4848,7 +5122,7 @@ const Dashboard = () => {
           }
         />
         <AccountLifecycleNotice inline className="mb-4" />
-        {isExternalBookingUserType(userTypeStr) ? <ExternalGettingStarted /> : null}
+        <WhatsAppPrompt className="mb-4" />
         {isAdmin || isAccountsInChargeUser ? (
           <WalletFundReceiptFollowUpAlert
             onReview={(path) => openWorkspace(path, "Wallet recharge requests")}
@@ -4876,12 +5150,16 @@ const Dashboard = () => {
           </Card>
         )}
         {showAdminOverview ? null : <TemplateAttentionNotice userId={user?.id} className="mb-4" />}
-        {/* OIC and Lab Operator dashboards show maintenance inside "Needs your attention" instead. */}
-        {maintenanceShown.banner ? <MaintenanceBanner className="mb-4" /> : null}
         {showsLabStyleDashboard ? <ResultsOverdueCard className="mb-4" /> : null}
         {showsBookingsAwaitingCompletion(user?.user_type) ? <BookingsAwaitingCompletionCard className="mb-4" /> : null}
-        <AndroidAppCard className="mb-4" />
-        <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
+        {/* External users see their bookings first: the app card is not for them, and the ORCID prompt and
+            "How it works" sit below My activity. */}
+        {isExternalBookingUserType(userTypeStr) ? null : (
+          <>
+            <AndroidAppCard className="mb-4" />
+            <OrcidPromptBanner userType={userTypeStr} className="mb-4" />
+          </>
+        )}
         <AuthorConfirmPrompt userType={userTypeStr} className="mb-4" />
 
         {showWalletLinkPrompt && userTypeStr === "student" && (
@@ -5043,16 +5321,6 @@ const Dashboard = () => {
               </Card>
             ) : (
               <>
-            {!disruptionBannerDismissed && disruptionAttention?.enabled ? (
-              <DisruptionAttentionBanner
-                count={disruptionAttention.reason_missing}
-                onOpen={() => openWorkspace("/disruptions?reason_missing=1")}
-                onDismiss={() => {
-                  dismissDisruptionBanner();
-                  setDisruptionBannerDismissed(true);
-                }}
-              />
-            ) : null}
             {showAdminOverview ? (
               <Suspense
                 fallback={
@@ -5067,7 +5335,12 @@ const Dashboard = () => {
                 <AdminOverview
                   onOpen={(path) => openWorkspace(path)}
                   canOpen={canOpenMenuPath}
-                  notices={loginTip}
+                  notices={
+                    <>
+                      {attentionPanel}
+                      {loginTip}
+                    </>
+                  }
                 />
               </Suspense>
             ) : !showsLabStyleDashboard && !userCards && (
@@ -5257,9 +5530,7 @@ const Dashboard = () => {
                               ))
                             )}
                           </div>
-                          {isOicUser &&
-                          !labCalendarBookedOnly &&
-                          labEquipmentSummariesForScope.some((eq) => labManageableEquipmentIds.has(eq.equipment_id)) ? (
+                          {labSlotSelectionAllowed && labSelectedSlotCount > 0 ? (
                             <LabCalendarSlotActions
                               selectedCount={labSelectedSlotCount}
                               busy={labSlotActionBusy}
@@ -5268,15 +5539,25 @@ const Dashboard = () => {
                             />
                           ) : null}
                           {disruptionPrompt.element}
-                          <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
-                          <LabCalendarColorConfig
-                            equipmentId={labColorConfigEquipmentId}
-                            equipmentLabel={labColorConfigEquipmentLabel}
-                            onColorsChange={setLabBookingLegendColors}
-                            onSaved={applyLabBookingColors}
-                            open={labColorsOpen}
-                            onOpenChange={setLabColorsOpen}
-                          />
+                          {/* Hint, legend and colours: collapsed on every visit for a clean dashboard. */}
+                          <CalendarKeyPanel>
+                            {labSlotSelectionAllowed ? (
+                              <LabCalendarSlotActions
+                                selectedCount={0}
+                                onApply={() => undefined}
+                                onClear={() => undefined}
+                              />
+                            ) : null}
+                            <SlotCalendarLegend items={labCalendarLegend} className="border-t-0 pt-0" />
+                            <LabCalendarColorConfig
+                              equipmentId={labColorConfigEquipmentId}
+                              equipmentLabel={labColorConfigEquipmentLabel}
+                              onColorsChange={setLabBookingLegendColors}
+                              onSaved={applyLabBookingColors}
+                              open={labColorsOpen}
+                              onOpenChange={setLabColorsOpen}
+                            />
+                          </CalendarKeyPanel>
                         </div>
                       </>
                     )}
@@ -5801,7 +6082,13 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {showsMyActivity ? <MyActivity onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+        {showsMyActivity ? <MyActivity userName={user?.name} onOpen={(path, label) => openWorkspace(path, label)} /> : null}
+        {isExternalBookingUserType(userTypeStr) ? (
+          <div className="mt-6 space-y-4" data-testid="external-dashboard-extras">
+            <OrcidPromptBanner userType={userTypeStr} />
+            <ExternalGettingStarted collapsible />
+          </div>
+        ) : null}
 
         {/* Upcoming Bookings and Equipment Statistics - Side by Side */}
         {!isOperatorOrManager && !showsMyActivity && (

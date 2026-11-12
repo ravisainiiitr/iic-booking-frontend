@@ -10,6 +10,11 @@ import type {
   TicketTriagePreview,
   TicketTriageResponse,
 } from "@/lib/automationTypes";
+import type {
+  OfflineRecharge,
+  OfflineRechargeListResponse,
+  OfflineRechargeQueueResponse,
+} from "@/lib/offlineRecharge";
 import { postFormWithProgress, type UploadProgress } from "@/lib/uploadWithProgress";
 import { isPeakPausedBody, notifyPeakExternalPaused, PEAK_EXTERNAL_PAUSED_CODE } from "@/lib/peakWindowEvents";
 import {
@@ -443,7 +448,7 @@ export interface GlobalSearchResult {
   actions?: PortalAction[];
 }
 
-/** A page, setting or per-instrument action from the portal action catalogue (shared with the IITR Assistant). */
+/** A page, setting or per-instrument action from the portal action catalogue (shared with the IITR Equipment Booking Assistant). */
 export interface PortalAction {
   key: string;
   title: string;
@@ -2656,6 +2661,8 @@ export interface ProfileOnboarding {
   values: { gender: string; mobile: string; program_start_date: string; program_end_date: string };
   /** An unlisted organisation the user asked the IIC office to add (pending), or "". */
   organisation_requested?: string;
+  /** The organisation the user added themself, until the IIC office has verified it. */
+  organisation_added?: string;
 }
 
 /** My Research storage quotas set by the Main Administrator (GB; 0 = no limit). */
@@ -2666,7 +2673,7 @@ export interface MyResearchQuotas {
   users: { id: number; email: string; name: string; quota_gb: number; note: string; used_bytes: number }[];
 }
 
-/** Manufacturer reference of an instrument (IITR Assistant knowledge): a fetched public page or PDF. */
+/** Manufacturer reference of an instrument (IITR Equipment Booking Assistant knowledge): a fetched public page or PDF. */
 export interface EquipmentReference {
   id: string;
   title: string;
@@ -2691,6 +2698,37 @@ export interface EquipmentReferenceInstrument {
 }
 
 /** One of the user's own bookings on the My activity panel. */
+/** GET /receipts/verify/: what the portal holds for a receipt, or { valid: false }. */
+export interface ReceiptCheck {
+  valid: boolean;
+  receipt_number?: string;
+  test_mode?: boolean;
+  paid_at?: string;
+  currency?: string;
+  total?: string;
+  booking_total?: string;
+  booking_gst?: string;
+  status?: "paid" | "refunded" | "partly_refunded" | "other";
+  status_label?: string;
+  booking_note?: string;
+  payer_name?: string;
+  payer_organisation?: string;
+  purpose?: string;
+  booking_reference?: string;
+  department_name?: string;
+  grant_code?: string;
+  collected_by?: string;
+  razorpay_payment_id?: string;
+  settlement_utr?: string;
+  /** The bank's reference for the payment (UPI RRN / net-banking UTR), "" until known. */
+  bank_reference?: string;
+  /** The booking's status now: BOOKED, COMPLETED, CANCELLED, REFUNDED ... ("" for a wallet recharge). */
+  booking_status?: string;
+  booking_status_label?: string;
+  /** The booking was cancelled or refunded after the payment. */
+  booking_undone?: boolean;
+}
+
 export interface MyActivityBooking {
   id: number;
   display_id: string;
@@ -2747,6 +2785,8 @@ export interface AdminDashboardSummary {
   cache_seconds: number;
   bookings: {
     created_today: number;
+    /** Bookings made today by test accounts or on test equipment, left out of every figure (older servers omit it). */
+    test_created_today?: number;
     created_this_week: number;
     created_last_7_days: number;
     sessions_today: number;
@@ -4272,7 +4312,7 @@ export interface CopilotFeedbackRow {
   created_at: string | null;
 }
 
-/** IITR Assistant trial metrics (GET /v1/research-copilot/assistant/metrics/, Main Administrator). */
+/** IITR Equipment Booking Assistant trial metrics (GET /v1/research-copilot/assistant/metrics/, Main Administrator). */
 export interface AssistantTrialMetrics {
   days: number;
   turns: number;
@@ -4302,6 +4342,47 @@ export interface CopilotUsage {
 }
 
 /** Filters, search and sort shared by the booking list (GET /bookings/) and its export. */
+export interface PaymentIssueRow {
+  id: number;
+  kind: string;
+  kind_label: string;
+  status: "OPEN" | "RESOLVED";
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  amount: string | null;
+  mode: string;
+  detail: string;
+  raised_at: string;
+  resolved_at: string | null;
+  resolution_note: string;
+  booking_id?: number | null;
+  booking_reference?: string;
+  purpose?: string;
+  test_account?: boolean;
+  resolved_by?: string;
+}
+
+export type HealthStatus = "ok" | "warn" | "fail" | "off";
+
+export interface IntegrationHealthCheck {
+  key: string;
+  component: "istem" | "whatsapp" | "payments" | "email" | string;
+  title: string;
+  status: HealthStatus;
+  summary: string;
+  items: string[];
+  action: string;
+  count: number;
+}
+
+export interface IntegrationHealth {
+  generated_at: string;
+  duration_ms: number;
+  overall: HealthStatus;
+  checks: IntegrationHealthCheck[];
+  fixes: Record<string, Record<string, unknown>>;
+}
+
 export type BookingListFilters = {
   user_id?: string | number;
   equipment_id?: string | number;
@@ -4311,6 +4392,11 @@ export type BookingListFilters = {
   status?: string;
   start_date?: string;
   end_date?: string;
+  /** Local date the booking was made, inclusive (YYYY-MM-DD): the dashboard's "Bookings made today". */
+  created_from?: string;
+  created_to?: string;
+  /** Leave out test accounts' bookings and test equipment, as the dashboard figures do. */
+  exclude_test?: boolean;
   search?: string;
   user_name?: string;
   supervisor_name?: string;
@@ -4346,6 +4432,15 @@ export function bookingListFilterQuery(params?: BookingListFilters): URLSearchPa
   }
   if (params?.results_overdue) {
     queryParams.append('results_overdue', '1');
+  }
+  if (params?.created_from) {
+    queryParams.append('created_from', params.created_from);
+  }
+  if (params?.created_to) {
+    queryParams.append('created_to', params.created_to);
+  }
+  if (params?.exclude_test) {
+    queryParams.append('exclude_test', '1');
   }
   if (params?.user_id) {
     queryParams.append('user_id', String(params.user_id));
@@ -4506,6 +4601,148 @@ export interface IstemDepartmentProgress {
 }
 
 /** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface OperationsAuditRow {
+  at: string;
+  category: string;
+  category_label: string;
+  action: string;
+  actor_name: string;
+  actor_role: string;
+  equipment: string;
+  affected_user: string;
+  booking_ref: string;
+  amount: string;
+  detail: string;
+}
+
+export interface OperationsAuditPage {
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+  categories: Array<{ value: string; label: string }>;
+  results: OperationsAuditRow[];
+}
+
+export interface PaymentGatewayStatus {
+  checkout_name: string;
+  available: boolean;
+  mode: string;
+  test_mode: boolean;
+  reason: string;
+}
+
+export interface BookingPaymentPreview {
+  booking_reference: string;
+  equipment: string;
+  equipment_image_url?: string;
+  payment_purpose?: string;
+  department: string;
+  status: string;
+  total_charge: string;
+  wallet_applied: string;
+  amount_due: string;
+  breakup: { base_amount: string; convenience_fee: string; fee_gst: string; total_amount: string; fee_percent: string; fee_gst_percent: string };
+  gateway: PaymentGatewayStatus;
+}
+
+export interface PaymentReceiptSummary {
+  razorpay_payment_id: string;
+  receipt_number: string;
+  purpose: string;
+  total_paid: string;
+  paid_at: string;
+  test_mode: boolean;
+}
+
+/** Template values carried on each receipt beyond its own fields. */
+export interface ReceiptTemplateLook {
+  address: string;
+  contact_email: string;
+  website: string;
+  refund_note: string;
+  extra_note: string;
+  brand_color: string;
+  accent_color: string;
+  show_gstin: boolean;
+  show_logo: boolean;
+  show_watermark: boolean;
+}
+
+/** Every editable receipt template field (Main Admin). A blank text value means the built-in default. */
+export interface ReceiptTemplateValues extends ReceiptTemplateLook {
+  institution_name: string;
+  office_name: string;
+  institute_gstin: string;
+  receipt_heading: string;
+  service_name: string;
+  not_a_tax_invoice: string;
+  computer_generated: string;
+}
+
+export interface ReceiptTemplateState {
+  stored: ReceiptTemplateValues;
+  defaults: ReceiptTemplateValues;
+  effective: ReceiptTemplateValues;
+  updated_at: string | null;
+  updated_by: string;
+  collected_by: string;
+  history: { changed_at: string; changed_by: string; fields: string[] }[];
+  message?: string;
+}
+
+export interface PaymentReceipt {
+  receipt_number: string;
+  title: string;
+  not_a_tax_invoice: string;
+  test_mode: boolean;
+  collected_by: string;
+  institution: string;
+  service_name: string;
+  payer_name: string;
+  purpose: string;
+  description: string;
+  booking_reference: string;
+  equipment: string;
+  booking_total: string;
+  booking_gst: string;
+  /** The department whose facility the payment is for (the recharged department for a wallet recharge). */
+  department_name?: string;
+  /** Quantity lines from the booking's charge breakdown (samples, slots, weight, machine time ...); [] if none. */
+  charge_lines?: string[];
+  /** Code printed on the receipt for the public check page, e.g. "K7Q2M-9XWPD". */
+  verification_code?: string;
+  /** <site>/verify-receipt?n=...&c=..., encoded in the receipt's QR code. */
+  verify_url?: string;
+  /** That department's SRIC / accounts grant code; "" when none is set. */
+  grant_code?: string;
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  method: string;
+  /** The bank's reference for the payment (UPI RRN / netbanking transaction no.), "" when unknown. */
+  bank_reference?: string;
+  /** UTR of the bank transfer in which Razorpay settled the payment to the institute, "" until settled. */
+  settlement_utr?: string;
+  /** How the payment was made ("UPI", "Debit card (Visa)", "Net banking", ...) and that mode's references. */
+  payment_mode?: string;
+  payment_details?: [string, string][];
+  computer_generated?: string;
+  office?: string;
+  institute_gstin?: string;
+  payer_organisation?: string;
+  payer_email?: string;
+  /** The rest of the receipt template the Main Admin edits on the dashboard. */
+  template?: Partial<ReceiptTemplateLook>;
+  paid_at: string;
+  status: string;
+  currency: string;
+  base_amount: string;
+  convenience_fee: string;
+  gst_on_fee: string;
+  gst_on_fee_percent: string;
+  total_paid: string;
+}
+
 export interface OicRequestAuditRow {
   id: number;
   created_at: string;
@@ -4605,6 +4842,30 @@ export interface BookingStatusOverrideOptions {
   targets: { value: string; label: string; help: string }[];
 }
 
+/** A booking on hold for equipment maintenance whose user has not taken a refund. */
+export interface MaintenanceSettlementBooking {
+  booking_id: number;
+  booking_ref: string;
+  user_name: string;
+  user_email: string;
+  start: string | null;
+  end: string | null;
+  total_charge: string;
+  /** The user chose (or was switched) to wait for the automatic reschedule. */
+  waiting_for_reschedule: boolean;
+}
+
+/** OIC of the equipment / Main Administrator: bookings to settle before marking the equipment Operational. */
+export interface MaintenanceSettlementOverview {
+  equipment_id: number;
+  equipment_name: string;
+  equipment_status: string;
+  under_maintenance: boolean;
+  reason_min_length: number;
+  targets: { value: string; label: string; help: string }[];
+  bookings: MaintenanceSettlementBooking[];
+}
+
 export interface IstemInstituteStatus {
   institute_id: string | null;
   /** "token": named by I-STEM's sign-in; "portal": saved by the Main Admin; "": unknown. */
@@ -4646,6 +4907,45 @@ export interface PublicationPage {
   num_pages: number;
   results: UniquePublication[];
   facets: { equipment: { id: number; name: string; code: string; count: number }[]; years: number[] };
+}
+
+export interface IstemProfileProblem {
+  field: string;
+  message: string;
+}
+
+export interface IstemProfileReadiness {
+  complete: boolean;
+  missing: IstemProfileProblem[];
+  internal: boolean;
+  blocks_booking: boolean;
+  gate: "off" | "test_accounts" | "all";
+  applies_to_you: boolean;
+  profile_url: string;
+}
+
+export interface IstemChoice {
+  id: string;
+  name: string;
+  mapped_to_instrument_department?: boolean;
+}
+
+export interface IstemEquipmentDetailsResponse {
+  equipment: { id: number; code: string; name: string; department: string };
+  details: Record<string, string>;
+  fields: { name: string; label: string; required: boolean }[];
+  saved: boolean;
+  problems: Record<string, string>;
+  created: { istem_equipment_id: string; at: string } | null;
+  last_error: string;
+  mapping: { istem_equipment_id: string; is_active: boolean } | null;
+  choices: {
+    istem_departments: IstemChoice[];
+    funding_agencies: IstemChoice[];
+    funding_agency_types: IstemChoice[];
+    equipment_categories: IstemChoice[];
+    facilities: IstemChoice[];
+  };
 }
 
 export interface IstemSource {
@@ -4727,10 +5027,73 @@ export interface IstemEquipmentVerifyResult {
 
 export interface WhatsAppOptIn {
   available: boolean;
+  /** Show the one-tap opt-in question: sending is on, no answer yet, and this number can receive messages. */
+  ask?: boolean;
   opted_in: boolean;
   phone: string;
   opted_in_at: string | null;
+  /** This number has been proved with a WhatsApp code, so sign-in codes also go to it. */
+  phone_verified?: boolean;
+  /** WhatsApp codes can be sent now (switched on, and the template approved at Meta). */
+  codes_available?: boolean;
 }
+
+/** A saved proforma invoice (backend equipment.proforma_store.serialize). */
+export type ProformaPaymentRow = {
+  id: number;
+  kind: 'ONLINE' | 'OFFLINE';
+  amount: string;
+  created_at: string;
+  state: string;
+  credited: string;
+  pending: string;
+  reconciled: boolean;
+  references: Record<string, string>;
+};
+
+export type SavedProformaInvoice = {
+  id: number;
+  number: string;
+  issued_at: string;
+  valid_until: string;
+  department: { id: number | null; name: string };
+  buyer: { name: string; organisation: string; email: string; gstin: string };
+  user_id: number | null;
+  lines: Array<{ title: string; details: string[]; taxable: string; gst: string; total: string }>;
+  request_items: Array<{
+    equipment_id: number | null;
+    equipment_code?: string;
+    equipment_name?: string;
+    profile_type?: string;
+    input_values: Record<string, number | string>;
+    input_labels_and_values?: Record<string, string | number>;
+  }>;
+  taxable_total: string;
+  gst_total: string;
+  total: string;
+  place_of_supply: string;
+  place_of_supply_name: string;
+  inter_state: boolean;
+  amount_source: 'SERVER' | 'CLIENT';
+  revision: number;
+  replaces: string;
+  replaced_by: string;
+  cancel_reason: string;
+  cancelled_at: string | null;
+  state: {
+    key: string;
+    label: string;
+    credited: string;
+    pending: string;
+    reconciled: string;
+    outstanding: string;
+    can_pay: boolean;
+    can_edit: boolean;
+    can_cancel: boolean;
+  };
+  payments: ProformaPaymentRow[];
+  history?: Array<{ at: string; action: string; detail: Record<string, unknown>; actor: string }>;
+};
 
 class ApiClient {
   private baseURL: string;
@@ -4815,7 +5178,7 @@ class ApiClient {
           const message =
             typeof (data as { error?: unknown }).error === "string"
               ? (data as { error: string }).error
-              : "The IIT Roorkee Equipment Booking app is not available for this account.";
+              : "The IITR Equipment Booking app is not available for this account.";
           if (isNativeApp()) markAppAudienceRefused(message);
           return { error: message, status: 403, errorCode: APP_AUDIENCE_CODE };
         }
@@ -5832,11 +6195,19 @@ class ApiClient {
     return this.request<WhatsAppOptIn>('/whatsapp/me/');
   }
 
-  async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string }) {
+  async setWhatsAppOptIn(body: { opted_in: boolean; phone?: string; source?: "prompt" | "profile" }) {
     return this.request<WhatsAppOptIn>('/whatsapp/me/', { method: 'PUT', body: JSON.stringify(body) });
   }
 
-  /** Phones signed in through the IIC Booking app (each can be signed out remotely). */
+  async sendWhatsAppVerifyCode() {
+    return this.request<{ sent_to: string; expires_in: number }>('/whatsapp/me/verify/send/', { method: 'POST', body: '{}' });
+  }
+
+  async confirmWhatsAppVerifyCode(otp: string) {
+    return this.request<WhatsAppOptIn>('/whatsapp/me/verify/confirm/', { method: 'POST', body: JSON.stringify({ otp }) });
+  }
+
+  /** Phones signed in through the IITR Equipment Booking app (each can be signed out remotely). */
   async listMobileDevices() {
     return this.request<{ results: MobileDeviceSession[] }>('/auth/mobile/devices/');
   }
@@ -7049,7 +7420,7 @@ class ApiClient {
     subtotal: string;
     total_gst: string;
     total_amount: string;
-  }): Promise<{ blob?: Blob; error?: string }> {
+  }): Promise<{ blob?: Blob; error?: string; numbers?: string[] }> {
     const token = this.getToken();
     const url = `${this.baseURL.replace(/\/$/, '')}/proforma-invoice/download.pdf`;
     const headers: HeadersInit = {
@@ -7062,7 +7433,92 @@ class ApiClient {
       return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
     }
     const blob = await res.blob();
-    return { blob };
+    // Every proforma in the file is saved on the server (My proforma invoices).
+    const numbers = (res.headers.get('X-Proforma-Numbers') || '').split(',').map((n) => n.trim()).filter(Boolean);
+    return { blob, numbers };
+  }
+
+  /** The signed-in user's saved proforma invoices (newest first). */
+  async getMyProformaInvoices(params: { state?: string; q?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set('state', params.state);
+    if (params.q) qs.set('q', params.q);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{ results: SavedProformaInvoice[]; states: Record<string, string> }>(`/proforma-invoices/${suffix}`);
+  }
+
+  async getProformaInvoice(id: number) {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/`);
+  }
+
+  async cancelProformaInvoice(id: number, reason = '') {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/cancel/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Issue a revision of a proforma from new equipment and inputs; the old one is marked replaced. */
+  async reviseProformaInvoice(
+    id: number,
+    items: Array<{ equipment_id: number; input_values: Record<string, number | string>; input_labels_and_values?: Record<string, string | number> }>,
+  ) {
+    return this.request<SavedProformaInvoice>(`/proforma-invoices/${id}/revise/`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    });
+  }
+
+  /** Start a Razorpay wallet recharge for the proforma's department (same checkout payload as createRazorpayOrder). */
+  async payProformaInvoiceOnline(id: number, amount?: string) {
+    return this.request<{
+      order_id: string;
+      razorpay_order_id: string;
+      amount: number;
+      currency: string;
+      key: string;
+      key_id: string;
+      checkout_name?: string;
+      payment_purpose?: string;
+      proforma_number: string;
+    }>(`/proforma-invoices/${id}/pay-online/`, {
+      method: 'POST',
+      body: JSON.stringify(amount ? { amount } : {}),
+    });
+  }
+
+  /** Offline payment (with its receipt) against a proforma: same fields as submitOfflineRecharge. */
+  async recordProformaOfflinePayment(id: number, form: FormData) {
+    return this.request<{ proforma: SavedProformaInvoice; request: OfflineRecharge; message: string }>(
+      `/proforma-invoices/${id}/offline-payment/`,
+      { method: 'POST', body: form },
+    );
+  }
+
+  /** Main Administrator / Department Administrator / Accounts In Charge: proformas in their scope. */
+  async getStaffProformaInvoices(params: { state?: string; q?: string; department?: string } = {}) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v) qs.set(k, v);
+    });
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return this.request<{ results: SavedProformaInvoice[]; states: Record<string, string>; role: string }>(
+      `/admin/proforma-invoices/${suffix}`,
+    );
+  }
+
+  /** A saved proforma's PDF, or the staff reconciliation CSV, as a blob. */
+  async downloadProformaFile(path: string): Promise<{ blob?: Blob; error?: string }> {
+    const token = this.getToken();
+    const res = await fetch(`${this.baseURL.replace(/\/$/, '')}${path}`, {
+      headers: token ? { Authorization: `Token ${token}` } : {},
+      credentials: 'omit',
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP ${res.status}` };
+    }
+    return { blob: await res.blob() };
   }
 
   /** Calculate proforma invoice for multiple equipments (samples/slots/elements). Charge is based on logged-in user type. */
@@ -7447,6 +7903,9 @@ class ApiClient {
       booking_id?: number | null;
       wallet_id?: number | null;
       department_id?: number | null;
+      mode?: string;
+      checkout_name?: string;
+      payment_purpose?: string;
     }>('/payments/razorpay/create-order/', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -7499,7 +7958,26 @@ class ApiClient {
     return this.request<{
       fee_percent: string;
       fee_gst_percent: string;
+      gateway?: PaymentGatewayStatus;
     }>('/payments/fee-settings/');
+  }
+
+  /** What the booking owner pays online, calculated on the server exactly as the order will be. */
+  async getBookingPaymentPreview(bookingId: number) {
+    return this.request<BookingPaymentPreview>(`/payments/booking-preview/${bookingId}/`);
+  }
+
+  /** Receipt for a confirmed online payment (payer, Finance or Main Admin). */
+  async getMyPaymentReceipts() {
+    return this.request<{ results: PaymentReceiptSummary[] }>('/payments/receipts/');
+  }
+
+  async getBookingPaymentReceipts(bookingId: number) {
+    return this.request<{ results: PaymentReceiptSummary[] }>(`/payments/receipts/booking/${bookingId}/`);
+  }
+
+  async getPaymentReceipt(razorpayPaymentId: string) {
+    return this.request<PaymentReceipt>(`/payments/receipts/${encodeURIComponent(razorpayPaymentId)}/`);
   }
 
   async adminGetPaymentFeeSettings() {
@@ -7523,34 +8001,16 @@ class ApiClient {
     });
   }
 
-  /** SBIePay: initiate wallet recharge or booking shortfall payment (deprecated — returns 410). */
-  async initiateSbiepayPayment(payload: {
-    purpose: 'WALLET_RECHARGE' | 'BOOKING_SHORTFALL';
-    amount: number | string;
-    department_id: number;
-    booking_id?: number;
-  }) {
-    return this.request<{
-      gateway_url: string;
-      encrypt_trans: string;
-      merchant_order_ref: string;
-      form_method: string;
-      form_fields: Record<string, string>;
-    }>('/payments/sbiepay/initiate/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+  /** Online-payment receipt wording and look (Main Admin). */
+  async adminGetReceiptTemplate() {
+    return this.request<ReceiptTemplateState>('/admin/payments/receipt-template/');
   }
 
-  async getSbiepayTransactionStatus(ref: string) {
-    return this.request<{
-      merchant_order_ref: string;
-      status: string;
-      amount: string;
-      purpose: string;
-      booking_id: number | null;
-      verified_at: string | null;
-    }>(`/payments/sbiepay/status/?ref=${encodeURIComponent(ref)}`);
+  async adminSaveReceiptTemplate(payload: Partial<ReceiptTemplateValues>) {
+    return this.request<ReceiptTemplateState>('/admin/payments/receipt-template/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   }
 
   async submitPaymentUtr(payload: {
@@ -7862,26 +8322,6 @@ class ApiClient {
       `/finance/payment-receipts/${receiptId}/process/`,
       { method: 'POST', body: JSON.stringify({ remarks: remarks || '' }) },
     );
-  }
-
-  /** Open SBIePay in a new window via auto-submitting POST form. */
-  submitSbiepayForm(payload: {
-    gateway_url: string;
-    form_fields: Record<string, string>;
-  }) {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = payload.gateway_url;
-    form.target = '_self';
-    Object.entries(payload.form_fields).forEach(([k, v]) => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = k;
-      input.value = v;
-      form.appendChild(input);
-    });
-    document.body.appendChild(form);
-    form.submit();
   }
 
   // User roles endpoints
@@ -8410,6 +8850,26 @@ class ApiClient {
     return this.sharedGet<AdminDashboardSummary>(`/admin/dashboard-summary/${query}`);
   }
 
+  /** Accounts In Charge / Main Administrator: payments that reached Razorpay but were not applied normally. */
+  async getPaymentIssues(status: "OPEN" | "RESOLVED" | "ALL" = "OPEN") {
+    return this.request<{ results: PaymentIssueRow[] }>(`/payments/issues/?status=${status}`, { method: 'GET' });
+  }
+
+  /** Close an issue once the money has been refunded or applied by hand (a note of at least 5 characters). */
+  async resolvePaymentIssue(id: number, note: string) {
+    return this.request<PaymentIssueRow>(`/payments/issues/${id}/resolve/`, { method: 'POST', body: JSON.stringify({ note }) });
+  }
+
+  /** Main Administrator: the latest integration health result (I-STEM, WhatsApp, payments, email). */
+  async getIntegrationHealth() {
+    return this.request<IntegrationHealth>('/admin/integration-health/', { method: 'GET' });
+  }
+
+  /** Main Administrator: run every check now and apply the safe fixes. */
+  async runIntegrationHealth() {
+    return this.request<IntegrationHealth>('/admin/integration-health/run/', { method: 'POST' });
+  }
+
   /** Main Admin / Dept Admin: Lab Operators and OICs ranked by how short they keep their pending queue. */
   async getAdminStaffProficiency(params: InsightParams = {}) {
     return this.request<StaffProficiency>(`/admin/insights/staff-proficiency/${insightQuery(params)}`, { method: 'GET' });
@@ -8479,6 +8939,36 @@ class ApiClient {
     return this.request<{ saved: number; removed: number }>('/istem/department-mappings/', {
       method: 'PUT', body: JSON.stringify({ mappings }),
     });
+  }
+
+  /** What the signed-in user must complete for I-STEM bookings; with an instrument, whether booking it is refused now. */
+  async getIstemProfileReadiness(equipmentId?: number) {
+    return this.request<IstemProfileReadiness>(
+      `/istem/profile-readiness/${equipmentId ? `?equipment_id=${equipmentId}` : ''}`, { method: 'GET' });
+  }
+
+  /** Main Admin: read I-STEM's funding agencies, agency types, categories and facilities into the portal. */
+  async syncIstemReferenceLists() {
+    return this.request<{ counts: Record<string, number>; failed: Record<string, string> }>(
+      '/istem/reference/sync/', { method: 'POST' });
+  }
+
+  /** Main Admin: an instrument's I-STEM Equipment Create details (pre-filled when never saved). */
+  async getIstemEquipmentDetails(equipmentId: number) {
+    return this.request<IstemEquipmentDetailsResponse>(`/istem/equipment-details/${equipmentId}/`, { method: 'GET' });
+  }
+
+  async saveIstemEquipmentDetails(equipmentId: number, details: Record<string, string>) {
+    return this.request<IstemEquipmentDetailsResponse>(`/istem/equipment-details/${equipmentId}/`, {
+      method: 'PUT', body: JSON.stringify(details),
+    });
+  }
+
+  /** Main Admin: send Equipment Create to I-STEM (``dryRun`` returns the form without sending). */
+  async createIstemEquipment(equipmentId: number, dryRun = false) {
+    return this.request<IstemEquipmentDetailsResponse & { created?: boolean; istem_equipment_id?: string; warnings?: string[];
+      dry_run?: boolean; payload?: Record<string, string> }>(
+      `/istem/equipment-details/${equipmentId}/create/`, { method: 'POST', body: JSON.stringify({ dry_run: dryRun }) });
   }
 
   async saveIstemEquipmentMappingsBulk(
@@ -9556,6 +10046,59 @@ class ApiClient {
     );
   }
 
+  /** External users: their offline payment recharges, and whether the option is open for them. */
+  async getOfflineRecharges() {
+    return this.request<OfflineRechargeListResponse>(`/wallet/offline-recharge/`);
+  }
+
+  /** External users: declare an offline payment with its receipt (multipart). */
+  async submitOfflineRecharge(form: FormData) {
+    return this.request<{ request: OfflineRecharge; created: boolean; message: string }>(`/wallet/offline-recharge/`, {
+      method: "POST",
+      body: form,
+    });
+  }
+
+  async getOfflineRecharge(id: number) {
+    return this.request<{ request: OfflineRecharge }>(`/wallet/offline-recharge/${id}/`);
+  }
+
+  async cancelOfflineRecharge(id: number) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/cancel/`, {
+      method: "POST",
+    });
+  }
+
+  /** Main Administrator, Department Administrator or Accounts In Charge: requests in their scope. */
+  async getOfflineRechargeQueue(params: { state?: string; q?: string } = {}) {
+    const qs = new URLSearchParams();
+    if (params.state) qs.set("state", params.state);
+    if (params.q) qs.set("q", params.q);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return this.request<OfflineRechargeQueueResponse>(`/wallet/offline-recharge/queue/${suffix}`);
+  }
+
+  async decideOfflineRecharge(
+    id: number,
+    action: "approve" | "reject",
+    body: { note: string; approved_amount?: string },
+  ) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/${action}/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  async reconcileOfflineRecharge(
+    id: number,
+    body: { outcome: "reconciled" | "mismatch"; reference?: string; credit_date?: string; note?: string },
+  ) {
+    return this.request<{ request: OfflineRecharge; message: string }>(`/wallet/offline-recharge/${id}/reconcile/`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
   async resendWalletRechargeNotification(requestId: number) {
     return this.request<{
       message: string;
@@ -10293,6 +10836,27 @@ class ApiClient {
     }>(`/bookings/${bookingId}/refund/`, {
       method: 'POST',
       body: JSON.stringify({ notes }),
+    });
+  }
+
+  /** OIC of the equipment / Main Administrator: bookings on hold for maintenance that can be settled. */
+  async getMaintenanceSettlement(equipmentId: number) {
+    return this.request<MaintenanceSettlementOverview>(`/equipments/${equipmentId}/maintenance-settlement/`);
+  }
+
+  /** OIC of the equipment / Main Administrator: close a maintenance hold (e.g. Completed); it can no longer be refunded. */
+  async settleMaintenanceBooking(bookingId: number, payload: { status: string; reason: string; notify_user: boolean }) {
+    return this.request<{
+      message: string;
+      booking_id: number;
+      previous_status: string;
+      status: string;
+      event_id: number;
+      user_notified: boolean;
+      refund_locked: boolean;
+    }>(`/bookings/${bookingId}/maintenance-settle/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
@@ -11794,6 +12358,28 @@ class ApiClient {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "oic-request-audit.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
+  async getOperationsAudit(params: Record<string, string | number | undefined>) {
+    return this.request<OperationsAuditPage>(`/admin/operations-audit/?${this.oicRequestAuditQuery(params).toString()}`);
+  }
+
+  async downloadOperationsAuditCsv(params: Record<string, string | number | undefined>): Promise<{ error?: string }> {
+    const q = this.oicRequestAuditQuery({ ...params, export: "csv" });
+    const res = await fetch(`${this.baseURL}/admin/operations-audit/?${q.toString()}`, {
+      headers: { Authorization: `Token ${this.getToken()}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "operations-audit.csv";
     a.click();
     URL.revokeObjectURL(a.href);
     return {};
@@ -15698,6 +16284,21 @@ class ApiClient {
   async approveOrganizationRequest(id: number) {
     const endpoint = this.getAdminEndpoint('organizationRequests');
     return this.request<{ detail: string; created_department_id?: number }>(`${endpoint}${id}/approve/`, { method: 'POST' });
+  }
+
+  /** Admin: an organisation a user added duplicates a listed one; move its users and records there. */
+  async mergeOrganizationRequest(id: number, departmentId: number) {
+    const endpoint = this.getAdminEndpoint('organizationRequests');
+    return this.request<{ detail: string; created_department_id?: number }>(`${endpoint}${id}/merge/`, {
+      method: 'POST',
+      body: JSON.stringify({ department_id: departmentId }),
+    });
+  }
+
+  /** Public: check a payment receipt against the portal's records (receipt number + verification code). */
+  async verifyReceipt(number: string, code: string) {
+    const q = new URLSearchParams({ number, code });
+    return this.request<ReceiptCheck>(`/receipts/verify/?${q.toString()}`);
   }
 
   /** Admin: reject organization request. */

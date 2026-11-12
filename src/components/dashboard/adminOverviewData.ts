@@ -107,6 +107,15 @@ const istDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", yea
  * Reports filtered to the same window as a dashboard figure: "today" (bookings made today) or "month" (charges this
  * month, which Reports computes the same way from the 1st). Dates are IST calendar days.
  */
+/**
+ * View Booking listing the bookings made today, any status (the "Bookings made today" card). Reports would filter
+ * by session date and show something else. ``realOnly`` leaves out test bookings, as the card's count does.
+ */
+export function madeTodayLink(realOnly: boolean, now: number = Date.now()): string {
+  const today = istDate.format(new Date(now));
+  return `/booking-management?made_from=${today}&made_to=${today}${realOnly ? "&real_only=1" : ""}`;
+}
+
 export function reportsLink(window: "today" | "month", now: number = Date.now()): string {
   const today = istDate.format(new Date(now));
   const from = window === "today" ? today : `${today.slice(0, 8)}01`;

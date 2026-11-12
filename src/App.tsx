@@ -9,7 +9,6 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { UserGuideProvider } from "@/components/UserGuide/UserGuideProvider";
 import { ProfileCompletionProvider } from "@/components/ProfileCompletion/ProfileCompletionProvider";
 import ResearchCopilotLauncher from "./components/ResearchCopilot/ResearchCopilotLauncher";
-import PendingActionsPrompt from "./components/PendingActions/PendingActionsPrompt";
 import AppRoutes from "./routes/AppRoutes";
 import { BuildUpdateNotifier } from "./components/BuildUpdateNotifier";
 import PeakWindowGate from "./components/peak/PeakWindowGate";
@@ -22,7 +21,7 @@ import StaffAppChrome from "./components/staff-app/StaffAppChrome";
 import { useAppAudience } from "./lib/appShell";
 import { isNativeApp } from "./lib/nativeApp";
 
-/** The floating IITR Assistant stays on the website and with administrators; on a phone it would cover the screen's own actions. */
+/** The floating IITR Equipment Booking Assistant stays on the website and with administrators; on a phone it would cover the screen's own actions. */
 function AssistantLauncher() {
   const audience = useAppAudience();
   const staffShell = audience === "staff" || audience === "user";
@@ -61,7 +60,6 @@ const App = () => (
             <EmbedChrome />
             <GlobalBackButton />
             <AssistantLauncher />
-            <PendingActionsPrompt />
             <AppRoutes />
             <StaffAppChrome />
             <QuotaBreakdownHost />

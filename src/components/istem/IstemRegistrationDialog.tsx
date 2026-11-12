@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
-import { type IstemProfile, istemRegisterApi } from "@/lib/istemLinkApi";
+import { IstemLinkError, type IstemProfile, istemRegisterApi } from "@/lib/istemLinkApi";
+import { useOtpCountdown } from "@/lib/useOtpCountdown";
 
 export type IstemRegistrationResult = {
   profile: IstemProfile & { mobile?: string; state?: string };
@@ -32,6 +33,9 @@ export function splitIdentifier(value: string): { email: string; mobile: string 
  *
  * With ``userType`` and ``onSignedIn`` the account is created at once after the OTP (no password, no form) and the
  * user is signed in; the dashboard then asks for whatever is still missing. Without them the form is filled instead.
+ *
+ * With ``whatsappOtp`` the screen says the OTP also goes on WhatsApp, to the mobile number registered on
+ * I-STEM. It is never ticked for them: that request is the consent to the message.
  */
 export default function IstemRegistrationDialog({
   open,
@@ -39,27 +43,39 @@ export default function IstemRegistrationDialog({
   onVerified,
   userType,
   onSignedIn,
+  whatsappOtp = false,
+  onSignInInstead,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onVerified: (result: IstemRegistrationResult) => void;
   userType?: string;
-  onSignedIn?: (token: string, user: Record<string, unknown>) => void;
+  onSignedIn?: (token: string, user: Record<string, unknown>, outcome?: "created" | "linked_existing") => void;
+  whatsappOtp?: boolean;
+  /** Shown as "Sign in instead" when the person turns out to have a portal account already. */
+  onSignInInstead?: () => void;
 }) {
   const direct = Boolean(userType && onSignedIn);
   const [step, setStep] = useState<Step>("ask");
   const [identifier, setIdentifier] = useState("");
   const [token, setToken] = useState("");
   const [masked, setMasked] = useState("");
+  const [whatsappMasked, setWhatsappMasked] = useState("");
+  const [deadline, setDeadline] = useState<number | null>(null);
+  const countdown = useOtpCountdown(step === "otp" ? deadline : null);
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // The person already has a portal account (same email not yet active, Channel i, or same mobile): offer Sign in.
+  const [hasAccount, setHasAccount] = useState(false);
 
   const close = () => {
     onOpenChange(false);
     setStep("ask");
     setOtp("");
     setError("");
+    setHasAccount(false);
+    setWhatsappMasked("");
   };
 
   const lookup = async () => {
@@ -70,10 +86,14 @@ export default function IstemRegistrationDialog({
       const sent = await istemRegisterApi.lookup(email, mobile);
       setToken(sent.token);
       setMasked(sent.email_masked);
+      setWhatsappMasked(sent.whatsapp_masked || "");
+      setDeadline(sent.expires_in ? Date.now() + sent.expires_in * 1000 : null);
       setOtp("");
       setStep("otp");
     } catch (e) {
       setError(e instanceof Error ? e.message : "The look-up failed. Please try again.");
+      // This I-STEM account is already linked to a portal account: that person signs in.
+      setHasAccount(e instanceof IstemLinkError && e.code === "already_registered");
     } finally {
       setBusy(false);
     }
@@ -87,12 +107,15 @@ export default function IstemRegistrationDialog({
       if (userType && onSignedIn) {
         try {
           const done = await istemRegisterApi.complete(res.link_token, userType);
-          onSignedIn(done.token, done.user);
+          onSignedIn(done.token, done.user, done.outcome);
           close();
           return;
         } catch (e) {
-          // An existing portal account (or an unexpected refusal): say so; the form below still works.
+          // An existing portal account (or an unexpected refusal): say so, and offer to sign in with it.
           setError(e instanceof Error ? e.message : "Your account could not be created. Please try again.");
+          setHasAccount(
+            e instanceof IstemLinkError && ["existing_pending", "existing_internal", "mobile_exists", "linked_other", "exists"].includes(e.code),
+          );
           return;
         }
       }
@@ -128,7 +151,9 @@ export default function IstemRegistrationDialog({
                 : "If you have an account on I-STEM, the national facility portal, we can fill in this form from it."
               : step === "details"
                 ? "Enter the email or the mobile number registered on I-STEM. We send a one-time password to the email registered there."
-                : `Enter the 6-digit OTP sent to ${masked}.`}
+                : whatsappMasked
+                  ? `Enter the 6-digit OTP sent to ${masked} and on WhatsApp to the ${whatsappMasked}.`
+                  : `Enter the 6-digit OTP sent to ${masked}.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -144,6 +169,11 @@ export default function IstemRegistrationDialog({
                 placeholder="name@example.com or 10-digit mobile number"
               />
             </div>
+            {whatsappOtp ? (
+              <p className="text-sm text-muted-foreground">
+                The one-time password also goes on WhatsApp to the mobile number registered on I-STEM, if there is one.
+              </p>
+            ) : null}
           </div>
         ) : null}
 
@@ -157,7 +187,23 @@ export default function IstemRegistrationDialog({
           </InputOTP>
         ) : null}
 
+        {countdown.label ? (
+          <p className={countdown.expired ? "text-sm text-destructive" : "text-sm text-muted-foreground"} data-testid="otp-countdown">{countdown.label}</p>
+        ) : null}
+
         {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        {hasAccount && onSignInInstead ? (
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              close();
+              onSignInInstead();
+            }}
+          >
+            Sign in instead
+          </Button>
+        ) : null}
 
         <DialogFooter className="gap-2 sm:gap-2">
           {step === "ask" ? (
@@ -176,7 +222,7 @@ export default function IstemRegistrationDialog({
           ) : (
             <>
               <Button type="button" variant="outline" onClick={() => setStep("details")} disabled={busy}>Back</Button>
-              <Button type="button" onClick={verify} disabled={busy || otp.length !== 6}>
+              <Button type="button" onClick={verify} disabled={busy || otp.length !== 6 || countdown.expired}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
                 {direct ? "Verify and create my account" : "Verify and fill the form"}
               </Button>

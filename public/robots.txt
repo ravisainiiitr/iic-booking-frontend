@@ -1,0 +1,5 @@
+# IITR Connect is private to signed-in portal users and must never be indexed.
+# Everything else stays crawlable exactly as before this file existed.
+User-agent: *
+Disallow: /connect
+Disallow: /api/v1/connect/

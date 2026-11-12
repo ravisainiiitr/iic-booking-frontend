@@ -38,6 +38,7 @@ import {
   Building2,
   Phone,
   BookmarkCheck,
+  MessagesSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { isAccountSuspended, SUSPENDED_ACTION_TOOLTIP } from "@/lib/accountLifecycle";
@@ -54,6 +55,7 @@ import CallSilentHoursCard from "@/components/calls/CallSilentHoursCard";
 import ContactIdCard from "@/components/ContactIdCard";
 import { format, startOfWeek, addWeeks, addDays, isSameDay, parseISO, startOfDay, endOfWeek } from "date-fns";
 import DashboardHeader from "@/components/DashboardHeader";
+import { useConnectAvailability } from "@/components/connect/useConnect";
 import EquipmentDepartmentLabel from "@/components/EquipmentDepartmentLabel";
 import { EquipmentDisruptionNotice } from "@/components/disruptions/EquipmentDisruptionNotice";
 import type { EquipmentDisruptionNotice as EquipmentDisruptionNoticeData } from "@/lib/disruptions";
@@ -82,6 +84,10 @@ import { useAuthorisationStatus, useGatedEquipmentIds } from "@/components/train
 
 // Only needed for the in-panel charge calculator, so it is not part of the profile page chunk.
 const BookEquipment = lazy(() => import("@/pages/BookEquipment"));
+// IITR Connect panel: loaded only when the Discussions tab is opened.
+const EquipmentDiscussionsPanel = lazy(() =>
+  import("@/components/connect/EquipmentDiscussionsPanel").then((m) => ({ default: m.EquipmentDiscussionsPanel })),
+);
 
 /** Return black or white for readable text on the given hex background. */
 function getContrastTextColor(hex: string): string {
@@ -200,7 +206,8 @@ type ContentPanel =
   | "publications"
   | "brochure"
   | "contact"
-  | "procurement";
+  | "procurement"
+  | "discussions";
 
 type SpecItem = {
   equipment_specification_id: number;
@@ -219,9 +226,11 @@ const EquipmentProfile = () => {
   const [searchParams] = useSearchParams();
   const [activePanel, setActivePanel] = useState<ContentPanel>(() => {
     const panel = searchParams.get("panel");
-    return panel === "booking_templates" || panel === "availability" ? panel : "general";
+    return panel === "booking_templates" || panel === "availability" || panel === "discussions" ? panel : "general";
   });
   const [supportOpen, setSupportOpen] = useState(false);
+  // IITR Connect: the Discussions tab appears only when the server reports the module on for this user.
+  const { available: connectAvailable } = useConnectAvailability(isAuthenticated);
   const [exportingBrochurePdf, setExportingBrochurePdf] = useState(false);
   const userType = user?.user_type ?? null;
   const userTypeNorm = normalizeUserTypeCode(userType);
@@ -699,6 +708,7 @@ const EquipmentProfile = () => {
               : publicationList.length;
           const panelMeta: Record<ContentPanel, { title: string; icon: JSX.Element }> = {
             general: { title: "General information", icon: <Info className="h-5 w-5" /> },
+            discussions: { title: "Discussions", icon: <MessagesSquare className="h-5 w-5" /> },
             specifications: { title: "Technical specifications", icon: <FileText className="h-5 w-5" /> },
             sample_requirements: { title: "Sample requirements", icon: <FlaskConical className="h-5 w-5" /> },
             view_charges: { title: "View charges", icon: <IndianRupee className="h-5 w-5" /> },
@@ -1266,6 +1276,13 @@ const EquipmentProfile = () => {
             );
           } else if (activePanel === "procurement") {
             panelBody = <EquipmentProcurementPanel equipmentId={equipment.equipment_id} />;
+          } else if (activePanel === "discussions") {
+            panelBody =
+              isAuthenticated && connectAvailable ? (
+                <Suspense fallback={null}>
+                  <EquipmentDiscussionsPanel equipmentId={equipment.equipment_id} />
+                </Suspense>
+              ) : null;
           } else if (activePanel === "publications") {
             panelBody =
               publicationList.length > 0 ? (
@@ -1537,6 +1554,13 @@ const EquipmentProfile = () => {
                           onClick: () => setActivePanel("publications"),
                         }
                       )}
+                      {isAuthenticated &&
+                        connectAvailable &&
+                        navBtn("discussions", "Discussions", {
+                          icon: <MessagesSquare className="h-3 w-3" />,
+                          active: activePanel === "discussions",
+                          onClick: () => setActivePanel("discussions"),
+                        })}
                       {navBtn("brochure", "Equipment brochure", {
                         icon: <ScrollText className="h-3 w-3" />,
                         active: activePanel === "brochure",

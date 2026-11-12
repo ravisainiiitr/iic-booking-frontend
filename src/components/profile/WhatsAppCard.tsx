@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Loader2, MessageCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { BadgeCheck, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient, type WhatsAppOptIn } from "@/lib/api";
@@ -11,12 +12,15 @@ import { Switch } from "@/components/ui/switch";
 
 /**
  * WhatsApp notifications (booking confirmed, cancelled, completed). Shown only while the portal's WhatsApp is on;
- * the user opts in with their number and can stop at any time here or by replying STOP.
+ * the user opts in with their number and can stop at any time here or by replying STOP. Once WhatsApp codes are
+ * available, an opted-in user can prove the number with a code, so that sign-in codes also go to it.
  */
-export default function WhatsAppCard() {
+export default function WhatsAppCard({ className }: { className?: string } = {}) {
   const [state, setState] = useState<WhatsAppOptIn | null>(null);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
+  const [codeSentTo, setCodeSentTo] = useState("");
+  const [code, setCode] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -46,11 +50,39 @@ export default function WhatsAppCard() {
     }
     setState(res.data);
     setPhone(res.data.phone || phone);
+    setCodeSentTo("");
+    setCode("");
     toast.success(optedIn ? "WhatsApp notifications are on." : "WhatsApp notifications are off.");
   };
 
+  const sendCode = async () => {
+    setBusy(true);
+    const res = await apiClient.sendWhatsAppVerifyCode();
+    setBusy(false);
+    if (res.error || !res.data) {
+      toast.error(res.error || "The code could not be sent on WhatsApp.");
+      return;
+    }
+    setCodeSentTo(res.data.sent_to);
+    setCode("");
+  };
+
+  const confirmCode = async () => {
+    setBusy(true);
+    const res = await apiClient.confirmWhatsAppVerifyCode(code);
+    setBusy(false);
+    if (res.error || !res.data) {
+      toast.error(res.error || "The code could not be checked.");
+      return;
+    }
+    setState(res.data);
+    setCodeSentTo("");
+    setCode("");
+    toast.success("Your WhatsApp number is confirmed.");
+  };
+
   return (
-    <Card className="max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden" data-testid="whatsapp-card">
+    <Card className={cn("max-w-2xl mx-auto mt-6 border-border/70 shadow-[var(--shadow-card)] rounded-2xl overflow-hidden", className)} data-testid="whatsapp-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <MessageCircle className="h-5 w-5 text-emerald-600" aria-hidden /> WhatsApp notifications
@@ -80,6 +112,39 @@ export default function WhatsAppCard() {
           <Button type="button" variant="outline" size="sm" disabled={busy || !phone.trim()} onClick={() => void save(true)}>
             Update number
           </Button>
+        ) : null}
+        {state.opted_in && state.phone_verified ? (
+          <p className="flex items-start gap-2 text-sm">
+            <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+            <span>This number is confirmed. Sign-in codes also go to it, as well as to your email.</span>
+          </p>
+        ) : null}
+        {state.opted_in && !state.phone_verified && state.codes_available ? (
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm text-muted-foreground">
+              Confirm this number to also get sign-in codes on WhatsApp. Your email still gets them.
+            </p>
+            {codeSentTo ? (
+              <>
+                <Label htmlFor="whatsapp-code">Code from WhatsApp</Label>
+                <p className="text-xs text-muted-foreground">Sent to the {codeSentTo}. It expires in 10 minutes.</p>
+                <Input id="whatsapp-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} disabled={busy}
+                       onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="max-w-[10rem]" />
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" disabled={busy || code.length !== 6} onClick={() => void confirmCode()}>
+                    Confirm number
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void sendCode()}>
+                    Send a new code
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void sendCode()}>
+                Send a code on WhatsApp
+              </Button>
+            )}
+          </div>
         ) : null}
       </CardContent>
     </Card>
