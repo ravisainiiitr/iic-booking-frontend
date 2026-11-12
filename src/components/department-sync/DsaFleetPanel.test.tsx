@@ -54,7 +54,10 @@ const detail = {
     uploads: { pending: 3, failed: 1, oldest_pending_age_minutes: 95 },
     problems: { recent: [{ at: now, level: "Error", message: "Upload failed: HTTP 503" }] },
   },
-  equipment_pcs: [{ id: "p1", hostname: "LAB-LAPTOP", last_seen: now, agent_version: "1.0.6", share_ok: true }],
+  equipment_pcs: [
+    { id: "p1", hostname: "LAB-LAPTOP", online: true, last_heartbeat_at: now, agent_version: "1.0.6", share_ok: true },
+    { id: "p2", hostname: "DSATEST-LAPTOP", online: false, registration_status: "Online", last_status_at: now },
+  ],
   received_at: now,
   agent_sent_at: now,
   evaluated_at: now,
@@ -115,6 +118,9 @@ describe("DsaFleetPanel", () => {
     render(<DsaFleetPanel />);
     fireEvent.click(await screen.findByTestId("fleet-row-a1"));
     expect(await screen.findByText("LAB-LAPTOP")).toBeTruthy();
+    // Unreachable PC is shown Offline even though its stored registration status says Online.
+    const offlineRow = screen.getByText("DSATEST-LAPTOP").closest("tr") as HTMLElement;
+    expect(offlineRow.textContent).toContain("Offline");
     expect(screen.getByText("Run 'Retry failed uploads'.")).toBeTruthy();
     expect(screen.getByText(/Upload failed: HTTP 503/)).toBeTruthy();
 

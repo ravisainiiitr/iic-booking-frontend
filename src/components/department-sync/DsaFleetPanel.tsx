@@ -449,7 +449,8 @@ export function DsaFleetPanel({ initialAgentId }: { initialAgentId?: string }) {
                       <TableHeader>
                         <TableRow>
                           <TableHead>PC</TableHead>
-                          <TableHead>Last seen</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Last heartbeat</TableHead>
                           <TableHead>Agent</TableHead>
                           <TableHead>Share</TableHead>
                           <TableHead>IP</TableHead>
@@ -460,7 +461,13 @@ export function DsaFleetPanel({ initialAgentId }: { initialAgentId?: string }) {
                         {detail.equipment_pcs.map((pc, i) => (
                           <TableRow key={String(pc.id ?? i)}>
                             <TableCell className="font-medium">{show(pc.hostname)}</TableCell>
-                            <TableCell className="whitespace-nowrap">{relativeTime(pc.last_seen as string | null)}</TableCell>
+                            <TableCell>
+                              {/* Heartbeat freshness verdict from the portal, never the DSA's stored status. */}
+                              <HealthBadge health={pc.online === true ? "healthy" : "offline"} />
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap">
+                              {relativeTime((pc.last_heartbeat_at ?? pc.last_seen ?? pc.last_status_at) as string | null)}
+                            </TableCell>
                             <TableCell>{show(pc.agent_version)}</TableCell>
                             <TableCell>{show(pc.share_ok)}</TableCell>
                             <TableCell>{show(pc.observed_ip ?? pc.assigned_ip)}</TableCell>
