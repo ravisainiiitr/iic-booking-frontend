@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { appAudienceFor, appNavItems, isAppNavPath } from "./appShell";
+import { appAudienceFor, appNavItems, isAppNavPath, markCallsSeen, unseenMissedCalls } from "./appShell";
 
 describe("appAudienceFor", () => {
   it("sorts every role into one of the three app homes", () => {
@@ -27,6 +27,18 @@ describe("appNavItems", () => {
 
   it("keeps the lab staff's own screens", () => {
     expect(appNavItems("staff").map((i) => i.to)).toEqual(["/app", "/booking-management", "/app/calendar", "/app/calls", "/app/more"]);
+  });
+});
+
+describe("missed-call badge", () => {
+  it("counts missed calls until the Calls screen is opened", () => {
+    localStorage.clear();
+    const calls = ["2026-11-06T06:00:00Z", "2026-11-06T08:00:00Z"];
+    expect(unseenMissedCalls(calls)).toBe(2);
+    markCallsSeen(new Date("2026-11-06T07:00:00Z").getTime());
+    expect(unseenMissedCalls(calls)).toBe(1);
+    markCallsSeen(new Date("2026-11-06T09:00:00Z").getTime());
+    expect(unseenMissedCalls(calls)).toBe(0);
   });
 });
 

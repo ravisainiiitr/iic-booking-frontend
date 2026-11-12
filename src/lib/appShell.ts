@@ -53,6 +53,28 @@ export function appNavItems(audience: AppAudience): AppNavItem[] {
   ];
 }
 
+const CALLS_SEEN_KEY = "iic_app_calls_seen_at";
+
+/** Opening the Calls screen clears its badge. */
+export function markCallsSeen(now: number = Date.now()): void {
+  try {
+    localStorage.setItem(CALLS_SEEN_KEY, String(now));
+  } catch {
+    /* no storage: the badge simply stays */
+  }
+}
+
+/** How many of these missed calls came after the Calls screen was last opened. */
+export function unseenMissedCalls(missedAt: string[]): number {
+  let seen = 0;
+  try {
+    seen = Number(localStorage.getItem(CALLS_SEEN_KEY) || 0);
+  } catch {
+    /* counted from the start */
+  }
+  return missedAt.filter((at) => new Date(at).getTime() > seen).length;
+}
+
 /** The bottom navigation stays on the top level of each section; a detail screen or a flow gets the whole screen. */
 export function isAppNavPath(pathname: string, audience: AppAudience): boolean {
   const path = pathname.replace(/\/+$/, "") || "/";

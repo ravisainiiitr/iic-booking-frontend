@@ -185,6 +185,7 @@ export default function AppEquipmentDetail() {
           {callsEnabled ? (
             <div className="flex flex-wrap gap-2">
               <CallButton context="equipment" id={detail.equipment_id} role="operator" className="h-11" />
+              <CallButton context="equipment" id={detail.equipment_id} role="oic" className="h-11" />
             </div>
           ) : null}
 

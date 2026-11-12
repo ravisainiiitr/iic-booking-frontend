@@ -75,6 +75,11 @@ export const OUTCOME_TEXT: Record<Exclude<CallOutcome, "">, string> = {
   unavailable: "Calling is not available",
 };
 
+/** A call that rang here and nobody answered, including one the caller gave up on while it rang. */
+export function isMissedCall(c: Pick<CallInfo, "direction" | "status">): boolean {
+  return c.direction === "incoming" && (c.status === "missed" || c.status === "cancelled");
+}
+
 export function callsSocketUrl(apiBase: string, pageProtocol: string, pageHost: string): string {
   if (apiBase.startsWith("/")) return `${pageProtocol === "https:" ? "wss" : "ws"}://${pageHost}/ws/calls/`;
   const base = apiBase.replace(/\/api\/?$/, "");

@@ -3,6 +3,8 @@ import { ArrowDownLeft, ArrowUpRight, Phone, PhoneCall, PhoneMissed } from "luci
 import { CallAvatar, formatDuration } from "@/components/calls/CallScreen";
 import { useCalls } from "@/components/calls/CallProvider";
 import { apiClient, type CallInfo } from "@/lib/api";
+import { isMissedCall } from "@/lib/callEngine";
+import { markCallsSeen } from "@/lib/appShell";
 import { cn } from "@/lib/utils";
 import { AppScreen, ChoiceChips, EmptyState, ErrorState, ListSkeleton } from "./ui";
 
@@ -15,10 +17,7 @@ const FILTERS: Array<{ value: CallFilter; label: string }> = [
   { value: "outgoing", label: "Outgoing" },
 ];
 
-/** A call that rang here and nobody answered, including one the caller gave up on while it rang. */
-export function isMissedCall(c: Pick<CallInfo, "direction" | "status">): boolean {
-  return c.direction === "incoming" && (c.status === "missed" || c.status === "cancelled");
-}
+export { isMissedCall };
 
 export function matchesCallFilter(c: Pick<CallInfo, "direction" | "status">, filter: CallFilter): boolean {
   if (filter === "all") return true;
@@ -94,6 +93,8 @@ export default function AppCalls() {
       else setError(res.error || "Please try again.");
     });
   }, []);
+
+  useEffect(() => markCallsSeen(), [rows]);
 
   // Reloads when a call finishes, so it shows here straight away.
   useEffect(load, [load, state.phase === "ended"]); // eslint-disable-line react-hooks/exhaustive-deps
