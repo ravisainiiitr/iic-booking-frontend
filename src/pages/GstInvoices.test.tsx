@@ -95,8 +95,17 @@ describe("GST invoices page", () => {
     fireEvent.click(tab);
     expect(await screen.findByTestId("gstr1-112026")).toBeTruthy();
     expect(screen.getByText(/CDNUR section is empty/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /JSON \(offline tool/ }));
+    fireEvent.click(screen.getByRole("button", { name: /GSTR-1 JSON \(upload\)/ }));
     expect(m.downloadGstr1).toHaveBeenCalledWith(expect.any(String), expect.any(String), "json");
+    for (const [name, kind] of [
+      [/All files \(zip\)/, "all"],
+      [/Invoice Register/, "invoice_register"],
+      [/Credit Note Register/, "credit_note_register"],
+      [/B2B e-invoices/, "b2b_register"],
+    ] as const) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      expect(m.downloadGstr1).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), kind);
+    }
   });
 
   it("lets the Main Administrator allow a credit note for one issued invoice", async () => {
