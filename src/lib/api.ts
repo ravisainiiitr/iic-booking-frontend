@@ -4601,6 +4601,29 @@ export interface IstemDepartmentProgress {
 }
 
 /** Where I-STEM's equipment list came from: live, or the last good read while I-STEM is not answering. */
+export interface OperationsAuditRow {
+  at: string;
+  category: string;
+  category_label: string;
+  action: string;
+  actor_name: string;
+  actor_role: string;
+  equipment: string;
+  affected_user: string;
+  booking_ref: string;
+  amount: string;
+  detail: string;
+}
+
+export interface OperationsAuditPage {
+  count: number;
+  page: number;
+  page_size: number;
+  num_pages: number;
+  categories: Array<{ value: string; label: string }>;
+  results: OperationsAuditRow[];
+}
+
 export interface PaymentGatewayStatus {
   checkout_name: string;
   available: boolean;
@@ -12335,6 +12358,28 @@ class ApiClient {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "oic-request-audit.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return {};
+  }
+
+  async getOperationsAudit(params: Record<string, string | number | undefined>) {
+    return this.request<OperationsAuditPage>(`/admin/operations-audit/?${this.oicRequestAuditQuery(params).toString()}`);
+  }
+
+  async downloadOperationsAuditCsv(params: Record<string, string | number | undefined>): Promise<{ error?: string }> {
+    const q = this.oicRequestAuditQuery({ ...params, export: "csv" });
+    const res = await fetch(`${this.baseURL}/admin/operations-audit/?${q.toString()}`, {
+      headers: { Authorization: `Token ${this.getToken()}` },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: (data as { error?: string }).error || `HTTP error! status: ${res.status}` };
+    }
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "operations-audit.csv";
     a.click();
     URL.revokeObjectURL(a.href);
     return {};

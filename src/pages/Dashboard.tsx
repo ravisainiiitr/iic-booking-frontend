@@ -186,6 +186,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
     title: "Experience Ratings",
     description: "Ratings and suggestions users shared through “Rate your experience”.",
   },
+  "/admin/operations-audit": {
+    title: "Operations Audit",
+    description: "Waitlist clearing, slot exchanges, Type A and B urgent requests and refunds, with who did it and when.",
+  },
   "/admin/equipment-config-audit": {
     title: "Equipment Configuration Audit Trail",
     description: "Every change to equipment settings: who or which system process, when, from where, before and after.",
@@ -2332,6 +2336,44 @@ const Dashboard = () => {
                   }}
                 >
                   Open mapping
+                </Button>
+              </CardContent>
+            </Card>
+      ),
+    },
+    {
+      id: "operations_audit",
+      label: "Operations Audit",
+      path: "/admin/operations-audit",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+              onClick={() => openWorkspace("/admin/operations-audit")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-white shadow-md">
+                    <History className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">Operations Audit</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Waitlist clearing, slot exchanges, Type A and B urgent requests and refunds, with who did it
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-slate-600 to-slate-900 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-slate-300"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin/operations-audit");
+                  }}
+                >
+                  Open operations audit
                 </Button>
               </CardContent>
             </Card>
