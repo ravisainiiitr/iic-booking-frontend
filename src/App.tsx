@@ -1,3 +1,4 @@
+import AuthorConfirmOnLogin from "@/components/impact/AuthorConfirmOnLogin";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -64,6 +65,7 @@ const App = () => (
             <StaffAppChrome />
             <QuotaBreakdownHost />
             <GlobalSearchHost />
+            <AuthorConfirmOnLogin />
             </CallProvider>
             </UserCardProvider>
           </PeakWindowGate>

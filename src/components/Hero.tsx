@@ -295,9 +295,9 @@ const Hero = () => {
         {/* pt clears the fixed site header (height + safe area); keep the title fully below the bar */}
         <div className="container mx-auto flex flex-1 flex-col justify-center px-4 pb-4 pt-[calc(var(--site-header-h)+1rem)] sm:pb-5 sm:pt-[calc(var(--site-header-h)+1.5rem)]">
           <div className="w-full space-y-3.5 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-4">
-            {/* Title and search on the left; on large screens the compact acknowledgement strip (Researcher of the
-                Month first) sits on the right, centred against the title and search, so the hero is only as tall as the title. */}
-            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] lg:items-center xl:gap-12">
+            {/* Title and search on the left; on large screens the acknowledgement card (Researcher of the
+                Month first, then everyone with their publication counts) fills the right column, as tall as the title and search. */}
+            <div className="grid items-end gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,34rem)] lg:items-stretch xl:gap-12">
             <div className="min-w-0 space-y-3.5 sm:space-y-4 lg:flex lg:flex-col lg:justify-between lg:space-y-0 lg:gap-5">
             <div className="max-w-3xl space-y-2 sm:space-y-2.5 lg:space-y-4">
               <p
@@ -343,7 +343,7 @@ const Hero = () => {
             <InstrumentTicker />
             <HeroSearchBar className="max-w-2xl rounded-xl shadow-lg shadow-slate-900/10 ring-1 ring-slate-200 dark:shadow-xl dark:shadow-black/30 dark:ring-white/20" />
             </div>
-            <ResearcherSpotlight className="hidden lg:block" />
+            <ResearcherSpotlight className="hidden lg:flex" />
             </div>
 
             <nav aria-label="Quick actions" className="flex flex-wrap items-center gap-2 animate-in fade-in slide-in-from-bottom-2 fill-mode-both duration-700 delay-200 sm:gap-2.5">

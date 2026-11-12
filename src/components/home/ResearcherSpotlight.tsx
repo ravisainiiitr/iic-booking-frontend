@@ -156,18 +156,131 @@ function AcknowledgerRow({ person, dark, copy = false, featured = false }: {
                       dark ? "border-slate-200 bg-white/70 dark:border-white/10 dark:bg-white/[0.06]" : "bg-card",
                       featured && (dark ? "border-amber-300 bg-amber-50/90 dark:border-amber-200/50 dark:bg-amber-300/10" : "border-amber-300 bg-amber-50 dark:bg-amber-500/10"))}>
       <Portrait person={person as unknown as ResearcherOfTheMonthItem} className={cn("h-9 w-9", dark ? "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-white/70" : "bg-muted text-muted-foreground")} />
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         {featured ? (
           <p className={cn("flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider", dark ? "text-amber-700 dark:text-amber-200" : "text-amber-700 dark:text-amber-300")}>
             <Sparkles className="h-3 w-3" aria-hidden /> Researcher of the Month
           </p>
         ) : null}
         <p className={cn("truncate text-sm font-medium", dark ? "text-slate-900 dark:text-white" : "text-foreground")}>{person.researcher_name}</p>
-        <p className={cn("truncate text-[11px]", dark ? "text-slate-500 dark:text-white/60" : "text-muted-foreground")}>
-          {[person.affiliation, n ? `${n} publication${n === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")}
-        </p>
+        <p className={cn("truncate text-[11px]", dark ? "text-slate-500 dark:text-white/60" : "text-muted-foreground")}>{person.affiliation}</p>
       </div>
+      {n ? <CountPill n={n} /> : null}
     </li>
+  );
+}
+
+/** "4 publications" as a small pill that is never cut off. */
+function CountPill({ n, className }: { n: number; className?: string }) {
+  return (
+    <span
+      className={cn("shrink-0 whitespace-nowrap rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-400/10 dark:text-sky-100 dark:ring-sky-300/25", className)}
+      data-testid="publication-count"
+    >
+      {n} publication{n === 1 ? "" : "s"}
+    </span>
+  );
+}
+
+/** Height of one row in the hero list (h-[3.75rem]) plus the gap (0.5rem). */
+const LIST_STEP_REM = 4.25;
+const LIST_HOLD_MS = 2600;
+
+/**
+ * Everyone else who acknowledged IIC, as a vertical list filling the rest of the hero card. When more names than fit
+ * it scrolls up one row every few seconds and loops (a copy follows the list); hover or focus pauses it.
+ */
+function AcknowledgerColumn({ people }: { people: ResearchRecognition[] }) {
+  const n = people.length;
+  const box = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(n);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const h = el.clientHeight;
+      if (h > 0) setFits(Math.max(1, Math.floor((h + 0.5 * rem) / (LIST_STEP_REM * rem))));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const loops = n > fits;
+  const [index, setIndex] = useState(0);
+  const [animate, setAnimate] = useState(true);
+  const paused = useRef(false);
+  const reduced = useRef(false);
+  useEffect(() => {
+    reduced.current = prefersReducedMotion();
+  }, []);
+  useEffect(() => {
+    if (!loops || reduced.current) return;
+    const t = window.setInterval(() => {
+      if (paused.current) return;
+      setAnimate(true);
+      setIndex((i) => i + 1);
+    }, LIST_HOLD_MS);
+    return () => window.clearInterval(t);
+  }, [loops]);
+  useEffect(() => {
+    if (index < n) return;
+    const t = window.setTimeout(() => {
+      setAnimate(false);
+      setIndex(index - n);
+    }, 650);
+    return () => window.clearTimeout(t);
+  }, [index, n]);
+  useEffect(() => {
+    if (animate) return;
+    const raf = requestAnimationFrame(() => setAnimate(true));
+    return () => cancelAnimationFrame(raf);
+  }, [animate]);
+  const items = loops ? [...people, ...people] : people;
+  return (
+    <div
+      ref={box}
+      className="relative min-h-[8rem] flex-1 basis-0 overflow-hidden"
+      onMouseEnter={() => (paused.current = true)}
+      onMouseLeave={() => (paused.current = false)}
+      onFocus={() => (paused.current = true)}
+      onBlur={() => (paused.current = false)}
+    >
+      {/* Only whole rows: the viewport is exactly as tall as the rows that fit. */}
+      <div className="overflow-hidden" style={{ height: `${Math.min(fits, n) * LIST_STEP_REM - 0.5}rem` }}>
+      <ul
+        className="flex flex-col gap-2"
+        data-testid="acknowledgers-column"
+        data-index={index}
+        style={{
+          transform: `translateY(-${index * LIST_STEP_REM}rem)`,
+          transition: animate && !reduced.current ? "transform 600ms ease-in-out" : "none",
+        }}
+      >
+        {items.map((a, i) => {
+          const count = a.publication_count ?? 0;
+          return (
+            <li
+              key={`${a.user_id ?? a.id}-${i}`}
+              aria-hidden={i >= n || undefined}
+              className="flex h-[3.75rem] shrink-0 items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/75 px-3 transition-colors hover:border-sky-200 hover:bg-white dark:border-white/10 dark:bg-white/[0.05] dark:hover:border-white/20 dark:hover:bg-white/[0.08]"
+            >
+              <Portrait person={a as unknown as ResearcherOfTheMonthItem} className="h-10 w-10 bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-white/10 dark:text-white/70 dark:ring-white/15" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{a.researcher_name}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-white/60">{a.affiliation}</p>
+              </div>
+              {count ? <CountPill n={count} /> : null}
+            </li>
+          );
+        })}
+      </ul>
+      </div>
+      {loops ? (
+        <span className="sr-only">The list scrolls; hover to pause.</span>
+      ) : null}
+    </div>
   );
 }
 
@@ -287,6 +400,10 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
   ) : null;
 
   if (people.length === 0 && others.length === 0) return null;
+  if (people.length === 0 && dark) {
+    // No Researcher of the Month this month: the hero card with the list alone.
+    return <HeroAcknowledgements people={[]} featuredRows={[]} others={others} month={month} className={className} />;
+  }
   if (people.length === 0) {
     // No Researcher of the Month this month: the acknowledgement list alone.
     return (
@@ -352,28 +469,132 @@ export default function ResearcherSpotlight({ variant = "hero", className }: { v
     );
   }
 
-  // Hero (large screens): one compact card holding only the strip, which starts with this month's researcher(s).
-  const monthChip = (
-    <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-white/80" data-testid="spotlight-month">
-      {monthLabel(month) || "This month"}
-    </span>
+  return (
+    <HeroAcknowledgements
+      people={people}
+      featuredRows={featuredRows}
+      others={others}
+      month={month}
+      index={index % people.length}
+      go={go}
+      stepNoun={stepNoun}
+      stepCount={steps.count}
+      pubAt={pubAt}
+      pause={pause}
+      className={className}
+    />
   );
+}
+
+/**
+ * The hero card (large screens): a tall glass panel beside the title. This month's Researcher of the Month on top
+ * with their latest acknowledging publication, then everyone else who acknowledged IIC with their publication
+ * counts, and the totals.
+ */
+function HeroAcknowledgements({
+  people, featuredRows, others, month, index = 0, go, stepNoun = "researcher", stepCount = 1, pubAt = 0, pause, className,
+}: {
+  people: ResearcherOfTheMonthItem[];
+  featuredRows: ResearchRecognition[];
+  others: ResearchRecognition[];
+  month: string;
+  index?: number;
+  go?: (step: number) => void;
+  stepNoun?: string;
+  stepCount?: number;
+  pubAt?: number;
+  pause?: Record<string, () => void>;
+  className?: string;
+}) {
+  const p = people[index];
+  const everyone = [...featuredRows, ...others];
+  const researchers = everyone.length;
+  const publications = everyone.reduce((sum, a) => sum + (a.publication_count ?? 0), 0);
+  const count = p?.publication_count ?? 0;
+  const pub = p ? publicationsOf(p)[pubAt] : undefined;
   return (
     <aside
       aria-label="Researchers acknowledging IIC"
-      data-testid="researcher-spotlight"
+      data-testid={p ? "researcher-spotlight" : "acknowledgers-only"}
       className={cn(
-        "relative w-full overflow-hidden rounded-3xl border border-slate-200/90 bg-white/80 p-5 text-slate-900 dark:border-white/20 dark:bg-[hsl(218_50%_12%/0.55)] dark:text-white shadow-[0_24px_60px_-24px_hsl(215_40%_30%/0.35)] backdrop-blur-xl dark:shadow-[0_24px_60px_-20px_hsl(215_60%_4%/0.8)]",
+        "relative flex h-full w-full flex-col overflow-hidden rounded-[1.75rem] border border-white/70 bg-white/80 px-6 pb-4 pt-5 text-slate-900 shadow-[0_30px_80px_-30px_hsl(215_45%_25%/0.45)] ring-1 ring-slate-900/5 backdrop-blur-xl dark:border-white/15 dark:bg-[hsl(218_50%_12%/0.62)] dark:text-white dark:ring-white/10 dark:shadow-[0_30px_80px_-24px_hsl(215_60%_4%/0.85)]",
         className,
       )}
+      {...pause}
     >
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
-      <div className="[&>section]:mt-0">
-        <AcknowledgerMarquee people={[...featuredRows, ...others]} featured={featured} dark label="Researchers acknowledging IIC" badge={monthChip} />
-      </div>
-      <footer className="relative mt-3">
-        <Link to="/publications" className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline dark:text-sky-200 dark:hover:text-white">
-          All publications <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-300 via-sky-400 to-[hsl(218_65%_30%)]" />
+      <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-amber-200/30 blur-3xl dark:bg-amber-300/10" />
+
+      <header className="relative flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-300">Research impact</p>
+          <h2 className="mt-1 text-lg font-semibold leading-snug tracking-tight text-[hsl(218_60%_18%)] dark:text-white">
+            Acknowledged IIC in their research
+          </h2>
+        </div>
+        <span className="shrink-0 rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm dark:border-white/15 dark:bg-white/10 dark:text-white/80" data-testid="spotlight-month">
+          {monthLabel(month) || "This month"}
+        </span>
+      </header>
+
+      {p ? (
+        <section aria-label="Researcher of the Month" className="relative mt-4 rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/95 via-white/90 to-sky-50/80 px-4 py-3.5 shadow-sm dark:border-amber-300/25 dark:from-amber-300/10 dark:via-white/[0.04] dark:to-sky-400/10">
+          <div className="flex items-center gap-4">
+            <Portrait person={p} className="h-16 w-16 bg-amber-100 text-amber-700 ring-2 ring-amber-300/80 ring-offset-2 ring-offset-white dark:bg-amber-500/15 dark:text-amber-200 dark:ring-offset-transparent" />
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-200">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden /> Researcher of the Month
+              </p>
+              <p className="mt-0.5 truncate text-lg font-semibold text-slate-900 dark:text-white" title={p.researcher_name}>{p.researcher_name}</p>
+              <p className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-slate-600 dark:text-white/70">
+                <span className="truncate">{p.affiliation || titlesOf(p).join(" · ")}</span>
+                {count ? <CountPill n={count} className="bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-300/10 dark:text-amber-100 dark:ring-amber-200/30" /> : null}
+              </p>
+            </div>
+            {go && stepCount > 1 ? (
+              <div className="flex shrink-0 items-center">
+                <button type="button" onClick={() => go(-1)} className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-white/70 dark:hover:bg-white/10" aria-label={`Previous ${stepNoun}`}>
+                  <ChevronLeft className="h-4 w-4" aria-hidden />
+                </button>
+                <button type="button" onClick={() => go(1)} className="rounded-full p-1.5 text-slate-500 hover:bg-white hover:text-slate-900 dark:text-white/70 dark:hover:bg-white/10" aria-label={`Next ${stepNoun}`}>
+                  <ChevronRight className="h-4 w-4" aria-hidden />
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {pub ? (
+            <div key={`${index}-${pubAt}`} className="mt-3 border-t border-amber-200/70 pt-2.5 animate-in fade-in duration-500 dark:border-white/10">
+              {pub.url ? (
+                <a href={pub.url} target="_blank" rel="noopener noreferrer" className="line-clamp-1 text-sm font-medium text-slate-800 hover:text-sky-800 hover:underline dark:text-white/90 dark:hover:text-white" title={pub.title}>
+                  {pub.title}
+                </a>
+              ) : (
+                <p className="line-clamp-1 text-sm font-medium text-slate-800 dark:text-white/90" title={pub.title}>{pub.title}</p>
+              )}
+              <p className="mt-0.5 truncate text-xs italic text-slate-500 dark:text-white/60">{[pub.journal, pub.year].filter(Boolean).join(", ")}</p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {others.length ? (
+        <div className="relative mt-4 flex min-h-0 flex-1 basis-0 flex-col">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-white/55">
+            {p ? "Also acknowledged IIC" : "Researchers"}
+          </p>
+          <AcknowledgerColumn people={others} />
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
+
+      <footer className="relative mt-3 flex items-center justify-between gap-3 border-t border-slate-200/80 pt-3 dark:border-white/10">
+        <p className="text-xs text-slate-600 dark:text-white/70" data-testid="acknowledgement-totals">
+          <span className="font-semibold text-slate-900 dark:text-white">{researchers}</span> researcher{researchers === 1 ? "" : "s"} ·{" "}
+          <span className="font-semibold text-slate-900 dark:text-white">{publications}</span> publication{publications === 1 ? "" : "s"}
+        </p>
+        <Link to="/publications" className="inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:text-sky-900 hover:underline dark:text-sky-200 dark:hover:text-white">
+          All publications <ChevronRight className="h-4 w-4" aria-hidden />
         </Link>
       </footer>
     </aside>

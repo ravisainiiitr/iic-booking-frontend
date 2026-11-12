@@ -18,6 +18,7 @@ vi.mock("sonner", () => ({ toast }));
 
 import AuthorConfirmations from "./AuthorConfirmations";
 import AuthorConfirmPrompt from "@/components/impact/AuthorConfirmPrompt";
+import AuthorConfirmOnLogin from "@/components/impact/AuthorConfirmOnLogin";
 
 function rec(id: number, works: number, over: Partial<AuthorRecord> = {}): AuthorRecord {
   return {
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.value = { isAuthenticated: true, loading: false, user: { user_type: "dept_admin" } };
   try {
+    sessionStorage.clear();
     localStorage.clear();
   } catch {
     // ignore
@@ -132,5 +134,44 @@ describe("AuthorConfirmPrompt", () => {
     api.mine.mockClear();
     render(<AuthorConfirmPrompt userType="faculty" />);
     expect(api.mine).not.toHaveBeenCalled();
+  });
+});
+
+describe("AuthorConfirmOnLogin", () => {
+  const faculty = { isAuthenticated: true, loading: false, user: { id: 3, user_type: "faculty" } as unknown as { user_type: string } };
+  const renderAt = (path = "/dashboard") => render(<MemoryRouter initialEntries={[path]}><AuthorConfirmOnLogin /></MemoryRouter>);
+
+  it("asks a faculty member at sign-in to confirm lookalikes and automatic matches, once per session", async () => {
+    auth.value = faculty;
+    api.mine.mockResolvedValue({ data: row({ waiting: [rec(11, 40)], linked: [rec(13, 25, { status: "AUTO_LINKED" }), rec(14, 9, { status: "CONFIRMED" })] }) });
+    api.decide.mockResolvedValue({ data: row({ waiting: [], linked: [rec(11, 40, { status: "CONFIRMED" }), rec(13, 25, { status: "CONFIRMED" })] }) });
+    renderAt();
+    const dialog = await screen.findByTestId("author-confirm-dialog");
+    expect(within(dialog).getByText("Confirm your author records")).toBeTruthy();
+    expect(within(dialog).getAllByTestId("author-record")).toHaveLength(2);  // the confirmed one is not asked again
+    expect(within(dialog).getByText("Matched to you automatically: please confirm")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm Asha Rao (25 papers)" }));
+    await waitFor(() => expect(api.decide).toHaveBeenCalledWith(3, { confirm: [13] }));
+    await waitFor(() => expect(screen.queryByTestId("author-confirm-dialog")).toBeNull());
+    expect(toast.success).toHaveBeenCalledWith("Thank you: your author records are confirmed");
+    cleanup();
+    api.mine.mockClear();
+    renderAt();
+    expect(api.mine).not.toHaveBeenCalled();  // already asked in this sign-in session
+  });
+
+  it("is not shown to other roles, on the sign-in page, or when nothing is left to confirm", async () => {
+    auth.value = { isAuthenticated: true, loading: false, user: { id: 4, user_type: "student" } as unknown as { user_type: string } };
+    renderAt();
+    expect(api.mine).not.toHaveBeenCalled();
+    cleanup();
+    auth.value = faculty;
+    renderAt("/auth");
+    expect(api.mine).not.toHaveBeenCalled();
+    cleanup();
+    api.mine.mockResolvedValue({ data: row({ waiting: [], linked: [rec(14, 9, { status: "CONFIRMED" })] }) });
+    renderAt();
+    await waitFor(() => expect(api.mine).toHaveBeenCalled());
+    expect(screen.queryByTestId("author-confirm-dialog")).toBeNull();
   });
 });
