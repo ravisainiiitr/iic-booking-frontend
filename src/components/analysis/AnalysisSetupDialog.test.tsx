@@ -126,6 +126,15 @@ describe("AnalysisSetupDialog — My Research", () => {
     expect(screen.queryByText("Your data on the Analysis PC")).toBeNull();
   });
 
+  it("swaps the form for a full-window start screen as soon as Prepare & Open is clicked", async () => {
+    const onPrepared = vi.fn(() => new Promise<boolean>(() => {}));
+    renderDialog({ onPrepared });
+    await waitFor(() => expect(prepareButton().hasAttribute("disabled")).toBe(false));
+    fireEvent.click(prepareButton());
+    expect(await screen.findByTestId("analysis-starting")).toBeTruthy();
+    expect(screen.queryByTestId("analysis-setup-dialog")).toBeNull();
+  });
+
   it("saves the setup for the current booking and opens", async () => {
     const { onPrepared } = renderDialog();
     await waitFor(() => expect(prepareButton().hasAttribute("disabled")).toBe(false));
