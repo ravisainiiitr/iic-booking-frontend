@@ -340,6 +340,26 @@ export default function AnalysisLaunchPage() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [phase, desktopReady, focusDesktop, bindDesktopFocus, folderDialog, placementOpen]);
 
+  // A copy still running when the popup was closed: keep checking and say when it lands.
+  const placementPending = placementInfo?.placement?.status === "pending";
+  useEffect(() => {
+    if (!placementPending || placementOpen || !Number.isFinite(bookingPk)) return;
+    let alive = true;
+    const id = window.setInterval(() => {
+      void apiClient.getInputPlacement(bookingPk).then((res) => {
+        const p = res.data?.placement;
+        if (!alive || !res.data || !p || p.status === "pending") return;
+        setPlacementInfo(res.data);
+        if (p.status === "done") toast.success("Your input data is on the Analysis PC", { description: p.display_path });
+        else toast.error("Your input data could not be saved", { description: p.detail || "Open Input data to try again." });
+      });
+    }, 4000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [placementPending, placementOpen, bookingPk]);
+
   // Once the desktop is up, ask where the input data should go (once per session; "Not now" is remembered).
   useEffect(() => {
     if (phase !== "desktop" || !desktopReady || !Number.isFinite(bookingPk)) return;
@@ -943,6 +963,7 @@ export default function AnalysisLaunchPage() {
         onOpenChange={(next) => {
           setPlacementOpen(next);
           if (!next) {
+            void apiClient.getInputPlacement(bookingPk).then((res) => res.data && setPlacementInfo(res.data));
             try {
               window.sessionStorage.setItem(`ra-input-placement:${sessionIdRef.current || ""}`, "dismissed");
             } catch {

@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 const POLL_MS = 1200;
-const GIVE_UP_MS = 10 * 60 * 1000;
+const GIVE_UP_MS = 210_000;
+/** After this long the dialog says it is still copying and that it can be closed. */
+const SLOW_MS = 20_000;
 const BROWSE_GIVE_UP_MS = 95_000;
 
 const PLACES: { id: InputPlace; label: string; hint: string; icon: typeof Monitor }[] = [
@@ -58,6 +60,7 @@ export function InputPlacementDialog({
   const [listing, setListing] = useState<PcFolderListing | null>(null);
   const [browsing, setBrowsing] = useState(false);
   const [browseError, setBrowseError] = useState<string | null>(null);
+  const [slow, setSlow] = useState(false);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -122,6 +125,8 @@ export function InputPlacementDialog({
     const token = ++seq.current;
     setPhase("saving");
     setError(null);
+    setSlow(false);
+    const startedAt = Date.now();
     const body = where.kind === "place" ? { place: where.place, folder_name: cleanName } : { location: where.path, folder_name: cleanName };
     const started = await apiClient.placeInput(bookingId, body);
     if (token !== seq.current) return;
@@ -135,6 +140,7 @@ export function InputPlacementDialog({
     while (Date.now() < giveUpAt) {
       await sleep(POLL_MS);
       if (token !== seq.current) return;
+      if (Date.now() - startedAt > SLOW_MS) setSlow(true);
       const res = await apiClient.getInputPlacement(bookingId);
       if (token !== seq.current) return;
       const p = res.data?.placement;
@@ -151,14 +157,14 @@ export function InputPlacementDialog({
         return;
       }
     }
-    setError("The Analysis PC did not answer. Try again.");
+    setError("The Analysis PC did not confirm the copy. Check the desktop for the folder, or try again.");
     setPhase("choose");
   };
 
   const pathCrumbs = listing?.path ? breadcrumbs(listing.path) : [];
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (phase === "saving" ? undefined : onOpenChange(next))}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg" data-testid="input-placement-dialog">
         {phase === "done" && result ? (
           <div className="space-y-4 py-2 text-center">
@@ -344,9 +350,15 @@ export function InputPlacementDialog({
                   are then removed, and anything you added is left untouched.
                 </p>
 
+                {phase === "saving" && slow ? (
+                  <p className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-sm" role="status">
+                    Still copying on the Analysis PC. You can close this and keep working; we will tell you when it is done.
+                  </p>
+                ) : null}
+
                 <DialogFooter className="gap-2 sm:gap-0">
-                  <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={phase === "saving"}>
-                    Not now
+                  <Button variant="ghost" onClick={() => onOpenChange(false)}>
+                    {phase === "saving" ? "Keep working" : "Not now"}
                   </Button>
                   <Button onClick={() => void save()} disabled={phase === "saving" || !cleanName}>
                     {phase === "saving" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
