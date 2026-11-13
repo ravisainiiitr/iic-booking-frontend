@@ -114,17 +114,16 @@ describe("AnalysisSetupDialog — My Research", () => {
     await waitFor(() => expect(screen.getByTestId("selected-input-booking").textContent).toContain("3 files"));
   });
 
-  it("with the folder picker, shows the input path and no Output path", () => {
+  it("with the folder picker, shows no Analysis PC paths (input place is chosen on the PC)", () => {
     renderDialog({
       setup: setup({
         input: { default_source: "booking", default_booking_id: 42, selected: null, pc_input_path: "D:\\RemoteAnalysisData\\Current\\Input" },
         agent: { version: "1.0.26", capabilities: ["verified_cleanup_v1", "extra_sources_v1"] },
       }),
     });
-    expect(screen.getByTestId("pc-input-path").textContent).toBe("D:\\RemoteAnalysisData\\Current\\Input");
+    expect(screen.queryByTestId("pc-input-path")).toBeNull();
     expect(screen.queryByTestId("pc-output-path")).toBeNull();
-    expect(screen.getByTestId("results-explainer").textContent).toContain("When you end the session, you choose the folders");
-    expect(screen.getByTestId("destination-label").textContent).toBe("My Research › Polymer study / IICDSA0042 / Processed Data");
+    expect(screen.queryByText("Your data on the Analysis PC")).toBeNull();
   });
 
   it("saves the setup for the current booking and opens", async () => {
