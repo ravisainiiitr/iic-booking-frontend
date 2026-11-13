@@ -38,7 +38,7 @@ import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
-import { enterPageFullscreen, sessionViewport } from "@/lib/analysisFullscreen";
+import { enterPageFullscreen, fullscreenMode, sessionViewport, type FullscreenMode } from "@/lib/analysisFullscreen";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderInput, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
@@ -198,7 +198,9 @@ export default function AnalysisLaunchPage() {
   const deviceBlocked = deviceCheck.verdict === "block";
   const [offline, setOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);
   const [timeUp, setTimeUp] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  /** Page full screen (our button) or browser full screen (F11): either way the desktop gets the whole screen. */
+  const [isFullscreen, setIsFullscreen] = useState(() => fullscreenMode() !== null);
+  const [fullscreenKind, setFullscreenKind] = useState<FullscreenMode>(() => fullscreenMode());
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   /** In full screen the session bar hides; it slides in when the pointer reaches the top edge. */
   const [barShown, setBarShown] = useState(false);
@@ -471,10 +473,32 @@ export default function AnalysisLaunchPage() {
   }, [phase, desktopReady, placementOpen]);
 
   useEffect(() => {
-    const onFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    const onFullscreen = () => {
+      const mode = fullscreenMode();
+      setFullscreenKind(mode);
+      setIsFullscreen(mode !== null);
+    };
     document.addEventListener("fullscreenchange", onFullscreen);
-    return () => document.removeEventListener("fullscreenchange", onFullscreen);
+    window.addEventListener("resize", onFullscreen);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreen);
+      window.removeEventListener("resize", onFullscreen);
+    };
   }, []);
+
+  // The session view never scrolls: a page scrollbar would take width from the desktop.
+  useEffect(() => {
+    if (phase !== "desktop") return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = [html.style.overflow, body.style.overflow, body.style.margin];
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.margin = "0";
+    return () => {
+      [html.style.overflow, body.style.overflow, body.style.margin] = prev;
+    };
+  }, [phase]);
 
   const showBar = useCallback(() => {
     window.clearTimeout(barTimer.current);
@@ -494,6 +518,11 @@ export default function AnalysisLaunchPage() {
     showBar();
     hideBarSoon();
   }, [isFullscreen, showBar, hideBarSoon]);
+  useEffect(() => {
+    if (!isFullscreen) return;
+    if (placementOpen || folderDialog) showBar();
+    else hideBarSoon();
+  }, [isFullscreen, placementOpen, folderDialog, showBar, hideBarSoon]);
   useEffect(() => () => window.clearTimeout(barTimer.current), []);
 
   const requestDesktopFullscreenRef = useRef<(() => Promise<void>) | null>(null);
@@ -761,7 +790,7 @@ export default function AnalysisLaunchPage() {
     >
       {phase === "desktop" && isFullscreen && !barShown ? (
         <div
-          className="absolute inset-x-0 top-0 z-[70] h-2"
+          className="absolute inset-x-0 top-0 z-[70] h-2.5"
           data-testid="session-bar-reveal"
           onMouseEnter={() => {
             showBar();
@@ -853,9 +882,15 @@ export default function AnalysisLaunchPage() {
                 <Button size="sm" variant="outline" onClick={() => void reconnectDesktop()} title="Open the view of the Analysis PC again">
                   Reconnect
                 </Button>
-                <Button size="sm" variant={isFullscreen ? "secondary" : "default"} onClick={() => void toggleFullscreen()}>
-                  {isFullscreen ? "Exit full screen" : "Full screen"}
-                </Button>
+                {fullscreenKind === "browser" ? (
+                  <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground" title="This full screen was started with F11">
+                    Press F11 to exit full screen
+                  </span>
+                ) : (
+                  <Button size="sm" variant={isFullscreen ? "secondary" : "default"} onClick={() => void toggleFullscreen()}>
+                    {isFullscreen ? "Exit full screen" : "Full screen"}
+                  </Button>
+                )}
               </div>
             )
           }
@@ -863,7 +898,13 @@ export default function AnalysisLaunchPage() {
         </div>
       )}
       {phase === "desktop" && warn != null ? (
-        <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
+        <div
+          className={cn(
+            "bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200",
+            // In full screen it floats, so the desktop keeps the whole screen.
+            isFullscreen && "absolute left-1/2 top-2 z-[55] -translate-x-1/2 rounded-full bg-amber-100/95 shadow-lg dark:bg-amber-950/95",
+          )}
+        >
           {warn} minute{warn === 1 ? "" : "s"} remaining
           {sessionExp.extend_blocked_reason ? ` · ${sessionExp.extend_blocked_reason}` : ""}
           {pickerSupported ? " · Save your work now" : " · Save results to the Output folder"}

@@ -43,3 +43,15 @@ export function sessionViewport(surface: HTMLElement | null, reservedTopPx: numb
   if (coarse || sw < 1024 || sh < 600) return measured;
   return { width: sw, height: sh, dpr: measured.dpr };
 }
+
+/** "page": our Full screen button (Fullscreen API). "browser": F11, which the page cannot leave by itself. */
+export type FullscreenMode = "page" | "browser" | null;
+
+export function fullscreenMode(): FullscreenMode {
+  if (typeof document === "undefined") return null;
+  if (document.fullscreenElement) return "page";
+  const sw = Number(window.screen?.width) || 0;
+  const sh = Number(window.screen?.height) || 0;
+  if (sw > 0 && sh > 0 && window.innerWidth >= sw - 1 && window.innerHeight >= sh - 1) return "browser";
+  return null;
+}

@@ -383,6 +383,35 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
     onOpenChange(next);
   };
 
+  // Once Prepare & Open is clicked (and no files are still uploading), the form gives way at once to a full-window
+  // start screen, so nobody is left wondering whether the click worked. A failure brings the form back with the error.
+  const starting = step === "saving" || step === "finalizing" || step === "opening";
+  if (open && starting) {
+    return (
+      <Dialog open onOpenChange={close}>
+        <DialogContent
+          className="flex h-[100dvh] max-h-none w-screen max-w-none items-center justify-center rounded-none border-0 bg-slate-950 p-0 text-white sm:max-w-none [&>button]:hidden"
+          data-testid="analysis-starting"
+        >
+          <DialogTitle className="sr-only">Starting your session</DialogTitle>
+          <DialogDescription className="sr-only">
+            {equipmentName} · Booking {virtualId}
+          </DialogDescription>
+          <div className="flex flex-col items-center gap-3 text-center" role="status" aria-live="polite">
+            <Loader2 className="h-8 w-8 animate-spin text-sky-300" aria-hidden />
+            <p className="text-lg font-medium">Starting your session…</p>
+            <p className="text-sm text-slate-300">
+              {step === "opening" ? "Reserving your Analysis PC" : step === "finalizing" ? "Saving your files" : "Saving your setup"}
+            </p>
+            <p className="text-xs text-slate-400">
+              {equipmentName} · {virtualId}
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="flex max-h-[92dvh] flex-col gap-0 p-0 sm:max-w-2xl" data-testid="analysis-setup-dialog">
