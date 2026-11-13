@@ -171,6 +171,11 @@ export default function AnalysisLaunchPage() {
   const deviceBlocked = deviceCheck.verdict === "block";
   const [offline, setOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);
   const [timeUp, setTimeUp] = useState(false);
+  /** Re-connecting at a new size after fullscreen or a window resize ("Adjusting to your screen…"). */
+  const [refitting, setRefitting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  /** The remote desktop size (CSS px) the current connection was opened with. */
+  const fittedSize = useRef<{ width: number; height: number } | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
     if (summary) setUpdatedAt(Date.now());
@@ -222,6 +227,7 @@ export default function AnalysisLaunchPage() {
   const postLaunch = useCallback(async () => {
     lastLaunchAt.current = Date.now();
     const viewport = measureViewport(desktopSurfaceRef.current, reservedChromePx());
+    fittedSize.current = { width: viewport.width, height: viewport.height };
     const res = await apiClient.launchBookingAnalysisDesktop(bookingPk, { viewport });
     if (res.error) {
       setError(res.error);
@@ -403,6 +409,66 @@ export default function AnalysisLaunchPage() {
     pollLaunchNow();
   }, [pollLaunchNow]);
 
+  // Fullscreen only scales a fixed-size desktop, which leaves black bars. When the desktop area settles at a new
+  // size (fullscreen on/off, window resized), reconnect at exactly that size. The Windows session, its programs and
+  // files are untouched; only the view is re-opened. Live "display-update" resizing is avoided on purpose: inside an
+  // iframe it could briefly report a near-zero height and shrink Windows to a few pixels.
+  const refitDesktop = useCallback(async () => {
+    const surface = desktopSurfaceRef.current;
+    if (!surface || phase !== "desktop" || !desktopReady || refitting) return;
+    const viewport = measureViewport(surface, 0);
+    const fitted = fittedSize.current;
+    if (fitted && Math.abs(fitted.width - viewport.width) < 24 && Math.abs(fitted.height - viewport.height) < 24) return;
+    setRefitting(true);
+    try {
+      const res = await apiClient.launchBookingAnalysisDesktop(bookingPk, { viewport });
+      const launchUrl = typeof res.data?.launch_url === "string" ? res.data.launch_url : "";
+      if (res.error || !launchUrl) throw new Error(res.error || "No new connection was issued.");
+      const url = await resolveGuacamoleDesktopUrl(launchUrl);
+      if (!url) throw new Error("No new connection was issued.");
+      fittedSize.current = { width: viewport.width, height: viewport.height };
+      setDesktopUrl(url);
+    } catch {
+      setRefitting(false);
+      toast.message("Could not adjust the desktop to your screen.", { description: "Use Reconnect if the desktop looks too small." });
+    }
+  }, [phase, desktopReady, refitting, bookingPk]);
+
+  useEffect(() => {
+    const onFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady) return;
+    let timer: number | undefined;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refitDesktop(), 900);
+    };
+    document.addEventListener("fullscreenchange", schedule);
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("fullscreenchange", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [phase, desktopReady, refitDesktop]);
+
+  const requestDesktopFullscreenRef = useRef<(() => Promise<void>) | null>(null);
+  const toggleFullscreen = useCallback(async () => {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        /* already left */
+      }
+      return;
+    }
+    await requestDesktopFullscreenRef.current?.();
+  }, []);
+
   const requestDesktopFullscreen = useCallback(async () => {
     const target = desktopSurfaceRef.current || iframeRef.current;
     if (!target) {
@@ -432,6 +498,7 @@ export default function AnalysisLaunchPage() {
       toast.error(`${msg} Try the browser’s fullscreen (F11), or click Reconnect if the desktop is blank.`);
     }
   }, [focusDesktop]);
+  requestDesktopFullscreenRef.current = requestDesktopFullscreen;
 
   const serverRemaining =
     typeof sessionExp.remaining_seconds === "number"
@@ -880,9 +947,15 @@ export default function AnalysisLaunchPage() {
                       /* cross-origin remote desktop — ignore */
                     }
                     focusDesktop();
+                    setRefitting(false);
                   }, 800);
                 }}
               />
+              {refitting ? (
+                <div className="absolute inset-0 z-[10055] flex items-center justify-center bg-black/70 text-sm text-white" role="status">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Adjusting to your screen…
+                </div>
+              ) : null}
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 {hintVisible ? (
                   <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/80 px-2 py-1 text-[10px] text-amber-50 sm:text-xs" data-testid="desktop-hint">
@@ -910,15 +983,21 @@ export default function AnalysisLaunchPage() {
                 ) : (
                   <span />
                 )}
-                <div className="flex gap-2">
+                <div
+                  className={cn(
+                    "pointer-events-auto flex gap-2 transition-opacity",
+                    isFullscreen && "rounded-lg p-1 opacity-10 hover:bg-black/40 hover:opacity-100 focus-within:opacity-100",
+                  )}
+                  data-testid="desktop-controls"
+                >
                   <Button
                     type="button"
                     size="sm"
                     variant="secondary"
                     className="pointer-events-auto h-8 shadow-lg"
-                    onClick={() => void requestDesktopFullscreen()}
+                    onClick={() => void toggleFullscreen()}
                   >
-                    Fullscreen
+                    {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
                   </Button>
                   <Button
                     type="button"
