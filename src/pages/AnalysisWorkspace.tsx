@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
+import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, PLACE_INPUT_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
 import { isMissingEndpoint, myResearchFolderHref, plural } from "@/lib/analysisSync";
 import { chosenItems } from "@/lib/pcFolders";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,11 @@ import { AnalysisSetupDialog, type PreparedSetup } from "@/components/analysis/A
 import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
 import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
 import { useAnalysisLiveState } from "@/components/analysis/useAnalysisLiveState";
+import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
+import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
+import { useDeviceCheck } from "@/hooks/use-device-check";
+import { useSeatReadyAlert } from "@/hooks/use-seat-ready-alert";
+import { friendlyAnalysisError } from "@/lib/analysisErrors";
 import { cn } from "@/lib/utils";
 import {
   AppWindow,
@@ -47,7 +52,7 @@ type WorkflowOption = {
 
 type SoftwareOption = Record<string, unknown>;
 
-type QueueInfo = {
+type QueueInfo = SeatQueue & {
   is_queued?: boolean;
   title?: string;
   body?: string[] | string;
@@ -159,6 +164,11 @@ export default function AnalysisWorkspacePage() {
   }, [summaryError, summary]);
 
   const experience = (summary?.experience || {}) as Experience;
+  const deviceCheck = useDeviceCheck();
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (summary) setUpdatedAt(Date.now());
+  }, [summary]);
   useEffect(() => {
     setPollMs(Math.max(3, Number(experience.poll_interval_seconds || 8)) * 1000);
   }, [experience.poll_interval_seconds]);
@@ -245,6 +255,7 @@ export default function AnalysisWorkspacePage() {
   const started = OPEN_SESSION.includes(sessionStatus);
   const sessionReadyToOpen = SESSION_READY.includes(sessionStatus);
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
+  const placeInputSupported = Boolean(setup?.agent?.capabilities?.includes(PLACE_INPUT_CAPABILITY));
   const envReady =
     Boolean(reservation.allocated || awaitingCheckin) &&
     !queued &&
@@ -287,7 +298,27 @@ export default function AnalysisWorkspacePage() {
   /** Every new session confirms input data and the results folder, pre-filled with the last choices. */
   const askBeforeStart = needsSetup || setupState === "ready";
   const canOpen = canAnalyze || envReady || awaitingCheckin || started || sessionReadyToOpen;
-  const startDisabled = busy || queued || analysisEnded || !canOpen || setupState === "loading";
+  const deviceBlocked = deviceCheck.verdict === "block";
+  const startDisabled = busy || queued || analysisEnded || !canOpen || setupState === "loading" || deviceBlocked;
+  useSeatReadyAlert(awaitingCheckin && !started, `${equipmentName} · Booking ${virtualBookingId}`);
+
+  const showError = (message: string | null | undefined, code?: string | null) => {
+    const friendly = friendlyAnalysisError(message, code);
+    if (friendly) toast.error(friendly.title, { description: friendly.detail, duration: 10000 });
+  };
+
+  const releaseHold = async () => {
+    if (!window.confirm("Give this Analysis PC to the next person? You leave the queue and can request analysis again later.")) return;
+    setBusy(true);
+    try {
+      const res = await apiClient.releaseBookingAnalysis(bookingPk);
+      if (res.error) showError(res.error);
+      else toast.success("Released. The next person in the queue has been told.");
+      await refreshSummary();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (autoOpened.current || !summary || setupState === "loading") return;
@@ -319,7 +350,7 @@ export default function AnalysisWorkspacePage() {
         software_slug: selectedSw?.slug ? String(selectedSw.slug) : undefined,
       });
       if (res.error) {
-        toast.error(res.error);
+        showError(res.error);
         return false;
       }
       const data = res.data || {};
@@ -463,7 +494,7 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
-        <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />
+        {placeInputSupported ? null : <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />}
 
         {analysisEnded ? (
           <Card className="border-muted bg-muted/30">
@@ -485,6 +516,8 @@ export default function AnalysisWorkspacePage() {
             </CardContent>
           </Card>
         ) : null}
+
+        {!analysisEnded && !loading && !started && !resultsReady ? <DeviceCheckPanel check={deviceCheck} compact /> : null}
 
         {!analysisEnded && !loading ? (
           <Card className="overflow-hidden border-[#0b3d91]/25 bg-white shadow-md dark:border-sky-800/50 dark:bg-card">
@@ -606,17 +639,17 @@ export default function AnalysisWorkspacePage() {
               timerHint={awaitingCheckin && !started ? "Start Analysis before this timer reaches zero" : undefined}
             />
 
-            {queued ? (
-              <Card className="border-amber-500/30 bg-amber-500/5">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{queue.title || "Analysis PC currently unavailable"}</CardTitle>
-                  <CardDescription className="space-y-1 text-sm text-foreground/80">
-                    {(Array.isArray(queue.body) ? queue.body : []).map((line: string) => (
-                      <p key={line}>{line}</p>
-                    ))}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+            {queued ? <SeatStatusCard mode="queued" queue={queue} updatedAt={updatedAt} /> : null}
+            {awaitingCheckin && !started && !sessionReadyToOpen ? (
+              <SeatStatusCard
+                mode="held"
+                queue={queue}
+                holdSeconds={checkinRemainingSeconds}
+                busy={busy}
+                onJoin={openOrStart}
+                onRelease={releaseHold}
+                joinDisabledReason={deviceBlocked ? "This device cannot run the session — see the device check above." : null}
+              />
             ) : null}
 
             <div className="grid gap-4 lg:grid-cols-[minmax(240px,1.05fr)_minmax(0,2.1fr)_minmax(240px,1.05fr)] lg:gap-5 xl:gap-6">
@@ -693,7 +726,11 @@ export default function AnalysisWorkspacePage() {
                       </span>
                     )}
                   </SetupRow>
-                  {setup?.input.pc_input_path || dataWorkspace?.input_path ? (
+                  {placeInputSupported ? (
+                    <SetupRow icon={<FolderInput className="h-4 w-4" aria-hidden />} label="On the Analysis PC">
+                      You choose where it goes when the desktop opens (a new folder on the Desktop by default).
+                    </SetupRow>
+                  ) : setup?.input.pc_input_path || dataWorkspace?.input_path ? (
                     <SetupRow icon={<FolderInput className="h-4 w-4" aria-hidden />} label="Input on the Analysis PC">
                       <code className="break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
                         {setup?.input.pc_input_path || String(dataWorkspace?.input_path)}

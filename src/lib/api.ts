@@ -178,6 +178,8 @@ import type {
   AnalysisSetupRequest,
   AnalysisSyncStatus,
   AnalysisViewport,
+  InputPlacementRequest,
+  InputPlacementStatus,
   PcBrowseResult,
   PcChosenItem,
 } from "@/lib/analysisSetupTypes";
@@ -11735,6 +11737,35 @@ class ApiClient {
     return this.request<{ folders: string[]; items: PcChosenItem[] }>(`/v1/bookings/${bookingId}/analysis/pc-folders/`, {
       method: 'PUT',
       body: JSON.stringify({ folders }),
+    });
+  }
+
+  /** Whether input can be saved to a folder the user chooses on the Analysis PC, and this session's placement. */
+  async getInputPlacement(bookingId: number) {
+    return this.request<InputPlacementStatus>(`/v1/bookings/${bookingId}/analysis/input-placement/`, { method: 'GET' });
+  }
+
+  /** Copy this session's input data into a folder on the Analysis PC and open it there. */
+  async placeInput(bookingId: number, body: InputPlacementRequest) {
+    return this.request<{ request_id: string; folder_name: string }>(`/v1/bookings/${bookingId}/analysis/input-placement/`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Give back an Analysis PC that is held for you, without starting a session. */
+  async releaseBookingAnalysis(bookingId: number, reason = "Released by user") {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/release/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Keepalive while the user is working in the remote desktop, so the idle timeout does not end the session. */
+  async postRemoteAnalysisSessionActivity(sessionId: string) {
+    return this.request<{ ok: boolean; last_activity_at: string }>(`/v1/analysis/session/${sessionId}/activity/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
