@@ -93,6 +93,17 @@ describe("InputPlacementDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("can be closed while copying, so a slow PC never traps the user", async () => {
+    placeInput.mockResolvedValue({ data: { request_id: "r3", folder_name: "x" } });
+    getInputPlacement.mockResolvedValue({ data: { supported: true, placement: { status: "pending", session_id: "s1", request_id: "r3" } } });
+    const { onOpenChange } = renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Save and open" }));
+    const keep = await screen.findByRole("button", { name: "Keep working" });
+    expect((keep as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(keep);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("offers another folder only when the PC can list folders", () => {
     renderDialog({ canBrowse: false });
     expect(screen.queryByText("Another folder or drive…")).toBeNull();
