@@ -27,6 +27,7 @@ import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { useSeatReadyAlert } from "@/hooks/use-seat-ready-alert";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
+import { enterPageFullscreen } from "@/lib/analysisFullscreen";
 import { cn } from "@/lib/utils";
 import {
   AppWindow,
@@ -372,6 +373,8 @@ export default function AnalysisWorkspacePage() {
 
   const openOrStart = async () => {
     if (!Number.isFinite(bookingPk)) return;
+    // Must run first, while the click still counts: browsers allow full screen only right after a click.
+    if (!askBeforeStart || started || sessionReadyToOpen) enterPageFullscreen();
     if (started || sessionReadyToOpen) {
       navigate(launchHref);
       return;
@@ -388,6 +391,7 @@ export default function AnalysisWorkspacePage() {
   };
 
   const onPrepared = async ({ setup: saved, inputLabel }: PreparedSetup) => {
+    enterPageFullscreen();
     if (saved) setSetup(saved);
     else setLegacyInputLabel(inputLabel);
     void pollNow();
