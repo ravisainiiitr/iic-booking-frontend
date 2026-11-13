@@ -192,3 +192,35 @@ export interface AnalysisViewport {
   height: number;
   dpr: number;
 }
+
+/** Agent capability: input can be saved to a folder the user chooses (PLACE_INPUT). */
+export const PLACE_INPUT_CAPABILITY = "place_input_v1";
+
+export type InputPlace = "Desktop" | "Documents" | "Downloads";
+
+export interface InputPlacement {
+  status: "pending" | "done" | "failed";
+  session_id: string;
+  folder_name?: string | null;
+  path?: string;
+  display_path?: string;
+  files?: number;
+  bytes?: number;
+  opened?: boolean;
+  detail?: string;
+  request_id?: string | null;
+}
+
+export interface InputPlacementStatus {
+  supported: boolean;
+  places: InputPlace[];
+  default_place: InputPlace;
+  default_folder_name: string;
+  placement: InputPlacement | null;
+}
+
+export interface InputPlacementRequest {
+  place?: InputPlace;
+  location?: string;
+  folder_name?: string;
+}

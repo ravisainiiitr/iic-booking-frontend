@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup, type AnalysisSyncStatus } from "@/lib/analysisSetupTypes";
+import {
+  PC_FILES_CAPABILITY,
+  PC_FOLDERS_CAPABILITY,
+  type AnalysisSetup,
+  type AnalysisSyncStatus,
+  type InputPlacementStatus,
+} from "@/lib/analysisSetupTypes";
 import {
   describeSync,
   isMissingEndpoint,
@@ -16,7 +22,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { chosenItems } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
 import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
-import { DataWorkspaceBanner, type DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
+import type { DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
+import { InputPlacementDialog } from "@/components/analysis/InputPlacementDialog";
 import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
 import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
 import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
@@ -31,7 +38,7 @@ import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderInput, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
 
@@ -145,6 +152,8 @@ export default function AnalysisLaunchPage() {
   const [closingSince, setClosingSince] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [folderDialog, setFolderDialog] = useState<"end" | "choose" | null>(null);
+  const [placementInfo, setPlacementInfo] = useState<InputPlacementStatus | null>(null);
+  const [placementOpen, setPlacementOpen] = useState(false);
   const desktopResolved = useRef(false);
   const sessionIdRef = useRef<string | null>(sessionId);
   const lastLaunchAt = useRef(0);
@@ -317,7 +326,7 @@ export default function AnalysisLaunchPage() {
   // Guacamole only receives keystrokes while its iframe has focus; clicks on page controls
   // (Sync now, Fullscreen) leave focus on the host page, so hand it back on the next key press.
   useEffect(() => {
-    if (phase !== "desktop" || !desktopReady || folderDialog) return;
+    if (phase !== "desktop" || !desktopReady || folderDialog || placementOpen) return;
     bindDesktopFocus();
     focusDesktop();
     const onKeyDown = (e: KeyboardEvent) => {
@@ -329,7 +338,33 @@ export default function AnalysisLaunchPage() {
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [phase, desktopReady, focusDesktop, bindDesktopFocus, folderDialog]);
+  }, [phase, desktopReady, focusDesktop, bindDesktopFocus, folderDialog, placementOpen]);
+
+  // Once the desktop is up, ask where the input data should go (once per session; "Not now" is remembered).
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady || !Number.isFinite(bookingPk)) return;
+    let alive = true;
+    void apiClient.getInputPlacement(bookingPk).then((res) => {
+      if (!alive || res.error || !res.data) return;
+      setPlacementInfo(res.data);
+      const sid = sessionIdRef.current || "";
+      let dismissed = false;
+      try {
+        dismissed = window.sessionStorage.getItem(`ra-input-placement:${sid}`) === "dismissed";
+      } catch {
+        dismissed = false;
+      }
+      const inputFiles = Number(setup?.input.selected?.file_count ?? 1);
+      if (res.data.supported && !res.data.placement && !dismissed && inputFiles > 0) {
+        window.setTimeout(() => alive && setPlacementOpen(true), 1200);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+    // setup is read once the desktop is ready; re-asking on every setup refresh would reopen the popup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, desktopReady, bookingPk]);
 
   useEffect(() => {
     if (phase !== "desktop" || !desktopReady) return;
@@ -616,9 +651,25 @@ export default function AnalysisLaunchPage() {
           showReturnToDashboard
           confirmLeaveSession
           rightSlot={
-            syncSupported ? (
+            syncSupported || placementInfo?.supported ? (
               <div className="flex items-center gap-2">
-                {pickerSupported ? (
+                {placementInfo?.supported ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => setPlacementOpen(true)}
+                    title={
+                      placementInfo.placement?.status === "done"
+                        ? `Your input data is in ${placementInfo.placement.display_path}`
+                        : "Choose where your input data is saved on the Analysis PC"
+                    }
+                  >
+                    <FolderInput className="h-3.5 w-3.5" aria-hidden />
+                    Input data
+                  </Button>
+                ) : null}
+                {syncSupported && pickerSupported ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -635,22 +686,24 @@ export default function AnalysisLaunchPage() {
                     {chosenFolders.length ? ` (${chosenFolders.length})` : ""}
                   </Button>
                 ) : null}
-                {liveTransfer ? (
+                {syncSupported && liveTransfer ? (
                   <span className="hidden max-w-[220px] truncate text-xs text-muted-foreground xl:inline" role="status" aria-live="polite">
                     {liveTransfer.percent != null ? `Syncing ${liveTransfer.percent}%` : liveTransfer.detail || "Syncing…"}
                   </span>
                 ) : null}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={syncNow}
-                  disabled={syncing || Boolean(liveTransfer)}
-                  title={`Copy your results to ${destinationLabel} now`}
-                >
-                  {syncing || liveTransfer ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
-                  Sync now
-                </Button>
+                {syncSupported ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={syncNow}
+                    disabled={syncing || Boolean(liveTransfer)}
+                    title={`Copy your results to ${destinationLabel} now`}
+                  >
+                    {syncing || liveTransfer ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+                    Sync now
+                  </Button>
+                ) : null}
               </div>
             ) : null
           }
@@ -668,19 +721,6 @@ export default function AnalysisLaunchPage() {
           ) : null}
         </div>
       ) : null}
-      {phase === "prepare" && (
-        <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 dark:border-border dark:bg-background/95">
-          <div className="mx-auto max-w-5xl">
-            <DataWorkspaceBanner
-              compact={false}
-              showDataRoot={false}
-              showOutput={!pickerSupported}
-              data={experience.data_workspace || null}
-            />
-          </div>
-        </div>
-      )}
-
       {phase === "prepare" && (
         <div className="mx-auto flex min-h-[calc(100dvh-8rem)] max-w-3xl flex-col justify-center gap-6 p-6">
           <div className="flex items-center justify-between gap-3">
@@ -702,7 +742,7 @@ export default function AnalysisLaunchPage() {
               </div>
               <AnalysisEnvironmentProgress
                 title="Preparing your Analysis PC"
-                subtitle="It opens automatically when ready. Please keep this tab open."
+                subtitle="Usually under a minute. It opens here by itself."
                 steps={provisionSteps}
                 onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
                 cancelLabel="Cancel"
@@ -729,12 +769,6 @@ export default function AnalysisLaunchPage() {
               </div>
             </CardContent>
           </Card>
-
-          <p className="text-center text-xs text-muted-foreground">
-            {pickerSupported
-              ? `Save your results anywhere on the Analysis PC. When you end the session you choose the folders or files to copy to ${destinationLabel}.`
-              : `Save your results in the Output folder shown above. It is copied to ${destinationLabel} when you end the session.`}
-          </p>
         </div>
       )}
 
@@ -832,14 +866,19 @@ export default function AnalysisLaunchPage() {
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
                 {hintVisible ? (
                   <div className="pointer-events-auto max-w-[70%] rounded-md bg-black/80 px-2 py-1 text-[10px] text-amber-50 sm:text-xs" data-testid="desktop-hint">
-                    {pickerSupported ? (
+                    {placementInfo?.placement?.status === "done" ? (
                       <>
-                        {inputPath ? (
+                        Input: <span className="font-medium">{placementInfo.placement.display_path}</span> · Save results anywhere; you
+                        choose what to keep when you end.
+                      </>
+                    ) : pickerSupported ? (
+                      <>
+                        {inputPath && !placementInfo?.supported ? (
                           <>
                             Your input data is in <span className="font-mono">{inputPath}</span>.{" "}
                           </>
                         ) : null}
-                        Save results anywhere on this PC — you choose the folders or files to keep when you end the session.
+                        Save results anywhere on this PC — you choose what to keep when you end the session.
                       </>
                     ) : (
                       <>
@@ -898,6 +937,28 @@ export default function AnalysisLaunchPage() {
           retrying={syncing}
         />
       )}
+
+      <InputPlacementDialog
+        open={placementOpen}
+        onOpenChange={(next) => {
+          setPlacementOpen(next);
+          if (!next) {
+            try {
+              window.sessionStorage.setItem(`ra-input-placement:${sessionIdRef.current || ""}`, "dismissed");
+            } catch {
+              /* private mode */
+            }
+            focusDesktop();
+          }
+        }}
+        bookingId={bookingPk}
+        defaultFolderName={placementInfo?.default_folder_name || virtualId}
+        fileCount={setup?.input.selected?.file_count ?? null}
+        totalBytes={null}
+        sourceLabel={setup?.input.selected?.virtual_id ? `booking ${setup.input.selected.virtual_id}` : null}
+        canBrowse={pickerSupported}
+        onPlaced={(placement) => setPlacementInfo((prev) => (prev ? { ...prev, placement } : prev))}
+      />
 
       <EndSessionDialog
         open={folderDialog != null}

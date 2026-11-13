@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api";
-import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
+import { PC_FILES_CAPABILITY, PC_FOLDERS_CAPABILITY, PLACE_INPUT_CAPABILITY, type AnalysisSetup } from "@/lib/analysisSetupTypes";
 import { isMissingEndpoint, myResearchFolderHref, plural } from "@/lib/analysisSync";
 import { chosenItems } from "@/lib/pcFolders";
 import { Button } from "@/components/ui/button";
@@ -255,6 +255,7 @@ export default function AnalysisWorkspacePage() {
   const started = OPEN_SESSION.includes(sessionStatus);
   const sessionReadyToOpen = SESSION_READY.includes(sessionStatus);
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
+  const placeInputSupported = Boolean(setup?.agent?.capabilities?.includes(PLACE_INPUT_CAPABILITY));
   const envReady =
     Boolean(reservation.allocated || awaitingCheckin) &&
     !queued &&
@@ -493,7 +494,7 @@ export default function AnalysisWorkspacePage() {
       />
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
-        <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />
+        {placeInputSupported ? null : <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />}
 
         {analysisEnded ? (
           <Card className="border-muted bg-muted/30">
@@ -725,7 +726,11 @@ export default function AnalysisWorkspacePage() {
                       </span>
                     )}
                   </SetupRow>
-                  {setup?.input.pc_input_path || dataWorkspace?.input_path ? (
+                  {placeInputSupported ? (
+                    <SetupRow icon={<FolderInput className="h-4 w-4" aria-hidden />} label="On the Analysis PC">
+                      You choose where it goes when the desktop opens (a new folder on the Desktop by default).
+                    </SetupRow>
+                  ) : setup?.input.pc_input_path || dataWorkspace?.input_path ? (
                     <SetupRow icon={<FolderInput className="h-4 w-4" aria-hidden />} label="Input on the Analysis PC">
                       <code className="break-all rounded bg-muted px-1 py-0.5 font-mono text-xs">
                         {setup?.input.pc_input_path || String(dataWorkspace?.input_path)}
