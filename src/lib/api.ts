@@ -11738,6 +11738,22 @@ class ApiClient {
     });
   }
 
+  /** Give back an Analysis PC that is held for you, without starting a session. */
+  async releaseBookingAnalysis(bookingId: number, reason = "Released by user") {
+    return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/release/`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Keepalive while the user is working in the remote desktop, so the idle timeout does not end the session. */
+  async postRemoteAnalysisSessionActivity(sessionId: string) {
+    return this.request<{ ok: boolean; last_activity_at: string }>(`/v1/analysis/session/${sessionId}/activity/`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
   async extendBookingAnalysis(bookingId: number) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/extend/`, {
       method: 'POST',

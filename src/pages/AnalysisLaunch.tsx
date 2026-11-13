@@ -25,7 +25,13 @@ import { BackToDashboardButton } from "@/components/BackToDashboardButton";
 import IITRBanner from "@/components/IITRBanner";
 import { useAdaptivePoll } from "@/hooks/use-adaptive-poll";
 import { useCountdown } from "@/hooks/use-countdown";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderPlus, Loader2, RefreshCw } from "lucide-react";
+import { useSessionKeepalive } from "@/hooks/use-session-keepalive";
+import { announce, useSeatReadyAlert } from "@/hooks/use-seat-ready-alert";
+import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
+import { useDeviceCheck } from "@/hooks/use-device-check";
+import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
+import { friendlyAnalysisError } from "@/lib/analysisErrors";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
 
@@ -33,9 +39,13 @@ type Experience = {
   virtual_booking_id?: string;
   equipment_name?: string;
   equipment_code?: string;
-  queue?: { is_queued?: boolean; position?: number | null; estimated_wait_minutes?: number | null };
+  queue?: SeatQueue;
+  awaiting_checkin?: boolean;
+  checkin?: { required?: boolean; remaining_seconds?: number | null };
   session?: {
     status?: string;
+    idle_ends_at?: string | null;
+    idle_timeout_minutes?: number | null;
     remaining_seconds?: number | null;
     can_extend?: boolean;
     extension_minutes?: number;
@@ -52,6 +62,10 @@ const LAUNCH_POLL_MS = 2500;
 const LAUNCH_SAFETY_REPOST_MS = 20000;
 const LEGACY_SLOW_MS = 3 * 60 * 1000;
 const HINT_VISIBLE_MS = 8000;
+/** Sessions in these states are over; the page moves to the finish screen. */
+const ENDED = new Set(["COMPLETED", "TERMINATED", "EXPIRED", "FAILED", "DISCONNECTING"]);
+/** Show "Are you still there?" this long before the idle timeout. */
+const IDLE_PROMPT_SECONDS = 120;
 
 function resolveDesktopUrl(raw: string): string {
   try {
@@ -144,6 +158,14 @@ export default function AnalysisLaunchPage() {
     legacySummaryEveryMs: phase === "prepare" ? 10000 : phase === "closing" ? 5000 : null,
   });
   const { summary, sync, syncSupported, refreshSummary, pollNow } = live;
+  const deviceCheck = useDeviceCheck();
+  const deviceBlocked = deviceCheck.verdict === "block";
+  const [offline, setOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);
+  const [timeUp, setTimeUp] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (summary) setUpdatedAt(Date.now());
+  }, [summary]);
 
   const experience = (summary?.experience || {}) as Experience;
   const sessionExp = experience.session || {};
@@ -254,7 +276,7 @@ export default function AnalysisLaunchPage() {
       if (shouldPost && sinceLast >= (launchPending.current ? 5000 : LAUNCH_POLL_MS)) await postLaunch();
       return LAUNCH_POLL_MS;
     },
-    { enabled: phase === "prepare" && Number.isFinite(bookingPk), fallbackDelayMs: LAUNCH_POLL_MS },
+    { enabled: phase === "prepare" && Number.isFinite(bookingPk) && !deviceBlocked && !offline, fallbackDelayMs: LAUNCH_POLL_MS },
   );
 
   // Enter desktop phase once URL exists — branded prepare covers the wait.
@@ -369,9 +391,78 @@ export default function AnalysisLaunchPage() {
     setClosingSince(Date.now());
   }, []);
 
+  // At zero, ask the server before closing: an extension made elsewhere, or the server's own clock, decides.
   useEffect(() => {
-    if (phase === "desktop" && remaining != null && remaining <= 0) enterClosing();
-  }, [remaining, phase, enterClosing]);
+    if (phase !== "desktop" || remaining == null || remaining > 0 || timeUp) return;
+    setTimeUp(true);
+    void refreshSummary();
+  }, [remaining, phase, timeUp, refreshSummary]);
+
+  useEffect(() => {
+    if (!timeUp) return;
+    if (serverRemaining != null && serverRemaining > 0) {
+      setTimeUp(false);
+      return;
+    }
+    const t = window.setTimeout(enterClosing, 4000);
+    return () => window.clearTimeout(t);
+  }, [timeUp, serverRemaining, enterClosing]);
+
+  // The session can also end on the server (idle timeout, End from another tab, staff action, agent lost).
+  useEffect(() => {
+    if (phase !== "desktop" || !sessionId) return;
+    let alive = true;
+    const check = async () => {
+      const st = await apiClient.getRemoteAnalysisSessionStatus(sessionId);
+      const status = String((st.data as { status?: string } | undefined)?.status || "").toUpperCase();
+      if (!alive || !ENDED.has(status)) return;
+      const why =
+        status === "EXPIRED"
+          ? "Your session time is over."
+          : status === "FAILED"
+            ? "The connection to the Analysis PC was lost."
+            : "Your session was ended.";
+      toast.message(why, { description: "Your results are being saved now." });
+      enterClosing();
+    };
+    const id = window.setInterval(() => void check(), 20000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, [phase, sessionId, enterClosing]);
+
+  // Network drop: say so at once, then reconnect by itself when the browser is back online.
+  useEffect(() => {
+    const down = () => setOffline(true);
+    const up = () => {
+      setOffline(false);
+      if (phase === "desktop") {
+        toast.success("Back online — reconnecting to your Analysis PC.");
+        void reconnectDesktop();
+      }
+    };
+    window.addEventListener("offline", down);
+    window.addEventListener("online", up);
+    return () => {
+      window.removeEventListener("offline", down);
+      window.removeEventListener("online", up);
+    };
+  }, [phase, reconnectDesktop]);
+
+  const stillHere = useSessionKeepalive(sessionId, phase === "desktop" && desktopReady, iframeRef, desktopUrl);
+  const idleSeconds = useCountdown(
+    phase === "desktop" && sessionExp.idle_ends_at
+      ? Math.max(0, Math.round((new Date(sessionExp.idle_ends_at).getTime() - Date.now()) / 1000))
+      : null,
+  );
+  const idlePrompt = phase === "desktop" && idleSeconds != null && idleSeconds <= IDLE_PROMPT_SECONDS;
+  useEffect(() => {
+    if (idlePrompt) announce("Are you still working?", "Your Analysis PC session ends soon if there is no activity.", { tag: "iic-ra-idle" });
+  }, [idlePrompt]);
+
+  const heldForMe = Boolean(experience.awaiting_checkin || experience.checkin?.required);
+  useSeatReadyAlert(heldForMe, `${experience.equipment_name || "Remote Analysis"}`);
 
   useEffect(() => {
     if (phase === "closing") pollNow();
@@ -388,6 +479,18 @@ export default function AnalysisLaunchPage() {
     const mins = Math.ceil(remaining / 60);
     return [10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
   }, [remaining]);
+  useEffect(() => {
+    if (phase !== "desktop" || (warn !== 5 && warn !== 1)) return;
+    announce(
+      `${warn} minute${warn === 1 ? "" : "s"} left on the Analysis PC`,
+      sessionExp.can_extend
+        ? "Save your work, or extend the session from the bar at the top."
+        : "Save your work now. Your results are copied when the session ends.",
+      { tag: `iic-ra-warn-${warn}` },
+    );
+    // Announce once per threshold.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warn, phase]);
 
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
   const filesSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY));
@@ -558,6 +661,11 @@ export default function AnalysisLaunchPage() {
           {warn} minute{warn === 1 ? "" : "s"} remaining
           {sessionExp.extend_blocked_reason ? ` · ${sessionExp.extend_blocked_reason}` : ""}
           {pickerSupported ? " · Save your work now" : " · Save results to the Output folder"}
+          {sessionExp.can_extend ? (
+            <Button size="sm" variant="outline" className="ml-3 h-6 px-2 text-xs" onClick={extendSession} disabled={busy}>
+              Add {Number(sessionExp.extension_minutes || 15)} min
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {phase === "prepare" && (
@@ -602,16 +710,17 @@ export default function AnalysisLaunchPage() {
 
               {syncSupported && sync?.direction === "input" ? <SyncProgressPanel status={sync} /> : null}
 
-              {queue.is_queued ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-                  <p className="font-semibold">You are in the queue</p>
-                  <p className="mt-1 text-muted-foreground">
-                    Position {queue.position ?? "—"} · Est. wait {queue.estimated_wait_minutes ?? "—"} min
-                  </p>
-                </div>
+              {deviceCheck.verdict !== "ok" ? <DeviceCheckPanel check={deviceCheck} compact /> : null}
+
+              {queue.is_queued ? <SeatStatusCard mode="queued" queue={queue} updatedAt={updatedAt} /> : null}
+
+              {offline ? (
+                <p className="flex items-center justify-center gap-2 text-sm text-amber-700 dark:text-amber-300" role="status">
+                  <WifiOff className="h-4 w-4" aria-hidden /> You are offline. This page continues when your connection is back.
+                </p>
               ) : null}
 
-              {error ? <p className="text-center text-sm text-rose-600 dark:text-rose-400">{error}</p> : null}
+              <ErrorNotice error={error} onRetry={() => void reconnectDesktop()} />
 
               <div className="flex justify-center">
                 <Button variant="ghost" size="sm" asChild>
@@ -631,6 +740,48 @@ export default function AnalysisLaunchPage() {
 
       {phase === "desktop" && (
         <div ref={desktopSurfaceRef} className="relative min-h-0 flex-1 bg-black">
+          {offline || timeUp || idlePrompt ? (
+            <div className="absolute inset-0 z-[10060] flex items-center justify-center bg-slate-950/70 p-4" role="alertdialog" aria-live="assertive">
+              <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-6 text-center shadow-2xl dark:bg-card">
+                {offline ? (
+                  <>
+                    <WifiOff className="mx-auto h-8 w-8 text-amber-600" aria-hidden />
+                    <p className="text-lg font-semibold">Connection lost</p>
+                    <p className="text-sm text-muted-foreground">
+                      Your session keeps running on the Analysis PC. This page reconnects by itself as soon as your internet is back.
+                    </p>
+                  </>
+                ) : timeUp ? (
+                  <>
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" aria-hidden />
+                    <p className="text-lg font-semibold">Time is up</p>
+                    <p className="text-sm text-muted-foreground">Ending the session and saving your results…</p>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="mx-auto h-8 w-8 text-amber-600" aria-hidden />
+                    <p className="text-lg font-semibold">Are you still working?</p>
+                    <p className="text-sm text-muted-foreground">
+                      There has been no activity for a while. The session ends in{" "}
+                      <span className="font-semibold tabular-nums text-foreground">
+                        {Math.floor((idleSeconds || 0) / 60)}:{String((idleSeconds || 0) % 60).padStart(2, "0")}
+                      </span>{" "}
+                      and your results are saved.
+                    </p>
+                    <Button
+                      onClick={() => {
+                        stillHere();
+                        void refreshSummary();
+                        focusDesktop();
+                      }}
+                    >
+                      I am still working
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : null}
           {!desktopReady && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90">
               <div className="mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-white p-6 shadow-2xl dark:bg-card sm:p-7">
@@ -645,7 +796,7 @@ export default function AnalysisLaunchPage() {
                   onCancel={() => navigate(`/analysis-workspace/${bookingPk}`)}
                   cancelLabel="Cancel"
                 />
-                {error ? <p className="mt-3 text-center text-sm text-rose-600 dark:text-rose-400">{error}</p> : null}
+                <ErrorNotice error={error} onRetry={() => void reconnectDesktop()} />
               </div>
             </div>
           )}
@@ -768,6 +919,28 @@ export default function AnalysisLaunchPage() {
           pollNow();
         }}
       />
+    </div>
+  );
+}
+
+function ErrorNotice({ error, onRetry }: { error: string | null; onRetry: () => void }) {
+  const friendly = friendlyAnalysisError(error);
+  if (!friendly) return null;
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-3 text-left text-sm",
+        friendly.transient ? "border-sky-500/30 bg-sky-500/5" : "border-rose-500/30 bg-rose-500/5",
+      )}
+      role={friendly.transient ? "status" : "alert"}
+    >
+      <p className="font-semibold">{friendly.title}</p>
+      <p className="mt-0.5 text-muted-foreground">{friendly.detail}</p>
+      {friendly.action === "retry" || friendly.action === "reconnect" ? (
+        <Button size="sm" variant="outline" className="mt-2 h-7" onClick={onRetry}>
+          Try again
+        </Button>
+      ) : null}
     </div>
   );
 }
