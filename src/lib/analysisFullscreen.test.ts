@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { enterPageFullscreen } from "./analysisFullscreen";
+import { enterPageFullscreen, sessionViewport } from "./analysisFullscreen";
 
 function setPointer(coarse: boolean) {
   window.matchMedia = vi.fn().mockReturnValue({ matches: coarse }) as unknown as typeof window.matchMedia;
@@ -29,5 +30,22 @@ describe("enterPageFullscreen", () => {
     document.documentElement.requestFullscreen = vi.fn().mockRejectedValue(new Error("denied"));
     expect(() => enterPageFullscreen()).not.toThrow();
     await Promise.resolve();
+  });
+});
+
+describe("sessionViewport", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("opens the desktop at the full screen size on a computer", () => {
+    setPointer(false);
+    vi.spyOn(window, "screen", "get").mockReturnValue({ width: 1536, height: 864 } as Screen);
+    expect(sessionViewport(null, 64)).toMatchObject({ width: 1536, height: 864 });
+  });
+
+  it("uses the visible area on phones", () => {
+    setPointer(true);
+    vi.spyOn(window, "screen", "get").mockReturnValue({ width: 1536, height: 864 } as Screen);
+    const v = sessionViewport(null, 64);
+    expect(v.width).toBe(window.innerWidth);
   });
 });

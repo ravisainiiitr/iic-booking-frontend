@@ -38,7 +38,7 @@ import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
-import { enterPageFullscreen } from "@/lib/analysisFullscreen";
+import { enterPageFullscreen, sessionViewport } from "@/lib/analysisFullscreen";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderInput, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
@@ -135,6 +135,32 @@ function reservedChromePx() {
   return window.innerWidth >= 1024 ? 64 : 112;
 }
 
+/**
+ * Whether the remote desktop has drawn a picture: a large canvas with at least one non-black pixel. Returns null
+ * when it cannot be checked (cross-origin frame, or the browser blocks reading the canvas).
+ */
+function desktopPainted(frame: HTMLIFrameElement | null): boolean | null {
+  try {
+    const doc = frame?.contentDocument;
+    if (!doc) return null;
+    const canvases = Array.from(doc.querySelectorAll("canvas")).filter((c) => c.width >= 100 && c.height >= 100);
+    if (!canvases.length) return false;
+    for (const c of canvases) {
+      const ctx = c.getContext("2d");
+      if (!ctx) continue;
+      for (let i = 1; i < 8; i += 1) {
+        for (let j = 1; j < 8; j += 1) {
+          const [r, g, b] = ctx.getImageData(Math.floor((c.width * i) / 8), Math.floor((c.height * j) / 8), 1, 1).data;
+          if (r + g + b > 24) return true;
+        }
+      }
+    }
+    return false;
+  } catch {
+    return null;
+  }
+}
+
 export default function AnalysisLaunchPage() {
   const { bookingId } = useParams();
   const [search] = useSearchParams();
@@ -172,14 +198,14 @@ export default function AnalysisLaunchPage() {
   const deviceBlocked = deviceCheck.verdict === "block";
   const [offline, setOffline] = useState(typeof navigator !== "undefined" && navigator.onLine === false);
   const [timeUp, setTimeUp] = useState(false);
-  /** Re-connecting at a new size after fullscreen or a window resize ("Adjusting to your screen…"). */
-  const [refitting, setRefitting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  /** The remote desktop size (CSS px) the current connection was opened with. */
-  const fittedSize = useRef<{ width: number; height: number } | null>(null);
-  /** Bumped to remount the desktop frame: a new connection address may differ only after "#", which does not reload a frame. */
-  const [frameKey, setFrameKey] = useState(0);
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
+  /** In full screen the session bar hides; it slides in when the pointer reaches the top edge. */
+  const [barShown, setBarShown] = useState(false);
+  const barTimer = useRef<number | undefined>(undefined);
+  /** The desktop did not appear even after one automatic retry. */
+  const [desktopStuck, setDesktopStuck] = useState(false);
+  const paintRetried = useRef(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
     if (summary) setUpdatedAt(Date.now());
@@ -230,8 +256,7 @@ export default function AnalysisLaunchPage() {
 
   const postLaunch = useCallback(async () => {
     lastLaunchAt.current = Date.now();
-    const viewport = measureViewport(desktopSurfaceRef.current, reservedChromePx());
-    fittedSize.current = { width: viewport.width, height: viewport.height };
+    const viewport = sessionViewport(desktopSurfaceRef.current, reservedChromePx());
     const res = await apiClient.launchBookingAnalysisDesktop(bookingPk, { viewport });
     if (res.error) {
       setError(res.error);
@@ -404,6 +429,7 @@ export default function AnalysisLaunchPage() {
   }, [phase, desktopReady]);
 
   const reconnectDesktop = useCallback(async () => {
+    setDesktopStuck(false);
     desktopResolved.current = false;
     lastLaunchAt.current = 0;
     setDesktopUrl(null);
@@ -413,50 +439,44 @@ export default function AnalysisLaunchPage() {
     pollLaunchNow();
   }, [pollLaunchNow]);
 
-  // Fullscreen only scales a fixed-size desktop, which leaves black bars. When the desktop area settles at a new
-  // size (fullscreen on/off, window resized), reconnect at exactly that size. The Windows session, its programs and
-  // files are untouched; only the view is re-opened. Live "display-update" resizing is avoided on purpose: inside an
-  // iframe it could briefly report a near-zero height and shrink Windows to a few pixels.
-  const refitDesktop = useCallback(async () => {
-    const surface = desktopSurfaceRef.current;
-    if (!surface || phase !== "desktop" || !desktopReady || refitting) return;
-    const viewport = measureViewport(surface, 0);
-    const fitted = fittedSize.current;
-    if (fitted && Math.abs(fitted.width - viewport.width) < 24 && Math.abs(fitted.height - viewport.height) < 24) return;
-    setRefitting(true);
-    try {
-      const res = await apiClient.launchBookingAnalysisDesktop(bookingPk, { viewport });
-      const launchUrl = typeof res.data?.launch_url === "string" ? res.data.launch_url : "";
-      if (res.error || !launchUrl) throw new Error(res.error || "No new connection was issued.");
-      const url = await resolveGuacamoleDesktopUrl(launchUrl);
-      if (!url) throw new Error("No new connection was issued.");
-      fittedSize.current = { width: viewport.width, height: viewport.height };
-      setDesktopUrl(url);
-      setFrameKey((k) => k + 1);
-    } catch {
-      setRefitting(false);
-      toast.message("Could not adjust the desktop to your screen.", { description: "Use Reconnect if the desktop looks too small." });
-    }
-  }, [phase, desktopReady, refitting, bookingPk]);
-
-  // The overlay can never stick: if the new view has not loaded within 20 s, drop it and keep what is shown.
+  // A view that stays black: retry once on its own, then offer Reconnect. Checked 8 s after the frame loads
+  // (or 25 s after it was opened, if it never loads).
+  const [frameLoadedAt, setFrameLoadedAt] = useState<number | null>(null);
   useEffect(() => {
-    if (!refitting) return;
-    const t = window.setTimeout(() => setRefitting(false), 20000);
+    setFrameLoadedAt(null);
+  }, [desktopUrl]);
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopUrl) return;
+    const t = window.setTimeout(
+      () => {
+        const painted = desktopPainted(iframeRef.current);
+        if (painted !== false) {
+          paintRetried.current = false;
+          return;
+        }
+        if (!paintRetried.current) {
+          paintRetried.current = true;
+          void reconnectDesktop();
+        } else {
+          setDesktopStuck(true);
+        }
+      },
+      frameLoadedAt ? 8000 : 25000,
+    );
     return () => window.clearTimeout(t);
-  }, [refitting]);
+  }, [phase, desktopUrl, frameLoadedAt, reconnectDesktop]);
 
   // Not in full screen when the desktop appears (the browser refused it at the click, or the page was reopened):
   // offer it once, as a single click.
   useEffect(() => {
-    if (phase !== "desktop" || !desktopReady || document.fullscreenElement) {
+    if (phase !== "desktop" || !desktopReady || placementOpen || document.fullscreenElement) {
       setFullscreenPrompt(false);
       return;
     }
     setFullscreenPrompt(true);
     const t = window.setTimeout(() => setFullscreenPrompt(false), 12000);
     return () => window.clearTimeout(t);
-  }, [phase, desktopReady]);
+  }, [phase, desktopReady, placementOpen]);
 
   useEffect(() => {
     const onFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -464,21 +484,25 @@ export default function AnalysisLaunchPage() {
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
+  const showBar = useCallback(() => {
+    window.clearTimeout(barTimer.current);
+    setBarShown(true);
+  }, []);
+  const hideBarSoon = useCallback(() => {
+    window.clearTimeout(barTimer.current);
+    barTimer.current = window.setTimeout(() => setBarShown(false), 2000);
+  }, []);
+  // Entering full screen shows the bar for a moment, so people see where the controls went.
   useEffect(() => {
-    if (phase !== "desktop" || !desktopReady) return;
-    let timer: number | undefined;
-    const schedule = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => void refitDesktop(), 900);
-    };
-    document.addEventListener("fullscreenchange", schedule);
-    window.addEventListener("resize", schedule);
-    return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("fullscreenchange", schedule);
-      window.removeEventListener("resize", schedule);
-    };
-  }, [phase, desktopReady, refitDesktop]);
+    if (!isFullscreen) {
+      window.clearTimeout(barTimer.current);
+      setBarShown(false);
+      return;
+    }
+    showBar();
+    hideBarSoon();
+  }, [isFullscreen, showBar, hideBarSoon]);
+  useEffect(() => () => window.clearTimeout(barTimer.current), []);
 
   const requestDesktopFullscreenRef = useRef<(() => Promise<void>) | null>(null);
   const toggleFullscreen = useCallback(async () => {
@@ -493,12 +517,9 @@ export default function AnalysisLaunchPage() {
     await requestDesktopFullscreenRef.current?.();
   }, []);
 
+  // The whole page goes full screen (not only the desktop frame), so the session bar and popups stay usable.
   const requestDesktopFullscreen = useCallback(async () => {
-    const target = desktopSurfaceRef.current || iframeRef.current;
-    if (!target) {
-      toast.error("The desktop is not ready yet. Wait a moment, then try Fullscreen again.");
-      return;
-    }
+    const target = document.documentElement;
     const req =
       target.requestFullscreen?.bind(target) ||
       (target as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void }).webkitRequestFullscreen?.bind(target);
@@ -741,10 +762,32 @@ export default function AnalysisLaunchPage() {
     <div
       className={cn(
         "flex min-h-screen flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-background to-background dark:from-slate-950",
-        phase === "desktop" && "h-[100dvh] overflow-hidden",
+        // The session covers the whole window: no portal header or menu, just the session bar and the desktop.
+        // z-[49] keeps popups (z-50 and up) above it.
+        phase === "desktop" && "fixed inset-0 z-[49] h-[100dvh] overflow-hidden bg-black",
       )}
     >
+      {phase === "desktop" && isFullscreen && !barShown ? (
+        <div
+          className="absolute inset-x-0 top-0 z-[70] h-2"
+          data-testid="session-bar-reveal"
+          onMouseEnter={() => {
+            showBar();
+            hideBarSoon();
+          }}
+        />
+      ) : null}
       {phase === "desktop" && (
+        <div
+          className={cn(
+            isFullscreen && "absolute inset-x-0 top-0 z-[60] transition-transform duration-200",
+            isFullscreen && !barShown && "-translate-y-full",
+          )}
+          data-testid="session-bar"
+          data-shown={isFullscreen ? String(barShown) : "true"}
+          onMouseEnter={isFullscreen ? showBar : undefined}
+          onMouseLeave={isFullscreen ? hideBarSoon : undefined}
+        >
         <AnalysisWorkspaceChrome
           compact
           equipmentName={equipment}
@@ -762,7 +805,7 @@ export default function AnalysisLaunchPage() {
           showReturnToDashboard
           confirmLeaveSession
           rightSlot={
-            syncSupported || placementInfo?.supported ? (
+            syncSupported || placementInfo?.supported || isFullscreen ? (
               <div className="flex items-center gap-2">
                 {placementInfo?.supported ? (
                   <Button
@@ -815,10 +858,21 @@ export default function AnalysisLaunchPage() {
                     Sync now
                   </Button>
                 ) : null}
+                {isFullscreen ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => void reconnectDesktop()}>
+                      Reconnect
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => void toggleFullscreen()}>
+                      Exit full screen
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ) : null
           }
         />
+        </div>
       )}
       {phase === "desktop" && warn != null ? (
         <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200">
@@ -948,7 +1002,6 @@ export default function AnalysisLaunchPage() {
           {desktopUrl ? (
             <>
               <iframe
-                key={frameKey}
                 ref={iframeRef}
                 title="Analysis PC"
                 src={desktopUrl}
@@ -963,6 +1016,7 @@ export default function AnalysisLaunchPage() {
                 }}
                 onLoad={() => {
                   bindDesktopFocus();
+                  setFrameLoadedAt(Date.now());
                   window.setTimeout(() => {
                     setDesktopReady(true);
                     try {
@@ -972,11 +1026,10 @@ export default function AnalysisLaunchPage() {
                       /* cross-origin remote desktop — ignore */
                     }
                     focusDesktop();
-                    setRefitting(false);
                   }, 800);
                 }}
               />
-              {fullscreenPrompt && !isFullscreen && !refitting ? (
+              {fullscreenPrompt && !isFullscreen && !desktopStuck ? (
                 <div className="absolute left-1/2 top-3 z-[10055] -translate-x-1/2">
                   <Button
                     size="sm"
@@ -986,13 +1039,19 @@ export default function AnalysisLaunchPage() {
                       enterPageFullscreen();
                     }}
                   >
-                    Use full screen
+                    Enter full screen
                   </Button>
                 </div>
               ) : null}
-              {refitting ? (
-                <div className="absolute inset-0 z-[10055] flex items-center justify-center bg-black/70 text-sm text-white" role="status">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Adjusting to your screen…
+              {desktopStuck ? (
+                <div className="absolute inset-0 z-[10055] flex items-center justify-center bg-slate-950/85 p-4" role="alertdialog">
+                  <div className="max-w-sm rounded-xl bg-white p-5 text-center shadow-2xl dark:bg-card">
+                    <p className="font-medium">The Analysis PC desktop did not appear</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Your session and files are safe. Reconnect to open the view again.</p>
+                    <Button className="mt-4" onClick={() => void reconnectDesktop()}>
+                      Reconnect
+                    </Button>
+                  </div>
                 </div>
               ) : null}
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
@@ -1023,10 +1082,7 @@ export default function AnalysisLaunchPage() {
                   <span />
                 )}
                 <div
-                  className={cn(
-                    "pointer-events-auto flex gap-2 transition-opacity",
-                    isFullscreen && "rounded-lg p-1 opacity-10 hover:bg-black/40 hover:opacity-100 focus-within:opacity-100",
-                  )}
+                  className={cn("pointer-events-auto flex gap-2", isFullscreen && "hidden")}
                   data-testid="desktop-controls"
                 >
                   <Button
@@ -1081,6 +1137,8 @@ export default function AnalysisLaunchPage() {
         onOpenChange={(next) => {
           setPlacementOpen(next);
           if (!next) {
+            // Closing the popup (Not now, Keep working, Done) is a click too: go straight to the full-screen desktop.
+            enterPageFullscreen();
             void apiClient.getInputPlacement(bookingPk).then((res) => res.data && setPlacementInfo(res.data));
             try {
               window.sessionStorage.setItem(`ra-input-placement:${sessionIdRef.current || ""}`, "dismissed");

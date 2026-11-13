@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { enterPageFullscreen } from "@/lib/analysisFullscreen";
 
 const POLL_MS = 1200;
 const GIVE_UP_MS = 210_000;
@@ -118,6 +119,8 @@ export function InputPlacementDialog({
   );
 
   const save = async () => {
+    // First, while the click still counts: the desktop opens in full screen as the copy starts.
+    enterPageFullscreen();
     if (!cleanName) {
       setError("Give the folder a name, for example your booking ID.");
       return;

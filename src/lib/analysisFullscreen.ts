@@ -1,3 +1,6 @@
+import type { AnalysisViewport } from "@/lib/analysisSetupTypes";
+import { measureViewport } from "@/lib/analysisSync";
+
 /**
  * Full screen for Remote Analysis sessions.
  *
@@ -24,4 +27,18 @@ export function enterPageFullscreen(): void {
 
 export function isFullscreen(): boolean {
   return typeof document !== "undefined" && Boolean(document.fullscreenElement);
+}
+
+/**
+ * The size the remote desktop is opened at. On a computer this is the whole screen, so entering or leaving full
+ * screen never needs a reconnect (each reconnect risked a black view): in a window the desktop is simply shown a
+ * little smaller. Phones and tablets get the visible area, as before.
+ */
+export function sessionViewport(surface: HTMLElement | null, reservedTopPx: number): AnalysisViewport {
+  const measured = measureViewport(surface, reservedTopPx);
+  const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+  const sw = Math.round(Number(window.screen?.width) || 0);
+  const sh = Math.round(Number(window.screen?.height) || 0);
+  if (coarse || sw < 1024 || sh < 600) return measured;
+  return { width: sw, height: sh, dpr: measured.dpr };
 }
