@@ -9,6 +9,7 @@ import {
   type AnalysisSetupRequest,
 } from "@/lib/analysisSetupTypes";
 import { formatBytes, plural } from "@/lib/analysisSync";
+import { enterPageFullscreen } from "@/lib/analysisFullscreen";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -266,6 +267,8 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
   }, [step, uploads.busy, uploads.items, finalizeUploads]);
 
   const prepare = async () => {
+    // First, while the click still counts: the session that follows opens in full screen.
+    enterPageFullscreen();
     setError(null);
     if (step === "uploading") {
       if (uploads.items.some((i) => i.status === "done")) await finalizeUploads();

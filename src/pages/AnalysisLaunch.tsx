@@ -38,6 +38,7 @@ import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
+import { enterPageFullscreen } from "@/lib/analysisFullscreen";
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderInput, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
@@ -176,6 +177,9 @@ export default function AnalysisLaunchPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   /** The remote desktop size (CSS px) the current connection was opened with. */
   const fittedSize = useRef<{ width: number; height: number } | null>(null);
+  /** Bumped to remount the desktop frame: a new connection address may differ only after "#", which does not reload a frame. */
+  const [frameKey, setFrameKey] = useState(0);
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
     if (summary) setUpdatedAt(Date.now());
@@ -428,11 +432,31 @@ export default function AnalysisLaunchPage() {
       if (!url) throw new Error("No new connection was issued.");
       fittedSize.current = { width: viewport.width, height: viewport.height };
       setDesktopUrl(url);
+      setFrameKey((k) => k + 1);
     } catch {
       setRefitting(false);
       toast.message("Could not adjust the desktop to your screen.", { description: "Use Reconnect if the desktop looks too small." });
     }
   }, [phase, desktopReady, refitting, bookingPk]);
+
+  // The overlay can never stick: if the new view has not loaded within 20 s, drop it and keep what is shown.
+  useEffect(() => {
+    if (!refitting) return;
+    const t = window.setTimeout(() => setRefitting(false), 20000);
+    return () => window.clearTimeout(t);
+  }, [refitting]);
+
+  // Not in full screen when the desktop appears (the browser refused it at the click, or the page was reopened):
+  // offer it once, as a single click.
+  useEffect(() => {
+    if (phase !== "desktop" || !desktopReady || document.fullscreenElement) {
+      setFullscreenPrompt(false);
+      return;
+    }
+    setFullscreenPrompt(true);
+    const t = window.setTimeout(() => setFullscreenPrompt(false), 12000);
+    return () => window.clearTimeout(t);
+  }, [phase, desktopReady]);
 
   useEffect(() => {
     const onFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -924,6 +948,7 @@ export default function AnalysisLaunchPage() {
           {desktopUrl ? (
             <>
               <iframe
+                key={frameKey}
                 ref={iframeRef}
                 title="Analysis PC"
                 src={desktopUrl}
@@ -951,6 +976,20 @@ export default function AnalysisLaunchPage() {
                   }, 800);
                 }}
               />
+              {fullscreenPrompt && !isFullscreen && !refitting ? (
+                <div className="absolute left-1/2 top-3 z-[10055] -translate-x-1/2">
+                  <Button
+                    size="sm"
+                    className="shadow-xl"
+                    onClick={() => {
+                      setFullscreenPrompt(false);
+                      enterPageFullscreen();
+                    }}
+                  >
+                    Use full screen
+                  </Button>
+                </div>
+              ) : null}
               {refitting ? (
                 <div className="absolute inset-0 z-[10055] flex items-center justify-center bg-black/70 text-sm text-white" role="status">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Adjusting to your screen…
