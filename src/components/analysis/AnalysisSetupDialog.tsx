@@ -169,7 +169,13 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
   }, [setup, setupMode, bookingId, virtualId, equipmentName, legacy.date, legacy.status, legacy.fileCount]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      submittedRef.current = false;
+      return;
+    }
+    // Saving the setup refreshes `setup` while the session is being started. Resetting then would flash the form
+    // back for a second or two, so after Prepare & Open only an explicit failure returns to the form.
+    if (submittedRef.current) return;
     setError(null);
     setStep("idle");
     setPendingFiles([]);
@@ -205,9 +211,12 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, setup]);
 
+  /** Set once Prepare & Open has handed over to starting the session (see the reset effect above). */
+  const submittedRef = useRef(false);
   const finish = useCallback(
     async (latest: AnalysisSetup | null) => {
       setStep("opening");
+      submittedRef.current = true;
       const inputLabel =
         source === "upload"
           ? "Your uploaded files"
@@ -215,7 +224,10 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
             ? `${inputBooking.virtual_id}${inputBooking.file_count != null ? ` · ${plural(inputBooking.file_count, "file")}` : ""}`
             : virtualId;
       const ok = await onPrepared({ setup: latest, source, inputLabel });
-      if (ok === false) setStep("idle");
+      if (ok === false) {
+        submittedRef.current = false;
+        setStep("idle");
+      }
     },
     [onPrepared, source, inputBooking, virtualId],
   );

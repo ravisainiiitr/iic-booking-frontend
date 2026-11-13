@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { chosenItems } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
-import { AnalysisWorkspaceChrome } from "@/components/analysis/AnalysisWorkspaceChrome";
+import { SessionBar } from "@/components/analysis/SessionBar";
 import type { DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
 import { InputPlacementDialog } from "@/components/analysis/InputPlacementDialog";
 import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
@@ -39,7 +39,7 @@ import { useDeviceCheck } from "@/hooks/use-device-check";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
 import { friendlyAnalysisError } from "@/lib/analysisErrors";
 import { enterPageFullscreen, fullscreenMode, sessionViewport, type FullscreenMode } from "@/lib/analysisFullscreen";
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, FolderInput, FolderPlus, Loader2, RefreshCw, WifiOff } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, WifiOff } from "lucide-react";
 
 type Phase = "prepare" | "desktop" | "closing";
 
@@ -809,91 +809,33 @@ export default function AnalysisLaunchPage() {
           onMouseEnter={isFullscreen ? showBar : undefined}
           onMouseLeave={isFullscreen ? hideBarSoon : undefined}
         >
-        <AnalysisWorkspaceChrome
-          compact
+        <SessionBar
           equipmentName={equipment}
           bookingLabel={virtualId}
           remainingSeconds={remaining}
-          ticking={false}
-          showSessionControls
           canExtend={Boolean(sessionExp.can_extend)}
           extendMinutes={Number(sessionExp.extension_minutes || 15)}
           extendBlockedReason={sessionExp.extend_blocked_reason ? String(sessionExp.extend_blocked_reason) : null}
           busy={busy}
           onExtend={extendSession}
           onEnd={endAnalysis}
-          showEnd
-          showReturnToDashboard
-          confirmLeaveSession
-          rightSlot={
-            (
-              <div className="flex items-center gap-2">
-                {placementInfo?.supported ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setPlacementOpen(true)}
-                    title={
-                      placementInfo.placement?.status === "done"
-                        ? `Your input data is in ${placementInfo.placement.display_path}`
-                        : "Choose where your input data is saved on the Analysis PC"
-                    }
-                  >
-                    <FolderInput className="h-3.5 w-3.5" aria-hidden />
-                    Input data
-                  </Button>
-                ) : null}
-                {syncSupported && pickerSupported ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setFolderDialog("choose")}
-                    title={
-                      filesSupported
-                        ? "Choose the folders and files on the Analysis PC where you saved results"
-                        : "Choose the folders on the Analysis PC where you save results"
-                    }
-                  >
-                    <FolderPlus className="h-3.5 w-3.5" aria-hidden />
-                    {filesSupported ? "Results to save" : "Result folders"}
-                    {chosenFolders.length ? ` (${chosenFolders.length})` : ""}
-                  </Button>
-                ) : null}
-                {syncSupported && liveTransfer ? (
-                  <span className="hidden max-w-[220px] truncate text-xs text-muted-foreground xl:inline" role="status" aria-live="polite">
-                    {liveTransfer.percent != null ? `Syncing ${liveTransfer.percent}%` : liveTransfer.detail || "Syncing…"}
-                  </span>
-                ) : null}
-                {syncSupported ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={syncNow}
-                    disabled={syncing || Boolean(liveTransfer)}
-                    title={`Copy your results to ${destinationLabel} now`}
-                  >
-                    {syncing || liveTransfer ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
-                    Sync now
-                  </Button>
-                ) : null}
-                <Button size="sm" variant="outline" onClick={() => void reconnectDesktop()} title="Open the view of the Analysis PC again">
-                  Reconnect
-                </Button>
-                {fullscreenKind === "browser" ? (
-                  <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground" title="This full screen was started with F11">
-                    Press F11 to exit full screen
-                  </span>
-                ) : (
-                  <Button size="sm" variant={isFullscreen ? "secondary" : "default"} onClick={() => void toggleFullscreen()}>
-                    {isFullscreen ? "Exit full screen" : "Full screen"}
-                  </Button>
-                )}
-              </div>
-            )
+          sync={
+            syncSupported
+              ? {
+                  onSync: syncNow,
+                  running: syncing || Boolean(liveTransfer),
+                  status: liveTransfer
+                    ? liveTransfer.percent != null
+                      ? `Syncing ${liveTransfer.percent}%`
+                      : liveTransfer.detail || "Syncing…"
+                    : null,
+                  destination: destinationLabel,
+                }
+              : null
           }
+          onReconnect={() => void reconnectDesktop()}
+          fullscreen={fullscreenKind}
+          onToggleFullscreen={() => void toggleFullscreen()}
         />
         </div>
       )}

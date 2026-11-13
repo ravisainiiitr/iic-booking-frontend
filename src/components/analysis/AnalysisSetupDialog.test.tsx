@@ -135,6 +135,22 @@ describe("AnalysisSetupDialog — My Research", () => {
     expect(screen.queryByTestId("analysis-setup-dialog")).toBeNull();
   });
 
+  it("does not flash the form back when the saved setup arrives while the session starts", async () => {
+    const onPrepared = vi.fn(() => new Promise<boolean>(() => {}));
+    const view = render(
+      <AnalysisSetupDialog open onOpenChange={vi.fn()} bookingId={42} setup={setup()} legacy={legacy} onPrepared={onPrepared} />,
+    );
+    await waitFor(() => expect(prepareButton().hasAttribute("disabled")).toBe(false));
+    fireEvent.click(prepareButton());
+    await screen.findByTestId("analysis-starting");
+    view.rerender(
+      <AnalysisSetupDialog open onOpenChange={vi.fn()} bookingId={42} setup={setup()} legacy={legacy} onPrepared={onPrepared} />,
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.getByTestId("analysis-starting")).toBeTruthy();
+    expect(screen.queryByTestId("analysis-setup-dialog")).toBeNull();
+  });
+
   it("saves the setup for the current booking and opens", async () => {
     const { onPrepared } = renderDialog();
     await waitFor(() => expect(prepareButton().hasAttribute("disabled")).toBe(false));
