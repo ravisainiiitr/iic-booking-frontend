@@ -17,11 +17,12 @@ export function enterPageFullscreen(): void {
     const root = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
     const request = root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
     const result = request?.() as Promise<void> | undefined;
-    result?.catch?.(() => {
-      /* refused (no recent click, or not allowed): the session page offers a one-click button */
+    result?.catch?.((err: unknown) => {
+      // Refused (no recent click, or not allowed): the session bar has a Full screen button. Logged for support.
+      console.warn("[Remote Analysis] full screen refused:", err instanceof Error ? `${err.name}: ${err.message}` : err);
     });
-  } catch {
-    /* never block starting a session */
+  } catch (err) {
+    console.warn("[Remote Analysis] full screen failed:", err);
   }
 }
 

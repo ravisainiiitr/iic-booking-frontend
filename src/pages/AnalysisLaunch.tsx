@@ -205,7 +205,6 @@ export default function AnalysisLaunchPage() {
   const barTimer = useRef<number | undefined>(undefined);
   /** The desktop did not appear even after one automatic retry. */
   const [desktopStuck, setDesktopStuck] = useState(false);
-  const paintRetried = useRef(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   useEffect(() => {
     if (summary) setUpdatedAt(Date.now());
@@ -439,32 +438,25 @@ export default function AnalysisLaunchPage() {
     pollLaunchNow();
   }, [pollLaunchNow]);
 
-  // A view that stays black: retry once on its own, then offer Reconnect. Checked 8 s after the frame loads
-  // (or 25 s after it was opened, if it never loads).
-  const [frameLoadedAt, setFrameLoadedAt] = useState<number | null>(null);
+  // A view that stays black. Signing in to Windows can take a while (a fresh session profile, Explorer
+  // starting), so check every 3 s and only speak up when nothing has been drawn 45 s after the view opened. Then
+  // offer Reconnect without covering the view: the remote-desktop client reconnects on its own, and a forced
+  // reconnect while Windows is still signing in only starts the wait again.
   useEffect(() => {
-    setFrameLoadedAt(null);
-  }, [desktopUrl]);
-  useEffect(() => {
+    setDesktopStuck(false);
     if (phase !== "desktop" || !desktopUrl) return;
-    const t = window.setTimeout(
-      () => {
-        const painted = desktopPainted(iframeRef.current);
-        if (painted !== false) {
-          paintRetried.current = false;
-          return;
-        }
-        if (!paintRetried.current) {
-          paintRetried.current = true;
-          void reconnectDesktop();
-        } else {
-          setDesktopStuck(true);
-        }
-      },
-      frameLoadedAt ? 8000 : 25000,
-    );
-    return () => window.clearTimeout(t);
-  }, [phase, desktopUrl, frameLoadedAt, reconnectDesktop]);
+    const opened = Date.now();
+    const id = window.setInterval(() => {
+      const painted = desktopPainted(iframeRef.current);
+      if (painted !== false) {
+        setDesktopStuck(false);
+        window.clearInterval(id);
+        return;
+      }
+      if (Date.now() - opened >= 45000) setDesktopStuck(true);
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [phase, desktopUrl]);
 
   // Not in full screen when the desktop appears (the browser refused it at the click, or the page was reopened):
   // offer it once, as a single click.
@@ -805,7 +797,7 @@ export default function AnalysisLaunchPage() {
           showReturnToDashboard
           confirmLeaveSession
           rightSlot={
-            syncSupported || placementInfo?.supported || isFullscreen ? (
+            (
               <div className="flex items-center gap-2">
                 {placementInfo?.supported ? (
                   <Button
@@ -858,18 +850,14 @@ export default function AnalysisLaunchPage() {
                     Sync now
                   </Button>
                 ) : null}
-                {isFullscreen ? (
-                  <>
-                    <Button size="sm" variant="outline" onClick={() => void reconnectDesktop()}>
-                      Reconnect
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => void toggleFullscreen()}>
-                      Exit full screen
-                    </Button>
-                  </>
-                ) : null}
+                <Button size="sm" variant="outline" onClick={() => void reconnectDesktop()} title="Open the view of the Analysis PC again">
+                  Reconnect
+                </Button>
+                <Button size="sm" variant={isFullscreen ? "secondary" : "default"} onClick={() => void toggleFullscreen()}>
+                  {isFullscreen ? "Exit full screen" : "Full screen"}
+                </Button>
               </div>
-            ) : null
+            )
           }
         />
         </div>
@@ -1016,7 +1004,6 @@ export default function AnalysisLaunchPage() {
                 }}
                 onLoad={() => {
                   bindDesktopFocus();
-                  setFrameLoadedAt(Date.now());
                   window.setTimeout(() => {
                     setDesktopReady(true);
                     try {
@@ -1044,14 +1031,11 @@ export default function AnalysisLaunchPage() {
                 </div>
               ) : null}
               {desktopStuck ? (
-                <div className="absolute inset-0 z-[10055] flex items-center justify-center bg-slate-950/85 p-4" role="alertdialog">
-                  <div className="max-w-sm rounded-xl bg-white p-5 text-center shadow-2xl dark:bg-card">
-                    <p className="font-medium">The Analysis PC desktop did not appear</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Your session and files are safe. Reconnect to open the view again.</p>
-                    <Button className="mt-4" onClick={() => void reconnectDesktop()}>
-                      Reconnect
-                    </Button>
-                  </div>
+                <div className="absolute left-1/2 top-3 z-[10055] flex -translate-x-1/2 items-center gap-3 rounded-lg bg-white px-4 py-2 text-sm shadow-2xl dark:bg-card" role="status">
+                  <span>The desktop is taking long to appear. Your session and files are safe.</span>
+                  <Button size="sm" onClick={() => void reconnectDesktop()}>
+                    Reconnect
+                  </Button>
                 </div>
               ) : null}
               <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-[10050] flex flex-wrap items-end justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4">
@@ -1081,29 +1065,6 @@ export default function AnalysisLaunchPage() {
                 ) : (
                   <span />
                 )}
-                <div
-                  className={cn("pointer-events-auto flex gap-2", isFullscreen && "hidden")}
-                  data-testid="desktop-controls"
-                >
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="pointer-events-auto h-8 shadow-lg"
-                    onClick={() => void toggleFullscreen()}
-                  >
-                    {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="pointer-events-auto h-8 shadow-lg"
-                    onClick={() => void reconnectDesktop()}
-                  >
-                    Reconnect
-                  </Button>
-                </div>
               </div>
             </>
           ) : (
