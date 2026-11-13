@@ -72,6 +72,17 @@ function formatUptime(seconds?: unknown) {
   return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 }
 
+function minutesOrNever(value: unknown) {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? (n <= 0 ? "Never" : `${n} min`) : null;
+}
+
+function lidAction(value: unknown) {
+  if (value === null || value === undefined) return "No lid";
+  return ({ 0: "Do nothing", 1: "Sleep", 2: "Hibernate", 3: "Shut down" } as Record<number, string>)[Number(value)] ?? String(value);
+}
+
 function show(value: unknown) {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
@@ -437,6 +448,15 @@ export function DsaFleetPanel({ initialAgentId }: { initialAgentId?: string }) {
                     ["Workspaces", section(diag, "workspaces").total],
                     ["Live feeds running", section(diag, "live_feed").active_sessions],
                     ["UPS units polled", section(diag, "ups").devices],
+                  ]}
+                />
+                <Facts
+                  title="Power (must never sleep)"
+                  rows={[
+                    ["Sleep after (mains)", minutesOrNever(section(diag, "power").standby_ac_minutes)],
+                    ["Hibernate after (mains)", minutesOrNever(section(diag, "power").hibernate_ac_minutes)],
+                    ["Lid closed", lidAction(section(diag, "power").lid_action_ac)],
+                    ["Last put to sleep", section(diag, "power").last_sleep_at ? relativeTime(section(diag, "power").last_sleep_at as string) : null],
                   ]}
                 />
               </div>

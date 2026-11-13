@@ -53,6 +53,7 @@ const detail = {
     equipment_network: { enabled: true, adapter_ip: "10.250.0.1", adapter_up: true },
     uploads: { pending: 3, failed: 1, oldest_pending_age_minutes: 95 },
     problems: { recent: [{ at: now, level: "Error", message: "Upload failed: HTTP 503" }] },
+    power: { supported: true, standby_ac_minutes: 0, hibernate_ac_minutes: 0, lid_action_ac: 0, last_sleep_at: null },
   },
   equipment_pcs: [
     { id: "p1", hostname: "LAB-LAPTOP", online: true, last_heartbeat_at: now, agent_version: "1.0.6", share_ok: true },
@@ -123,6 +124,9 @@ describe("DsaFleetPanel", () => {
     expect(offlineRow.textContent).toContain("Offline");
     expect(screen.getByText("Run 'Retry failed uploads'.")).toBeTruthy();
     expect(screen.getByText(/Upload failed: HTTP 503/)).toBeTruthy();
+    expect(screen.getByText("Power (must never sleep)")).toBeTruthy();
+    expect(screen.getAllByText("Never").length).toBe(2);
+    expect(screen.getByText("Do nothing")).toBeTruthy();
 
     const bundle = screen.getByRole("button", { name: "Collect support bundle" }) as HTMLButtonElement;
     expect(bundle.disabled).toBe(true);
