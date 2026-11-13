@@ -11,14 +11,14 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import ClickableProfileAvatar from "@/components/ClickableProfileAvatar";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, Plus, Trash2, Edit, Wallet } from "lucide-react";
+import { Plus, Trash2, Edit, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import DashboardHeader from "@/components/DashboardHeader";
-import { formatUserDisplayName, getNameInitial } from "@/lib/displayName";
+import { formatUserDisplayName } from "@/lib/displayName";
 import LoginPasswordCard from "@/components/profile/LoginPasswordCard";
 import MobileDevicesCard from "@/components/profile/MobileDevicesCard";
 import WhatsAppCard from "@/components/profile/WhatsAppCard";
@@ -40,7 +40,6 @@ const Profile = () => {
   const { user, loading: authLoading, isAuthenticated, refreshUser, updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [projects, setProjects] = useState<Array<{
     id: number;
     name: string;
@@ -254,32 +253,10 @@ const Profile = () => {
     setLoading(false);
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Only allow upload if no profile picture exists
-    if (profileData.profile_picture || user?.profile_picture) {
-      toast.error("Profile picture already exists. Cannot update.");
-      return;
-    }
-
-    if (!event.target.files || !event.target.files[0] || !user) return;
-
-    const file = event.target.files[0];
-    setUploading(true);
-
-    try {
-      const response = await apiClient.uploadProfileAvatar(file);
-      if (response.error) {
-        throw new Error(response.error);
-      }
-      const data = response.data;
-      setProfileData(prev => ({ ...prev, profile_picture: data?.profile_picture ?? data?.avatar_url ?? null }));
-      await refreshUser();
-      toast.success("Avatar uploaded successfully");
-    } catch (error: any) {
-      toast.error("Error uploading avatar: " + (error?.message ?? String(error)));
-    } finally {
-      setUploading(false);
-    }
+  // The photo can be added or replaced at any time, the same as on the dashboard.
+  const handleAvatarUploaded = async () => {
+    await refreshUser();
+    await fetchProfile();
   };
 
   const isFacultyUser = (): boolean => {
@@ -579,12 +556,16 @@ const Profile = () => {
           <div aria-hidden className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
           <div className="relative flex flex-col gap-5 md:flex-row md:items-center">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 shrink-0 ring-4 ring-white/25">
-                <AvatarImage src={(profileData.profile_picture || user?.profile_picture) ? apiClient.getProfilePictureUrl(profileData.id ?? user?.id) : undefined} alt={formatUserDisplayName({ name: profileData.name, email: profileData.email, user_type: profileData.user_type ?? user?.user_type, display_name: user?.display_name })} />
-                <AvatarFallback className="bg-white/15 text-2xl text-white">
-                  {getNameInitial(profileData.name || user?.name, profileData.email || user?.email, "U")}
-                </AvatarFallback>
-              </Avatar>
+              <ClickableProfileAvatar
+                userId={profileData.id ?? user?.id}
+                userName={profileData.name || user?.name}
+                userEmail={profileData.email || user?.email}
+                hasProfilePicture={Boolean(profileData.profile_picture || user?.profile_picture)}
+                onUploaded={handleAvatarUploaded}
+                avatarClassName="h-16 w-16 shrink-0 ring-4 ring-white/25"
+                fallbackClassName="bg-white/15 text-2xl text-white"
+                overlayRoundedClassName="rounded-full"
+              />
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">My Profile</p>
                 <h1 className="truncate text-xl font-bold tracking-tight sm:text-2xl">
@@ -594,26 +575,11 @@ const Profile = () => {
                 <p className="truncate text-sm text-white/75">
                   {[profileData.department_name, profileData.designation].filter(Boolean).join(" · ") || "Update your personal information and preferences"}
                 </p>
-                {!profileData.profile_picture && !user?.profile_picture && (
-                  <div>
-                    <Input
-                      id="avatar"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarUpload}
-                      disabled={uploading}
-                    />
-                    <Label htmlFor="avatar">
-                      <Button variant="secondary" size="sm" className="mt-2 h-8" asChild disabled={uploading}>
-                        <span className="cursor-pointer">
-                          <Upload className="h-4 w-4 mr-2" />
-                          {uploading ? "Uploading..." : "Upload Avatar"}
-                        </span>
-                      </Button>
-                    </Label>
-                  </div>
-                )}
+                <p className="mt-1 text-xs text-white/70" data-testid="profile-photo-hint">
+                  {profileData.profile_picture || user?.profile_picture
+                    ? "Click your photo to change it."
+                    : "Click the circle to add a photo."}
+                </p>
               </div>
             </div>
             <div className="md:ml-auto md:text-right">
