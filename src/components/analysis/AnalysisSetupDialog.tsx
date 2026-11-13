@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
-import { Check, Copy, Folder, FolderInput, FolderOutput, HardDrive, Loader2, MonitorSmartphone, Upload, X } from "lucide-react";
+import { Check, Copy, Folder, FolderOutput, HardDrive, Loader2, MonitorSmartphone, Upload, X } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import {
   PC_FOLDERS_CAPABILITY,
@@ -374,7 +374,6 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
       ? setup.output.destination_label || LEGACY_DESTINATION
       : `My Research › ${selectedProjectName ?? "your project"} / ${folders.root} / ${folders.processed}`;
   const pcOutputPath = setup ? setup.output.pc_output_path : legacy.outputPath || null;
-  const pcInputPath = setup?.input.pc_input_path || legacy.inputPath || null;
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
   const autoDelete = setup ? setup.output.auto_delete_after_verify : false;
   const n = (base: number) => (useResearch ? base : base - 1);
@@ -594,37 +593,13 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
             </RadioGroup>
           </section>
 
-          <section className="space-y-2.5" aria-label="Your data on the Analysis PC">
-            <SectionTitle n={n(3)}>Your data on the Analysis PC</SectionTitle>
-            <div className="space-y-2 rounded-lg border bg-muted/30 p-3.5 text-sm">
-              <p className="flex items-center gap-1.5 font-medium">
-                <FolderInput className="h-4 w-4 text-primary" aria-hidden />
-                Your input data will be in:
-              </p>
-              {pcInputPath ? (
-                <CopyPath path={pcInputPath} testId="pc-input-path" label="input folder" />
-              ) : (
-                <p className="rounded-md border bg-background px-2.5 py-1.5 text-xs">
-                  The <strong>Input</strong> folder. Its full path is shown once the Analysis PC is ready.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">Open your data from this folder in the analysis software.</p>
-            </div>
-            <div className="space-y-2.5 rounded-lg border border-emerald-300/60 bg-emerald-50/70 p-3.5 text-sm text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/20 dark:text-emerald-50">
-              {pickerSupported ? (
-                <>
-                  <p className="flex items-center gap-1.5 font-medium">
-                    <FolderOutput className="h-4 w-4" aria-hidden />
-                    Save your results anywhere on the Analysis PC
-                  </p>
-                  <p className="leading-relaxed" data-testid="results-explainer">
-                    When you end the session, you choose the folders or files you saved results in. They are copied to{" "}
-                    <strong data-testid="destination-label">{destination}</strong>, then removed from the Analysis PC once the copy
-                    is verified.
-                  </p>
-                </>
-              ) : (
-                <>
+          {/* Where input lands is chosen on the Analysis PC itself (Desktop, Documents or a folder), and results are
+              picked when the session ends, so nothing needs explaining here. Older agents without the folder picker
+              only keep one Output folder, which people must know about before they start. */}
+          {!pickerSupported ? (
+            <section className="space-y-2.5" aria-label="Saving your results">
+              <SectionTitle n={n(3)}>Saving your results</SectionTitle>
+              <div className="space-y-2.5 rounded-lg border border-emerald-300/60 bg-emerald-50/70 p-3.5 text-sm text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/20 dark:text-emerald-50">
                   <p className="flex items-center gap-1.5 font-medium">
                     <FolderOutput className="h-4 w-4" aria-hidden />
                     On the Analysis PC, save everything you want to keep in:
@@ -642,10 +617,9 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
                     {autoDelete ? "Once the copy is verified, it is removed from the Analysis PC. " : ""}
                     Files saved anywhere else on the PC are not kept.
                   </p>
-                </>
-              )}
-            </div>
-          </section>
+              </div>
+            </section>
+          ) : null}
 
           {error ? (
             <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
