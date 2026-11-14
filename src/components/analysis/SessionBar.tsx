@@ -18,6 +18,9 @@ function formatHMS(totalSeconds: number) {
   return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
+/** Extend opens with the first time warning. */
+export const EXTEND_WINDOW_SECONDS = 15 * 60;
+
 const LEAVE_MESSAGE =
   "Leave the Analysis PC and return to the Dashboard?\n\nYour analysis session keeps running until it expires or you end it.";
 
@@ -59,15 +62,15 @@ export function SessionBar({
 }: SessionBarProps) {
   const navigate = useNavigate();
   const remaining = remainingSeconds;
-  // Extend only in the final 2 minutes, and only when the server allows it.
-  const withinExtendWindow = remaining != null && remaining > 0 && remaining <= 120;
+  // Extend in the final 15 minutes (when the first warning appears), as often as needed, while the server allows it.
+  const withinExtendWindow = remaining != null && remaining > 0 && remaining <= EXTEND_WINDOW_SECONDS;
   const extendEnabled = Boolean(canExtend && withinExtendWindow);
   const extendHint = !canExtend
     ? String(extendBlockedReason || "Extension unavailable while others are waiting")
     : remaining == null || remaining <= 0
       ? "Session has ended"
       : !withinExtendWindow
-        ? "Extend becomes available when 2 minutes or less remain"
+        ? "Extend becomes available in the last 15 minutes"
         : `Add ${extendMinutes} minutes`;
 
   const leave = () => {

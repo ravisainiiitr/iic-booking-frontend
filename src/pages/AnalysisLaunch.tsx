@@ -58,6 +58,8 @@ type Experience = {
     can_extend?: boolean;
     extension_minutes?: number;
     extend_blocked_reason?: string | null;
+    /** No-show grace: the next user was told the PC is ready; work on until they join, then 2 minutes to save. */
+    handover?: { active: boolean; next_joined: boolean; ends_at?: string | null } | null;
   };
   desktop_prepare?: Array<{ id: string; label: string; status: string }>;
   data_workspace?: DataWorkspaceInfo | null;
@@ -665,10 +667,10 @@ export default function AnalysisLaunchPage() {
   const warn = useMemo(() => {
     if (remaining == null) return null;
     const mins = Math.ceil(remaining / 60);
-    return [10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
+    return [15, 10, 5, 2, 1].find((m) => mins <= m && remaining > 0) ?? null;
   }, [remaining]);
   useEffect(() => {
-    if (phase !== "desktop" || (warn !== 5 && warn !== 1)) return;
+    if (phase !== "desktop" || (warn !== 15 && warn !== 5 && warn !== 2)) return;
     announce(
       `${warn} minute${warn === 1 ? "" : "s"} left on the Analysis PC`,
       sessionExp.can_extend
@@ -679,6 +681,15 @@ export default function AnalysisLaunchPage() {
     // Announce once per threshold.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warn, phase]);
+
+  // The next user joined during the no-show grace: say so once, plainly.
+  const nextJoined = Boolean(sessionExp.handover?.next_joined);
+  useEffect(() => {
+    if (phase !== "desktop" || !nextJoined) return;
+    announce("The next user has joined", "Save your work now: this session ends in about 2 minutes.", {
+      tag: "iic-ra-handover-joined",
+    });
+  }, [nextJoined, phase]);
 
   const pickerSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FOLDERS_CAPABILITY));
   const filesSupported = Boolean(setup?.agent?.capabilities?.includes(PC_FILES_CAPABILITY));
@@ -839,7 +850,7 @@ export default function AnalysisLaunchPage() {
         />
         </div>
       )}
-      {phase === "desktop" && warn != null ? (
+      {phase === "desktop" && warn != null && (!isFullscreen || warn <= 5 || sessionExp.handover?.active) ? (
         <div
           className={cn(
             "bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:text-amber-200",
