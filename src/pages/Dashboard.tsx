@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, QrCode as QrCodeIcon } from "lucide-react";
+import { ArrowUpDown, Calendar, FileText, Package, Settings, Clock, ArrowRight, BarChart3, TrendingUp, Layout, ClipboardList, Star, Palette, Users, Wallet, MessageSquarePlus, User, Mail, Phone, Building2, BadgeCheck, AlertCircle, IdCard, UserCheck, Send, Receipt, Wrench, ChevronRight, ChevronLeft, FolderTree, Layers, CreditCard, Banknote, Loader2, Undo2, Globe2, CalendarDays, PackageOpen, Archive, ChevronDown, ChevronUp, FlaskConical, LifeBuoy, GitBranch, BookOpen, ShieldCheck, Monitor, Server, HardDrive, Download, Megaphone, Menu, LayoutDashboard, FileCheck2, Share2, RotateCcw, ArrowLeft, BookmarkCheck, GraduationCap, Presentation, School, CalendarCheck2, RefreshCw, ToggleRight, Landmark, BellRing, Link2, History, Activity, QrCode as QrCodeIcon } from "lucide-react";
 import { SRIC_WALLET_RECHARGES_PATH } from "@/lib/walletRecharge";
 import { OFFLINE_RECHARGES_ADMIN_PATH } from "@/lib/offlineRecharge";
 import { STAFF_PROFORMAS_PATH } from "@/lib/savedProformas";
@@ -194,6 +194,10 @@ const WORKSPACE_PAGE_META: Record<string, { title: string; description?: string 
   "/admin/equipment-config-audit": {
     title: "Equipment Configuration Audit Trail",
     description: "Every change to equipment settings: who or which system process, when, from where, before and after.",
+  },
+  "/admin/istem-live": {
+    title: "I-STEM Live",
+    description: "Every portal event sent to I-STEM as it happens, with the time from the event to I-STEM's answer.",
   },
   "/admin/istem-equipment": {
     title: "I-STEM Equipment Mapping",
@@ -2302,6 +2306,44 @@ const Dashboard = () => {
             </Button>
           </CardContent>
         </Card>
+      ),
+    },
+    {
+      id: "istem_live",
+      label: "I-STEM Live",
+      path: "/admin/istem-live",
+      visible: Boolean(isAdmin),
+      render: () => (
+          <Card
+              className="cursor-pointer transition-all duration-200 overflow-hidden border-0 shadow-md hover:shadow-xl hover:-translate-y-0.5 hover:border-emerald-200 dark:hover:border-emerald-800 h-full"
+              onClick={() => openWorkspace("/admin/istem-live")}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-4 mb-1">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg">
+                    <Activity className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg">I-STEM Live</CardTitle>
+                    <CardDescription className="text-sm mt-0.5">
+                      Watch users, bookings, FBR, cancellations and reschedules reach I-STEM in real time
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 mt-3" />
+              </CardHeader>
+              <CardContent>
+                <Button
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openWorkspace("/admin/istem-live");
+                  }}
+                >
+                  Open I-STEM live
+                </Button>
+              </CardContent>
+            </Card>
       ),
     },
     {

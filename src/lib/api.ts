@@ -4527,6 +4527,73 @@ export interface PaymentIssueRow {
   resolved_by?: string;
 }
 
+export type IstemLiveKind =
+  | "user_created" | "user_existing" | "booking_created" | "booking_allocated" | "fbr_executed" | "booking_cancelled"
+  | "booking_moved" | "equipment_created" | string;
+
+export interface IstemLiveEvent {
+  id: string;
+  kind: IstemLiveKind;
+  label: string;
+  operation: string;
+  trigger: string;
+  status: "done" | "sending" | "refused" | "uncertain" | "unknown";
+  error: string;
+  detail: string;
+  portal_at: string | null;
+  sent_at: string | null;
+  answered_at: string | null;
+  wait_seconds: number | null;
+  call_seconds: number | null;
+  total_seconds: number | null;
+  booking_id?: number;
+  booking_ref?: string;
+  equipment?: string;
+  user?: string;
+  fbr_no?: string;
+  request_id?: string;
+  confirmation_id?: string;
+  istem_user_id?: string;
+  istem_equipment_id?: string;
+}
+
+export interface IstemLiveWaiting {
+  id: string;
+  kind: IstemLiveKind;
+  label: string;
+  state: string;
+  trigger: string;
+  queued_at: string | null;
+  next_attempt_at: string | null;
+  age_seconds: number | null;
+  error: string;
+  detail: string;
+  booking_ref?: string;
+  equipment?: string;
+  user?: string;
+}
+
+export interface IstemLiveStat {
+  kind: IstemLiveKind;
+  label: string;
+  calls: number;
+  failed: number;
+  median_total_seconds: number | null;
+  slowest_total_seconds: number | null;
+  median_call_seconds: number | null;
+}
+
+export interface IstemLiveFeed {
+  server_time: string;
+  since: string;
+  realtime: boolean;
+  mode: string;
+  peak: { active: boolean; ends_at: string | null };
+  events: IstemLiveEvent[];
+  waiting: IstemLiveWaiting[];
+  stats: IstemLiveStat[];
+}
+
 export type HealthStatus = "ok" | "warn" | "fail" | "off";
 
 export interface IntegrationHealthCheck {
@@ -9048,6 +9115,12 @@ class ApiClient {
   }
 
   /** I-STEM equipment mapping: instruments the user manages, with their I-STEM equipment IDs. */
+  /** Main Administrator: every call to I-STEM, newest first, with the time from the portal event to I-STEM's answer. */
+  async getIstemLiveFeed(since?: string) {
+    const query = since ? `?since=${encodeURIComponent(since)}` : '';
+    return this.request<IstemLiveFeed>(`/istem/live/${query}`, { method: 'GET' });
+  }
+
   async getIstemEquipmentMappings() {
     return this.request<IstemEquipmentMappingList>('/istem/equipment-mappings/', { method: 'GET' });
   }
