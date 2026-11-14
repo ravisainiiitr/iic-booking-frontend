@@ -18746,6 +18746,38 @@ class ApiClient {
     }>('/v1/deployment/center/', { method: 'GET' });
   }
 
+  /**
+   * One-click DSA installer: the download carries a single-use setup key (minted when the file is
+   * fetched, expires within 24 h) so the lab PC installs and enrols with no sign-in. Main Admin only.
+   */
+  async createDsaOneClickTicket(body: { department_id: number; ttl_hours?: number }) {
+    return this.request<{
+      url: string;
+      expires_in: number;
+      filename: string;
+      version: string;
+      key_ttl_hours: number;
+      department: string;
+    }>('/v1/sync/installer/releases/latest/one-click-ticket/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** One-click Equipment PC Wizard for one instrument (file name + trailer carry the equipment code). */
+  async createEquipmentWizardOneClickTicket(body: { equipment_id: number; data_folder?: string }) {
+    return this.request<{
+      url: string;
+      expires_in: number;
+      filename: string;
+      version: string;
+      equipment_code: string;
+    }>('/v1/deployment/wizard/releases/latest/one-click-ticket/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
   async createEquipmentWizardDownloadTicket(opts?: { signal?: AbortSignal }) {
     return this.request<{
       token: string;
