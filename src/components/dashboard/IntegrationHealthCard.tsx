@@ -30,6 +30,17 @@ export function componentStatus(checks: IntegrationHealthCheck[], component: str
   return own.reduce<HealthStatus>((acc, c) => (RANK[c.status] > RANK[acc] ? c.status : acc), "off");
 }
 
+/** "1 problem · 1 warning": failures are problems; warnings (still working, needs a follow-up) are counted apart. */
+export function overallLabel(problems: IntegrationHealthCheck[]): string {
+  const failing = problems.filter((c) => c.status === "fail").length;
+  const warnings = problems.length - failing;
+  const parts = [
+    failing ? `${failing} ${failing === 1 ? "problem" : "problems"}` : "",
+    warnings ? `${warnings} ${warnings === 1 ? "warning" : "warnings"}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "All working";
+}
+
 const timeFormat = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" });
 
 /**
@@ -87,7 +98,7 @@ export default function IntegrationHealthCard({ className }: { className?: strin
             <span className={cn("h-2.5 w-2.5 rounded-full", style.dot)} aria-hidden />
             System health
             <span className={cn("text-xs font-medium", style.text)} data-testid="integration-health-overall">
-              {problems.length ? `${problems.length} ${problems.length === 1 ? "problem" : "problems"}` : "All working"}
+              {overallLabel(problems)}
             </span>
           </CardTitle>
           <CardDescription className="mt-0.5 text-xs">

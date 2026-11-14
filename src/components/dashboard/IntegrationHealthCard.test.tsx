@@ -47,6 +47,15 @@ describe("IntegrationHealthCard", () => {
     expect(screen.getByText(/Approve the display name/)).toBeTruthy();
   });
 
+  it("counts a warning apart from failures and colours its service amber", async () => {
+    const warn = { key: "whatsapp_live", component: "whatsapp", title: "Meta accepts messages from the WhatsApp number", status: "warn" as const,
+      summary: "Messages are going out.", items: [], action: "", count: 0 };
+    api.getIntegrationHealth.mockResolvedValue({ data: health({ overall: "warn", checks: [health().checks[0], warn] }) });
+    render(<IntegrationHealthCard />);
+    expect((await screen.findByTestId("integration-health-overall")).textContent).toBe("1 warning");
+    expect(screen.getByTestId("health-whatsapp").getAttribute("data-status")).toBe("warn");
+  });
+
   it("runs the checks and fixes on demand", async () => {
     api.getIntegrationHealth.mockResolvedValue({ data: health() });
     api.runIntegrationHealth.mockResolvedValue({ data: health({ overall: "ok", checks: [health().checks[0]] }) });
