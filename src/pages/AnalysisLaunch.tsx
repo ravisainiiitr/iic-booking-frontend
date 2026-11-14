@@ -22,6 +22,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { chosenItems } from "@/lib/pcFolders";
 import { cn } from "@/lib/utils";
 import { SessionBar } from "@/components/analysis/SessionBar";
+import { TransferProgressCard } from "@/components/analysis/TransferProgressCard";
+import {
+  describeInputPreload,
+  describeOutputUpload,
+  formatClock,
+  transferPercent,
+  type InputPreload,
+  type KeepRunning,
+  type OutputUpload,
+  type TransferView,
+} from "@/lib/analysisTransfers";
 import type { DataWorkspaceInfo } from "@/components/analysis/DataWorkspaceBanner";
 import { InputPlacementDialog } from "@/components/analysis/InputPlacementDialog";
 import { AnalysisEnvironmentProgress } from "@/components/analysis/AnalysisEnvironmentProgress";
@@ -60,7 +71,10 @@ type Experience = {
     extend_blocked_reason?: string | null;
     /** No-show grace: the next user was told the PC is ready; work on until they join, then 2 minutes to save. */
     handover?: { active: boolean; next_joined: boolean; ends_at?: string | null } | null;
+    input_preload?: InputPreload | null;
+    keep_running?: KeepRunning | null;
   };
+  output_upload?: OutputUpload | null;
   desktop_prepare?: Array<{ id: string; label: string; status: string }>;
   data_workspace?: DataWorkspaceInfo | null;
 };
@@ -192,7 +206,9 @@ export default function AnalysisLaunchPage() {
   const [bookingLabel, setBookingLabel] = useState<string>("");
 
   const live = useAnalysisLiveState(bookingPk, {
-    summaryEveryMs: phase === "prepare" ? 10000 : null,
+    // During the session the server's view (handover, keep-running, files arriving) refreshes every 30 s; after it,
+    // every 5 s so the results upload progress moves.
+    summaryEveryMs: phase === "prepare" ? 10000 : phase === "desktop" ? 30000 : phase === "closing" ? 5000 : null,
     legacySummaryEveryMs: phase === "prepare" ? 10000 : phase === "closing" ? 5000 : null,
   });
   const { summary, sync, syncSupported, refreshSummary, pollNow } = live;
@@ -715,6 +731,45 @@ export default function AnalysisLaunchPage() {
     }
   };
 
+  const preloadView = describeInputPreload(sessionExp.input_preload);
+  const outputView = describeOutputUpload(experience.output_upload);
+  const arrivingPercent =
+    sessionExp.input_preload && sessionExp.input_preload.state === "downloading"
+      ? transferPercent(sessionExp.input_preload.bytes_done, sessionExp.input_preload.bytes_total)
+      : null;
+
+  // Long calculations: leave the session running while nobody needs the PC (Windows stays signed in).
+  const keepRunning = async () => {
+    const until = formatClock(sessionExp.keep_running?.until);
+    const ok = window.confirm(
+      "Keep your session running on the Analysis PC?\n\n" +
+        "Your programs keep working while nobody else needs this PC. " +
+        (until ? `It is saved and closed at ${until}, before the next booking. ` : "It is saved and closed before the next booking. ") +
+        "You can reconnect any time from your booking.",
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await apiClient.keepRunningBookingAnalysis(bookingPk);
+      if (res.error) {
+        toast.error(res.error);
+        return;
+      }
+      const closesAt = formatClock(res.data?.until) || until;
+      toast.success("Your session keeps running", {
+        description: closesAt ? `It is saved and closed at ${closesAt}. Reconnect from your booking.` : "Reconnect from your booking.",
+      });
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+      } catch {
+        /* already left */
+      }
+      navigate(`/analysis-workspace/${bookingPk}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const extendSession = async () => {
     setBusy(true);
     try {
@@ -845,6 +900,8 @@ export default function AnalysisLaunchPage() {
               : null
           }
           onReconnect={() => void reconnectDesktop()}
+          onKeepRunning={sessionExp.keep_running?.allowed ? () => void keepRunning() : null}
+          arrivingPercent={arrivingPercent}
           fullscreen={fullscreenKind}
           onToggleFullscreen={() => void toggleFullscreen()}
         />
@@ -864,6 +921,11 @@ export default function AnalysisLaunchPage() {
           {sessionExp.can_extend ? (
             <Button size="sm" variant="outline" className="ml-3 h-6 px-2 text-xs" onClick={extendSession} disabled={busy}>
               Add {Number(sessionExp.extension_minutes || 15)} min
+            </Button>
+          ) : null}
+          {sessionExp.keep_running?.allowed ? (
+            <Button size="sm" variant="outline" className="ml-2 h-6 px-2 text-xs" onClick={() => void keepRunning()} disabled={busy}>
+              Keep it running
             </Button>
           ) : null}
         </div>
@@ -896,6 +958,8 @@ export default function AnalysisLaunchPage() {
               />
 
               {syncSupported && sync?.direction === "input" ? <SyncProgressPanel status={sync} /> : null}
+
+              {preloadView ? <TransferProgressCard view={preloadView} testId="prepare-input-preload" /> : null}
 
               {deviceCheck.verdict !== "ok" ? <DeviceCheckPanel check={deviceCheck} compact /> : null}
 
@@ -1067,7 +1131,16 @@ export default function AnalysisLaunchPage() {
         </div>
       )}
 
-      {phase === "closing" && (
+      {phase === "closing" && outputView ? (
+        <OutboxFinishScreen
+          equipment={equipment}
+          virtualId={virtualId}
+          bookingPk={bookingPk}
+          view={outputView}
+          myResearchHref={experience.output_upload?.my_research_href || (eligible ? myResearchHref : null)}
+        />
+      ) : null}
+      {phase === "closing" && !outputView && (
         <FinishScreen
           equipment={equipment}
           virtualId={virtualId}
@@ -1175,6 +1248,44 @@ const WAITING: AnalysisSyncStatus = {
   updated_at: null,
   poll_after_ms: 2000,
 };
+
+/** The session is over and the PC is already free; results upload in the background from the PC's outbox. */
+function OutboxFinishScreen({
+  equipment,
+  virtualId,
+  bookingPk,
+  view,
+  myResearchHref,
+}: {
+  equipment: string;
+  virtualId: string;
+  bookingPk: number;
+  view: TransferView;
+  myResearchHref: string | null;
+}) {
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col justify-center gap-6 p-6" data-testid="outbox-finish-screen">
+      <div className="text-center">
+        <h1 className="text-xl font-semibold tracking-tight">Your session has ended</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {equipment} · {virtualId}. The Analysis PC is free for the next user.
+        </p>
+      </div>
+      <TransferProgressCard view={view} href={myResearchHref} hrefLabel="Open in My Research" />
+      <p className="text-center text-xs text-muted-foreground">
+        You are told in the portal, by email and on WhatsApp when every file is uploaded and checked.
+      </p>
+      <div className="flex justify-center gap-2">
+        <Button asChild variant="outline">
+          <Link to={`/analysis-workspace/${bookingPk}`}>Back to the booking</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link to="/dashboard">Dashboard</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function FinishScreen({
   equipment,

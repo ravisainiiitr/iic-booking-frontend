@@ -23,6 +23,15 @@ import { SyncProgressPanel } from "@/components/analysis/SyncProgressPanel";
 import { EndSessionDialog } from "@/components/analysis/EndSessionDialog";
 import { useAnalysisLiveState } from "@/components/analysis/useAnalysisLiveState";
 import { SeatStatusCard, type SeatQueue } from "@/components/analysis/SeatStatusCard";
+import { TransferProgressCard } from "@/components/analysis/TransferProgressCard";
+import {
+  describeInputPreload,
+  describeOutputUpload,
+  formatClock,
+  type InputPreload,
+  type KeepRunning,
+  type OutputUpload,
+} from "@/lib/analysisTransfers";
 import { DeviceCheckPanel } from "@/components/analysis/DeviceCheckPanel";
 import { useDeviceCheck } from "@/hooks/use-device-check";
 import { useSeatReadyAlert } from "@/hooks/use-seat-ready-alert";
@@ -75,6 +84,8 @@ type SessionInfo = {
   extend_blocked_reason?: string | null;
   others_waiting?: boolean;
   save_reminder?: string;
+  input_preload?: InputPreload | null;
+  keep_running?: KeepRunning | null;
 };
 
 type Experience = {
@@ -89,6 +100,7 @@ type Experience = {
   session?: SessionInfo;
   results?: { available?: boolean };
   poll_interval_seconds?: number;
+  output_upload?: OutputUpload | null;
 };
 
 const OPEN_SESSION = ["LAUNCHED", "CONNECTING", "CONNECTED", "ACTIVE", "IDLE"];
@@ -243,6 +255,8 @@ export default function AnalysisWorkspacePage() {
   const checkinExp = experience.checkin || {};
   const sessionExp = experience.session || {};
   const resultsExp = experience.results || {};
+  const outputView = describeOutputUpload(experience.output_upload);
+  const preloadView = describeInputPreload(sessionExp.input_preload);
   const bookingRaw = experience.input_choice?.booking_raw || {};
   const dataWorkspace = experience.data_workspace || null;
   const reservation = (summary?.reservation || {}) as { status?: string; allocated?: boolean };
@@ -499,6 +513,34 @@ export default function AnalysisWorkspacePage() {
 
       <div className="mx-auto w-full max-w-[1800px] space-y-5 px-4 py-4 sm:px-6 sm:py-6 xl:px-8 2xl:px-10">
         {placeInputSupported ? null : <DataWorkspaceBanner showDataRoot={false} showOutput={!pickerSupported} data={dataWorkspace} />}
+
+        {outputView ? (
+          <TransferProgressCard
+            view={outputView}
+            href={experience.output_upload?.my_research_href}
+            hrefLabel="Open in My Research"
+            testId="output-upload"
+          />
+        ) : null}
+
+        {sessionExp.keep_running?.active ? (
+          <Card className="border-sky-300/60 bg-sky-50/70 dark:border-sky-800/60 dark:bg-sky-950/20" data-testid="keep-running">
+            <CardContent className="flex flex-col gap-3 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold">Your session is still running on the Analysis PC</p>
+                <p className="text-muted-foreground">
+                  {formatClock(sessionExp.keep_running.until)
+                    ? `It is saved and closed at ${formatClock(sessionExp.keep_running.until)}, before the next booking.`
+                    : "It is saved and closed before the next booking."}{" "}
+                  Reconnect any time to check on it.
+                </p>
+              </div>
+              <Button onClick={() => navigate(launchHref)}>Reconnect</Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {preloadView && !started && !analysisEnded ? <TransferProgressCard view={preloadView} testId="input-preload" /> : null}
 
         {analysisEnded ? (
           <Card className="border-muted bg-muted/30">

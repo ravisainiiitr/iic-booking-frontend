@@ -1,3 +1,4 @@
+import { formatLinkSpeed, type LinkSpeed } from "@/lib/analysisTransfers";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookingLink } from "@/components/BookingLink";
@@ -48,6 +49,8 @@ type Workstation = {
   enabled: boolean;
   health_score: number;
   last_heartbeat?: string | null;
+  /** Latest speed test to cloud storage (large-data contract v1.2). */
+  link_speed?: LinkSpeed | null;
   cpu?: string;
   memory_gb?: number;
   storage_gb?: number;
@@ -696,6 +699,11 @@ export default function RemoteAnalysis() {
                           </TableCell>
                           <TableCell>
                             {w.last_heartbeat ? new Date(w.last_heartbeat).toLocaleString() : "—"}
+                            {formatLinkSpeed(w.link_speed) ? (
+                              <div className="text-xs text-muted-foreground" title="Speed to cloud storage, from the last speed test">
+                                {formatLinkSpeed(w.link_speed)}
+                              </div>
+                            ) : null}
                           </TableCell>
                           <TableCell>{w.agent_version || "—"}</TableCell>
                         </TableRow>
