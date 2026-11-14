@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+
+afterEach(() => cleanup());
 import { MemoryRouter } from "react-router-dom";
 import { SessionBar } from "./SessionBar";
 
@@ -44,5 +46,35 @@ describe("SessionBar", () => {
   it("tells F11 users how to leave", () => {
     renderBar("browser");
     expect(screen.getByText("Press F11 to exit full screen")).toBeTruthy();
+  });
+});
+
+describe("SessionBar extend window", () => {
+  const renderAt = (remainingSeconds: number, canExtend = true) =>
+    render(
+      <MemoryRouter>
+        <SessionBar
+          equipmentName="DSA"
+          bookingLabel="B1"
+          remainingSeconds={remainingSeconds}
+          canExtend={canExtend}
+          extendMinutes={15}
+          onExtend={vi.fn()}
+          onEnd={vi.fn()}
+          onReconnect={vi.fn()}
+          fullscreen={null}
+          onToggleFullscreen={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+  it("opens with the 15-minute warning", () => {
+    renderAt(14 * 60);
+    expect((screen.getByRole("button", { name: "+15 min" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("stays closed before the last 15 minutes", () => {
+    renderAt(20 * 60);
+    expect((screen.getByRole("button", { name: "+15 min" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

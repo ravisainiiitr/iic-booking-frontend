@@ -19,6 +19,15 @@ type Rule = { test: RegExp; error: FriendlyAnalysisError };
 
 const RULES: Rule[] = [
   {
+    test: /previous user is saving|WAITING_PREVIOUS_USER/i,
+    error: {
+      title: "The previous user is saving their work",
+      detail: "Your Analysis PC opens in about 2 minutes. This page continues by itself.",
+      action: "wait",
+      transient: true,
+    },
+  },
+  {
     test: /credentials|rdp_credentials_missing|automatic login/i,
     error: {
       title: "The Analysis PC is not set up for remote sign-in",

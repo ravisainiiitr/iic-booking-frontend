@@ -100,6 +100,7 @@ describe("friendly analysis errors", () => {
     expect(friendlyAnalysisError("Reverse tunnel is joining — try again")?.transient).toBe(true);
     expect(friendlyAnalysisError("", "queue_blocked")?.title).toMatch(/waiting/);
     expect(friendlyAnalysisError("Failed to fetch")?.action).toBe("reconnect");
+    expect(friendlyAnalysisError("The previous user is saving their work. Your Analysis PC opens in about 2 minutes.")?.action).toBe("wait");
   });
 
   it("keeps unknown text and returns null for nothing", () => {
