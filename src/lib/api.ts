@@ -3197,11 +3197,89 @@ export interface DsaFleetAgent {
   open_incidents: number;
   clock_skew_seconds?: number | null;
   diagnostics_supported: boolean;
+  /** Added 14 Nov 2026 (console traceability); optional so older backends still render. */
+  retired?: boolean;
+  latest_version?: string;
+  version_status?: DsaVersionStatus;
+  share?: { ok: number; failing: number; unknown: number };
+  network?: DsaNetworkSummary;
+  errors_1h?: number | null;
+  errors_24h?: number | null;
+  warnings_24h?: number | null;
+  last_command?: DsaLastCommand | null;
+  equipment_pc_hosts?: string[];
+}
+
+export type DsaVersionStatus = 'current' | 'outdated' | 'ahead' | 'unknown';
+
+export interface DsaNetworkSummary {
+  reported: boolean;
+  enabled?: boolean | null;
+  adapter_found?: boolean | null;
+  adapter_up?: boolean | null;
+  adapter_ip?: string | null;
+  configured_ip?: string | null;
+  ip_matches_config?: boolean | null;
+  subnet?: string | null;
+}
+
+export interface DsaLastCommand {
+  command_type: string;
+  action: string;
+  status: string;
+  created_at: string | null;
+  decision: string;
+}
+
+export interface DsaRef {
+  id: number;
+  label?: string;
+  name?: string;
+  code?: string;
+}
+
+export interface DsaSyncEvent {
+  id: number;
+  at: string | null;
+  code: string;
+  severity: string;
+  category: string;
+  message: string;
+  equipment: DsaRef | null;
+  booking: DsaRef | null;
+  correlation_id: string;
+}
+
+export interface DsaUploadRow {
+  id: string;
+  file_name: string;
+  status: string;
+  bytes_received: number;
+  expected_size: number;
+  created_at: string | null;
+  completed_at: string | null;
+  last_error: string;
+  booking: DsaRef | null;
+  equipment: DsaRef | null;
+  processing: { status: string; error: string; retry_count: number; parser: string; completed_at: string | null } | null;
+}
+
+export interface DsaWorkspaceRow {
+  id: string;
+  workspace_name: string;
+  status: string;
+  relative_folder: string;
+  expected_result_folder: string;
+  booking: DsaRef | null;
+  equipment: DsaRef | null;
+  updated_at: string | null;
 }
 
 export interface DsaFleetListResponse {
   count: number;
   counts: Record<DsaHealth, number>;
+  retired_count?: number;
+  latest_version?: string;
   heartbeat_timeout_seconds: number;
   server_time: string;
   results: DsaFleetAgent[];
@@ -3247,6 +3325,9 @@ export interface DsaFleetDetail {
   commands: DsaFleetCommand[];
   bundles: Array<{ id: string; file_name: string; size_bytes: number; truncated: boolean; created_at: string }>;
   actions: Array<{ key: string; label: string; command_type: string; supported: boolean }>;
+  sync_events?: DsaSyncEvent[];
+  uploads?: DsaUploadRow[];
+  workspaces?: DsaWorkspaceRow[];
 }
 
 interface ApiResponse<T> {
@@ -19061,8 +19142,9 @@ class ApiClient {
   }
 
   // --- Department Sync fleet health (headless DSAs; Main Administrator only) ---
-  async getDepartmentSyncFleet() {
-    return this.request<DsaFleetListResponse>('/v1/sync/admin/fleet/', { method: 'GET' });
+  async getDepartmentSyncFleet(options?: { includeRetired?: boolean }) {
+    const qs = options?.includeRetired ? '?include_retired=1' : '';
+    return this.request<DsaFleetListResponse>(`/v1/sync/admin/fleet/${qs}`, { method: 'GET' });
   }
 
   async getDepartmentSyncFleetAgent(agentId: string) {
