@@ -56,6 +56,13 @@ export interface AnalysisSetup {
   };
   agent?: { version?: string | null; capabilities?: string[] } | null;
   eligibility?: Record<string, unknown> | null;
+  /** Large data: per-booking size limit and the Analysis PC's measured link speed, for warnings and estimates. */
+  transfer?: {
+    size_limit_bytes?: number | null;
+    input_bytes?: number | null;
+    download_mbps?: number | null;
+    upload_mbps?: number | null;
+  } | null;
 }
 
 export interface AnalysisSetupRequest {

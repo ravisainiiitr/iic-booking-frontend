@@ -1,4 +1,4 @@
-import { Clock3, Loader2, Maximize2, Minimize2, MoreHorizontal, RefreshCw, RotateCcw, LayoutDashboard } from "lucide-react";
+import { Clock3, Hourglass, Loader2, Maximize2, Minimize2, MoreHorizontal, RefreshCw, RotateCcw, LayoutDashboard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import iitrLogo128 from "@/assets/iitr-logo-128.webp";
 import iitrLogo256 from "@/assets/iitr-logo-256.webp";
@@ -39,6 +39,10 @@ export type SessionBarProps = {
   onReconnect: () => void;
   fullscreen: FullscreenMode;
   onToggleFullscreen: () => void;
+  /** Shown when the server allows leaving the session running while nobody needs the PC. */
+  onKeepRunning?: (() => void) | null;
+  /** Input data still arriving on the PC (pre-load), in percent. */
+  arrivingPercent?: number | null;
 };
 
 /**
@@ -59,6 +63,8 @@ export function SessionBar({
   onReconnect,
   fullscreen,
   onToggleFullscreen,
+  onKeepRunning,
+  arrivingPercent,
 }: SessionBarProps) {
   const navigate = useNavigate();
   const remaining = remainingSeconds;
@@ -108,6 +114,17 @@ export function SessionBar({
           Booking <span className="font-medium text-foreground/80">{bookingLabel}</span>
         </p>
       </div>
+
+      {arrivingPercent != null ? (
+        <span
+          className="hidden h-8 shrink-0 items-center gap-1.5 rounded-md border border-sky-300/60 bg-sky-50 px-2.5 text-xs font-medium text-sky-800 dark:border-sky-800/60 dark:bg-sky-950/30 dark:text-sky-200 sm:inline-flex"
+          title="Your input data is still being copied to this PC. Finished files are already in place."
+          data-testid="files-arriving"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          Files arriving {arrivingPercent}%
+        </span>
+      ) : null}
 
       {/* Time group */}
       <div className="flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border" title="Time left in this session">
@@ -184,6 +201,12 @@ export function SessionBar({
             </DropdownMenuItem>
           )}
           <DropdownMenuSeparator className="min-[1100px]:hidden" />
+          {onKeepRunning ? (
+            <DropdownMenuItem onSelect={onKeepRunning}>
+              <Hourglass className="mr-2 h-4 w-4" aria-hidden />
+              Keep it running while the PC is free
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={leave}>
             <LayoutDashboard className="mr-2 h-4 w-4" aria-hidden />
             Return to Dashboard

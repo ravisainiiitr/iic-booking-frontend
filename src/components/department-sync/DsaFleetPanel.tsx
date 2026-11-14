@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatLinkSpeed, type LinkSpeed } from "@/lib/analysisTransfers";
 
 import { DsaAgentView } from "./DsaAgentView";
 import { DsaEquipmentPcView } from "./DsaEquipmentPcView";
@@ -103,6 +104,11 @@ function FleetRow({ r, onOpen }: { r: DsaFleetAgent; onOpen: () => void }) {
       </TableCell>
       <TableCell className="whitespace-nowrap py-3 text-sm" title={r.last_heartbeat_at || ""}>
         {relativeTime(r.last_heartbeat_at)}
+        {formatLinkSpeed((r as { link_speed?: LinkSpeed | null }).link_speed) ? (
+          <div className="text-xs text-muted-foreground" title="Upload speed to cloud storage, from the last speed test">
+            {formatLinkSpeed((r as { link_speed?: LinkSpeed | null }).link_speed)}
+          </div>
+        ) : null}
       </TableCell>
       <TableCell className="py-3">
         <VersionPill version={r.version} latest={r.latest_version} status={r.version_status} />

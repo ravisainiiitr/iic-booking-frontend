@@ -10,6 +10,7 @@ import {
 } from "@/lib/analysisSetupTypes";
 import { formatBytes, plural } from "@/lib/analysisSync";
 import { enterPageFullscreen } from "@/lib/analysisFullscreen";
+import { describeEstimate } from "@/lib/analysisTransfers";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -358,6 +359,8 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
   };
 
   const working = step !== "idle";
+  // Only for this booking's own data: other sources have their own sizes, which the server does not send yet.
+  const estimate = source === "booking" ? describeEstimate(setup?.transfer) : null;
   const projectReady = !useResearch || Boolean(workspaceId);
   const bookingReady =
     source !== "booking" ||
@@ -632,6 +635,19 @@ export function AnalysisSetupDialog({ open, onOpenChange, bookingId, setup, lega
                 </div>
               </div>
             </RadioGroup>
+            {estimate ? (
+              <p
+                className={
+                  estimate.warn
+                    ? "rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-100"
+                    : "rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
+                }
+                role={estimate.warn ? "alert" : "note"}
+                data-testid="input-size-estimate"
+              >
+                {estimate.text}
+              </p>
+            ) : null}
           </section>
 
           {/* Where input lands is chosen on the Analysis PC itself (Desktop, Documents or a folder), and results are

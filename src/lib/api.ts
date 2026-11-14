@@ -11923,6 +11923,14 @@ class ApiClient {
     });
   }
 
+  /** Leave the session running on the Analysis PC while it is free (the browser view closes; Windows stays signed in). */
+  async keepRunningBookingAnalysis(bookingId: number) {
+    return this.request<{ ok?: boolean; until?: string | null; detail?: string }>(
+      `/v1/bookings/${bookingId}/analysis/keep-running/`,
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+  }
+
   async extendBookingAnalysis(bookingId: number) {
     return this.request<Record<string, unknown>>(`/v1/bookings/${bookingId}/analysis/extend/`, {
       method: 'POST',

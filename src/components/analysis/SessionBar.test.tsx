@@ -78,3 +78,26 @@ describe("SessionBar extend window", () => {
     expect((screen.getByRole("button", { name: "+15 min" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe("SessionBar large data", () => {
+  it("shows files arriving while the input data is still being copied", () => {
+    render(
+      <MemoryRouter>
+        <SessionBar
+          equipmentName="DSA"
+          bookingLabel="B1"
+          remainingSeconds={1800}
+          canExtend={false}
+          extendMinutes={15}
+          onExtend={vi.fn()}
+          onEnd={vi.fn()}
+          onReconnect={vi.fn()}
+          fullscreen={null}
+          onToggleFullscreen={vi.fn()}
+          arrivingPercent={42}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("files-arriving").textContent).toContain("Files arriving 42%");
+  });
+});
