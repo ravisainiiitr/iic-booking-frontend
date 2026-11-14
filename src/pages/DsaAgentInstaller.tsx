@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api";
+import { apiClient, type DsaFleetAgent } from "@/lib/api";
+import { VersionPill } from "@/components/department-sync/DsaTraceBits";
+import { compareVersion } from "@/components/department-sync/dsaTrace";
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardHeader from "@/components/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -159,10 +161,10 @@ export default function DsaAgentInstallerPage() {
               <HardDrive className="h-6 w-6 text-primary" />
               DSA Agent Installer
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Download DepartmentSyncAgentSetup.exe for Equipment PCs. Pre-create the agent in
-              Django Admin, generate an enrollment secret, then run the wizard with Agent UUID +
-              secret — no .NET install or manual config editing required.
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              DepartmentSyncAgentSetup.exe runs on each department's DSA server (not on Equipment PCs — those
+              use the Equipment PC wizard). Re-running a newer build upgrades in place and keeps the agent's
+              registration. No .NET install or manual config editing required.
             </p>
           </div>
           <div className="flex gap-2">
@@ -266,6 +268,8 @@ export default function DsaAgentInstallerPage() {
               </CardContent>
             </Card>
 
+            <FleetRollout latestVersion={latest.version} />
+
             <SecureDownloadDialog
               open={dl.open}
               onOpenChange={(o) => (o ? dl.setOpen(true) : dl.close())}
@@ -299,7 +303,7 @@ export default function DsaAgentInstallerPage() {
                   <p>2. Run “Generate enrollment secret” (shown once) and copy it securely.</p>
                   <p>3. Download Setup EXE here; copy to the Equipment PC (Windows 10/11 Pro or Server).</p>
                   <p>4. Run as Administrator; enter Portal URL + Agent UUID + enrollment secret; pick equipment and folders.</p>
-                  <p>5. Confirm the agent shows Online under Department Sync → Agents.</p>
+                  <p>5. Confirm the agent shows Healthy, on the latest version, in Department Sync → DSA Monitor.</p>
                 </CardContent>
               </Card>
               <Card>
@@ -367,6 +371,50 @@ export default function DsaAgentInstallerPage() {
         )}
       </main>
     </div>
+  );
+}
+
+/** Which live agents already run the published build (retired agents are left out). */
+function FleetRollout({ latestVersion }: { latestVersion?: string }) {
+  const [agents, setAgents] = useState<DsaFleetAgent[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void apiClient.getDepartmentSyncFleet().then((res) => {
+      if (alive) setAgents(res.data?.results || []);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!agents) return null;
+  const live = agents.filter((a) => !a.retired);
+  const status = (a: DsaFleetAgent) => a.version_status || compareVersion(a.version, latestVersion);
+  const upToDate = live.filter((a) => ["current", "ahead"].includes(status(a))).length;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Fleet rollout</CardTitle>
+        <CardDescription>
+          {upToDate} of {live.length} live agent(s) run {latestVersion || "the published build"}.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {live.length ? (
+          <ul className="divide-y rounded-lg border text-sm">
+            {live.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <Link to={`/department-sync?tab=fleet&agent=${a.id}`} className="font-medium hover:underline">
+                  {a.department || "—"} · {a.agent_name}
+                </Link>
+                <VersionPill version={a.version} latest={latestVersion} status={status(a)} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">No live agents enrolled.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

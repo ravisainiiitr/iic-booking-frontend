@@ -91,10 +91,20 @@ export default function DepartmentSync() {
   const { user } = useAuth();
   const isAdmin = String(user?.user_type || "").toLowerCase() === "admin";
 
-  const [searchParams] = useSearchParams();
-  // Alert emails link to ?tab=fleet&agent=<id>; the fleet view is the default for Main Administrators.
-  const [tab, setTab] = useState(searchParams.get("tab") || (isAdmin ? "fleet" : "overview"));
-  const deepLinkAgent = searchParams.get("agent") || "";
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Alert emails link to ?tab=fleet&agent=<id>; the DSA Monitor is the default for Main Administrators.
+  // The tab lives in the URL so a drill-down (agent, Equipment PC, filters) can be shared or bookmarked.
+  const tab = searchParams.get("tab") || (isAdmin ? "fleet" : "overview");
+  const setTab = useCallback(
+    (value: string) =>
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("tab", value);
+        if (value !== "fleet") ["agent", "pc", "q", "health", "retired"].forEach((k) => next.delete(k));
+        return next;
+      }),
+    [setSearchParams],
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
@@ -241,8 +251,8 @@ export default function DepartmentSync() {
                   </h1>
                 </div>
                 <p className="mt-1 max-w-2xl text-sm text-white/85">
-                  Fleet overview matching Django Admin Department Sync — agents, assignments,
-                  profiles, commands, heartbeats, workspaces, and logs.
+                  Health, versions, shares, network, uploads and error codes for every agent and Equipment PC —
+                  with remote actions and drill-down to the booking.
                 </p>
               </div>
             </div>
@@ -290,7 +300,7 @@ export default function DepartmentSync() {
           </div>
         ) : (
           <>
-            <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+            <div className={cn("mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6", tab === "fleet" && "hidden")}>
               {[
                 { label: "Enrolled", value: cards.enrolled_agents ?? 0 },
                 { label: "Online", value: agentMeta.online, icon: Wifi },
@@ -313,7 +323,7 @@ export default function DepartmentSync() {
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
               <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-2xl bg-muted/40 p-1">
                 {[
-                  ...(isAdmin ? [["fleet", "Fleet health"]] : []),
+                  ...(isAdmin ? [["fleet", "DSA Monitor"]] : []),
                   ["overview", "Operations"],
                   ["agents", "Agents"],
                   ["assignments", "Assignments"],
@@ -332,7 +342,7 @@ export default function DepartmentSync() {
 
               {isAdmin ? (
                 <TabsContent value="fleet" className="space-y-4">
-                  <DsaFleetPanel initialAgentId={deepLinkAgent} />
+                  <DsaFleetPanel />
                 </TabsContent>
               ) : null}
 
