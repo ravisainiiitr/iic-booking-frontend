@@ -104,6 +104,7 @@ const AdminWalletLedger = lazyPage(() => import("@/pages/AdminWalletLedger"));
 const PaymentIssues = lazyPage(() => import("@/pages/PaymentIssues"));
 const AdminWalletLedgerOwner = lazyPage(() => import("@/pages/AdminWalletLedgerOwner"));
 const AdminIstemEquipmentMapping = lazyPage(() => import("@/pages/AdminIstemEquipmentMapping"));
+const AdminIstemLive = lazyPage(() => import("@/pages/AdminIstemLive"));
 const AdminEquipmentConfigAudit = lazyPage(() => import("@/pages/AdminEquipmentConfigAudit"));
 const OicRequestAudit = lazyPage(() => import("@/pages/OicRequestAudit"));
 const AdminOperationsAudit = lazyPage(() => import("@/pages/AdminOperationsAudit"));
@@ -393,6 +394,7 @@ export default function AppRoutes() {
           <Route path="/payment-issues" element={<ErrorBoundary fallbackTitle="Payment issues" backPath="/dashboard"><PaymentIssues /></ErrorBoundary>} />
           <Route path="/admin/wallet-ledger/:ownerId" element={<AdminWalletLedgerOwner />} />
           <Route path="/admin/istem-equipment" element={<ErrorBoundary fallbackTitle="I-STEM equipment mapping" backPath="/dashboard"><AdminIstemEquipmentMapping /></ErrorBoundary>} />
+          <Route path="/admin/istem-live" element={<ErrorBoundary fallbackTitle="I-STEM live" backPath="/dashboard"><AdminIstemLive /></ErrorBoundary>} />
           <Route path="/oic-request-audit" element={<ErrorBoundary fallbackTitle="OIC request audit" backPath="/dashboard"><OicRequestAudit /></ErrorBoundary>} />
           <Route path="/admin/operations-audit" element={<ErrorBoundary fallbackTitle="Operations audit" backPath="/dashboard"><AdminOperationsAudit /></ErrorBoundary>} />
           <Route path="/admin/equipment-config-audit" element={<ErrorBoundary fallbackTitle="Equipment configuration audit trail" backPath="/dashboard"><AdminEquipmentConfigAudit /></ErrorBoundary>} />
